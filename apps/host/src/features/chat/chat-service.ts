@@ -7,6 +7,7 @@ import type {
   Message,
   StopGenerationResponse,
   Thread,
+  ToolResult,
   UserMessage,
 } from '@morrowbot/contracts';
 import { assistantMessage, generate } from './generation.ts';
@@ -23,33 +24,37 @@ export interface ChatService {
   createThread(agentId: string, request: CreateThreadRequest): Thread | undefined;
   getThread(id: string): Thread | undefined;
   renameThread(id: string, title: string): Thread | undefined;
+  /** Stops the thread's generation, then deletes the thread. No new message can start meanwhile. */
   deleteThread(id: string): Promise<boolean>;
+  /** Stops every generation of the agent, then deletes the agent and its threads. */
+  deleteAgent(id: string): Promise<boolean>;
   listMessages(threadId: string): Message[] | undefined;
   send(threadId: string, text: string): SendResult;
   /** Stops the thread's active generation and resolves once its partial reply is saved. */
   stop(threadId: string): Promise<StopGenerationResponse>;
-  /** Stops every active generation in the agent's threads (before the agent is deleted). */
-  stopAgent(agentId: string): Promise<void>;
   subscribe(listener: ChatListener): () => void;
   close(): Promise<void>;
+}
+
+interface ActiveGeneration {
+  readonly agentId: string;
+  readonly controller: AbortController;
+  readonly done: Promise<AssistantMessage>;
 }
 
 interface StartRun {
   readonly provider: ChatProvider;
   readonly model: string;
-}
-
-interface ActiveGeneration {
-  readonly id: string;
-  readonly agentId: string;
-  readonly controller: AbortController;
-  readonly done: Promise<AssistantMessage>;
+  readonly tools: AgentTools;
 }
 
 export function createChatService(options: ChatServiceOptions): ChatService {
   const { threads, messages, agents } = options;
   const listeners = new Set<ChatListener>();
   const active = new Map<string, ActiveGeneration>();
+  const deletingThreads = new Set<string>();
+  const deletingAgents = new Set<string>();
+  let closed = false;
 
   const publish = (event: ChatEvent): void => {
     for (const listener of listeners) {
@@ -61,10 +66,6 @@ export function createChatService(options: ChatServiceOptions): ChatService {
     }
   };
 
-  const touch = (thread: Thread): void => {
-    threads.update({ ...thread, updatedAt: options.now() });
-  };
-
   const stop = async (threadId: string): Promise<StopGenerationResponse> => {
     const generation = active.get(threadId);
     if (generation === undefined) return { kind: 'idle' };
@@ -72,18 +73,44 @@ export function createChatService(options: ChatServiceOptions): ChatService {
     return { kind: 'stopped', message: await generation.done };
   };
 
-  function start(thread: Thread, userMessage: UserMessage, tools: AgentTools, run: StartRun): string {
+  const stopWhere = async (match: (threadId: string, generation: ActiveGeneration) => boolean): Promise<void> => {
+    const threadIds = [...active].filter(([id, generation]) => match(id, generation)).map(([id]) => id);
+    await Promise.all(threadIds.map((id) => stop(id)));
+  };
+
+  /** Runs `remove` with no generation running, and none able to start, in the threads it removes. */
+  async function exclusively(
+    keys: Set<string>,
+    key: string,
+    match: (threadId: string, generation: ActiveGeneration) => boolean,
+    remove: () => boolean,
+  ): Promise<boolean> {
+    keys.add(key);
+    try {
+      await stopWhere(match);
+      return remove();
+    } finally {
+      keys.delete(key);
+    }
+  }
+
+  function start(thread: Thread, userMessage: UserMessage, run: StartRun): string {
     const generationId = options.newId();
     const controller = new AbortController();
     const ref = { threadId: thread.id, generationId };
-    const watchedTools: AgentTools = {
-      run: async (call, signal) => {
-        const result = await tools.run(
-          call,
-          signal === undefined ? controller.signal : AbortSignal.any([signal, controller.signal]),
-        );
-        publish({ kind: 'generation.tool', ...ref, call, result });
-        return result;
+    const runningTools = new Set<Promise<ToolResult>>();
+    const tools: AgentTools = {
+      run: (call, signal) => {
+        if (controller.signal.aborted) return Promise.resolve({ kind: 'aborted' });
+        const running = run.tools
+          .run(call, signal === undefined ? controller.signal : AbortSignal.any([signal, controller.signal]))
+          .then((result) => {
+            publish({ kind: 'generation.tool', ...ref, call, result });
+            return result;
+          });
+        runningTools.add(running);
+        void running.finally(() => runningTools.delete(running));
+        return running;
       },
     };
     const done = generate({
@@ -92,14 +119,16 @@ export function createChatService(options: ChatServiceOptions): ChatService {
       model: run.model,
       history: messages.listByThread(thread.id),
       loadInstructions: async () => (await agents.readInstructions(thread.agentId)) ?? '',
-      tools: watchedTools,
+      tools,
       signal: controller.signal,
       publish,
-    }).then((result) => {
+    }).then(async (result) => {
+      controller.abort();
+      await Promise.all(runningTools);
       const message = assistantMessage(options.newId(), thread.id, result, options.now());
       try {
         messages.insert(message);
-        touch(thread);
+        threads.touch(thread.id, message.createdAt);
       } catch (error) {
         options.report(error);
       }
@@ -107,7 +136,7 @@ export function createChatService(options: ChatServiceOptions): ChatService {
       publish({ kind: 'generation.finished', ...ref, message });
       return message;
     });
-    active.set(thread.id, { id: generationId, agentId: thread.agentId, controller, done });
+    active.set(thread.id, { agentId: thread.agentId, controller, done });
     publish({ kind: 'generation.started', ...ref, userMessage });
     return generationId;
   }
@@ -129,14 +158,15 @@ export function createChatService(options: ChatServiceOptions): ChatService {
       threads.update(next);
       return next;
     },
-    deleteThread: async (id) => {
-      await stop(id);
-      return threads.delete(id);
-    },
+    deleteThread: (id) => exclusively(deletingThreads, id, (threadId) => threadId === id, () => threads.delete(id)),
+    deleteAgent: (id) =>
+      exclusively(deletingAgents, id, (_threadId, generation) => generation.agentId === id, () => agents.delete(id)),
     listMessages: (threadId) => (threads.get(threadId) === undefined ? undefined : messages.listByThread(threadId)),
     send: (threadId, text) => {
       const thread = threads.get(threadId);
-      if (thread === undefined) return { kind: 'thread_not_found' };
+      if (thread === undefined || closed || deletingThreads.has(threadId) || deletingAgents.has(thread.agentId)) {
+        return { kind: 'thread_not_found' };
+      }
       if (active.has(threadId)) return { kind: 'busy' };
       const agent = agents.get(thread.agentId);
       if (agent === undefined) return { kind: 'thread_not_found' };
@@ -156,20 +186,17 @@ export function createChatService(options: ChatServiceOptions): ChatService {
             createdAt: options.now(),
           };
           messages.insert(userMessage);
-          touch(thread);
-          const generationId = start(thread, userMessage, options.toolsFor(agent.workspace.dir), {
+          threads.touch(threadId, userMessage.createdAt);
+          const generationId = start(thread, userMessage, {
             provider,
             model: agent.provider.model,
+            tools: options.toolsFor(agent.workspace.dir),
           });
           return { kind: 'started', generationId, userMessage };
         }
       }
     },
     stop,
-    stopAgent: async (agentId) => {
-      const threadIds = [...active].filter(([, generation]) => generation.agentId === agentId).map(([id]) => id);
-      await Promise.all(threadIds.map((id) => stop(id)));
-    },
     subscribe: (listener) => {
       listeners.add(listener);
       return () => {
@@ -177,7 +204,8 @@ export function createChatService(options: ChatServiceOptions): ChatService {
       };
     },
     close: async () => {
-      await Promise.all([...active.keys()].map((id) => stop(id)));
+      closed = true;
+      await stopWhere(() => true);
     },
   };
 }

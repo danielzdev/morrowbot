@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -25,14 +26,28 @@ const stuck: ChatProvider = {
   },
 };
 
+/** Starts a long shell command, then reports how it ended. */
+const toolUser: ChatProvider = {
+  async *generate({ tools }) {
+    yield { kind: 'text', text: 'running' };
+    const result = await tools.run({ kind: 'shell', command: 'echo $$ > shell.pid; exec sleep 30' });
+    yield { kind: 'text', text: result.kind };
+  },
+};
+
 let dataDir: string;
 let host: TestHost;
 beforeEach(async () => {
   dataDir = await mkdtemp(path.join(tmpdir(), 'morrowbot-chat-'));
-  host = await startTestHost({ dataDir, providers: { echo, stuck } });
+  host = await startTestHost({
+    dataDir,
+    providers: { echo, stuck, 'tool-user': toolUser },
+    plugins: [{ id: 'echo', name: 'Echo', version: '1.0.0' }],
+  });
 });
 afterEach(async () => {
   await host.close();
+  expect(host.errors).toEqual([]);
   await rm(dataDir, { recursive: true, force: true });
 });
 
@@ -108,7 +123,7 @@ it('streams a reply that follows AGENTS.md and saves it', async () => {
         "generationId": "id-5",
         "kind": "generation.finished",
         "message": {
-          "createdAt": "2026-01-01T00:00:04.000Z",
+          "createdAt": "2026-01-01T00:00:03.000Z",
           "id": "id-6",
           "kind": "assistant",
           "outcome": {
@@ -132,7 +147,7 @@ it('streams a reply that follows AGENTS.md and saves it', async () => {
           "threadId": "id-3",
         },
         {
-          "createdAt": "2026-01-01T00:00:04.000Z",
+          "createdAt": "2026-01-01T00:00:03.000Z",
           "id": "id-6",
           "kind": "assistant",
           "outcome": {
@@ -156,8 +171,10 @@ it('stops a generation even when the provider ignores the signal, and keeps the 
   const sent = SendMessageResponse.parse((await host.call('POST', `/api/threads/${thread.id}/messages`, { text: 'go' })).body);
   await events.until((event) => event.kind === 'generation.delta' && event.generationId === sent.generationId);
   const busy = await host.call('POST', `/api/threads/${thread.id}/messages`, { text: 'again' });
+  await host.call('PATCH', `/api/threads/${thread.id}`, { title: 'Renamed while generating' });
   const stopped = await host.call('POST', `/api/threads/${thread.id}/stop`);
   const idle = await host.call('POST', `/api/threads/${thread.id}/stop`);
+  expect(Thread.parse((await host.call('GET', `/api/threads/${thread.id}`)).body).title).toBe('Renamed while generating');
 
   expect({ busy, stopped, idle }).toMatchInlineSnapshot(`
     {
@@ -226,6 +243,30 @@ it('stops a generation even when the provider ignores the signal, and keeps the 
   `);
 });
 
+it('kills a running tool on stop and reports it before the reply finishes', async () => {
+  const agent = await agentWith('tool-user');
+  const thread = await threadOf(agent, 'Tools');
+  const events = await host.events();
+  await host.call('POST', `/api/threads/${thread.id}/messages`, { text: 'run it' });
+  const pidFile = path.join(agent.workspace.dir, 'shell.pid');
+  while ((await readFile(pidFile, 'utf8').catch(() => '')).trim() === '') {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+
+  await host.call('POST', `/api/threads/${thread.id}/stop`);
+  expect(
+    events.received.map((event) => (event.kind === 'generation.tool' ? `${event.kind}: ${event.result.kind}` : event.kind)),
+  ).toMatchInlineSnapshot(`
+    [
+      "generation.started",
+      "generation.delta",
+      "generation.tool: aborted",
+      "generation.finished",
+    ]
+  `);
+  expect(() => process.kill(Number(readFileSync(pidFile, 'utf8')), 0)).toThrow('ESRCH');
+});
+
 it('keeps each thread of an agent to its own history', async () => {
   const agent = await agentWith('echo');
   const first = await threadOf(agent, 'First');
@@ -265,8 +306,10 @@ it('keeps each thread of an agent to its own history', async () => {
 it('refuses to chat without a provider', async () => {
   const unbound = Agent.parse((await host.call('POST', '/api/agents', { name: 'Unbound' })).body);
   const missing = await agentWith('not-installed');
+  const disabled = await agentWith('echo');
+  await host.call('PUT', '/api/plugins/echo/enabled', { enabled: false });
   const replies = [];
-  for (const agent of [unbound, missing]) {
+  for (const agent of [unbound, missing, disabled]) {
     const thread = await threadOf(agent, 'Chat');
     replies.push(await host.call('POST', `/api/threads/${thread.id}/messages`, { text: 'hi' }));
   }
@@ -287,6 +330,15 @@ it('refuses to chat without a provider', async () => {
           "error": {
             "kind": "conflict",
             "message": "Provider plugin not-installed is not available.",
+          },
+        },
+        "status": 409,
+      },
+      {
+        "body": {
+          "error": {
+            "kind": "conflict",
+            "message": "Provider plugin echo is not available.",
           },
         },
         "status": 409,

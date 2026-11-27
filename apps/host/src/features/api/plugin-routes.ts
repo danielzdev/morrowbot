@@ -1,4 +1,5 @@
 import {
+  type PluginConfig,
   type PluginEntry,
   type PluginList,
   type PluginManifest,
@@ -10,12 +11,22 @@ import { json, notFound } from './reply.ts';
 import { parseBody, type Route } from './route.ts';
 
 /** Plugins the user has never switched off are enabled. */
+function toEntry(
+  manifest: PluginManifest,
+  enabled: ReadonlyMap<string, boolean>,
+  configs: ReadonlyMap<string, PluginConfig>,
+): PluginEntry {
+  return { manifest, enabled: enabled.get(manifest.id) ?? true, config: configs.get(manifest.id) ?? {} };
+}
+
 export function pluginRoutes({ plugins, now }: ApiServices): Route[] {
-  const entry = (manifest: PluginManifest): PluginEntry => ({
-    manifest,
-    enabled: plugins.settings.enabledStates().get(manifest.id) ?? true,
-    config: plugins.settings.configs().get(manifest.id) ?? {},
-  });
+  const entries = (manifests: readonly PluginManifest[]): PluginEntry[] => {
+    const enabled = plugins.settings.enabledStates();
+    const configs = plugins.settings.configs();
+    return manifests.map((manifest) => toEntry(manifest, enabled, configs));
+  };
+  const entry = (manifest: PluginManifest): PluginEntry =>
+    toEntry(manifest, plugins.settings.enabledStates(), plugins.settings.configs());
   const find = (id: string): PluginManifest | undefined => plugins.catalog.list().find((manifest) => manifest.id === id);
 
   return [
@@ -23,7 +34,7 @@ export function pluginRoutes({ plugins, now }: ApiServices): Route[] {
       method: 'GET',
       path: /^\/api\/plugins$/,
       handle: () => {
-        const body: PluginList = { plugins: plugins.catalog.list().map(entry) };
+        const body: PluginList = { plugins: entries(plugins.catalog.list()) };
         return json(200, body);
       },
     },

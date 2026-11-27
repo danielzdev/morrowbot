@@ -15,12 +15,15 @@ import type {
 export interface ApiAgents {
   list(): Agent[];
   get(id: string): Agent | undefined;
-  create(request: CreateAgentRequest): Promise<Agent>;
+  create(request: CreateAgentRequest): Promise<ApiCreateAgentResult>;
   update(id: string, request: UpdateAgentRequest): Agent | undefined;
-  delete(id: string): boolean;
   readInstructions(id: string): Promise<string | undefined>;
   writeInstructions(id: string, content: string): Promise<boolean>;
 }
+
+export type ApiCreateAgentResult =
+  | { readonly kind: 'created'; readonly agent: Agent }
+  | { readonly kind: 'invalid'; readonly reason: string };
 
 export type ApiSendResult =
   | { readonly kind: 'started'; readonly generationId: string; readonly userMessage: UserMessage }
@@ -34,10 +37,10 @@ export interface ApiChat {
   getThread(id: string): Thread | undefined;
   renameThread(id: string, title: string): Thread | undefined;
   deleteThread(id: string): Promise<boolean>;
+  deleteAgent(id: string): Promise<boolean>;
   listMessages(threadId: string): Message[] | undefined;
   send(threadId: string, text: string): ApiSendResult;
   stop(threadId: string): Promise<StopGenerationResponse>;
-  stopAgent(agentId: string): Promise<void>;
   subscribe(listener: (event: ChatEvent) => void): () => void;
 }
 

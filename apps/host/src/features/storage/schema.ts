@@ -44,21 +44,18 @@ const MIGRATIONS: readonly string[] = [
 ];
 
 export function migrate(db: DatabaseSync): void {
-  const row = db.prepare('PRAGMA user_version').get();
-  const current = typeof row?.user_version === 'number' ? row.user_version : 0;
-  if (current > MIGRATIONS.length) {
-    throw new Error(`Database schema version ${String(current)} is newer than this host supports`);
-  }
-  for (const [index, sql] of MIGRATIONS.entries()) {
-    if (index < current) continue;
-    db.exec('BEGIN');
-    try {
-      db.exec(sql);
-      db.exec(`PRAGMA user_version = ${String(index + 1)}`);
-      db.exec('COMMIT');
-    } catch (error) {
-      db.exec('ROLLBACK');
-      throw error;
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const row = db.prepare('PRAGMA user_version').get();
+    const current = typeof row?.user_version === 'number' ? row.user_version : 0;
+    if (current > MIGRATIONS.length) {
+      throw new Error(`Database schema version ${String(current)} is newer than this host supports`);
     }
+    for (const sql of MIGRATIONS.slice(current)) db.exec(sql);
+    db.exec(`PRAGMA user_version = ${String(MIGRATIONS.length)}`);
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
   }
 }

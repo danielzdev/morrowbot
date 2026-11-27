@@ -87,7 +87,7 @@ it('keeps agents, threads, messages and AGENTS.md across a host restart', async 
             "threadId": "id-3",
           },
           {
-            "createdAt": "2026-01-01T00:00:04.000Z",
+            "createdAt": "2026-01-01T00:00:03.000Z",
             "id": "id-6",
             "kind": "assistant",
             "outcome": {
@@ -105,7 +105,7 @@ it('keeps agents, threads, messages and AGENTS.md across a host restart', async 
             "createdAt": "2026-01-01T00:00:01.000Z",
             "id": "id-3",
             "title": "New chat",
-            "updatedAt": "2026-01-01T00:00:05.000Z",
+            "updatedAt": "2026-01-01T00:00:03.000Z",
           },
         ],
       },

@@ -19,6 +19,7 @@ afterEach(async () => {
 it('rejects bad requests with a reason', async () => {
   const replies = [
     await host.call('POST', '/api/agents', { name: '', workspace: { kind: 'shared', dir: 'relative' }, extra: 1 }),
+    await host.call('POST', '/api/agents', { name: 'x', workspace: { kind: 'shared', dir: 'C:\\work' } }),
     await host.call('PATCH', '/api/agents/nope', { name: 'x' }),
     await host.call('PUT', '/api/agents', {}),
     await host.call('GET', '/api/nothing'),
@@ -34,6 +35,15 @@ it('rejects bad requests with a reason', async () => {
           "error": {
             "kind": "invalid_request",
             "message": "name: Too small: expected string to have >=1 characters; workspace.dir: Use an absolute path; (body): Unrecognized key: "extra"",
+          },
+        },
+        "status": 400,
+      },
+      {
+        "body": {
+          "error": {
+            "kind": "invalid_request",
+            "message": "workspace.dir: Use an absolute path on this computer",
           },
         },
         "status": 400,
@@ -80,9 +90,9 @@ it('rejects bad requests with a reason', async () => {
 
 it('serves only loopback clients that are not browser pages', async () => {
   const { port } = new URL(host.url);
-  const raw = (headers: Record<string, string>) =>
+  const raw = (headers: Record<string, string>, target = '/api/agents') =>
     new Promise<number | undefined>((resolve, reject) => {
-      request({ host: '127.0.0.1', port, path: '/api/agents', headers }, (response) => {
+      request({ host: '127.0.0.1', port, path: target, headers }, (response) => {
         response.resume();
         resolve(response.statusCode);
       })
@@ -104,6 +114,9 @@ it('serves only loopback clients that are not browser pages', async () => {
     health: (await host.call('GET', '/health')).status,
     loopback: await raw({}),
     rebindingHost: await raw({ host: `evil.example:${port}` }),
+    upperCaseHost: await raw({ host: `LOCALHOST:${port}` }),
+    malformedTarget: await raw({}, '//bad:port/api/agents'),
+    stillServing: await raw({}),
     browserOrigin: await raw({ origin: 'https://evil.example' }),
     socket: await socket(undefined),
     browserSocket: await socket('https://evil.example'),
@@ -113,8 +126,11 @@ it('serves only loopback clients that are not browser pages', async () => {
       "browserSocket": "refused",
       "health": 200,
       "loopback": 200,
+      "malformedTarget": 404,
       "rebindingHost": 403,
       "socket": "open",
+      "stillServing": 200,
+      "upperCaseHost": 200,
     }
   `);
 });

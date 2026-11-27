@@ -59,7 +59,7 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
     }
     sockets.handleUpgrade(request, socket, head, (ws) => {
       const unsubscribe = options.services.chat.subscribe((event) => {
-        ws.send(JSON.stringify(event));
+        if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(event));
       });
       ws.on('close', unsubscribe);
       ws.on('error', options.report);
@@ -82,13 +82,14 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
 /** Blocks DNS-rebinding (wrong Host) and any browser page (Origin present) from reaching the local API. */
 function guard(request: IncomingMessage, port: number): Reply | undefined {
   const allowedHosts = new Set([`127.0.0.1:${String(port)}`, `localhost:${String(port)}`]);
-  if (!allowedHosts.has(request.headers.host ?? '')) return failure('forbidden', 'Unexpected Host header');
+  if (!allowedHosts.has(request.headers.host?.toLowerCase() ?? '')) return failure('forbidden', 'Unexpected Host header');
   if (request.headers.origin !== undefined) return failure('forbidden', 'Browser origins may not use the local API');
   return undefined;
 }
 
+/** The request path, or '' when Node accepted a target that is not a valid URL. */
 function pathOf(request: IncomingMessage): string {
-  return new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
+  return URL.parse(request.url ?? '/', 'http://127.0.0.1')?.pathname ?? '';
 }
 
 async function dispatch(routes: readonly Route[], path: string, request: IncomingMessage): Promise<Reply> {

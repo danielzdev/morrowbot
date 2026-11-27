@@ -38,7 +38,10 @@ export async function startHost(options: HostOptions): Promise<Host> {
     threads: storage.threads,
     messages: storage.messages,
     agents,
-    providers: options.providers,
+    providers: {
+      provider: (pluginId) =>
+        storage.plugins.enabledStates().get(pluginId) === false ? undefined : options.providers.provider(pluginId),
+    },
     toolsFor: createWorkspaceTools,
     newId,
     now,
@@ -55,8 +58,8 @@ export async function startHost(options: HostOptions): Promise<Host> {
       url: api.url,
       close: async () => {
         try {
-          await chat.close();
           await api.close();
+          await chat.close();
         } finally {
           storage.close();
         }

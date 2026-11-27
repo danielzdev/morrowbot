@@ -22,7 +22,10 @@ class CappedText {
   }
 }
 
-/** Runs `command` in a shell with `cwd` as its working folder. Abort kills the whole process group. */
+/**
+ * Runs `command` in a shell with `cwd` as its working folder. Abort kills the whole process group, and so does the
+ * command exiting: background processes it left behind would otherwise hold the output pipes open forever.
+ */
 export function runShell(command: string, cwd: string, signal: AbortSignal | undefined): Promise<ToolResult> {
   return new Promise((resolve) => {
     if (signal?.aborted) {
@@ -40,9 +43,7 @@ export function runShell(command: string, cwd: string, signal: AbortSignal | und
       stderr.push(chunk);
     });
 
-    let aborted = false;
-    const kill = (): void => {
-      aborted = true;
+    const killGroup = (): void => {
       if (posix && child.pid !== undefined) {
         try {
           process.kill(-child.pid, 'SIGKILL');
@@ -52,10 +53,16 @@ export function runShell(command: string, cwd: string, signal: AbortSignal | und
       } else {
         child.kill('SIGKILL');
       }
+    };
+    let aborted = false;
+    const kill = (): void => {
+      aborted = true;
+      killGroup();
       child.stdout.destroy();
       child.stderr.destroy();
     };
     signal?.addEventListener('abort', kill, { once: true });
+    child.once('exit', killGroup);
 
     const finish = (result: ToolResult): void => {
       signal?.removeEventListener('abort', kill);

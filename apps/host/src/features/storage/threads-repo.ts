@@ -16,6 +16,8 @@ const ThreadRow = z
 export interface ThreadRepository {
   insert(thread: Thread): void;
   update(thread: Thread): void;
+  /** Marks the thread as changed without touching anything else. */
+  touch(id: string, at: string): void;
   delete(id: string): boolean;
   get(id: string): Thread | undefined;
   listByAgent(agentId: string): Thread[];
@@ -27,6 +29,7 @@ export function threadRepository(db: DatabaseSync): ThreadRepository {
      VALUES (:id, :agentId, :title, :createdAt, :updatedAt)`,
   );
   const update = db.prepare('UPDATE threads SET title = :title, updated_at = :updatedAt WHERE id = :id');
+  const touch = db.prepare('UPDATE threads SET updated_at = ? WHERE id = ?');
   const remove = db.prepare('DELETE FROM threads WHERE id = ?');
   const get = db.prepare('SELECT * FROM threads WHERE id = ?');
   const listByAgent = db.prepare('SELECT * FROM threads WHERE agent_id = ? ORDER BY created_at, rowid');
@@ -36,6 +39,9 @@ export function threadRepository(db: DatabaseSync): ThreadRepository {
     },
     update: (thread) => {
       update.run({ id: thread.id, title: thread.title, updatedAt: thread.updatedAt });
+    },
+    touch: (id, at) => {
+      touch.run(at, id);
     },
     delete: (id) => remove.run(id).changes > 0,
     get: (id) => {

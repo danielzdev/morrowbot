@@ -5,11 +5,14 @@ export type Confined = { readonly kind: 'inside'; readonly path: string } | { re
 
 /**
  * Resolves `requested` against `root` and checks that it, and every symlink on the way to it, stays inside `root`.
- * The target itself may not exist yet. A dangling symlink counts as outside.
+ * Absolute paths may name the root either as given or by its real path. The target itself may not exist yet.
+ * A dangling symlink counts as outside.
  */
 export async function confine(root: string, requested: string): Promise<Confined> {
-  const realRoot = await realpath(root);
-  const target = path.resolve(realRoot, requested);
+  const givenRoot = path.resolve(root);
+  const realRoot = await realpath(givenRoot);
+  const lexical = path.resolve(givenRoot, requested);
+  const target = isInside(givenRoot, lexical) ? path.join(realRoot, path.relative(givenRoot, lexical)) : lexical;
   if (!isInside(realRoot, target)) return { kind: 'outside' };
   const existing = await nearestExisting(target);
   let realExisting: string;

@@ -5,7 +5,7 @@ import {
   UpdateAgentRequest,
 } from '@morrowbot/contracts';
 import type { ApiServices } from './ports.ts';
-import { json, noContent, notFound } from './reply.ts';
+import { failure, json, noContent, notFound } from './reply.ts';
 import { parseBody, type Route } from './route.ts';
 
 export function agentRoutes({ agents, chat }: ApiServices): Route[] {
@@ -24,7 +24,13 @@ export function agentRoutes({ agents, chat }: ApiServices): Route[] {
       handle: async (context) => {
         const request = await parseBody(context, CreateAgentRequest);
         if (request.kind === 'rejected') return request.reply;
-        return json(201, await agents.create(request.value));
+        const created = await agents.create(request.value);
+        switch (created.kind) {
+          case 'created':
+            return json(201, created.agent);
+          case 'invalid':
+            return failure('invalid_request', created.reason);
+        }
       },
     },
     {
@@ -48,11 +54,7 @@ export function agentRoutes({ agents, chat }: ApiServices): Route[] {
     {
       method: 'DELETE',
       path: /^\/api\/agents\/([^/]+)$/,
-      handle: async ({ id }) => {
-        if (agents.get(id) === undefined) return notFound('Agent');
-        await chat.stopAgent(id);
-        return agents.delete(id) ? noContent() : notFound('Agent');
-      },
+      handle: async ({ id }) => ((await chat.deleteAgent(id)) ? noContent() : notFound('Agent')),
     },
     {
       method: 'GET',

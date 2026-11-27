@@ -3,6 +3,7 @@ import type { Agent, AgentTools, ChatEvent, Message, ProviderRegistry, Thread } 
 export interface ThreadRecords {
   insert(thread: Thread): void;
   update(thread: Thread): void;
+  touch(id: string, at: string): void;
   delete(id: string): boolean;
   get(id: string): Thread | undefined;
   listByAgent(agentId: string): Thread[];
@@ -15,6 +16,7 @@ export interface MessageRecords {
 
 export interface AgentDirectory {
   get(id: string): Agent | undefined;
+  delete(id: string): boolean;
   readInstructions(id: string): Promise<string | undefined>;
 }
 

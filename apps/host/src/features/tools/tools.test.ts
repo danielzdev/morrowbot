@@ -119,3 +119,54 @@ it('kills the whole process group when aborted', async () => {
   await new Promise((resolve) => setTimeout(resolve, 100));
   expect(() => process.kill(pid, 0)).toThrow('ESRCH');
 });
+
+it('returns when the command exits, killing what it left running in the background', async () => {
+  const tools = createWorkspaceTools(workspace);
+  const started = performance.now();
+  const result = await tools.run({ kind: 'shell', command: 'sleep 30 & echo $! > child.pid; echo done' });
+  expect({ result, fast: performance.now() - started < 5000 }).toMatchInlineSnapshot(`
+    {
+      "fast": true,
+      "result": {
+        "exitCode": 0,
+        "kind": "shell",
+        "signal": null,
+        "stderr": "",
+        "stdout": "done
+    ",
+        "truncated": false,
+      },
+    }
+  `);
+  const pid = Number(await readFile(path.join(workspace, 'child.pid'), 'utf8'));
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  expect(() => process.kill(pid, 0)).toThrow('ESRCH');
+});
+
+it('accepts absolute paths through a symlinked workspace path', async () => {
+  const linked = path.join(base, 'linked');
+  await symlink(workspace, linked);
+  const tools = createWorkspaceTools(linked);
+  expect(
+    redact([
+      await tools.run({ kind: 'write_file', path: path.join(linked, 'a.txt'), content: 'via link' }),
+      await tools.run({ kind: 'read_file', path: path.join(workspace, 'a.txt') }),
+      await tools.run({ kind: 'read_file', path: path.join(linked, '..', 'outside', 'secret.txt') }),
+    ]),
+  ).toMatchInlineSnapshot(`
+    [
+      {
+        "bytes": 8,
+        "kind": "write_file",
+      },
+      {
+        "content": "via link",
+        "kind": "read_file",
+      },
+      {
+        "kind": "denied",
+        "reason": "<base>/outside/secret.txt is outside the agent workspace",
+      },
+    ]
+  `);
+});
