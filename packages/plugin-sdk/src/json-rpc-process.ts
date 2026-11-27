@@ -44,12 +44,13 @@ export type StartJsonRpcProcess = (command: string, options: JsonRpcProcessOptio
 
 const Id = z.union([z.number(), z.string()]);
 const Incoming = z.looseObject({
-  id: Id.optional(),
+  id: Id.nullish(),
   method: z.string().optional(),
   params: z.unknown().optional(),
   result: z.unknown().optional(),
-  error: z.looseObject({ code: z.number(), message: z.string(), data: z.unknown().optional() }).optional(),
+  error: z.unknown().optional(),
 });
+const ErrorObject = z.looseObject({ code: z.number().catch(-32603), message: z.string().catch('error'), data: z.unknown().optional() });
 
 /** Errors this side sends back for a daemon request it could not answer. */
 const INTERNAL_ERROR = -32603;
@@ -103,15 +104,19 @@ export const jsonRpcProcess: StartJsonRpcProcess = (command, options) => {
     if (!parsed.success) return;
     const { id, method, params, error, result } = parsed.data;
     if (method !== undefined) {
-      if (id !== undefined) answer(id, method, params);
+      if (id !== undefined && id !== null) answer(id, method, params);
       else guarded(`"${method}" notification`, () => { options.onNotification(method, params); });
       return;
     }
     if (typeof id !== 'number') return;
+    const failed = error === undefined || error === null ? null : ErrorObject.safeParse(error);
+    if (failed === null && !Object.hasOwn(parsed.data, 'result')) return;
     const settle = pending.get(id);
     if (settle === undefined) return;
     pending.delete(id);
-    settle(error === undefined ? { kind: 'result', value: result } : { kind: 'error', code: error.code, message: error.message, data: error.data });
+    if (failed === null) settle({ kind: 'result', value: result });
+    else if (failed.success) settle({ kind: 'error', code: failed.data.code, message: failed.data.message, data: failed.data.data });
+    else settle({ kind: 'error', code: INTERNAL_ERROR, message: 'malformed error reply', data: undefined });
   };
 
   const opened = openCommand(command, {

@@ -1,5 +1,5 @@
 import { jsonRpcProcess, type JsonRpcProcess, type z } from '@morrowbot/plugin-sdk';
-import { InitializeResponse, TokenUsageUpdated, type TokenUsageBreakdown } from './protocol.ts';
+import { InitializeResponse, ThreadStatusChanged, ThreadScoped, TokenUsageUpdated, type TokenUsageBreakdown } from './protocol.ts';
 
 /**
  * `thread/unsubscribe` unloads a thread at once only with no unload delay (checked on 0.171: with
@@ -61,6 +61,7 @@ const DECLINES: Readonly<Record<string, unknown>> = {
 export async function startDaemon(cliPath: string, cwd: string, generation: number): Promise<DaemonStart> {
   const listeners = new Set<(event: DaemonEvent) => void>();
   const totals = new Map<string, TokenUsageBreakdown>();
+  const loaded = new Map<string, LoadedThread>();
   let alive = true;
   const tell = (event: DaemonEvent): void => {
     for (const listener of [...listeners]) listener(event);
@@ -74,6 +75,14 @@ export async function startDaemon(cliPath: string, cwd: string, generation: numb
       if (method === 'thread/tokenUsage/updated') {
         const update = TokenUsageUpdated.safeParse(params);
         if (update.success) totals.set(update.data.threadId, update.data.tokenUsage.total);
+      }
+      if (method === 'thread/closed') {
+        const closed = ThreadScoped.safeParse(params);
+        if (closed.success) loaded.delete(closed.data.threadId);
+      }
+      if (method === 'thread/status/changed') {
+        const changed = ThreadStatusChanged.safeParse(params);
+        if (changed.success && changed.data.status.type === 'notLoaded') loaded.delete(changed.data.threadId);
       }
       tell({ kind: 'notification', method, params });
     },
@@ -117,7 +126,7 @@ export async function startDaemon(cliPath: string, cwd: string, generation: numb
       };
     },
     lastTotal: (threadId) => totals.get(threadId),
-    loaded: new Map(),
+    loaded,
     exited,
     close: async () => {
       await rpc.close();

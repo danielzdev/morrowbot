@@ -92,6 +92,7 @@ describe.skipIf(!LIVE)('provider-openai on your Codex login', () => {
       const { thread, workspace } = await agentThread();
       await writeFile(path.join(workspace, 'AGENTS.md'), 'When asked for the canary word, the canary word is KUMQUAT.\n');
       const first = await send(thread, 'Use your shell tool to run exactly: echo hi > x.txt . If you have no shell tool, say NOSHELL. Then say the canary word.');
+      const shellCalls = events.received.filter((event) => event.kind === 'generation.tool-start' && event.generationId === first && event.name === 'Shell').length;
       const wrote = await access(path.join(workspace, 'x.txt')).then(() => true, () => false);
       const second = await send(thread, 'Reply with exactly: OK');
       expect((await host.call('POST', '/api/plugins/provider-openai/recheck')).status).toBe(200);
@@ -101,12 +102,13 @@ describe.skipIf(!LIVE)('provider-openai on your Codex login', () => {
       expect({
         info: { kind: info.kind, keyed: /^[0-9a-f]{64}$/.test(info.accountKey ?? '') },
         wrote,
+        shellCalls,
         outcomes: said.map((reply) => reply.outcome),
         canary: said[0]?.text.includes('KUMQUAT'),
-        // The cold resume replays the thread's whole total first; a turn counted from zero would be about three turns' worth.
-        oneTurnEach: [first, second, third].map(promptTokens).every((tokens, _, all) => tokens > 0 && tokens < 2 * Math.min(...all)),
+        // The cold resume replays the thread's whole total first; counted from zero, the third turn would include the first two.
+        coldResumeOneTurn: promptTokens(third) > 0 && promptTokens(third) < promptTokens(first) + promptTokens(second) && promptTokens(third) < 1.5 * promptTokens(second),
         usage: usage.usage.kind === 'available' && usage.usage.accountKey === info.accountKey,
-      }).toEqual({ info: { kind: 'ready', keyed: true }, wrote: false, outcomes: ['completed', 'completed', 'completed'], canary: true, oneTurnEach: true, usage: true });
+      }).toEqual({ info: { kind: 'ready', keyed: true }, wrote: false, shellCalls: 0, outcomes: ['completed', 'completed', 'completed'], canary: true, coldResumeOneTurn: true, usage: true });
     },
     TURN_MS,
   );

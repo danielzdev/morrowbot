@@ -115,3 +115,9 @@ it('replays a real cold resume: the replayed total of the last turn sets the bas
     }
   `);
 });
+
+it('names the turn from turn/started when turn/start was never answered', () => {
+  const stream = createTurnStream({ threadId: 'thread-1', home: null, emit: () => undefined, tokens: countTokens({ kind: 'new-thread' }, () => null), onRateLimitHint: () => undefined });
+  for (const event of segment('turn-2')) stream.hear(event);
+  expect(stream.startedTurn()).toBe('turn-2');
+});

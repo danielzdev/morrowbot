@@ -10,18 +10,25 @@ codex app-server -c thread_unload_delay_secs=0
 through the SDK's `jsonRpcProcess`, started by provider-info and registered with the
 host before any turn uses it. Each chat thread is a Codex thread, resumed by id, so
 Codex keeps the conversation. Stop sends `turn/interrupt`; if Codex ignores it, the
-host ends the daemon and the next turn gets a new one.
+host ends the daemon and the next turn gets a new one. A `turn/start` Codex never
+answers also ends the daemon, unless a `turn/started` named the turn.
 
 **Access.** One profile: read-only with your own Codex settings (`personal`). Every
-thread starts or resumes with Codex's read-only sandbox, approvals `never`, and these
-turned off: the shell tool, unified exec, apps, plugins, hooks and each configured MCP
-server. Before the prompt goes out, the plugin checks Codex's own report of the thread
-(sandbox, approval policy, `mcpServerStatus/list`, `hooks/list`) and refuses the turn if
-anything is still on. An approval request is declined without a card. Read-only Codex
-can read files outside the workspace (`readsOutsideCwd`).
+thread starts or resumes with Codex's read-only sandbox, approvals `never`, the model
+provider the route check saw, and every 0.171 feature that runs code or reaches out
+turned off (`TOOL_FEATURES` in `src/lockdown.ts`: the shell and its login-shell
+snapshot, unified exec, apps, plugins, hooks, sub-agents, browser and computer use,
+code mode) plus each configured MCP server. Before the prompt goes out, the plugin
+checks Codex's own report of the thread (sandbox and network, approval policy,
+permission profile, model provider, `mcpServerStatus/list`, `hooks/list`), then reads
+the account and route again, and refuses the turn if anything differs. An approval
+request is declined without a card. Read-only Codex can read files outside the
+workspace (`readsOutsideCwd`).
 
 **Held back** (checked on Codex 0.171, shown on the Plugins page):
 
+- everything, when an administrator manages Codex (`configRequirements/read` is not
+  empty): managed rules apply after MorrowBot's and can turn tools back on;
 - workspace-write: a shell command that calls `setsid` keeps running after Stop;
 - `isolated` instructions: Codex always loads your `~/.codex/AGENTS.md`;
 - other systems than macOS, and Codex outside `>=0.171.0 <0.172.0`.
@@ -30,7 +37,8 @@ can read files outside the workspace (`readsOutsideCwd`).
 `config/read {cwd}` once. Only the built-in `openai` provider with a ChatGPT login and
 the default URLs is the plan route: its account key is the user and the ChatGPT
 workspace, and its threads are saved. Any other route (an API key, another provider,
-a custom `openai_base_url` or `chatgpt_base_url`, or an unknown workspace) runs each
+a custom `openai_base_url`, `chatgpt_base_url` or `model_providers.openai.base_url`,
+a Codex `profile`, or an unknown workspace) runs each
 turn on a new ephemeral thread with no plan usage. A changed account or route ends the
 turn before the prompt (`account-changed`, `route-changed`, `signed-out`).
 

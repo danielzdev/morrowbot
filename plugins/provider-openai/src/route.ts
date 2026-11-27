@@ -1,5 +1,5 @@
 import type { CodexDaemon } from './daemon.ts';
-import { ConfigReadResponse, GetAccountResponse, type CodexConfig } from './protocol.ts';
+import { ConfigReadResponse, ConfigRequirementsResponse, GetAccountResponse, type CodexConfig } from './protocol.ts';
 
 /** The pinned Codex defaults: a ChatGPT login sends inference here, workspace-bound. */
 export const DEFAULT_CHATGPT_BASE_URL = 'https://chatgpt.com/backend-api/';
@@ -31,19 +31,30 @@ export type Resolution =
       readonly routeKey: string;
       readonly route: Route;
       readonly accountLabel: string | null;
+      /** The model provider the route goes to: every thread must report it. */
+      readonly modelProvider: string;
       /** The config this snapshot read, for the per-thread lockdown. */
       readonly config: CodexConfig;
+      /** Why MorrowBot cannot run turns because an administrator manages Codex, or null. */
+      readonly managed: string | null;
     };
+
+const MANAGED_REASON =
+  'An administrator manages Codex on this computer (requirements.toml or a device profile), and its rules can turn tools back on, so MorrowBot does not run Codex turns.';
 
 /** Reads the account and the effective config once, for a turn in `cwd`. Never sends inference. */
 export async function resolve(daemon: CodexDaemon, cwd: string): Promise<Resolution> {
-  const [account, config] = await Promise.all([
+  const [account, config, requirements] = await Promise.all([
     daemon.call('account/read', { refreshToken: false }, GetAccountResponse, RESOLVE_MS),
     daemon.call('config/read', { includeLayers: false, cwd }, ConfigReadResponse, RESOLVE_MS),
+    daemon.call('configRequirements/read', {}, ConfigRequirementsResponse, RESOLVE_MS),
   ]);
   if (account.kind !== 'ok') return { kind: 'failed', reason: describeFailure('read the account', account) };
   if (config.kind !== 'ok') return { kind: 'failed', reason: describeFailure('read its config', config) };
-  return judgeRoute(account.value, config.value.config);
+  if (requirements.kind !== 'ok') return { kind: 'failed', reason: describeFailure('read its managed requirements', requirements) };
+  const judged = await judgeRoute(account.value, config.value.config);
+  const managed = (requirements.value.requirements ?? null) === null ? null : MANAGED_REASON;
+  return judged.kind === 'resolved' ? { ...judged, managed } : judged;
 }
 
 function describeFailure(what: string, call: { readonly kind: 'error'; readonly message: string } | { readonly kind: 'unanswered'; readonly reason: string }): string {
@@ -57,9 +68,10 @@ export async function judgeRoute(account: GetAccountResponse, config: CodexConfi
   const chatgptBase = normalizeUrl(config.chatgpt_base_url ?? DEFAULT_CHATGPT_BASE_URL);
   const bootstrap = normalizeUrl(bootstrapUrl(providerId, authClass, config));
   const defaultBase = chatgptBase === normalizeUrl(DEFAULT_CHATGPT_BASE_URL);
-  const defaultInference =
-    config.openai_base_url === null || config.openai_base_url === undefined || normalizeUrl(config.openai_base_url) === normalizeUrl(DEFAULT_CHATGPT_INFERENCE_URL);
-  const workspaceBound = providerId === BUILT_IN_PROVIDER && authClass === 'chatgpt' && defaultBase && defaultInference;
+  const explicitInference = builtInUrl(config);
+  const defaultInference = explicitInference === null || normalizeUrl(explicitInference) === normalizeUrl(DEFAULT_CHATGPT_INFERENCE_URL);
+  const profile = config.profile ?? null;
+  const workspaceBound = providerId === BUILT_IN_PROVIDER && authClass === 'chatgpt' && defaultBase && defaultInference && profile === null;
   const routing = workspaceBound ? (account.workspaceRouting ?? null) : null;
   const effective = routing === null ? bootstrap : withOrigin(bootstrap, routing.backendOrigin);
   const routeKey = await sha256([
@@ -70,35 +82,63 @@ export async function judgeRoute(account: GetAccountResponse, config: CodexConfi
     chatgptBase,
     effective,
     routing?.accountRoutingOverride ?? '',
+    profile ?? '',
   ]);
+  const stateless = (label: string | null): Resolution => ({
+    kind: 'resolved',
+    accountKey: '',
+    routeKey,
+    route: { kind: 'stateless', reason: describeStateless(providerId, authClass, profile) },
+    accountLabel: label,
+    modelProvider: providerId,
+    config,
+    managed: null,
+  });
   if (account.account === null) {
     if (account.requiresOpenaiAuth) return { kind: 'signed-out', routeKey };
-    return { kind: 'resolved', accountKey: '', routeKey, route: { kind: 'stateless', reason: describeStateless(providerId, authClass) }, accountLabel: null, config };
+    return stateless(null);
   }
   const label = accountLabel(account.account);
-  if (!workspaceBound) {
-    return { kind: 'resolved', accountKey: '', routeKey, route: { kind: 'stateless', reason: describeStateless(providerId, authClass) }, accountLabel: label, config };
-  }
-  const identity = account.userId ?? account.account.email ?? null;
+  if (!workspaceBound) return stateless(label);
+  const identity = present(account.userId) ?? present(account.account.email);
   if (routing === null || identity === null) {
     const reason =
       routing === null
         ? 'Codex has not found your ChatGPT workspace, so chats run without saved sessions and plan usage. Recheck to try again.'
         : 'Codex did not report who is signed in, so chats run without saved sessions and plan usage.';
-    return { kind: 'resolved', accountKey: '', routeKey, route: { kind: 'unidentified', reason }, accountLabel: label, config };
+    return { kind: 'resolved', accountKey: '', routeKey, route: { kind: 'unidentified', reason }, accountLabel: label, modelProvider: providerId, config, managed: null };
   }
   const accountKey = await sha256(['codex-account', identity, routing.chatgptAccountId]);
-  return { kind: 'resolved', accountKey, routeKey, route: { kind: 'subscription', workspaceId: routing.chatgptAccountId }, accountLabel: label, config };
+  return {
+    kind: 'resolved',
+    accountKey,
+    routeKey,
+    route: { kind: 'subscription', workspaceId: routing.chatgptAccountId },
+    accountLabel: label,
+    modelProvider: providerId,
+    config,
+    managed: null,
+  };
+}
+
+function present(text: string | null | undefined): string | null {
+  return text === null || text === undefined || text.trim() === '' ? null : text;
+}
+
+/** An inference URL set for the built-in provider, in either place Codex reads it from. */
+function builtInUrl(config: CodexConfig): string | null {
+  return config.openai_base_url ?? config.model_providers?.[BUILT_IN_PROVIDER]?.base_url ?? null;
 }
 
 function bootstrapUrl(providerId: string, authClass: string, config: CodexConfig): string {
   if (providerId === BUILT_IN_PROVIDER) {
-    return config.openai_base_url ?? (authClass === 'chatgpt' ? DEFAULT_CHATGPT_INFERENCE_URL : DEFAULT_API_INFERENCE_URL);
+    return builtInUrl(config) ?? (authClass === 'chatgpt' ? DEFAULT_CHATGPT_INFERENCE_URL : DEFAULT_API_INFERENCE_URL);
   }
   return config.model_providers?.[providerId]?.base_url ?? '';
 }
 
-function describeStateless(providerId: string, authClass: string): string {
+function describeStateless(providerId: string, authClass: string, profile: string | null): string {
+  if (profile !== null) return `Codex uses its "${profile}" profile, which can send chats elsewhere, so they run without saved sessions or plan usage.`;
   if (providerId !== BUILT_IN_PROVIDER) return `Codex sends this chat to the "${providerId}" model provider, so it runs without saved sessions or plan usage.`;
   if (authClass !== 'chatgpt') return 'Codex is not signed in with ChatGPT, so chats run without saved sessions or plan usage.';
   return 'Codex sends inference to a custom endpoint, so chats run without saved sessions or plan usage.';

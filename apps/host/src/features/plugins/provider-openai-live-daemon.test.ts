@@ -25,6 +25,12 @@ const ROOTS = [
   'ModelReroutedNotification', 'AccountRateLimitsUpdatedNotification',
 ];
 
+/** A copy of `TOOL_FEATURES` in `plugins/provider-openai/src/lockdown.ts`, which a host test cannot import. */
+const LOCKDOWN_FEATURES = [
+  'shell_tool', 'unified_exec', 'shell_snapshot', 'apps', 'plugins', 'hooks', 'multi_agent', 'multi_agent_v2', 'browser_use',
+  'browser_use_external', 'computer_use', 'in_app_browser', 'code_mode_host', 'skill_mcp_dependency_install',
+];
+
 const Bundle = z.looseObject({ definitions: z.record(z.string(), z.unknown()) });
 
 let root = '';
@@ -74,7 +80,9 @@ async function generatedSubset(): Promise<string> {
 
 const Opened = z.looseObject({
   thread: z.looseObject({ id: z.string() }),
-  sandbox: z.looseObject({ type: z.string() }),
+  modelProvider: z.string(),
+  activePermissionProfile: z.unknown(),
+  sandbox: z.looseObject({ type: z.string(), networkAccess: z.boolean().optional() }),
   approvalPolicy: z.unknown(),
   instructionSources: z.array(z.string()),
 });
@@ -90,22 +98,33 @@ describe.skipIf(!LIVE)('provider-openai on the pinned Codex', () => {
     expect(subset === (await readFile(PINNED, 'utf8'))).toBe(true);
   });
 
-  it('opens a locked-down thread: read-only without approvals, no MCP server or hook running, and the cwd AGENTS.md loaded; unsubscribe unloads it', async () => {
+  it('names only features this Codex has', () => {
+    const listed = spawnSync(CODEX_PATH, ['features', 'list'], { encoding: 'utf8' }).stdout.split('\n').map((line) => line.split(/\s+/)[0]);
+    expect(LOCKDOWN_FEATURES.filter((name) => !listed.includes(name))).toEqual([]);
+  });
+
+  it('opens a locked-down thread: read-only without approvals on the pinned provider, a configured MCP server and hook off, the cwd AGENTS.md loaded; unsubscribe unloads it', async () => {
     const cwd = path.join(root, 'work');
+    const codexHome = path.join(root, 'codex-home');
     await mkdir(path.join(cwd, '.git'), { recursive: true });
+    await mkdir(codexHome);
     await writeFile(path.join(cwd, 'AGENTS.md'), 'Canary instructions for the live fixture.\n');
-    codex = await rawCodex();
+    await writeFile(
+      path.join(codexHome, 'config.toml'),
+      '[mcp_servers.canary]\ncommand = "/usr/bin/false"\n\n[[hooks.PreToolUse]]\nmatcher = "*"\n\n[[hooks.PreToolUse.hooks]]\ntype = "command"\ncommand = "echo hook"\n',
+    );
+    codex = await rawCodex({ CODEX_HOME: codexHome });
     const { config } = Config.parse(await codex.call('config/read', { includeLayers: false, cwd }));
     const servers = Object.keys(config.mcp_servers ?? {});
     const overrides = {
-      'features.shell_tool': false,
-      'features.unified_exec': false,
-      'features.apps': false,
-      'features.plugins': false,
-      'features.codex_hooks': false,
+      ...Object.fromEntries(LOCKDOWN_FEATURES.map((name) => [`features.${name}`, false])),
       ...Object.fromEntries(servers.map((name) => [`mcp_servers.${name}.enabled`, false])),
     };
-    const opened = Opened.parse(await codex.call('thread/start', { cwd, sandbox: 'read-only', approvalPolicy: 'never', config: overrides, ephemeral: true }));
+    const hooksOn = Opened.parse(await codex.call('thread/start', { cwd, sandbox: 'read-only', approvalPolicy: 'never', ephemeral: true }));
+    const hooksBefore = Hooks.parse(await codex.call('hooks/list', { threadId: hooksOn.thread.id })).data.flatMap((entry) => entry.hooks).length;
+    const opened = Opened.parse(
+      await codex.call('thread/start', { cwd, modelProvider: 'openai', sandbox: 'read-only', approvalPolicy: 'never', config: overrides, ephemeral: true }),
+    );
     const threadId = opened.thread.id;
     const running = Servers.parse(await codex.call('mcpServerStatus/list', { threadId, limit: 1000 })).data.filter((server) => server.runtimeStatus !== 'disabled');
     const hooks = Hooks.parse(await codex.call('hooks/list', { threadId })).data.flatMap((entry) => entry.hooks);
@@ -117,14 +136,32 @@ describe.skipIf(!LIVE)('provider-openai on the pinned Codex', () => {
       loadedAfter = Loaded.parse(await codex.call('thread/loaded/list', {})).data.includes(threadId);
     }
     expect({
-      sandbox: opened.sandbox.type,
+      servers,
+      hooksBefore,
+      sandbox: opened.sandbox,
       approvalPolicy: opened.approvalPolicy,
+      modelProvider: opened.modelProvider,
+      activePermissionProfile: opened.activePermissionProfile,
       running: running.map((server) => server.name),
       hooks: hooks.length,
       cwdInstructions: opened.instructionSources.includes(path.join(cwd, 'AGENTS.md')),
       loadedBefore,
       loadedAfter,
-    }).toEqual({ sandbox: 'readOnly', approvalPolicy: 'never', running: [], hooks: 0, cwdInstructions: true, loadedBefore: true, loadedAfter: false });
+      deprecations: codex.notes.filter((note) => note.method === 'deprecationNotice').length,
+    }).toEqual({
+      servers: ['canary'],
+      hooksBefore: 1,
+      sandbox: { type: 'readOnly', networkAccess: false },
+      approvalPolicy: 'never',
+      modelProvider: 'openai',
+      activePermissionProfile: null,
+      running: [],
+      hooks: 0,
+      cwdInstructions: true,
+      loadedBefore: true,
+      loadedAfter: false,
+      deprecations: 0,
+    });
   });
 
   it('ignores a project-local route override: config/read in that folder still shows the built-in route', async () => {

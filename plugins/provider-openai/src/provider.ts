@@ -87,12 +87,17 @@ export function createCodexProvider(): ProviderPlugin {
   };
 
   const providerInfo = async (refresh: boolean): Promise<ProviderInfo> => {
+    const cached = infoCache;
+    if (!refresh && cached !== undefined && daemon?.alive() === true && cached.generation === daemon.generation && Date.now() - cached.at <= INFO_DISPLAY_MS) {
+      return cached.info;
+    }
     const call = ++calls;
     const seeIfNewest = (next: Seen): void => {
       if (call === calls) see(next);
     };
     const notReady = (info: ProviderInfo): ProviderInfo => {
       seeIfNewest({ kind: 'nothing' });
+      if (call === calls) infoCache = undefined;
       return info;
     };
     const { settings, probeCwd } = current();
@@ -112,11 +117,10 @@ export function createCodexProvider(): ProviderPlugin {
     }
     const running = await ensureDaemon();
     if (typeof running === 'string') return notReady({ kind: 'error', message: running });
-    const cached = infoCache;
-    if (!refresh && cached?.generation === running.generation && Date.now() - cached.at <= INFO_DISPLAY_MS) return cached.info;
     const resolution = await resolve(running, probeCwd);
     if (resolution.kind === 'signed-out') {
       seeIfNewest({ kind: 'signed-out' });
+      if (call === calls) infoCache = undefined;
       const login = [executable.path, 'login'];
       const argv = running.codexHome === null ? login : ['env', `CODEX_HOME=${running.codexHome}`, ...login];
       return { kind: 'signed-out', signIn: { kind: 'run-in-terminal', argv } };
@@ -134,7 +138,7 @@ export function createCodexProvider(): ProviderPlugin {
       case 'failed':
         return { kind: 'failed', reason: resolution.reason };
       case 'signed-out':
-        return { kind: 'known', accountKey: '', routeKey: resolution.routeKey };
+        return { kind: 'failed', reason: 'Codex is signed out. Sign in, then Recheck.' };
       case 'resolved':
         return { kind: 'known', accountKey: resolution.accountKey, routeKey: resolution.routeKey };
     }
@@ -164,15 +168,27 @@ export function createCodexProvider(): ProviderPlugin {
       const read = await readQuota(daemon, current().probeCwd);
       switch (read.kind) {
         case 'available':
-          if (read.accountKey !== accountKey) return unavailable('probe-failed', accountKey);
+          if (read.accountKey !== accountKey) {
+            see({ kind: 'nothing' });
+            return unavailable('probe-failed');
+          }
           snapshot.observe(accountKey, read.observedAt, read.windows);
           break;
+        case 'failed':
+          if (read.accountKey !== null && read.accountKey !== accountKey) {
+            see({ kind: 'nothing' });
+            return unavailable('probe-failed');
+          }
+          return unavailable('probe-failed', accountKey);
         case 'api-key-route':
+          see({ kind: 'stateless' });
           return unavailable('api-key-route');
         case 'signed-out':
+          see({ kind: 'signed-out' });
           return unavailable('signed-out');
-        case 'failed':
-          return unavailable('probe-failed', accountKey);
+        case 'unidentified':
+          see({ kind: 'unidentified' });
+          return unavailable('not-yet-observed');
       }
     } else if (refresh) {
       return unavailable('probe-failed', accountKey);
@@ -208,6 +224,8 @@ export function createCodexProvider(): ProviderPlugin {
         : { kind: 'degraded', detail: `Codex CLI not found ("${cliPath}"). Install Codex, or set "Codex CLI path".` };
     },
     shutdown: async () => {
+      const pending = starting;
+      if (pending !== undefined) await pending;
       await daemon?.close();
     },
     providerInfo: ({ refresh }) => providerInfo(refresh),

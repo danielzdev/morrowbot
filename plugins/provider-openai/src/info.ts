@@ -38,6 +38,7 @@ export function readyInfo(version: Runnable, resolution: Known, models: readonly
   if (version.kind === 'above') shared.push(version.reason);
   const own = platformReason(platform);
   if (own !== null) shared.push(own);
+  if (resolution.kind === 'resolved' && resolution.managed !== null) shared.push(resolution.managed);
   const profiles = shared.length === 0 ? [READ_ONLY] : [];
   const withheld: WithheldProfile[] = [
     ...(shared.length === 0 ? [] : [{ access: READ_ONLY.access, vendorSettings: READ_ONLY.vendorSettings, reason: shared.join(' ') }]),

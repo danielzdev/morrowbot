@@ -51,7 +51,10 @@ export type QuotaRead =
   | { readonly kind: 'available'; readonly accountKey: string; readonly observedAt: string; readonly windows: readonly UsageWindow[] }
   | { readonly kind: 'api-key-route' }
   | { readonly kind: 'signed-out' }
-  | { readonly kind: 'failed'; readonly reason: string };
+  /** The plan route, but Codex did not say which workspace or user. */
+  | { readonly kind: 'unidentified' }
+  /** No usable answer; `accountKey` is the plan account both checks saw, when they agreed on one. */
+  | { readonly kind: 'failed'; readonly reason: string; readonly accountKey: string | null };
 
 /**
  * Reads plan usage between two account-and-route checks of `cwd`. The windows count only when both
@@ -67,12 +70,12 @@ export async function readQuota(daemon: CodexDaemon, cwd: string): Promise<Quota
   const again = subscription(after);
   if (again.kind !== 'ok') return again.read;
   if (again.accountKey !== route.accountKey || again.routeKey !== route.routeKey) {
-    return { kind: 'failed', reason: 'The Codex account or route changed while usage was read.' };
+    return { kind: 'failed', reason: 'The Codex account or route changed while usage was read.', accountKey: null };
   }
-  if (read.kind !== 'ok') return { kind: 'failed', reason: read.kind === 'error' ? read.message : read.reason };
+  if (read.kind !== 'ok') return { kind: 'failed', reason: read.kind === 'error' ? read.message : read.reason, accountKey: route.accountKey };
   const accountId = read.value.accountId ?? null;
   if (accountId !== null && accountId !== route.workspaceId) {
-    return { kind: 'failed', reason: 'Codex reported usage for a different workspace than the one signed in.' };
+    return { kind: 'failed', reason: 'Codex reported usage for a different workspace than the one signed in.', accountKey: route.accountKey };
   }
   return { kind: 'available', accountKey: route.accountKey, observedAt: new Date().toISOString(), windows: windowsOf(read.value) };
 }
@@ -84,7 +87,7 @@ type Subscription =
 function subscription(resolution: Resolution): Subscription {
   switch (resolution.kind) {
     case 'failed':
-      return { kind: 'not', read: { kind: 'failed', reason: resolution.reason } };
+      return { kind: 'not', read: { kind: 'failed', reason: resolution.reason, accountKey: null } };
     case 'signed-out':
       return { kind: 'not', read: { kind: 'signed-out' } };
     case 'resolved':
@@ -92,7 +95,7 @@ function subscription(resolution: Resolution): Subscription {
         case 'subscription':
           return { kind: 'ok', accountKey: resolution.accountKey, routeKey: resolution.routeKey, workspaceId: resolution.route.workspaceId };
         case 'unidentified':
-          return { kind: 'not', read: { kind: 'failed', reason: resolution.route.reason } };
+          return { kind: 'not', read: { kind: 'unidentified' } };
         case 'stateless':
           return { kind: 'not', read: { kind: 'api-key-route' } };
       }

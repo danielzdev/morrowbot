@@ -87,6 +87,24 @@ it('hears notifications and ignores lines that are not JSON-RPC', async () => {
   ]);
 });
 
+it('settles a request only on a reply with a result or an error, reading a null error as none and an error without a code as internal', async () => {
+  const { rpc } = start();
+  expect([await rpc.request('loose', null, { timeoutMs: 5_000 }), await rpc.request('codeless', null, { timeoutMs: 5_000 })]).toMatchInlineSnapshot(`
+    [
+      {
+        "kind": "result",
+        "value": "real",
+      },
+      {
+        "code": -32603,
+        "data": undefined,
+        "kind": "error",
+        "message": "no code",
+      },
+    ]
+  `);
+});
+
 it('answers a request from the daemon with the handler result, or an error when the handler fails', async () => {
   let calls = 0;
   const { rpc, heard } = start((_method, params) => (calls++ === 0 ? Promise.resolve({ yes: params }) : Promise.reject(new Error('no thanks'))));

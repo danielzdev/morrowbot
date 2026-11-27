@@ -40,6 +40,7 @@ const Url = z.string().nullish();
 export const ConfigReadResponse = z.looseObject({
   config: z.looseObject({
     model_provider: z.string().nullish(),
+    profile: z.string().nullish(),
     openai_base_url: Url,
     chatgpt_base_url: Url,
     model_providers: z.record(z.string(), z.looseObject({ base_url: Url })).nullish(),
@@ -47,6 +48,9 @@ export const ConfigReadResponse = z.looseObject({
   }),
 });
 export type CodexConfig = z.infer<typeof ConfigReadResponse>['config'];
+
+/** Managed requirements (`requirements.toml`, MDM): null when an administrator set none. */
+export const ConfigRequirementsResponse = z.looseObject({ requirements: z.unknown().nullish() });
 
 const RateLimitWindow = z.looseObject({
   usedPercent: z.number(),
@@ -92,8 +96,10 @@ export type CodexModel = z.infer<typeof ModelListResponse>['data'][number];
 export const ThreadOpened = z.looseObject({
   thread: z.looseObject({ id: z.string().min(1) }),
   model: z.string().nullish(),
+  modelProvider: z.string(),
   approvalPolicy: z.unknown(),
-  sandbox: z.looseObject({ type: z.string() }),
+  sandbox: z.looseObject({ type: z.string(), networkAccess: z.boolean().nullish() }),
+  activePermissionProfile: z.unknown().optional(),
   instructionSources: z.array(z.string()).nullish(),
 });
 export type ThreadOpened = z.infer<typeof ThreadOpened>;
@@ -140,6 +146,8 @@ const TurnError = z.looseObject({
 });
 export type TurnError = z.infer<typeof TurnError>;
 
+export const TurnStarted = z.looseObject({ threadId: z.string(), turn: z.looseObject({ id: z.string().min(1) }) });
+
 export const TurnCompleted = z.looseObject({
   threadId: z.string(),
   turn: z.looseObject({ id: z.string(), status: z.string(), error: TurnError.nullish() }),
@@ -170,3 +178,5 @@ export const ModelRerouted = z.looseObject({ threadId: z.string(), turnId: z.str
 
 /** Any notification about one thread: how turn events are routed. */
 export const ThreadScoped = z.looseObject({ threadId: z.string() });
+
+export const ThreadStatusChanged = z.looseObject({ threadId: z.string(), status: z.looseObject({ type: z.string() }) });

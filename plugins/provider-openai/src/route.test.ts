@@ -56,6 +56,9 @@ it('keys the account by user and workspace, and the route by everything that dec
       noIdentity: [account({}, { userId: null, account: { type: 'chatgpt', email: null, planType: 'team', workspaceName: 'Acme' } }), config()],
       apiKey: [account(null, { account: { type: 'apiKey' }, userId: null }), config()],
       signedOut: [account(null, { account: null, userId: null }), config()],
+      profileSet: [account({}), config({ profile: 'work' })],
+      builtInProviderUrl: [account({}), config({ model_providers: { openai: { base_url: 'https://proxy.example.com/v1' } } })],
+      emptyUserIdFallsBackToEmail: [account({}, { userId: '' }), config()],
     }),
   ).toMatchInlineSnapshot(`
     {
@@ -65,11 +68,23 @@ it('keys the account by user and workspace, and the route by everything that dec
         "route": "stateless",
         "routeKey": "route K",
       },
+      "builtInProviderUrl": {
+        "account": "account ''",
+        "label": "ChatGPT Plus",
+        "route": "stateless",
+        "routeKey": "route N",
+      },
       "customProvider": {
         "account": "account ''",
         "label": "ChatGPT Plus",
         "route": "stateless",
         "routeKey": "route I",
+      },
+      "emptyUserIdFallsBackToEmail": {
+        "account": "account O",
+        "label": "ChatGPT Plus",
+        "route": "subscription",
+        "routeKey": "route B",
       },
       "explicitDefaults": {
         "account": "account A",
@@ -118,6 +133,12 @@ it('keys the account by user and workspace, and the route by everything that dec
         "label": "ChatGPT Plus",
         "route": "stateless",
         "routeKey": "route H",
+      },
+      "profileSet": {
+        "account": "account ''",
+        "label": "ChatGPT Plus",
+        "route": "stateless",
+        "routeKey": "route M",
       },
       "routingOverride": {
         "account": "account A",

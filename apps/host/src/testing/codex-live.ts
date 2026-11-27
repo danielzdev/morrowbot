@@ -17,8 +17,8 @@ export interface RawCodex {
 }
 
 /** A bare `codex app-server` for checks the plugin does not expose; it declines every server request. */
-export async function rawCodex(args: readonly string[] = []): Promise<RawCodex> {
-  const child = spawn(CODEX_PATH, ['app-server', '-c', 'thread_unload_delay_secs=0', ...args], { stdio: ['pipe', 'pipe', 'ignore'] });
+export async function rawCodex(env: Readonly<Record<string, string>> = {}): Promise<RawCodex> {
+  const child = spawn(CODEX_PATH, ['app-server', '-c', 'thread_unload_delay_secs=0'], { stdio: ['pipe', 'pipe', 'ignore'], env: { ...process.env, ...env } });
   const pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void }>();
   const notes: { method: string; params: unknown }[] = [];
   let next = 0;

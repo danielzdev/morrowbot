@@ -2,12 +2,14 @@
 /**
  * A stand-in for `codex` 0.171 that speaks the `app-server` JSON-RPC protocol over stdio, shaped
  * like the recorded real transcripts. It keeps its state in `$HOME/fake-codex/`: `state.json` holds
- * the account, config, rate-limit answer and hooks (read on every request, so a test can change them);
+ * the account, config, managed requirements, rate-limit answer and hooks (read on every request, so a
+ * test can change them; `openedProvider` makes every opened thread report that model provider);
  * `switch.json` (`{afterReads, state}`) merges `state` into `state.json` once that many more
  * `account/read`s have been answered; `threads.json` keeps saved threads across daemons; every request
  * is appended to `log.jsonl`. The prompt picks a turn's behavior: `stall` waits for `turn/interrupt`,
  * `ignore-interrupt` never ends, `tool` runs a command item, `ask` sends an approval request,
- * `fail-limit` fails on the usage limit, `hint` sends a rate-limit notification; anything else replies.
+ * `fail-limit` fails on the usage limit, `hint` sends a rate-limit notification, `close-thread` replies
+ * and then unloads the thread with `thread/closed`; anything else replies.
  */
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -35,6 +37,8 @@ const State = z.object({
   hooks: z.array(z.unknown()).default([]),
   accountError: z.string().nullable().default(null),
   keepLoaded: z.boolean().default(false),
+  requirements: z.unknown().default(null),
+  openedProvider: z.string().nullable().default(null),
 });
 const Switch = z.object({ afterReads: z.number(), state: Json });
 const Message = z.looseObject({ id: z.union([z.number(), z.string()]).optional(), method: z.string().optional(), params: z.unknown().optional(), result: z.unknown().optional() });
@@ -42,6 +46,7 @@ const Params = z.looseObject({
   threadId: z.string().optional(),
   turnId: z.string().optional(),
   ephemeral: z.boolean().nullish(),
+  modelProvider: z.string().nullish(),
   sandbox: z.string().nullish(),
   approvalPolicy: z.unknown().optional(),
   config: Json.nullish(),
@@ -54,6 +59,7 @@ const STEP: Totals = { inputTokens: 100, cachedInputTokens: 60, cacheWriteInputT
 
 interface Loaded {
   readonly ephemeral: boolean;
+  readonly modelProvider: string;
   readonly sandbox: string;
   readonly approvalPolicy: unknown;
   readonly config: Readonly<Record<string, unknown>>;
@@ -107,15 +113,20 @@ function opened(threadId: string, entry: Loaded): Readonly<Record<string, unknow
   return {
     thread: { id: threadId, ephemeral: entry.ephemeral },
     model: 'gpt-test',
+    modelProvider: entry.modelProvider,
     approvalPolicy: entry.approvalPolicy,
-    sandbox: { type: entry.sandbox === 'read-only' ? 'readOnly' : entry.sandbox === 'workspace-write' ? 'workspaceWrite' : 'dangerFullAccess' },
+    sandbox: { type: entry.sandbox === 'read-only' ? 'readOnly' : entry.sandbox === 'workspace-write' ? 'workspaceWrite' : 'dangerFullAccess', networkAccess: false },
+    activePermissionProfile: null,
     instructionSources: [path.join(home, '.codex', 'AGENTS.md')],
   };
 }
 
 function load(threadId: string, params: Params, ephemeral: boolean, from: { total: Totals; lastTurn: string | null }): Loaded {
+  const current = state();
+  const configured = z.string().nullish().parse(current.config.model_provider) ?? 'openai';
   const entry: Loaded = {
     ephemeral,
+    modelProvider: current.openedProvider ?? params.modelProvider ?? configured,
     sandbox: params.sandbox ?? 'workspace-write',
     approvalPolicy: params.approvalPolicy ?? 'on-request',
     config: params.config ?? {},
@@ -166,6 +177,10 @@ function runTurn(threadId: string, turnId: string, entry: Loaded, prompt: string
     notify('item/completed', { threadId, turnId, item: { type: 'agentMessage', id: `${turnId}-m`, text }, completedAtMs: 0 });
     tokenUpdate(threadId, turnId, entry);
     complete(threadId, turnId, entry, 'completed');
+    if (prompt.includes('close-thread')) {
+      loaded.delete(threadId);
+      notify('thread/closed', { threadId });
+    }
   };
   if (!prompt.includes('ask')) {
     reply();
@@ -203,6 +218,8 @@ function answer(method: string, raw: unknown): unknown {
       return readAccount();
     case 'config/read':
       return { config: state().config, origins: {}, layers: null };
+    case 'configRequirements/read':
+      return { requirements: state().requirements };
     case 'account/rateLimits/read':
       return state().rateLimits;
     case 'model/list':

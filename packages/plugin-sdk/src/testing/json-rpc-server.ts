@@ -61,6 +61,13 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       send({ method: 'news', params: { n: 1 } });
       send({ id, result: 'told' });
       return;
+    case 'loose':
+      send({ id });
+      send({ id, result: 'real', error: null });
+      return;
+    case 'codeless':
+      send({ id, error: { message: 'no code' } });
+      return;
     case 'pid':
       send({ id, result: process.pid });
       return;

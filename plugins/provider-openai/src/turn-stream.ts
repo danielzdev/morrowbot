@@ -8,6 +8,7 @@ import {
   ThreadScoped,
   TokenUsageUpdated,
   TurnCompleted,
+  TurnStarted,
   type TurnError,
 } from './protocol.ts';
 import type { TokenCounter } from './tokens.ts';
@@ -25,6 +26,8 @@ export interface TurnStream {
   hear(event: DaemonEvent): void;
   /** Names the vendor turn: events heard before this are replayed now. */
   begin(turnId: string): void;
+  /** The turn a `turn/started` named for this thread before `begin`, or null. */
+  startedTurn(): string | null;
   readonly finished: Promise<Finish>;
   /** The text of the last agent message, or null. */
   finalText(): string | null;
@@ -48,6 +51,7 @@ export function createTurnStream(options: StreamOptions): TurnStream {
   const early: DaemonEvent[] = [];
   const tools = new Set<string>();
   let turnId: string | null = null;
+  let announced: string | null = null;
   let lastMessage: string | null = null;
   let rerouted: string | null = null;
   let done = false;
@@ -150,13 +154,21 @@ export function createTurnStream(options: StreamOptions): TurnStream {
   return {
     hear: (event) => {
       if (done) return;
+      if (turnId === null && event.kind === 'notification' && event.method === 'turn/started') {
+        const started = TurnStarted.safeParse(event.params);
+        if (started.success && started.data.threadId === threadId) announced ??= started.data.turn.id;
+      }
       if (turnId === null && event.kind !== 'exited') early.push(event);
       else handle(event);
     },
     begin: (id) => {
       turnId = id;
-      for (const event of early.splice(0)) handle(event);
+      for (const event of early.splice(0)) {
+        if (done) break;
+        handle(event);
+      }
     },
+    startedTurn: () => announced,
     finished: finished.promise,
     finalText: () => lastMessage,
     reroutedTo: () => rerouted,

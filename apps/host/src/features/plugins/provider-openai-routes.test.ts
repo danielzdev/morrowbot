@@ -204,9 +204,10 @@ it('publishes plan usage only on the native route, and refuses a quota answer fo
   const usage = async (): Promise<unknown> =>
     JSON.parse(JSON.stringify((await codex.host.call('GET', '/api/plugins/provider-openai/usage?refresh=1')).body).replace(/"observedAt":"[^"]+"/g, '"observedAt":"<now>"'));
   const native = await usage();
-  await codex.setState({ rateLimits: { ...NATIVE.rateLimits, accountId: 'ws-other' } });
+  const at = (usedPercent: number, accountId: string | null) => ({ rateLimits: { ...NATIVE.rateLimits, rateLimits: { ...NATIVE.rateLimits.rateLimits, primary: { ...NATIVE.rateLimits.rateLimits.primary, usedPercent } }, accountId } });
+  await codex.setState(at(40, 'ws-other'));
   const mismatched = await usage();
-  await codex.setState({ rateLimits: { ...NATIVE.rateLimits, accountId: null } });
+  await codex.setState(at(70, null));
   const unnamed = await usage();
   await codex.setState(CUSTOM);
   await codex.host.call('GET', '/api/plugins/provider-openai/info?refresh=1');
@@ -283,7 +284,7 @@ it('publishes plan usage only on the native route, and refuses a quota answer fo
               "scope": {
                 "kind": "account",
               },
-              "usedPercent": 5,
+              "usedPercent": 70,
               "windowMinutes": 10080,
             },
           ],

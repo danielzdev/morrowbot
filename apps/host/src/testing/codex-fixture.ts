@@ -98,6 +98,6 @@ export async function startCodexFixture(options: Partial<TestHostOptions> = {}):
 
 /** The methods the fake got, without the handshake and the read-only account and config reads. */
 export function turnMethods(log: readonly Logged[]): string[] {
-  const quiet = new Set(['initialize', 'initialized', 'account/read', 'config/read', 'model/list', 'mcpServerStatus/list', 'hooks/list', 'thread/loaded/list']);
+  const quiet = new Set(['initialize', 'initialized', 'account/read', 'config/read', 'model/list', 'mcpServerStatus/list', 'hooks/list', 'thread/loaded/list', 'configRequirements/read']);
   return log.filter((entry) => !quiet.has(entry.method)).map((entry) => entry.method);
 }
