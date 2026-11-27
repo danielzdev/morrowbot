@@ -1,5 +1,6 @@
 import type {
   Agent,
+  AgentInstructionsView,
   BlockedGroup,
   ChatEvent,
   CreateAgentRequest,
@@ -30,15 +31,17 @@ export interface ApiAgents {
   get(id: string): Agent | undefined;
   create(request: CreateAgentRequest): Promise<ApiCreateAgentResult>;
   update(id: string, request: UpdateAgentRequest): ApiUpdateAgentResult;
-  readInstructions(id: string): Promise<string | undefined>;
-  writeInstructions(id: string, content: string): Promise<boolean>;
+  instructionsView(id: string): Promise<AgentInstructionsView | undefined>;
+  createInstructions(id: string, content: string): Promise<{ readonly kind: 'created'; readonly revision: string } | { readonly kind: 'occupied' } | undefined>;
+  saveInstructionsCopy(id: string, content: string): Promise<string | undefined>;
   /** Each agent's newest message with text, for the sidebar. */
   lastMessages(): LastMessage[];
 }
 
 export type ApiCreateAgentResult =
   | { readonly kind: 'created'; readonly agent: Agent }
-  | { readonly kind: 'invalid'; readonly reason: string };
+  | { readonly kind: 'invalid'; readonly reason: string }
+  | { readonly kind: 'instructions-occupied'; readonly current: AgentInstructionsView };
 
 export type ApiUpdateAgentResult =
   | { readonly kind: 'updated'; readonly agent: Agent }

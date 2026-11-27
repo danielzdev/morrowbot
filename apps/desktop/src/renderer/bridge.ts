@@ -13,8 +13,12 @@ export interface BridgeChannels {
   readonly appInfo: 'morrowbot:app-info';
 }
 
-/** A folder to show in Finder, named by an opaque id; desktop main resolves the path itself. */
-export type RevealTarget = { readonly kind: 'data-dir' } | { readonly kind: 'agent-workspace'; readonly agentId: string };
+/** A folder or file to show in Finder, named by an opaque id; desktop main resolves the path itself. */
+export type RevealTarget =
+  | { readonly kind: 'data-dir' }
+  | { readonly kind: 'agent-workspace'; readonly agentId: string }
+  /** An AGENTS.md copy kept by Save a copy; `revealId` is the file name the host returned. */
+  | { readonly kind: 'instructions-copy'; readonly agentId: string; readonly revealId: string };
 
 export type ApiMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 

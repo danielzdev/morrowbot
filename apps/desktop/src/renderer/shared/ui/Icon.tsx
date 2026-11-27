@@ -21,7 +21,12 @@ export type IconName =
   | 'warning'
   | 'sun'
   | 'moon'
-  | 'monitor';
+  | 'monitor'
+  | 'eye'
+  | 'lock'
+  | 'lock-off'
+  | 'send'
+  | 'stop';
 
 const dot = (cx: number, cy: number, r = 1.1) => <circle cx={cx} cy={cy} r={r} fill="currentColor" stroke="none" />;
 
@@ -105,6 +110,26 @@ const SHAPES: Readonly<Record<IconName, ComponentChildren>> = {
       <path d="M5.5 14h5M8 11v3" />
     </>
   ),
+  eye: (
+    <>
+      <path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z" />
+      <circle cx="8" cy="8" r="2" />
+    </>
+  ),
+  lock: (
+    <>
+      <rect x="3" y="7" width="10" height="6.5" rx="1.5" />
+      <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" />
+    </>
+  ),
+  'lock-off': (
+    <>
+      <rect x="3" y="7" width="10" height="6.5" rx="1.5" />
+      <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2M2 2l12 12" />
+    </>
+  ),
+  send: <path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" />,
+  stop: <rect x="4.5" y="4.5" width="7" height="7" rx="1" fill="currentColor" />,
 };
 
 /** A decorative icon; the control around it carries the accessible name. */

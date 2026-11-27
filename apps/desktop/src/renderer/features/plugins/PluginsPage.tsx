@@ -3,7 +3,7 @@ import { useEffect, useState } from 'preact/hooks';
 import type { MorrowbotBridge } from '../../bridge.ts';
 import { BlockedBanner } from '../../shared/BlockedBanner.tsx';
 import { formatTime } from '../../shared/format.ts';
-import { ACCESS_LABEL } from '../../shared/labels.ts';
+import { profileName } from '../../shared/binding-ui/access-copy.ts';
 import { useStore } from '../../shared/use-store.ts';
 import { summarize } from './plugin-summary.ts';
 import type { PluginCard, PluginsModel } from './plugins-model.ts';
@@ -99,13 +99,12 @@ function Capabilities({ info }: { readonly info: ProviderInfo }) {
     <div class="capabilities">
       {profiles.map((profile) => (
         <div key={`${profile.access}/${profile.vendorSettings}`} class="capability ok">
-          ✓ {ACCESS_LABEL[profile.access]} ({profile.modes.join(', ')}){profile.readsOutsideCwd ? ' · can read your files outside the workspace' : ''}
-          {profile.vendorSettings === 'personal' ? ' · also loads your personal CLI instructions' : ''}
+          ✓ {profileName(profile)} ({profile.modes.join(', ')}){profile.readsOutsideCwd ? ' · can read your files outside the workspace' : ''}
         </div>
       ))}
       {withheld.map((profile) => (
         <div key={`withheld-${profile.access}/${profile.vendorSettings}`} class="capability withheld">
-          ✕ {ACCESS_LABEL[profile.access]}: {profile.reason}
+          ✕ {profileName(profile)}: {profile.reason}
         </div>
       ))}
       {info.kind === 'ready-models-later' && <div class="capability">Models appear after the first message.</div>}

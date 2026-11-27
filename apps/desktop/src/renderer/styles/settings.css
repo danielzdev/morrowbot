@@ -160,10 +160,6 @@ textarea.instructions {
   font: 400 0.8125rem/1.25rem var(--font-mono);
   resize: vertical;
 }
-.danger-zone {
-  padding-top: var(--s-4);
-  border-top: 1px solid var(--hairline);
-}
 
 /* Plugins page */
 .plugin-card {
@@ -262,7 +258,7 @@ textarea.instructions {
   grid-column: 1 / -1;
 }
 
-/* Avatars and the avatar picker */
+/* Avatars */
 .bot-avatar {
   position: relative;
   display: inline-block;
@@ -279,62 +275,4 @@ textarea.instructions {
   height: 0;
   overflow: hidden;
   pointer-events: none;
-}
-.avatar-picker {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s-4);
-}
-.avatar-preview {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 132px;
-  height: 132px;
-  background: var(--surface-2);
-  border: 1px solid var(--hairline-strong);
-  border-radius: var(--r-md);
-}
-.avatar-options {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-}
-.avatar-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-.avatar-tile {
-  display: grid;
-  place-items: center;
-  padding: 3px;
-  background: var(--surface-2);
-  border: 1px solid var(--hairline-strong);
-}
-.avatar-tile:hover {
-  background-image: linear-gradient(var(--hover), var(--hover));
-}
-.avatar-tile.selected,
-.swatch.selected {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-.swatch {
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border: 1px solid var(--hairline-strong);
-  border-radius: var(--r-pill);
-}
-.swatch-custom {
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border: none;
-  background: none;
-  cursor: pointer;
 }
