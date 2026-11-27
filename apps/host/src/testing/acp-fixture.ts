@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { SendMessageResponse, type ChatEvent, type ProviderBinding, type Thread } from '@morrowbot/contracts';
@@ -35,8 +35,13 @@ export interface AcpFixture extends ChatFixture {
 
 export interface AcpFixtureSetup {
   readonly binding: Extract<ProviderBinding, { kind: 'bound' }>;
-  /** The fake CLI, set as the provider's `cliPath`. */
+  /** The fake CLI. */
   readonly fake: string;
+  /**
+   * How it is set as the provider's `cliPath`: `direct`, or `wrapped` in a script that runs it with
+   * `MORROWBOT_FAKE_HOME` set to `$HOME`, for a provider that starts its CLI with a `HOME` of its own.
+   */
+  readonly cli: 'direct' | 'wrapped';
   /** The fake's own folder under `$HOME` (its `state.json`, `log.jsonl` and `launches.jsonl`). */
   readonly stateDir: string;
 }
@@ -51,8 +56,9 @@ export async function startAcpFixture(setup: AcpFixtureSetup, options: Partial<T
   await mkdir(dir, { recursive: true });
   const stateFile = path.join(dir, 'state.json');
   await writeFile(stateFile, '{}');
+  const cli = setup.cli === 'direct' ? setup.fake : await wrap(setup.fake, home);
   const chat = await startChatFixture({ platform: 'darwin', ...options, dataDir: path.join(home, 'data') });
-  const configured = await chat.host.call('PUT', `/api/plugins/${binding.pluginId}/config`, { config: { cliPath: setup.fake } });
+  const configured = await chat.host.call('PUT', `/api/plugins/${binding.pluginId}/config`, { config: { cliPath: cli } });
   if (configured.status !== 200) throw new Error(`config refused: ${JSON.stringify(configured.body)}`);
   const lines = async (name: string): Promise<unknown[]> => {
     const text = await readFile(path.join(dir, name), 'utf8').catch(() => '');
@@ -117,4 +123,13 @@ function describeStep(event: ChatEvent): string[] {
 /** The methods the fake got, without the handshake. */
 export function turnMethods(log: readonly Logged[]): string[] {
   return log.filter((entry) => entry.method !== 'initialize').map((entry) => entry.method);
+}
+
+/** A script in `home` that runs `fake` with `MORROWBOT_FAKE_HOME` set to `home`. */
+async function wrap(fake: string, home: string): Promise<string> {
+  const script = path.join(home, 'bin', path.basename(fake, '.ts'));
+  await mkdir(path.dirname(script));
+  await writeFile(script, `#!/bin/sh\nMORROWBOT_FAKE_HOME='${home}' exec '${fake}' "$@"\n`);
+  await chmod(script, 0o755);
+  return script;
 }

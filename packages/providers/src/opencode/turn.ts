@@ -95,9 +95,9 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
     }
     if (refusing()) return acp.permissionResult(asked.options, null, true);
     const chosen = await Promise.race([context.ask({ summary: `OpenCode wants to ${decision.summary}`, choices: acp.APPROVAL_CHOICES }), deps.fenced.then(() => null)]);
-    const result = refusing() ? acp.permissionResult(asked.options, null, true) : acp.permissionResult(asked.options, chosen, false);
-    if (chosen?.kind !== 'chosen' || chosen.choiceId !== 'allow') denied = true;
-    return result;
+    const allowed = !refusing() && chosen?.kind === 'chosen' && chosen.choiceId === 'allow' && asked.options.some((option) => option.kind === 'allow_once');
+    if (!allowed) denied = true;
+    return refusing() ? acp.permissionResult(asked.options, null, true) : acp.permissionResult(asked.options, chosen, false);
   };
   const handlers: acp.SessionHandlers = {
     onUpdate: (update) => {

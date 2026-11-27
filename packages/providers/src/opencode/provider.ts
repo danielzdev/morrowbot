@@ -36,7 +36,7 @@ export function createOpenCodeProvider(runtime: PluginRuntime): ProviderPlugin {
   };
 
   const checkManaged = async (): Promise<string | null> => {
-    const managed = await checkManagedConfig('/', runtime.platform, runtime.env.USER ?? null);
+    const managed = await checkManagedConfig('/', runtime.platform);
     return managed.kind === 'clear' ? null : managed.reason;
   };
 
@@ -82,7 +82,7 @@ export function createOpenCodeProvider(runtime: PluginRuntime): ProviderPlugin {
         break;
     }
     const held = breach ?? (await checkManaged());
-    if (held !== null) return readyInfo(version, { models: live?.catalog.models() ?? null, held }, runtime.platform);
+    if (held !== null || version.kind === 'above' || platformReason(runtime.platform) !== null) return readyInfo(version, { models: live?.catalog.models() ?? null, held }, runtime.platform);
     const running = await ensureDaemon(executable.path);
     if (typeof running === 'string') return { kind: 'error', message: running };
     return readyInfo(version, { models: running.catalog.models(), held: breach }, runtime.platform);

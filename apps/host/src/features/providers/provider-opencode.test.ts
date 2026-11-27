@@ -96,6 +96,7 @@ it('starts one opencode acp daemon with its own folders and read-only config, re
           "acp",
         ],
         "env": {
+          "HOME": "$HOME/data/plugin-data/provider-opencode/opencode/home",
           "OPENCODE_CONFIG_CONTENT": {
             "$schema": "https://opencode.ai/config.json",
             "agent": {
@@ -114,7 +115,7 @@ it('starts one opencode acp daemon with its own folders and read-only config, re
             "lsp": false,
             "permission": {
               "*": "deny",
-              "codesearch": "ask",
+              "codesearch": "deny",
               "external_directory": "ask",
               "glob": "allow",
               "grep": "allow",
@@ -126,12 +127,13 @@ it('starts one opencode acp daemon with its own folders and read-only config, re
                 "*.env.example": "allow",
               },
               "webfetch": "ask",
-              "websearch": "ask",
+              "websearch": "deny",
             },
             "share": "disabled",
           },
           "OPENCODE_DISABLE_AUTOUPDATE": "1",
           "OPENCODE_DISABLE_CLAUDE_CODE": "1",
+          "OPENCODE_DISABLE_EXTERNAL_SKILLS": "1",
           "OPENCODE_DISABLE_PROJECT_CONFIG": "1",
           "XDG_CACHE_HOME": "$HOME/data/plugin-data/provider-opencode/opencode/cache",
           "XDG_CONFIG_HOME": "$HOME/data/plugin-data/provider-opencode/opencode/config",

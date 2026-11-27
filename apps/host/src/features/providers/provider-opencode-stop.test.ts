@@ -197,3 +197,47 @@ it('reports missing-runtime with install guidance when opencode is not installed
       }
     `);
 });
+
+it('on a system other than macOS, provider-info withholds read-only and starts no daemon, and a turn is refused', async () => {
+  const fixture = (opencode = await startOpenCodeFixture({ platform: 'linux' }));
+  const info = await fixture.host.call('GET', '/api/plugins/provider-opencode/info?refresh=1');
+  const body: unknown = info.body;
+  const profiles = typeof body === 'object' && body !== null && 'info' in body && typeof body.info === 'object' && body.info !== null && 'capabilities' in body.info ? body.info.capabilities : null;
+  const thread = await fixture.thread(await fixture.agent());
+  const reply = await fixture.post(thread, 'hello');
+  expect({ profiles, reply: reply.status, launches: (await fixture.launches()).length, daemons: fixture.daemonPgids().length }).toMatchInlineSnapshot(`
+    {
+      "daemons": 0,
+      "launches": 0,
+      "profiles": {
+        "approvals": true,
+        "profiles": [],
+        "sessions": false,
+        "usage": "none",
+        "withheld": [
+          {
+            "access": "read-only",
+            "reason": "OpenCode in MorrowBot has been checked only on macOS so far, not on linux.",
+            "vendorSettings": "isolated",
+          },
+          {
+            "access": "workspace-write",
+            "reason": "MorrowBot runs OpenCode read-only in this version: it cannot yet confine each file write to the workspace, and opencode runs commands outside any sandbox.",
+            "vendorSettings": "isolated",
+          },
+          {
+            "access": "read-only",
+            "reason": "MorrowBot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's AGENTS.md is sent by MorrowBot instead.",
+            "vendorSettings": "personal",
+          },
+          {
+            "access": "workspace-write",
+            "reason": "MorrowBot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's AGENTS.md is sent by MorrowBot instead.",
+            "vendorSettings": "personal",
+          },
+        ],
+      },
+      "reply": 409,
+    }
+  `);
+});

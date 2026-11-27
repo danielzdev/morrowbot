@@ -27,28 +27,31 @@ afterEach(async () => {
   for (const root of roots.splice(0)) await sh('chmod -R u+rwx "$1" && rm -rf "$1"', root);
 });
 
-/** A temporary root holding `paths` (a trailing `/` makes a folder), with `locked` made unreadable; the result of checking it as `user` on `platform`. */
+/** A temporary root holding `paths` (a trailing `/` makes a folder), with `locked` made unreadable; the result of checking it on `platform`. */
 async function check(paths: readonly string[], options: { readonly platform?: string; readonly locked?: string } = {}): Promise<string> {
   const root = await sh('mktemp -d');
   roots.push(root);
   for (const entry of paths) await sh('mkdir -p "$1$(dirname "$2")" && case "$2" in */) mkdir -p "$1$2";; *) : > "$1$2";; esac', root, entry);
   if (options.locked !== undefined) await sh('mkdir -p "$1$2" && chmod 000 "$1$2"', root, options.locked);
-  const managed = await checkManagedConfig(root, options.platform ?? 'darwin', 'me');
+  const managed = await checkManagedConfig(root, options.platform ?? 'darwin');
   return managed.kind === 'clear' ? 'clear' : managed.reason;
 }
 
-it('withholds on any managed opencode config: an entry in the system folder, or a managed preferences file for everyone or this user', async () => {
+it('withholds on any managed opencode config: an entry in the system folder, or a managed preferences file for everyone or any user', async () => {
   expect({
     nothing: await check([]),
     emptySystemFolder: await check(['/Library/Application Support/opencode/']),
     systemFolder: await check(['/Library/Application Support/opencode/opencode.json']),
     preferences: await check(['/Library/Managed Preferences/ai.opencode.managed.plist']),
     userPreferences: await check(['/Library/Managed Preferences/me/ai.opencode.managed.plist']),
-    otherDomain: await check(['/Library/Managed Preferences/com.example.other.plist']),
+    anotherUserPreferences: await check(['/Library/Managed Preferences/me/com.example.other.plist', '/Library/Managed Preferences/someone/ai.opencode.managed.plist']),
+    otherDomain: await check(['/Library/Managed Preferences/com.example.other.plist', '/Library/Managed Preferences/me/com.example.other.plist']),
+    unreadableUserFolder: await check([], { locked: '/Library/Managed Preferences/someone' }),
     unreadable: await check([], { locked: '/Library/Application Support/opencode' }),
     linux: await check(['/etc/opencode/opencode.json'], { platform: 'linux' }),
   }).toMatchInlineSnapshot(`
     {
+      "anotherUserPreferences": "This computer has managed opencode config (/Library/Managed Preferences/someone/ai.opencode.managed.plist), which outranks the read-only config MorrowBot gives OpenCode. Ask your admin, or chat with another provider.",
       "emptySystemFolder": "clear",
       "linux": "This computer has managed opencode config (/etc/opencode), which outranks the read-only config MorrowBot gives OpenCode. Ask your admin, or chat with another provider.",
       "nothing": "clear",
@@ -56,6 +59,7 @@ it('withholds on any managed opencode config: an entry in the system folder, or 
       "preferences": "This computer has managed opencode config (/Library/Managed Preferences/ai.opencode.managed.plist), which outranks the read-only config MorrowBot gives OpenCode. Ask your admin, or chat with another provider.",
       "systemFolder": "This computer has managed opencode config (/Library/Application Support/opencode), which outranks the read-only config MorrowBot gives OpenCode. Ask your admin, or chat with another provider.",
       "unreadable": "MorrowBot could not check this computer's managed opencode config, which outranks the read-only config MorrowBot gives OpenCode.",
+      "unreadableUserFolder": "MorrowBot could not check this computer's managed opencode config, which outranks the read-only config MorrowBot gives OpenCode.",
       "userPreferences": "This computer has managed opencode config (/Library/Managed Preferences/me/ai.opencode.managed.plist), which outranks the read-only config MorrowBot gives OpenCode. Ask your admin, or chat with another provider.",
     }
   `);

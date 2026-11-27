@@ -19,5 +19,5 @@ export type AgyFixture = AcpFixture;
 
 /** A host whose built-in Antigravity provider runs the fake agy, with `$HOME` a temp folder. */
 export function startAgyFixture(options: Partial<TestHostOptions> = {}): Promise<AgyFixture> {
-  return startAcpFixture({ binding: AGY, fake: FAKE_AGY, stateDir: 'fake-agy' }, options);
+  return startAcpFixture({ binding: AGY, fake: FAKE_AGY, stateDir: 'fake-agy', cli: 'direct' }, options);
 }

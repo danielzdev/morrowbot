@@ -17,5 +17,5 @@ export const OPENCODE: Extract<ProviderBinding, { kind: 'bound' }> = {
 
 /** A host whose built-in OpenCode provider runs the fake opencode, with `$HOME` a temp folder. */
 export function startOpenCodeFixture(options: Partial<TestHostOptions> = {}): Promise<AcpFixture> {
-  return startAcpFixture({ binding: OPENCODE, fake: FAKE_OPENCODE, stateDir: 'fake-opencode' }, options);
+  return startAcpFixture({ binding: OPENCODE, fake: FAKE_OPENCODE, stateDir: 'fake-opencode', cli: 'wrapped' }, options);
 }

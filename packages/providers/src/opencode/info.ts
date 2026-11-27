@@ -4,9 +4,10 @@ import type { Version } from './version.ts';
 
 /**
  * The one profile the opencode 2.4.1 fixtures prove: no write or shell tool offered at all, and the
- * agent's AGENTS.md sent by MorrowBot, as opencode loads none of the workspace's own files. A read
- * outside the workspace goes to an approval card, so a turn can read there once the user allows it.
- * Interactive only: a background turn could not show that card.
+ * agent's AGENTS.md sent by MorrowBot, as opencode loads none of the workspace's own config. A read
+ * opencode sees as outside the workspace goes to an approval card; it judges that by the path as
+ * written, so reads outside the workspace are declared. Interactive only: a background turn could
+ * not show that card.
  */
 const READ_ONLY: AccessProfile = { access: 'read-only', vendorSettings: 'isolated', modes: ['interactive'], readsOutsideCwd: true };
 

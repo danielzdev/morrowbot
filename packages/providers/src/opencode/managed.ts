@@ -8,18 +8,21 @@ const PREFERENCES_FILE = 'ai.opencode.managed.plist';
 
 /**
  * Checks where opencode 2.4.1 finds admin-managed config: the system folder (any entry in it
- * withholds), and on macOS a managed preferences file for `ai.opencode.managed`, system-wide or for
- * `user`. `root` prefixes every path: '/' in the app, a temporary folder in tests. A folder that
- * exists but cannot be read withholds too.
+ * withholds), and on macOS a managed preferences file for `ai.opencode.managed`, system-wide or in
+ * any user's folder, since opencode picks the folder from its own idea of the user name. `root`
+ * prefixes every path: '/' in the app, a temporary folder in tests. A folder that exists but cannot
+ * be read withholds too.
  */
-export async function checkManagedConfig(root: string, platform: string, user: string | null): Promise<Managed> {
+export async function checkManagedConfig(root: string, platform: string): Promise<Managed> {
   const base = root.replace(/\/+$/, '');
   const folder = platform === 'darwin' ? '/Library/Application Support/opencode' : '/etc/opencode';
   try {
     if (((await listDirectory(`${base}${folder}`)) ?? []).length > 0) return withheld(folder);
     if (platform !== 'darwin') return { kind: 'clear' };
-    const preferences = [PREFERENCES, ...(user === null || user === '' ? [] : [`${PREFERENCES}/${user}`])];
-    for (const dir of preferences) {
+    const entries = (await listDirectory(`${base}${PREFERENCES}`)) ?? [];
+    if (entries.includes(PREFERENCES_FILE)) return withheld(`${PREFERENCES}/${PREFERENCES_FILE}`);
+    for (const user of entries.filter((entry) => !entry.endsWith('.plist'))) {
+      const dir = `${PREFERENCES}/${user}`;
       if (((await listDirectory(`${base}${dir}`)) ?? []).includes(PREFERENCES_FILE)) return withheld(`${dir}/${PREFERENCES_FILE}`);
     }
     return { kind: 'clear' };

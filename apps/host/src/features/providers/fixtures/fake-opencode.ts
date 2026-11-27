@@ -2,9 +2,9 @@
 /**
  * A stand-in for `opencode` 2.4.1 that speaks `opencode acp` (the Agent Client Protocol) over stdio,
  * shaped like the recorded real transcripts in `packages/providers/src/opencode/fixtures/2.4.1/`.
- * It keeps its state in `$HOME/fake-opencode/`: `state.json` (read on every request) can start
+ * It keeps its state in `$MORROWBOT_FAKE_HOME/fake-opencode/` (`$HOME` when unset): `state.json` (read on every request) can start
  * sessions in another mode (`startMode`) or report another ACP version (`protocolVersion`); every
- * request is appended to `log.jsonl`, and every launch's arguments and opencode variables to
+ * request is appended to `log.jsonl`, and every launch's arguments, `HOME` and opencode variables to
  * `launches.jsonl`. The prompt picks a turn's behavior: `think` thinks first; `read-outside` asks to
  * read `$HOME/outside.txt`; `write` asks to edit a file; a denial ends the prompt as `cancelled`, as
  * opencode does. `sneaky` reports an edit it never asked for, and `switch-mode` leaves the build mode,
@@ -19,7 +19,7 @@ import path from 'node:path';
 import { createInterface } from 'node:readline';
 import { z } from 'zod';
 
-const home = process.env.HOME ?? '/nonexistent';
+const home = process.env.MORROWBOT_FAKE_HOME ?? process.env.HOME ?? '/nonexistent';
 const dir = path.join(home, 'fake-opencode');
 mkdirSync(dir, { recursive: true });
 const file = (name: string): string => path.join(dir, name);
@@ -28,7 +28,7 @@ if (process.argv[2] === '--version') {
   process.stdout.write('opencode v2.4.1\n');
   process.exit(0);
 }
-const variables = Object.fromEntries(Object.entries(process.env).filter(([name]) => name.startsWith('OPENCODE_') || name.startsWith('XDG_')));
+const variables = Object.fromEntries(Object.entries(process.env).filter(([name]) => name === 'HOME' || name.startsWith('OPENCODE_') || name.startsWith('XDG_')));
 appendFileSync(file('launches.jsonl'), `${JSON.stringify({ pid: process.pid, args: process.argv.slice(2), env: variables })}\n`);
 
 const State = z.object({ startMode: z.string().default('build'), protocolVersion: z.number().default(1) });

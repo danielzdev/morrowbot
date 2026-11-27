@@ -5,7 +5,6 @@ import { MODEL, type ModelCatalog } from './models.ts';
 const OPEN_MS = 60_000;
 const SET_MS = 15_000;
 const CLOSE_MS = 5_000;
-const SIGNED_OUT = /authentication required|not (logged|signed) in|unauthenticated|unauthorized|\b401\b/i;
 
 export type Opened =
   | { readonly kind: 'opened'; readonly sessionId: string; readonly options: readonly acp.ConfigOption[]; readonly detach: () => void }
@@ -60,7 +59,6 @@ export function closeSession(client: acp.AcpClient, sessionId: string): void {
 
 /** An error opencode answered a request with, as the contract's error. */
 export function vendorError(message: string): ProviderError {
-  if (SIGNED_OUT.test(message)) return { kind: 'signed-out' };
   if (/quota|rate.?limit|resource.?exhausted|too many requests|\b429\b/i.test(message)) return { kind: 'rate-limited', resetsAt: null, windowId: null };
   if (/context (window|length)|too long|maximum context|token limit/i.test(message)) return { kind: 'context-too-long' };
   if (/model\b.*\b(not found|unavailable|unknown|not supported|invalid)/i.test(message)) return { kind: 'invalid-model' };
