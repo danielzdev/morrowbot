@@ -37,7 +37,7 @@ export interface ChatService {
   listMessages(threadId: string): Message[] | undefined;
   /** The thread, its messages, its live turn and blocked groups, and its cursor, as one snapshot. */
   state(threadId: string): ThreadState | undefined;
-  send(threadId: string, text: string, choice: SessionChoice): Promise<AdmitResult>;
+  send(threadId: string, text: string, attachmentIds: readonly string[], choice: SessionChoice): Promise<AdmitResult>;
   continueTurn(threadId: string, failedMessageId: string, choice: SessionChoice): Promise<AdmitResult>;
   /** Stops the thread's turn and resolves once its reply is stored and its processes are gone. */
   stop(threadId: string): Promise<StopResult>;
@@ -161,7 +161,7 @@ export function createChatService(options: ChatServiceOptions): ChatService {
         cursor: core.events.cursor(threadId),
       };
     },
-    send: (threadId, text, choice) => admit(core, threadId, { kind: 'send', text }, choice),
+    send: (threadId, text, attachmentIds, choice) => admit(core, threadId, { kind: 'send', text, attachmentIds }, choice),
     continueTurn: (threadId, failedMessageId, choice) => admit(core, threadId, { kind: 'continue', failedMessageId }, choice),
     stop,
     replyApproval: (threadId, generationId, approvalId, choiceId) => {

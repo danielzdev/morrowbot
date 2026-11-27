@@ -188,6 +188,7 @@ it('streams a new session in Default mode, counts its tokens, closes it, and see
           "kind": "generation.started",
           "state": "queued",
           "userMessage": {
+            "attachments": [],
             "createdAt": "2026-01-01T00:00:03.000Z",
             "id": "id-4",
             "kind": "user",

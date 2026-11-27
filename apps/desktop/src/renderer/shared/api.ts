@@ -1,5 +1,13 @@
 import {
   Agent,
+  Attachment,
+  AttachmentContent,
+  Memory,
+  MemoryList,
+  SkillList,
+  CreateMemoryRequest as CreateMemoryRequestSchema,
+  type UpdateMemoryRequest,
+  type UploadAttachmentRequest,
   AgentMessageList,
   AgentInstructionsView,
   InstructionsCopyReply,
@@ -59,9 +67,17 @@ export interface Api {
   renameThread(id: string, title: string): Promise<ApiResult<Thread>>;
   deleteThread(id: string): Promise<ApiResult<null>>;
   threadState(id: string): Promise<ApiResult<ThreadState>>;
+  send(threadId: string, text: string, attachmentIds: readonly string[], sessionChoice: SessionChoice): Promise<ApiResult<SendMessageResponse>>;
+  uploadAttachment(threadId: string, request: UploadAttachmentRequest): Promise<ApiResult<Attachment>>;
+  attachmentContent(id: string): Promise<ApiResult<AttachmentContent>>;
+  skills(agentId: string): Promise<ApiResult<SkillList>>;
+  /** All the agent's memories, or those matching `query`. */
+  memories(agentId: string, query: string): Promise<ApiResult<MemoryList>>;
+  createMemory(agentId: string, request: z.input<typeof CreateMemoryRequestSchema>): Promise<ApiResult<Memory>>;
+  updateMemory(agentId: string, id: string, request: UpdateMemoryRequest): Promise<ApiResult<Memory>>;
+  deleteMemory(agentId: string, id: string): Promise<ApiResult<null>>;
   /** The agent messages shown in one of the agent's chats, oldest first. */
   agentMessages(agentId: string, threadId: string): Promise<ApiResult<AgentMessageList>>;
-  send(threadId: string, text: string, sessionChoice: SessionChoice): Promise<ApiResult<SendMessageResponse>>;
   continueTurn(threadId: string, failedMessageId: string, sessionChoice: SessionChoice): Promise<ApiResult<ContinueResponse>>;
   stop(threadId: string): Promise<ApiResult<StopGenerationResponse>>;
   answerApproval(threadId: string, approvalId: string, generationId: string, choiceId: string): Promise<ApiResult<null>>;
@@ -115,9 +131,17 @@ export function createApi(bridge: MorrowbotBridge): Api {
     renameThread: (id, title) => call(Thread, 'PATCH', at('threads', id), { title }),
     deleteThread: (id) => call(NoContent, 'DELETE', at('threads', id)),
     threadState: (id) => call(ThreadState, 'GET', at('threads', id, 'state')),
+    send: (threadId, text, attachmentIds, sessionChoice) =>
+      call(SendMessageResponse, 'POST', at('threads', threadId, 'messages'), { text, attachmentIds, sessionChoice }),
+    uploadAttachment: (threadId, request) => call(Attachment, 'POST', at('threads', threadId, 'attachments'), request),
+    attachmentContent: (id) => call(AttachmentContent, 'GET', at('attachments', id)),
+    skills: (agentId) => call(SkillList, 'GET', at('agents', agentId, 'skills')),
+    memories: (agentId, query) => call(MemoryList, 'GET', `${at('agents', agentId, 'memories')}${query === '' ? '' : `?q=${encodeURIComponent(query)}`}`),
+    createMemory: (agentId, request) => call(Memory, 'POST', at('agents', agentId, 'memories'), request),
+    updateMemory: (agentId, id, request) => call(Memory, 'PATCH', at('agents', agentId, 'memories', id), request),
+    deleteMemory: (agentId, id) => call(NoContent, 'DELETE', at('agents', agentId, 'memories', id)),
     agentMessages: (agentId, threadId) =>
       call(AgentMessageList, 'GET', `${at('agents', agentId, 'messages')}?${new URLSearchParams({ threadId }).toString()}`),
-    send: (threadId, text, sessionChoice) => call(SendMessageResponse, 'POST', at('threads', threadId, 'messages'), { text, sessionChoice }),
     continueTurn: (threadId, failedMessageId, sessionChoice) =>
       call(ContinueResponse, 'POST', at('threads', threadId, 'continue'), { failedMessageId, sessionChoice }),
     stop: (threadId) => call(StopGenerationResponse, 'POST', at('threads', threadId, 'stop')),

@@ -1,5 +1,12 @@
 import type {
   Agent,
+  Attachment,
+  AttachmentContent,
+  CreateMemoryRequest,
+  Memory,
+  SkillList,
+  UpdateMemoryRequest,
+  UploadAttachmentRequest,
   AgentMessage,
   AgentInstructionsView,
   ClaimPairingRequest,
@@ -79,7 +86,8 @@ export type ApiAdmitResult =
   | { readonly kind: 'provider_unavailable'; readonly reason: ProviderUnavailableReason }
   | { readonly kind: 'binding_changed' }
   | { readonly kind: 'session_choice_required'; readonly reason: SessionChoiceReason }
-  | { readonly kind: 'not_continuable'; readonly reason: string };
+  | { readonly kind: 'not_continuable'; readonly reason: string }
+  | { readonly kind: 'attachments_missing' };
 
 export type ApiReplay = { readonly kind: 'events'; readonly events: readonly ChatEvent[] } | { readonly kind: 'resync' };
 
@@ -93,7 +101,7 @@ export interface ApiChat {
   deleteAgent(id: string): Promise<boolean>;
   listMessages(threadId: string): Message[] | undefined;
   state(threadId: string): ThreadState | undefined;
-  send(threadId: string, text: string, choice: SessionChoice): Promise<ApiAdmitResult>;
+  send(threadId: string, text: string, attachmentIds: readonly string[], choice: SessionChoice): Promise<ApiAdmitResult>;
   continueTurn(threadId: string, failedMessageId: string, choice: SessionChoice): Promise<ApiAdmitResult>;
   stop(threadId: string): Promise<StopGenerationResponse | { readonly kind: 'not_stored' }>;
   replyApproval(
@@ -162,6 +170,27 @@ export interface ApiPairing {
   revoke(deviceId: string): boolean;
 }
 
+export interface ApiAttachments {
+  upload(
+    threadId: string,
+    request: UploadAttachmentRequest,
+  ): Promise<{ readonly kind: 'saved'; readonly attachment: Attachment } | { readonly kind: 'not-found' } | { readonly kind: 'invalid'; readonly reason: string }>;
+  content(id: string): Promise<AttachmentContent | undefined>;
+}
+
+/** Each call is undefined for an unknown agent (or memory). */
+export interface ApiMemories {
+  list(agentId: string, query: string): Memory[] | undefined;
+  create(agentId: string, request: CreateMemoryRequest): Memory | undefined;
+  update(agentId: string, id: string, request: UpdateMemoryRequest): Memory | undefined;
+  delete(agentId: string, id: string): boolean;
+}
+
+export interface ApiSkills {
+  /** The agent's skills; undefined for an unknown agent. */
+  list(agentId: string): Promise<SkillList | undefined>;
+}
+
 /** Agent-to-agent messages. `send` refuses with a reason before writing anything. */
 export interface ApiAgentMessages {
   send(
@@ -178,6 +207,9 @@ export interface ApiAgentMessages {
 
 export interface ApiServices {
   readonly agents: ApiAgents;
+  readonly attachments: ApiAttachments;
+  readonly memories: ApiMemories;
+  readonly skills: ApiSkills;
   readonly folders: ApiFolders;
   readonly chat: ApiChat;
   readonly plugins: ApiPlugins;

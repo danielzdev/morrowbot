@@ -70,6 +70,7 @@ export function ChatView(props: ChatViewProps) {
         else latest.current.onOpenProviders();
       },
       onAnswer: (approvalId, choiceId) => void session.answer(approvalId, choiceId),
+      image: session.image,
       peers: props.peers,
     }),
     [session, props.display, props.providerName, props.peers],

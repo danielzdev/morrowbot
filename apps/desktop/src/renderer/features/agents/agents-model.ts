@@ -1,9 +1,10 @@
-import { mainThread, type Agent, type AgentList, type CreateAgentRequest, type Folder, type LastMessage, type Thread, type UpdateAgentRequest } from '@morrowbot/contracts';
+import { mainThread, type Agent, type AgentList, type CreateAgentRequest, type Folder, type LastMessage, type SkillList, type Thread, type UpdateAgentRequest } from '@morrowbot/contracts';
 import type { z } from 'zod';
 import type { MorrowbotBridge } from '../../bridge.ts';
 import type { Api, ApiResult } from '../../shared/api.ts';
 import { Store, type Loadable } from '../../shared/store.ts';
 import { createInstructionsEditor, type InstructionsEditor } from './instructions-editor.ts';
+import { createMemoriesEditor, loadSkills, type MemoriesEditor } from './memories-editor.ts';
 
 export interface AgentsState {
   readonly agents: Loadable<readonly Agent[]>;
@@ -44,6 +45,9 @@ export interface AgentsModel {
   touchThread(agentId: string, threadId: string, firstText: string | null): Promise<void>;
   /** The AGENTS.md editor of one agent; each call starts a fresh one. */
   instructionsEditor(agentId: string): InstructionsEditor;
+  /** The memories editor of one agent; each call starts a fresh one. */
+  memoriesEditor(agentId: string): MemoriesEditor;
+  skills(agentId: string): Promise<Loadable<SkillList>>;
   dismissProblem(): void;
   close(): void;
 }
@@ -320,6 +324,8 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
       await loadThreads(agentId);
     },
     instructionsEditor: (agentId) => createInstructionsEditor(api, agentId),
+    memoriesEditor: (agentId) => createMemoriesEditor(api, agentId),
+    skills: (agentId) => loadSkills(api, agentId),
     dismissProblem: () => {
       patch({ problem: null });
     },

@@ -1,4 +1,4 @@
-import type { Agent } from '@morrowbot/contracts';
+import type { Agent, SkillScope } from '@morrowbot/contracts';
 import { useState } from 'preact/hooks';
 import type { ProviderChoice } from '../../shared/binding-ui/selection.ts';
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog.tsx';
@@ -9,15 +9,33 @@ import { AgentGeneral } from './AgentGeneral.tsx';
 import type { AgentsModel } from './agents-model.ts';
 import { DangerZone, WorkspaceSection } from './DangerZone.tsx';
 import { InstructionsEditor } from './InstructionsEditor.tsx';
+import { MemoriesSection } from './MemoriesSection.tsx';
+import { SkillsSection } from './SkillsSection.tsx';
 import type { AvatarEditor } from './NewAgentDialog.tsx';
 
-export type AgentSection = 'general' | 'brain' | 'instructions' | 'workspace' | 'danger';
+export type AgentSection = 'general' | 'brain' | 'instructions' | 'skills' | 'memories' | 'workspace' | 'danger';
 
-const TITLES: Readonly<Record<AgentSection, string>> = { general: 'General', brain: 'Brain', instructions: 'Instructions', workspace: 'Workspace', danger: 'Danger zone' };
+const TITLES: Readonly<Record<AgentSection, string>> = {
+  general: 'General',
+  brain: 'Brain',
+  instructions: 'Instructions',
+  skills: 'Skills',
+  memories: 'Memories',
+  workspace: 'Workspace',
+  danger: 'Danger zone',
+};
 
-const ICONS: Readonly<Record<AgentSection, IconName>> = { general: 'settings', brain: 'chat', instructions: 'pencil', workspace: 'folder', danger: 'trash' };
+const ICONS: Readonly<Record<AgentSection, IconName>> = {
+  general: 'settings',
+  brain: 'chat',
+  instructions: 'pencil',
+  skills: 'book',
+  memories: 'bookmark',
+  workspace: 'folder',
+  danger: 'trash',
+};
 
-const NAV: readonly AgentSection[] = ['general', 'brain', 'instructions', 'workspace'];
+const NAV: readonly AgentSection[] = ['general', 'brain', 'instructions', 'skills', 'memories', 'workspace'];
 
 const isSection = (id: string): id is AgentSection => id in TITLES;
 
@@ -38,6 +56,7 @@ export function AgentSettingsDialog(props: {
   readonly onCopyPath: () => void;
   readonly onRevealWorkspace: () => void;
   readonly onRevealCopy: (revealId: string) => void;
+  readonly onRevealSkills: (scope: SkillScope) => void;
   readonly onDeleted: () => void;
   readonly onClose: () => void;
 }) {
@@ -89,6 +108,8 @@ export function AgentSettingsDialog(props: {
             onDirty={mark('instructions')}
           />
         </div>
+        {props.section === 'skills' && <SkillsSection load={() => model.skills(agent.id)} redact={props.redact} onReveal={props.onRevealSkills} />}
+        {props.section === 'memories' && <MemoriesSection editor={() => model.memoriesEditor(agent.id)} redact={props.redact} />}
         {props.section === 'workspace' && <WorkspaceSection agent={agent} pathLabel={props.workspaceLabel} onCopy={props.onCopyPath} onReveal={props.onRevealWorkspace} />}
         {props.section === 'danger' && <DangerZone agent={agent} onDelete={() => void model.deleteAgent(agent.id).then(props.onDeleted)} />}
       </SettingsShell>

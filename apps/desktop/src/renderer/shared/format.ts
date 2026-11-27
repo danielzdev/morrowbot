@@ -33,3 +33,10 @@ export function messageTime(iso: string, now: number, zone: DateZone = {}): stri
   const sameYear = day(at).slice(0, 4) === day(new Date(now)).slice(0, 4);
   return at.toLocaleDateString(zone.locale, { timeZone: zone.timeZone, month: 'short', day: 'numeric', ...(sameYear ? {} : { year: 'numeric' }) });
 }
+
+/** A file size as people read it: bytes, KB or MB. */
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${String(bytes)} B`;
+  if (bytes < 1024 * 1024) return `${String(Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}

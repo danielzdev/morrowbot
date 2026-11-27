@@ -18,5 +18,7 @@ export function refusal(result: Exclude<ApiAdmitResult, { kind: 'started' }>): R
       return bindingChanged();
     case 'session_choice_required':
       return sessionChoiceRequired(result.reason);
+    case 'attachments_missing':
+      return failure('invalid_request', 'An attached file is no longer there. Remove it and attach it again.');
   }
 }

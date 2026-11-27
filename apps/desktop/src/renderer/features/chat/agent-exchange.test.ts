@@ -6,7 +6,7 @@ const at = (second: number): string => new Date(Date.UTC(2026, 0, 1, 9, 0, secon
 const MAIN = 't-lead';
 
 function user(id: string, second: number): Message {
-  return { kind: 'user', id, threadId: MAIN, text: id, createdAt: at(second) };
+  return { kind: 'user', id, threadId: MAIN, text: id, createdAt: at(second), attachments: [] };
 }
 
 function agentMessage(id: string, second: number, from: 'lead' | 'helper' | 'critic', options: Partial<Pick<AgentMessage, 'expectsReply' | 'replyToMessageId'>> = {}): AgentMessage {
