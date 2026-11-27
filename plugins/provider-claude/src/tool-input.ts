@@ -10,7 +10,7 @@ const MAX_INPUT_CHARS = 4096;
  * Larger input becomes the start of its JSON as one string.
  */
 export function toolInput(input: ToolInput, home: string | null): ToolInput {
-  const shown = home === null || home === '' || home === '/' ? input : withTilde(input, home);
+  const shown = withTilde(input, home);
   const json = JSON.stringify(shown);
   if (json.length <= MAX_INPUT_CHARS) return shown;
   let length = MAX_INPUT_CHARS;
@@ -22,9 +22,15 @@ export function toolInput(input: ToolInput, home: string | null): ToolInput {
   return summary;
 }
 
-function withTilde(value: ToolInput, home: string): ToolInput {
-  if (typeof value === 'string') return value === home ? '~' : value.split(`${home}/`).join('~/');
+function withTilde(value: ToolInput, home: string | null): ToolInput {
+  if (typeof value === 'string') return tilde(value, home);
   if (Array.isArray(value)) return value.map((item) => withTilde(item, home));
   if (value === null || typeof value !== 'object') return value;
   return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, withTilde(item, home)]));
+}
+
+/** `text` with the home folder shown as `~`. */
+export function tilde(text: string, home: string | null): string {
+  if (home === null || home === '' || home === '/') return text;
+  return text === home ? '~' : text.split(`${home}/`).join('~/');
 }

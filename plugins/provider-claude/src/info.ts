@@ -3,13 +3,14 @@ import type { Auth } from './auth.ts';
 import type { Policy } from './policy.ts';
 import type { Version } from './version.ts';
 
-/** The one access profile v1 has proven for Claude Code. */
-const READ_ONLY_ISOLATED: AccessProfile = {
-  access: 'read-only',
-  vendorSettings: 'isolated',
-  modes: ['interactive', 'background'],
-  readsOutsideCwd: false,
-};
+/**
+ * The profiles the 2.1.332 fixtures have proven: both isolated, both confined to the workspace by
+ * `--restricted`, neither with a shell. Workspace-write asks before protected paths such as `.git/`.
+ */
+const PROFILES: readonly AccessProfile[] = [
+  { access: 'read-only', vendorSettings: 'isolated', modes: ['interactive', 'background'], readsOutsideCwd: false },
+  { access: 'workspace-write', vendorSettings: 'isolated', modes: ['interactive', 'background'], readsOutsideCwd: false },
+];
 
 const model = (id: string, label: string): ProviderModel => ({ id, label, isDefault: false, options: [] });
 
@@ -25,9 +26,9 @@ type Runnable = Extract<Version, { kind: 'supported' | 'above' }>;
 type SignedIn = Extract<Auth, { kind: 'personal' | 'withheld' }>;
 
 /**
- * The `ready` answer for a CLI in or above the tested range. The read-only profile is offered only
- * when the version is tested, no managed policy applies and a personal plan is signed in; otherwise
- * it is listed as withheld with every reason. `auth` is null when policy kept `auth status` from running.
+ * The `ready` answer for a CLI in or above the tested range. The profiles are offered only when the
+ * version is tested, no managed policy applies and a personal plan is signed in; otherwise each is
+ * listed as withheld with every reason. `auth` is null when policy kept `auth status` from running.
  */
 export function readyInfo(version: Runnable, policy: Policy, auth: SignedIn | null): ProviderInfo {
   const reasons: string[] = [];
@@ -41,14 +42,14 @@ export function readyInfo(version: Runnable, policy: Policy, auth: SignedIn | nu
     accountLabel: auth?.kind === 'personal' ? auth.accountLabel : null,
     models: [...MODELS],
     capabilities: {
-      profiles: reasons.length === 0 ? [READ_ONLY_ISOLATED] : [],
-      approvals: false,
+      profiles: reasons.length === 0 ? [...PROFILES] : [],
+      approvals: true,
       sessions: false,
-      usage: 'none',
+      usage: 'live',
       withheld:
         reasons.length === 0
           ? []
-          : [{ access: READ_ONLY_ISOLATED.access, vendorSettings: READ_ONLY_ISOLATED.vendorSettings, reason: reasons.join(' ') }],
+          : PROFILES.map(({ access, vendorSettings }) => ({ access, vendorSettings, reason: reasons.join(' ') })),
     },
     warning: version.kind === 'above' ? 'untested CLI version' : null,
   };

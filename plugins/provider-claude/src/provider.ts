@@ -11,6 +11,7 @@ import { readyInfo } from './info.ts';
 import { checkManagedPolicy } from './policy.ts';
 import { parseSettings, type Settings } from './settings.ts';
 import { runTurn } from './turn.ts';
+import { createUsageSnapshot } from './usage.ts';
 import { readVersion, SUPPORTED_TEXT } from './version.ts';
 
 /** How long `provider-info {refresh:false}` may show an earlier `auth status`. Turns never use it. */
@@ -29,6 +30,12 @@ export function createClaudeProvider(): ProviderPlugin {
   let started: Started | undefined;
   let authCache: { readonly at: number; readonly cliPath: string; readonly auth: Auth } | undefined;
   let seen: Seen = { kind: 'nothing' };
+  const snapshot = createUsageSnapshot();
+  /** Every other account's windows are dropped as soon as `provider-info` sees a different one, or none. */
+  const see = (next: Seen): void => {
+    if (next.kind !== 'account' || seen.kind !== 'account' || next.accountKey !== seen.accountKey) snapshot.clear();
+    seen = next;
+  };
 
   const current = (): Started => {
     if (started === undefined) throw new Error('provider-claude has not been started yet');
@@ -62,13 +69,13 @@ export function createClaudeProvider(): ProviderPlugin {
     }
     const policy = await checkManagedPolicy();
     if (policy.kind === 'withheld') {
-      seen = { kind: 'nothing' };
+      see({ kind: 'nothing' });
       return readyInfo(version, policy, null);
     }
     const auth = await displayAuth(refresh);
     switch (auth.kind) {
       case 'signed-out':
-        seen = { kind: 'signed-out' };
+        see({ kind: 'signed-out' });
         return { kind: 'signed-out', signIn: { kind: 'run-in-terminal', argv: [cliPath, 'auth', 'login'] } };
       case 'not-installed':
         return missingRuntime();
@@ -76,7 +83,7 @@ export function createClaudeProvider(): ProviderPlugin {
         return { kind: 'error', message: auth.message };
       case 'personal':
       case 'withheld':
-        seen = { kind: 'account', accountKey: auth.accountKey };
+        see({ kind: 'account', accountKey: auth.accountKey });
         return readyInfo(version, policy, auth);
     }
   };
@@ -105,8 +112,11 @@ export function createClaudeProvider(): ProviderPlugin {
         return { kind: 'unavailable', observedAt, accountKey: '', reason: 'signed-out' };
       case 'nothing':
         return { kind: 'unavailable', observedAt, accountKey: '', reason: 'not-yet-observed' };
-      case 'account':
-        return { kind: 'unavailable', observedAt, accountKey: seen.accountKey, reason: 'not-yet-observed' };
+      case 'account': {
+        const observed = snapshot.read(seen.accountKey);
+        if (observed === null) return { kind: 'unavailable', observedAt, accountKey: seen.accountKey, reason: 'not-yet-observed' };
+        return { kind: 'available', observedAt: observed.observedAt, accountKey: seen.accountKey, windows: [...observed.windows] };
+      }
     }
   };
 
@@ -123,7 +133,14 @@ export function createClaudeProvider(): ProviderPlugin {
     providerInfo: ({ refresh }) => providerInfo(refresh),
     usage,
     routeInfo: ({ cwd }) => routeInfo(cwd),
-    turn: (context) => runTurn(context, { cliPath: current().settings.cliPath, home: process.env.HOME ?? null }),
+    turn: (context) =>
+      runTurn(context, {
+        cliPath: current().settings.cliPath,
+        home: process.env.HOME ?? null,
+        onUsage: (accountKey, observedAt, windows) => {
+          if (seen.kind === 'account' && seen.accountKey === accountKey) snapshot.observe(accountKey, observedAt, windows);
+        },
+      }),
   });
 }
 

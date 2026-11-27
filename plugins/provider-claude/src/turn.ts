@@ -1,33 +1,47 @@
-import { runCommand, type ProviderError, type TurnContext, type TurnEnd } from '@morrowbot/plugin-sdk';
+import { openCommand, type ProviderError, type TurnContext, type TurnEnd } from '@morrowbot/plugin-sdk';
 import { readAuth } from './auth.ts';
-import { buildInvocation } from './invocation.ts';
+import { buildInvocation, type ClaudeAccess } from './invocation.ts';
 import { checkManagedPolicy } from './policy.ts';
-import { createTurnReader, failed } from './reader.ts';
+import { failed } from './reader.ts';
 import { readVersion } from './version.ts';
+import { createTurnWire, type UsageListener } from './wire.ts';
 
 export interface TurnSettings {
   readonly cliPath: string;
-  /** Shown as `~` in tool input. */
+  /** Shown as `~` in tool input and approval cards. */
   readonly home: string | null;
+  readonly onUsage: UsageListener;
 }
 
-type Preflight = { readonly kind: 'ok'; readonly accountKey: string } | { readonly kind: 'refused'; readonly end: TurnEnd };
+type Preflight =
+  | { readonly kind: 'ok'; readonly accountKey: string; readonly access: ClaudeAccess }
+  | { readonly kind: 'refused'; readonly end: TurnEnd };
 
-/** Runs one stateless, read-only turn, after checking the CLI version, managed policy, account and access. */
+/** Runs one stateless turn, after checking the CLI version, managed policy, account and access. */
 export async function runTurn(context: TurnContext, settings: TurnSettings): Promise<TurnEnd> {
   const checked = await preflight(context, settings.cliPath);
   if (checked.kind === 'refused') return checked.end;
   const { request, signal } = context;
-  const { accountKey } = checked;
+  const { accountKey, access } = checked;
   const seed = request.session.kind === 'new' ? request.session.seed : null;
-  const { args, input, files } = buildInvocation({ ...request, seed });
-  const reader = createTurnReader({ home: settings.home }, (chunk) => {
-    context.emit(chunk);
+  const { args, frame, files } = buildInvocation({ ...request, access, seed });
+  const reader = createTurnWire({
+    home: settings.home,
+    accountKey,
+    asks: access === 'workspace-write',
+    ask: context.ask,
+    emit: context.emit,
+    onUsage: settings.onUsage,
+    write: (line) => {
+      command.write(line);
+    },
+    end: () => {
+      command.end();
+    },
   });
-  const exit = await runCommand(settings.cliPath, {
+  const command = openCommand(settings.cliPath, {
     args,
     cwd: request.cwd,
-    input,
     files,
     scope: { kind: 'turn', turnId: request.turnId },
     signal,
@@ -35,6 +49,8 @@ export async function runTurn(context: TurnContext, settings: TurnSettings): Pro
       reader.read(line);
     },
   });
+  command.write(frame);
+  const exit = await command.exited;
   return reader.finish(exit, { cliPath: settings.cliPath, accountKey, cancelled: signal.aborted });
 }
 
@@ -79,12 +95,13 @@ async function preflight({ request, signal }: TurnContext, cliPath: string): Pro
       return refuse({ kind: 'access-not-supported', reason: auth.reason });
   }
   if (auth.accountKey !== request.expectedAccountKey) return refuse({ kind: 'account-changed' });
-  if (request.access !== 'read-only' || request.vendorSettings !== 'isolated') {
+  const access = request.access;
+  if (access === 'full' || request.vendorSettings !== 'isolated') {
     return refuse({
       kind: 'access-not-supported',
-      reason: `provider-claude runs only read-only turns with MorrowBot's own instructions, not ${request.access} with ${request.vendorSettings} settings.`,
+      reason: `provider-claude runs read-only or workspace-write turns with MorrowBot's own instructions, not ${access} with ${request.vendorSettings} settings.`,
     });
   }
   if (signal.aborted) return refuse({ kind: 'other', message: 'cancelled' });
-  return { kind: 'ok', accountKey: auth.accountKey };
+  return { kind: 'ok', accountKey: auth.accountKey, access };
 }

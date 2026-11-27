@@ -1,10 +1,15 @@
-import { HostMessage, PROTOCOL_VERSION, type PluginMessage, type TurnEnd, type TurnRequest } from '@morrowbot/contracts';
+import { HostMessage, PROTOCOL_VERSION, type PluginMessage, type TurnChunk, type TurnEnd, type TurnRequest } from '@morrowbot/contracts';
+import { createTurnApprovals, type TurnApprovals } from './approvals.ts';
 import { stopAllCommands, stopTurnCommands } from './command.ts';
 import { ackGroup, connectHost, killGroup } from './host-link.ts';
 import type { PluginDefinition, ProviderPlugin } from './plugin.ts';
 
 type Send = (message: PluginMessage, done?: () => void) => void;
-type Turns = Map<string, AbortController>;
+interface RunningTurn {
+  readonly controller: AbortController;
+  readonly approvals: TurnApprovals;
+}
+type Turns = Map<string, RunningTurn>;
 
 /**
  * Serves a plugin over the IPC channel the host opened (wire protocol v1). Call it once from the
@@ -43,10 +48,12 @@ function handle(plugin: PluginDefinition, message: HostMessage, send: Send, turn
       void runTurn(plugin, message, send, turns);
       return;
     case 'cancel':
-      turns.get(message.turnId)?.abort();
+      turns.get(message.turnId)?.controller.abort();
       return;
     case 'approval-reply':
-      console.error(`MorrowBot plugin: ignored an approval reply for ${message.approvalId}`);
+      if (turns.get(message.turnId)?.approvals.reply(message.approvalId, message.choiceId) !== true) {
+        console.error(`MorrowBot plugin: ignored a stale or unknown approval reply for ${message.approvalId}`);
+      }
       return;
     case 'child-group-ack':
       ackGroup(message.pgid);
@@ -80,7 +87,7 @@ async function answer(plugin: PluginDefinition, message: Request, send: Send, tu
       send({ kind: 'health-result', id, health: plugin.health ? await plugin.health() : { kind: 'ok' } });
       return;
     case 'shutdown': {
-      for (const controller of turns.values()) controller.abort();
+      for (const { controller } of turns.values()) controller.abort();
       let reply: PluginMessage = { kind: 'shutdown-result', id };
       try {
         await stopAllCommands();
@@ -133,17 +140,15 @@ async function runTurn(
     return;
   }
   const controller = new AbortController();
-  turns.set(turnId, controller);
   let ended = false;
+  const emit = (chunk: TurnChunk): void => {
+    if (!ended) send({ kind: 'turn-chunk', turnId, chunk });
+  };
+  const approvals = createTurnApprovals({ mode: request.mode, emit });
+  turns.set(turnId, { controller, approvals });
   let end: TurnEnd;
   try {
-    end = await provider(plugin).turn({
-      request,
-      signal: controller.signal,
-      emit: (chunk) => {
-        if (!ended) send({ kind: 'turn-chunk', turnId, chunk });
-      },
-    });
+    end = await provider(plugin).turn({ request, signal: controller.signal, emit, ask: (ask) => approvals.ask(ask) });
   } catch (error) {
     end = {
       outcome: controller.signal.aborted
@@ -157,6 +162,7 @@ async function runTurn(
     };
   } finally {
     ended = true;
+    approvals.close();
     turns.delete(turnId);
   }
   await stopTurnCommands(turnId);
