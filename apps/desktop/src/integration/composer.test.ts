@@ -106,6 +106,7 @@ it('keeps the draft when the provider cannot take a send, and Retry sends the dr
         "draft": "hi",
         "problem": {
           "action": {
+            "attachmentIds": [],
             "kind": "send",
             "text": "hi",
           },
@@ -187,6 +188,7 @@ it('keeps a chat’s draft through a 503, a 409 and a window reload, and a sent 
       "refused": [
         {
           "action": {
+            "attachmentIds": [],
             "kind": "send",
             "text": "plan my week",
           },

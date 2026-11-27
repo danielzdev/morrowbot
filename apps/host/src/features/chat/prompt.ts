@@ -34,8 +34,7 @@ export function buildTurnInput(prelude: Prelude, text: string, attachments: read
         break;
     }
   }
-  const message = text.trim();
-  parts.push(message === '' ? '(No message: see the attached files.)' : message);
+  parts.push(text.trim() === '' ? '(No message: see the attached files.)' : text);
   return { prompt: parts.join('\n\n'), images };
 }
 
