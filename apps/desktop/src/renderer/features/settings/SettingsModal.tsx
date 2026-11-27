@@ -111,7 +111,6 @@ export function SettingsModal(props: SettingsModalProps) {
       <div ref={body} class="settings-body">
         {searching ? (
           <SettingsSearchResults
-            key={query}
             results={results}
             query={query}
             groups={groups}

@@ -62,7 +62,7 @@ export function Shell(props: {
   useEffect(() => {
     document.documentElement.dataset.platform = PLATFORM;
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape' && !event.defaultPrevented) {
+      if (event.key === 'Escape' && !event.defaultPrevented && !event.isComposing) {
         if (escapeStack.escape()) event.preventDefault();
         return;
       }

@@ -34,7 +34,7 @@ export function SettingsSearchField(props: {
         }}
         onKeyDown={(event) => {
           if (event.isComposing) return;
-          if (event.key === 'Escape' && props.query !== '') {
+          if (event.key === 'Escape' && props.query.trim() !== '') {
             event.preventDefault();
             props.onQuery('');
           } else if (event.key === 'Enter' && props.first !== null) {
@@ -55,7 +55,8 @@ export function SettingsSearchField(props: {
 
 /**
  * The matches for a search, listed by section; picking one opens its row. ↑ from the first goes back
- * to the field and Esc clears the search. Key it on the query, so each search starts with the first match as its tab stop.
+ * to the field and Esc clears the search. The count stays mounted so screen readers hear it change; the
+ * matches are keyed on the query, so each search starts with the first match as its tab stop.
  */
 export function SettingsSearchResults(props: {
   readonly results: RefObject<HTMLDivElement | null>;
@@ -88,26 +89,28 @@ export function SettingsSearchResults(props: {
       <p class="settings-results-count" role="status">
         {count === 0 ? `No settings match “${props.query.trim()}”.` : count === 1 ? '1 setting' : `${String(count)} settings`}
       </p>
-      {props.groups.map((group) => (
-        <div key={group.section} class="settings-results-group" role="group" aria-label={SECTIONS[group.section].title}>
-          <div class="kicker">{SECTIONS[group.section].title}</div>
-          {group.entries.map((entry, index) => (
-            <button
-              key={entry.id}
-              type="button"
-              class="settings-result"
-              data-roving={entry.label}
-              tabIndex={group === props.groups[0] && index === 0 ? 0 : -1}
-              onClick={() => {
-                props.onPick(entry);
-              }}
-            >
-              <span class="setting-label">{entry.label}</span>
-              <span class="setting-description">{entry.description}</span>
-            </button>
-          ))}
-        </div>
-      ))}
+      <div key={props.query} class="settings-results-groups">
+        {props.groups.map((group) => (
+          <div key={group.section} class="settings-results-group" role="group" aria-label={SECTIONS[group.section].title}>
+            <div class="kicker">{SECTIONS[group.section].title}</div>
+            {group.entries.map((entry, index) => (
+              <button
+                key={entry.id}
+                type="button"
+                class="settings-result"
+                data-roving={entry.label}
+                tabIndex={group === props.groups[0] && index === 0 ? 0 : -1}
+                onClick={() => {
+                  props.onPick(entry);
+                }}
+              >
+                <span class="setting-label">{entry.label}</span>
+                <span class="setting-description">{entry.description}</span>
+              </button>
+            ))}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

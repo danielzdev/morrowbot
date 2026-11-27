@@ -27,6 +27,11 @@
   gap: var(--s-4);
   padding-top: var(--s-3);
 }
+.settings-results-groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
 .settings-results-count {
   color: var(--text-3);
   font: var(--t-small);
