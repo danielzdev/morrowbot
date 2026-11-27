@@ -12,6 +12,7 @@ import { pluginSettingsRepository, type PluginSettingsRepository } from './plugi
 import { migrate } from './schema.ts';
 import { sessionRepository, type SessionRepository } from './sessions-repo.ts';
 import { threadRepository, type ThreadRepository } from './threads-repo.ts';
+import { tokenTotalsRepository, type TokenTotalsRepository } from './token-totals-repo.ts';
 import { usageSnapshotRepository, type UsageSnapshotRepository } from './usage-repo.ts';
 
 export interface Storage {
@@ -24,6 +25,7 @@ export interface Storage {
   readonly sessions: SessionRepository;
   readonly childGroups: ChildGroupRepository;
   readonly usage: UsageSnapshotRepository;
+  readonly tokens: TokenTotalsRepository;
   readonly devices: DeviceRepository;
   readonly agentMessages: AgentMessageRepository;
   /** Runs `work` in one write transaction (`BEGIN IMMEDIATE`), rolled back if it throws. Not reentrant. */
@@ -50,6 +52,7 @@ export function openStorage(file: string, now: () => string): Storage {
       sessions: sessionRepository(db),
       childGroups: childGroupRepository(db),
       usage: usageSnapshotRepository(db),
+      tokens: tokenTotalsRepository(db, now),
       devices: deviceRepository(db),
       agentMessages: agentMessageRepository(db),
       transaction: (work) => {

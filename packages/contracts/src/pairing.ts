@@ -8,23 +8,23 @@ export type PairingCode = z.infer<typeof PairingCode>;
 export const DevicePlatform = z.enum(['ios', 'android', 'macos', 'windows', 'linux']);
 export type DevicePlatform = z.infer<typeof DevicePlatform>;
 
-/** Where a device reaches the host, such as `http://100.64.0.1:47800`. Parsed to its origin (one spelling per endpoint). */
-export const HostUrl = z
-  .url({ protocol: /^https?$/ })
-  .refine((value) => {
-    const url = parsedUrl(value);
-    return url !== null && url.pathname === '/' && url.search === '' && url.hash === '' && url.username === '' && url.password === '';
-  }, 'Use only the scheme, host and port')
-  .transform((value) => new URL(value).origin);
-export type HostUrl = z.infer<typeof HostUrl>;
-
-function parsedUrl(value: string): URL | null {
+const parseUrl = (value: string): URL | null => {
   try {
     return new URL(value);
   } catch {
     return null;
   }
-}
+};
+
+/** Where a device reaches the host, such as `http://100.64.0.1:47800`. Parsed to its origin (one spelling per endpoint). */
+export const HostUrl = z
+  .url({ protocol: /^https?$/ })
+  .refine((value) => {
+    const url = parseUrl(value);
+    return url !== null && url.pathname === '/' && url.search === '' && url.hash === '' && url.username === '' && url.password === '';
+  }, 'Use only the scheme, host and port')
+  .transform((value) => new URL(value).origin);
+export type HostUrl = z.infer<typeof HostUrl>;
 
 /** `url` is the address the device should use; it defaults to the host's own LAN or Tailscale listen address. */
 export const CreatePairingCodeRequest = z.strictObject({ url: HostUrl.optional() });

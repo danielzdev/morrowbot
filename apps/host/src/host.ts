@@ -138,6 +138,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
         agents: { ...agents, lastMessages: () => storage.messages.lastByAgent() },
         folders,
         chat,
+        usage: { tokens: (range) => storage.tokens.read(range) },
         plugins: {
           list: () => plugins.list(),
           blockedGroups: (pluginId) => plugins.groups.blocked(pluginId),

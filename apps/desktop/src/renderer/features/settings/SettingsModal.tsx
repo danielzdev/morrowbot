@@ -1,3 +1,4 @@
+import type { ComponentChildren } from 'preact';
 import { useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { MorrowbotBridge } from '../../bridge.ts';
 import type { AppearanceModel } from '../../shared/appearance.ts';
@@ -26,6 +27,8 @@ export interface SettingsModalProps {
   readonly chatPrefs: ChatPrefsModel;
   readonly info: AppInfo | null;
   readonly bridge: Pick<MorrowbotBridge, 'loginItem' | 'setOpenAtLogin' | 'revealPath'>;
+  /** Settings › Usage, composed by the app from the usage feature. */
+  readonly usage: ComponentChildren;
 }
 
 /** Scrolls a row into view, moves focus to its control and flashes it; returns what ends the flash early. */
@@ -76,6 +79,8 @@ export function SettingsModal(props: SettingsModalProps) {
         return <ChatSection prefs={chatPrefs} onChange={props.chatPrefs.set} platform={PLATFORM} />;
       case 'keyboard':
         return <KeyboardSection platform={PLATFORM} sendWith={chatPrefs.sendWith} />;
+      case 'usage':
+        return props.usage;
       case 'about':
         return <AboutSection info={props.info} onRevealData={() => void props.bridge.revealPath({ kind: 'data-dir' })} />;
     }
