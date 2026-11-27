@@ -1,7 +1,7 @@
 import { createServer, type IncomingHttpHeaders, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { parseSubscription, proxyRequest, type HostTarget, type IpcSender } from './ipc-proxy.ts';
+import { parseCopyText, parseSubscription, proxyRequest, type HostTarget, type IpcSender } from './ipc-proxy.ts';
 
 const RENDERER_URL = 'file:///Applications/MorrowBot.app/Contents/Resources/app/src/renderer/index.html';
 const TOKEN = 'a'.repeat(43);
@@ -193,6 +193,31 @@ it('a thread subscription from a wrong sender or with a bad frame is refused', (
       },
       "malformed": {
         "refused": "Malformed subscription",
+      },
+    }
+  `);
+});
+
+it('only the app page may write plain text to the clipboard', () => {
+  const attempt = (sender: IpcSender, input: unknown): unknown => {
+    try {
+      return parseCopyText({ sender, rendererUrl: RENDERER_URL, input });
+    } catch (error) {
+      return { refused: error instanceof Error ? error.message : error };
+    }
+  };
+  expect({
+    wrongUrl: attempt({ kind: 'frame', url: 'https://evil.example/index.html', isMainFrame: true }, 'claude auth login'),
+    notText: attempt(APP_PAGE, { text: 'claude auth login' }),
+    appPage: attempt(APP_PAGE, 'claude auth login'),
+  }).toMatchInlineSnapshot(`
+    {
+      "appPage": "claude auth login",
+      "notText": {
+        "refused": "Malformed clipboard text",
+      },
+      "wrongUrl": {
+        "refused": "IPC sender is not the app page: https://evil.example/index.html",
       },
     }
   `);

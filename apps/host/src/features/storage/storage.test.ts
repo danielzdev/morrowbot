@@ -17,7 +17,7 @@ beforeEach(async () => {
     name: 'Researcher',
     description: '',
     workspace: { kind: 'shared', dir: '/work' },
-    avatar: { kind: 'initials', color: '#112233' },
+    avatar: { kind: 'bot', shape: 'mug', color: '#112233', finish: 'metallic' },
     provider: { kind: 'unbound' },
     createdAt: AT,
     updatedAt: AT,

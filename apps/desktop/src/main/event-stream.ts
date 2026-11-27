@@ -8,18 +8,28 @@ export interface EventStream {
   close(): void;
 }
 
+export interface EventStreamHandlers {
+  readonly onEvent: (frame: EventServerFrame) => void;
+  readonly report: (error: unknown) => void;
+  readonly onOpen?: () => void;
+  /** The socket closed without `close()`, e.g. the host dropped it. */
+  readonly onLost?: () => void;
+}
+
 /** One WebSocket to the host's `/api/events`, authenticated with the Bearer token and sent without an Origin. */
-export function openEventStream(
-  target: HostTarget,
-  onEvent: (frame: EventServerFrame) => void,
-  report: (error: unknown) => void,
-): EventStream {
+export function openEventStream(target: HostTarget, handlers: EventStreamHandlers): EventStream {
+  const { onEvent, report } = handlers;
   const url = new URL('/api/events', target.url);
   url.protocol = 'ws:';
   const socket = new WebSocket(url, { headers: { authorization: `Bearer ${target.token}` } });
   const pending: EventClientFrame[] = [];
+  let closing = false;
   socket.on('open', () => {
     for (const frame of pending.splice(0)) socket.send(JSON.stringify(frame));
+    handlers.onOpen?.();
+  });
+  socket.on('close', () => {
+    if (!closing) handlers.onLost?.();
   });
   socket.on('message', (data: WebSocket.RawData) => {
     const parsed = EventServerFrame.safeParse(parseJson(textOf(data)));
@@ -33,6 +43,7 @@ export function openEventStream(
       else if (socket.readyState === WebSocket.CONNECTING) pending.push(frame);
     },
     close: () => {
+      closing = true;
       socket.terminate();
     },
   };
