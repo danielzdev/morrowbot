@@ -43,6 +43,7 @@ export function pairingRoutes(options: PairingRouteOptions): Route[] {
       path: '/api/pairing/claim',
       access: 'public',
       handle: async (context) => {
+        if (context.source === '') return failure('invalid_request', 'The connection closed before the claim was read');
         const request = await parseBody(context, ClaimPairingRequest);
         if (request.kind === 'rejected') return request.reply;
         const result = pairing.claim(request.value, context.source);

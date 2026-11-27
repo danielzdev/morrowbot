@@ -63,9 +63,12 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
       closeDeviceSockets: (deviceId) => {
         for (const ws of deviceSockets.get(deviceId) ?? []) {
           ws.close(1008, 'This device was unpaired');
-          setTimeout(() => {
+          const cut = setTimeout(() => {
             ws.terminate();
           }, UNPAIRED_CLOSE_MS).unref();
+          ws.once('close', () => {
+            clearTimeout(cut);
+          });
         }
       },
     }),
@@ -108,6 +111,9 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
     const rejection = screened ?? (caller === undefined ? failure('internal', 'Authentication failed') : admit('token', caller));
     if (rejection !== undefined || caller === undefined || pathOf(request) !== EVENTS_PATH) {
       const status = rejection?.status === 401 ? '401 Unauthorized' : rejection?.status === 500 ? '500 Internal Server Error' : '403 Forbidden';
+      socket.once('finish', () => {
+        socket.destroy();
+      });
       socket.end(`HTTP/1.1 ${status}\r\nconnection: close\r\n\r\n`);
       return;
     }

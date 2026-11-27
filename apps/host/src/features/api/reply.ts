@@ -103,13 +103,17 @@ export async function readJson(request: IncomingMessage, maxBytes = MAX_BODY_BYT
   }
   const chunks: Buffer[] = [];
   let size = 0;
-  for await (const chunk of request) {
-    if (!(chunk instanceof Buffer)) continue;
-    size += chunk.length;
-    if (size > maxBytes) {
-      return { kind: 'rejected', reply: failure('invalid_request', 'Request body is too large', 413) };
+  try {
+    for await (const chunk of request) {
+      if (!(chunk instanceof Buffer)) continue;
+      size += chunk.length;
+      if (size > maxBytes) {
+        return { kind: 'rejected', reply: failure('invalid_request', 'Request body is too large', 413) };
+      }
+      chunks.push(chunk);
     }
-    chunks.push(chunk);
+  } catch {
+    return { kind: 'rejected', reply: failure('invalid_request', 'The request body was cut off') };
   }
   try {
     const value: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'));

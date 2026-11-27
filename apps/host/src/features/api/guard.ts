@@ -36,16 +36,22 @@ export function screen(request: IncomingMessage, listener: Listener): Reply | un
   const loopbackHosts = new Set([authority(listener), `127.0.0.1:${port}`, `localhost:${port}`].map((value) => hostOf(value)));
   if (host === undefined || (isLoopback(listener.hostname) && !loopbackHosts.has(host))) return failure('forbidden', 'Unexpected Host header');
   const origin = request.headers.origin;
-  if (origin !== undefined) {
-    const given = URL.parse(origin);
-    const allowed = [new URL(`http://${host}`).origin, new URL(`https://${host}`).origin];
-    if (given === null || !allowed.includes(given.origin)) return failure('forbidden', 'Browser origins may not use the host API');
+  if (origin !== undefined && !sameOrigin(origin, request.headers.host ?? '')) {
+    return failure('forbidden', 'Browser origins may not use the host API');
   }
   return undefined;
 }
 
+/** Whether `origin` (in the serialized form clients send) names the Host the request went to, under the Origin's own scheme. */
+function sameOrigin(origin: string, host: string): boolean {
+  const given = URL.parse(origin);
+  if (given === null || given.origin !== origin.toLowerCase() || (given.protocol !== 'http:' && given.protocol !== 'https:')) return false;
+  return URL.parse(`${given.protocol}//${host}`)?.origin === given.origin;
+}
+
 /** A Host header in one spelling (lowercase, compressed IPv6, no default port), or undefined when it is not a bare host. */
 function hostOf(header: string): string | undefined {
+  if (!/^[^\s/?#@\\]+$/.test(header)) return undefined;
   const url = URL.parse(`http://${header}`);
   if (url === null || url.host === '' || url.username !== '' || url.password !== '' || url.pathname !== '/' || url.search !== '' || url.hash !== '') {
     return undefined;

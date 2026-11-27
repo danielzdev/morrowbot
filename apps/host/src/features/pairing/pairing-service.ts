@@ -61,12 +61,12 @@ export function createPairingService(options: PairingServiceOptions): PairingSer
         if (recent.length === 0) failures.delete(key);
         else failures.set(key, recent);
       }
-      const recent = failures.get(source) ?? [];
-      if (recent.length >= MAX_FAILED_CLAIMS) return { kind: 'rate-limited' };
       if (open === undefined || atMs >= open.expiresAtMs) {
         open = undefined;
         return { kind: 'wrong-code' };
       }
+      const recent = failures.get(source) ?? [];
+      if (recent.length >= MAX_FAILED_CLAIMS) return { kind: 'rate-limited' };
       if (!sameCode(open.code, request.code)) {
         failures.set(source, [...recent, atMs]);
         open.guesses += 1;
@@ -84,6 +84,7 @@ export function createPairingService(options: PairingServiceOptions): PairingSer
         revokedAt: null,
       };
       records.insert(device, hashToken(token));
+      lastWritten.set(device.deviceId, atMs);
       return { kind: 'claimed', deviceId: device.deviceId, token };
     },
     authenticate: (token) => {
@@ -100,7 +101,10 @@ export function createPairingService(options: PairingServiceOptions): PairingSer
       return deviceId;
     },
     list: () => records.list(),
-    revoke: (deviceId) => records.revoke(deviceId, now()),
+    revoke: (deviceId) => {
+      lastWritten.delete(deviceId);
+      return records.revoke(deviceId, now());
+    },
   };
 }
 
