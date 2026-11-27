@@ -30,7 +30,8 @@ export type IconName =
   | 'keyboard'
   | 'palette'
   | 'gauge'
-  | 'refresh';
+  | 'refresh'
+  | 'provider';
 
 const dot = (cx: number, cy: number, r = 1.1) => <circle cx={cx} cy={cy} r={r} fill="currentColor" stroke="none" />;
 
@@ -62,6 +63,12 @@ const SHAPES: Readonly<Record<IconName, ComponentChildren>> = {
       <rect x="9" y="2.5" width="4.5" height="4.5" rx="1" />
       <rect x="2.5" y="9" width="4.5" height="4.5" rx="1" />
       <circle cx="11.25" cy="11.25" r="2.25" />
+    </>
+  ),
+  provider: (
+    <>
+      <rect x="4" y="4" width="8" height="8" rx="1.5" />
+      <path d="M6.5 2v2M9.5 2v2M6.5 12v2M9.5 12v2M2 6.5h2M2 9.5h2M12 6.5h2M12 9.5h2" />
     </>
   ),
   sidebar: (
