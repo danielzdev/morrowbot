@@ -6,10 +6,11 @@ import { BotAvatar, combineActivity, motionOf } from '../features/avatar/index.t
 import { chatMarkdown } from '../features/chat/index.ts';
 import type { PaletteItem } from '../features/palette/index.ts';
 import { pluginAlert } from '../features/plugins/index.ts';
+import { ProvidersSection } from '../features/providers/index.ts';
 import { SettingsModal, type SettingsLink } from '../features/settings/index.ts';
 import { AppInfo, redact } from '../shared/privacy.ts';
 import { useStore } from '../shared/use-store.ts';
-import { entriesOf, liveFactsOf } from './derive.ts';
+import { liveFactsOf } from './derive.ts';
 import { createModels } from './models.ts';
 import { AgentDialogs, type AgentDialog } from './AgentDialogs.tsx';
 import { Pages, type Page } from './Pages.tsx';
@@ -50,12 +51,14 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
   const [info, setInfo] = useState<AppInfo | null>(null);
   const copies = useRef(0);
   const state = useStore(models.agents.state);
-  const cards = useStore(models.plugins.cards);
+  const cards = useStore(models.providers.cards);
+  const pluginList = useStore(models.plugins.list);
   const activity = useStore(models.chats.activity);
   const appearance = useStore(models.appearance.state);
   const update = useStore(models.updates.status);
   useEffect(() => {
     void models.agents.load();
+    void models.providers.load();
     void models.plugins.load();
     void bridge.appInfo().then((reply) => {
       const parsed = AppInfo.safeParse(reply);
@@ -63,6 +66,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
     });
     return () => {
       models.chats.close();
+      models.providers.close();
       models.plugins.close();
       models.agents.close();
       models.appearance.close();
@@ -88,6 +92,8 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
   const openSettings = (link: SettingsLink): void => {
     setSettings(link);
   };
+  const agentsUsing = (providerId: string): readonly string[] =>
+    state.agents.kind === 'loaded' ? state.agents.value.filter(({ provider }) => provider.kind === 'bound' && provider.pluginId === providerId).map(({ name }) => name) : [];
   const openAgent = (agentId: string, threadId: string | null): void => {
     models.agents.selectAgent(agentId);
     if (threadId !== null) models.agents.openThread(agentId, threadId);
@@ -128,7 +134,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
           if (id === 'binding') setBindingRequest((count) => count + 1);
           if (id === 'settings') openSettings('general');
           if (id === 'filter-agents') setFilterRequest((count) => count + 1);
-          if (id === 'extensions') setPage({ kind: 'plugins' });
+          if (id === 'extensions') setPage({ kind: 'extensions' });
           if (id === 'find' && page.kind === 'chat') setFindRequest((count) => count + 1);
         }}
         sidebar={(mode, controls) => (
@@ -138,7 +144,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
             facts={(each) => liveFactsOf(cards, activity, each)}
             avatar={avatarOf}
             redact={preview}
-            alert={pluginAlert(entriesOf(cards))}
+            alert={pluginList.kind === 'loaded' ? pluginAlert(pluginList.value) : null}
             filterRequest={filterRequest}
             onToggle={controls.toggle}
             onOpenAgent={(agentId, threadId) => {
@@ -150,7 +156,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
             onNewAgent={() => { setDialog({ kind: 'new-agent' }); controls.dismiss(); }}
             onSettings={() => { openSettings('general'); }}
             onUsage={() => { openSettings('usage'); }}
-            onExtensions={() => { setPage({ kind: 'plugins' }); controls.dismiss(); }}
+            onExtensions={() => { setPage({ kind: 'extensions' }); controls.dismiss(); }}
           />
         )}
         main={(chrome) => (
@@ -172,15 +178,15 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
                   newAgent: () => { setDialog({ kind: 'new-agent' }); },
                   changeBinding: page.kind === 'chat' && agent !== undefined ? () => { setBindingRequest((count) => count + 1); } : null,
                   openSettings,
-                  openExtensions: () => { setPage({ kind: 'plugins' }); },
+                  openExtensions: () => { setPage({ kind: 'extensions' }); },
                   toggleSidebar: chrome.showSidebar,
                   openAgent: (agentId, threadId) => {
                     openAgent(agentId, threadId);
                     focusComposer();
                   },
                   recheck: (pluginId) => {
-                    setPage({ kind: 'plugins' });
-                    void models.plugins.recheck(pluginId);
+                    openSettings(`providers/${pluginId}`);
+                    void models.providers.recheck(pluginId);
                   },
                 }}
                 onClose={() => { setPalette(false); }}
@@ -207,6 +213,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
               onNewAgent={() => { setDialog({ kind: 'new-agent' }); }}
               onCopy={copyChat}
               onNewChat={newChat}
+              onOpenSettings={openSettings}
             />
           </>
         )}
@@ -218,7 +225,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
         bridge={bridge}
         info={info}
         reducedMotion={appearance.reducedMotion}
-        onOpenProviders={() => { setPage({ kind: 'plugins' }); }}
+        onOpenProviders={() => { openSettings('providers'); }}
         onCreated={(created) => { newChat(created.id); }}
       />
       {settings !== null && (
@@ -231,6 +238,20 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
           info={info}
           updates={models.updates}
           bridge={bridge}
+          providers={(slot) => (
+            <ProvidersSection
+              model={models.providers}
+              info={info}
+              bridge={bridge}
+              initial={slot.initial}
+              onTrail={slot.onTrail}
+              agentsUsing={agentsUsing}
+              onOpenExtensions={() => {
+                setSettings(null);
+                setPage({ kind: 'extensions' });
+              }}
+            />
+          )}
           usage={<UsagePane models={models} />}
         />
       )}

@@ -26,7 +26,7 @@ export function AgentDialogs(props: {
 }) {
   const { dialog, models, bridge } = props;
   const state = useStore(models.agents.state);
-  const cards = useStore(models.plugins.cards);
+  const cards = useStore(models.providers.cards);
   if (dialog === null) return null;
   const choices = providerChoicesOf(cards);
   const info = props.info ?? NO_INFO;

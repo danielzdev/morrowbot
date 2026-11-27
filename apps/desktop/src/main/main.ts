@@ -6,9 +6,10 @@ import { appFilesOf } from './app-files.ts';
 import { openEventStream, type EventStream } from './event-stream.ts';
 import { superviseHost } from './host-supervisor.ts';
 import { checkSender, IpcRefusedError, parseCopyText, parseSubscription, proxyRequest, type HostTarget, type IpcSender } from './ipc-proxy.ts';
+import { readSafeMode, writeSafeMode } from './launch-prefs.ts';
 import { NO_UPDATER, startUpdater, type Updater } from './updater.ts';
 import { hostEnvOf, profileOf, type UsableProfile } from './profile.ts';
-import { appInfoOf, loginItemOf, parseExternalUrl, parseOpenAtLogin, parseRevealTarget, resolveReveal } from './shell-actions.ts';
+import { appInfoOf, loginItemOf, parseExternalUrl, parseOpenAtLogin, parseRelaunch, parseRevealTarget, pluginsDirOf, resolveReveal } from './shell-actions.ts';
 
 const FILES = appFilesOf(app.isPackaged ? { kind: 'packaged', appPath: app.getAppPath() } : { kind: 'dev' });
 const RENDERER_URL = FILES.rendererUrl;
@@ -26,6 +27,7 @@ const CHANNELS: BridgeChannels = {
   appInfo: 'morrowbot:app-info',
   loginItem: 'morrowbot:login-item',
   setOpenAtLogin: 'morrowbot:set-open-at-login',
+  relaunch: 'morrowbot:relaunch',
   updateStatus: 'morrowbot:update-status',
   updateChanged: 'morrowbot:update-changed',
   checkForUpdates: 'morrowbot:check-for-updates',
@@ -110,7 +112,13 @@ function runApp(profile: UsableProfile): void {
     });
   }
 
-  const host = superviseHost({ main: FILES.hostMain, env: hostEnvOf(profile, process.env) }, {
+  const { dataDir } = profile;
+  const hostEnv: NodeJS.ProcessEnv = {
+    ...hostEnvOf(profile, process.env),
+    ...(FILES.builtinPluginsDir === null ? {} : { MORROWBOT_BUILTIN_PLUGINS_DIR: FILES.builtinPluginsDir }),
+    ...(readSafeMode(dataDir) ? { MORROWBOT_SAFE_MODE: '1' } : {}),
+  };
+  const host = superviseHost({ main: FILES.hostMain, env: hostEnv }, {
     ready: (target) => {
       connect(target, RECONNECT_MS);
     },
@@ -164,14 +172,19 @@ function runApp(profile: UsableProfile): void {
     clipboard.writeText(parseCopyText({ sender: senderOf(event), rendererUrl: RENDERER_URL, input })),
   );
 
-  const { dataDir } = profile;
   const fromRenderer = (event: IpcMainInvokeEvent, input: unknown) => ({ sender: senderOf(event), rendererUrl: RENDERER_URL, input });
 
   ipcMain.handle(CHANNELS.openExternal, (event, input: unknown) => shell.openExternal(parseExternalUrl(fromRenderer(event, input))));
 
   ipcMain.handle(CHANNELS.revealPath, async (event, input: unknown) => {
     const target = parseRevealTarget(fromRenderer(event, input));
-    shell.showItemInFolder(await resolveReveal(target, { dataDir, host: host.target(), rendererUrl: RENDERER_URL }));
+    shell.showItemInFolder(await resolveReveal(target, { dataDir, pluginsDir: pluginsDirOf(process.env, dataDir), host: host.target(), rendererUrl: RENDERER_URL }));
+  });
+
+  ipcMain.handle(CHANNELS.relaunch, (event, input: unknown) => {
+    writeSafeMode(dataDir, parseRelaunch(fromRenderer(event, input)));
+    app.relaunch();
+    app.quit();
   });
 
   ipcMain.handle(CHANNELS.appInfo, (event) => {

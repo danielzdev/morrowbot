@@ -131,6 +131,7 @@ it('a breach in one turn fails another turn on the same daemon at once and withd
   await agy.events.finished(broken);
   await agy.events.finished(read);
   const late = await agy.host.call('POST', `/api/threads/${reading.id}/approvals/${approvalId ?? 'missing'}`, { generationId: read, choiceId: 'allow' });
+  await until(async () => (await agy.log()).some((entry) => entry.method === 'permission-reply'));
   const allowed = (await agy.log()).flatMap((entry) => (entry.method === 'permission-reply' ? [entry.params] : []));
   expect({ read: agy.steps(read), histories: [await agy.history(reading), await agy.history(breaking)], lateAllow: late.status, repliesToAgy: allowed }).toMatchInlineSnapshot(`
     {

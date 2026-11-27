@@ -3,7 +3,7 @@ import { afterEach, expect, it } from 'vitest';
 import { systemProbe, type ProcessProbe } from '../../../host/src/features/plugins/index.ts';
 import { startChatFixture, type ChatFixture } from '../../../host/src/testing/chat-fixture.ts';
 import { createChatHub, type ChatHub, type ThreadSession } from '../renderer/features/chat/index.ts';
-import { createPluginsModel, type PluginsModel } from '../renderer/features/plugins/index.ts';
+import { createProvidersModel, type ProvidersModel } from '../renderer/features/providers/index.ts';
 import { createApi } from '../renderer/shared/api.ts';
 import { until } from '../renderer/shared/store.ts';
 import { idle, loaded } from './screens.ts';
@@ -36,7 +36,7 @@ function chatGroups(session: ThreadSession): readonly BlockedGroup[] {
   return view.kind === 'loaded' ? view.value.blockedGroups : [];
 }
 
-function pluginGroups(plugins: PluginsModel): readonly BlockedGroup[] {
+function pluginGroups(plugins: ProvidersModel): readonly BlockedGroup[] {
   const cards = plugins.cards.get();
   return cards.kind === 'loaded' ? (cards.value.find(({ entry }) => entry.manifest.id === 'echo')?.entry.blockedGroups ?? []) : [];
 }
@@ -45,7 +45,7 @@ async function eventually(check: () => boolean): Promise<void> {
   while (!check()) await new Promise((resolve) => setTimeout(resolve, 20));
 }
 
-it('a Stop that leaves a process group blocked shows it in the chat and on Plugins, and Release anyway there frees the chat', async () => {
+it('a Stop that leaves a process group blocked shows it in the chat and in Settings › Providers, and Release anyway there frees the chat', async () => {
   const { probe, stick } = stickyProbe();
   let skipped = 0;
   const chat: ChatFixture = await startChatFixture({ probe, clock: { now: () => new Date().toISOString(), monotonic: () => performance.now() + skipped } });
@@ -56,7 +56,7 @@ it('a Stop that leaves a process group blocked shows it in the chat and on Plugi
   });
   const api = createApi(window.bridge);
   const hubs: ChatHub[] = [];
-  const plugins = createPluginsModel({
+  const plugins = createProvidersModel({
     api,
     bridge: window.bridge,
     onReleased: () => {

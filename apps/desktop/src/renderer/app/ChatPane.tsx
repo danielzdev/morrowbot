@@ -30,7 +30,8 @@ export function ChatPane(props: {
   readonly approvalFocus: string | null;
   readonly onApprovalFocused: () => void;
   readonly onAgentSettings: (section: AgentSection) => void;
-  readonly onPlugins: () => void;
+  /** Settings › Providers, at this agent's provider. */
+  readonly onOpenProviders: () => void;
   /** Changes on ⇧⌘M: open the binding popover. */
   readonly bindingRequest: number;
   readonly onCopy: (threadId: string) => void;
@@ -39,7 +40,7 @@ export function ChatPane(props: {
   const { models, agent } = props;
   const display = useMemo(() => chatDisplay(props.info, agent.workspace.dir), [props.info, agent.workspace.dir]);
   const state = useStore(models.agents.state);
-  const cards = useStore(models.plugins.cards);
+  const cards = useStore(models.providers.cards);
   const activity = useStore(models.chats.activity);
   const { sendWith } = useStore(models.chatPrefs.state);
   const threadId = state.openThread[agent.id] ?? null;
@@ -113,7 +114,7 @@ export function ChatPane(props: {
             focusApproval={props.approvalFocus === session.threadId}
             onApprovalFocused={props.onApprovalFocused}
             announce="status"
-            onOpenProviders={props.onPlugins}
+            onOpenProviders={props.onOpenProviders}
             peers={peers}
             hero={
               <>
@@ -132,7 +133,7 @@ export function ChatPane(props: {
             agentName={agent.name}
             disabledReason={saving ? 'Saving the new settings…' : sendBlock(agent.name, choice, agent.provider)}
             safe={display.safe}
-            onOpenProviders={props.onPlugins}
+            onOpenProviders={props.onOpenProviders}
             sendWith={sendWith}
             toolbar={
               <BindingControl
@@ -143,11 +144,11 @@ export function ChatPane(props: {
                 openRequest={props.bindingRequest}
                 onCommit={commit}
                 redact={display.redact}
-                onOpenProviders={props.onPlugins}
+                onOpenProviders={props.onOpenProviders}
                 onOpenBrain={() => { props.onAgentSettings('brain'); }}
               />
             }
-            notes={<BindingWarnings choice={choice} binding={agent.provider} onOpenProviders={props.onPlugins} />}
+            notes={<BindingWarnings choice={choice} binding={agent.provider} onOpenProviders={props.onOpenProviders} />}
           />
         </>
       )}

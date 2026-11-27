@@ -101,6 +101,9 @@ export interface BootOptions {
   readonly probe?: ProcessProbe;
   readonly platform?: NodeJS.Platform;
   readonly safeMode?: boolean;
+  /** Defaults to the fixture plugins. */
+  readonly pluginsDir?: string;
+  readonly builtinPluginsDir?: string;
   /** Added to the monotonic clock, to step past the 60 s Release anyway wait. */
   readonly monotonicOffset?: () => number;
 }
@@ -138,7 +141,8 @@ export async function bootHost(options: BootOptions = {}): Promise<Harness> {
   };
   let ids = 0;
   const host = await startPluginHost({
-    pluginsDir: FIXTURES,
+    pluginsDir: options.pluginsDir ?? FIXTURES,
+    builtinPluginsDir: options.builtinPluginsDir ?? null,
     builtins: options.builtins ?? [],
     store,
     dataDir: path.join(dir, 'plugin-data'),

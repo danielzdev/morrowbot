@@ -46,6 +46,7 @@ it('turns on safe mode from the flag or the env, and places data in the dev fold
     [
       {
         "config": {
+          "builtinPluginsDir": null,
           "dataDir": "/home/user/.morrowbot-dev",
           "hostname": "127.0.0.1",
           "pluginsDir": "/home/user/.morrowbot-dev/plugins",
@@ -56,6 +57,7 @@ it('turns on safe mode from the flag or the env, and places data in the dev fold
       },
       {
         "config": {
+          "builtinPluginsDir": null,
           "dataDir": "/home/user/.morrowbot-dev",
           "hostname": "127.0.0.1",
           "pluginsDir": "/home/user/.morrowbot-dev/plugins",
@@ -66,6 +68,7 @@ it('turns on safe mode from the flag or the env, and places data in the dev fold
       },
       {
         "config": {
+          "builtinPluginsDir": null,
           "dataDir": "/data",
           "hostname": "127.0.0.1",
           "pluginsDir": "/data/plugins",

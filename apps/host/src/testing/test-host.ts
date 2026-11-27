@@ -30,6 +30,9 @@ export interface TestHostOptions {
   readonly dataDir: string;
   /** Defaults to an empty folder in `dataDir`. */
   readonly pluginsDir?: string;
+  /** The app's own plugins folder; none by default. */
+  readonly builtinPluginsDir?: string;
+  readonly safeMode?: boolean;
   readonly sequence?: Sequence;
   readonly timeouts?: PluginTimeouts;
   readonly probe?: ProcessProbe;
@@ -60,9 +63,10 @@ export async function startTestHost(options: TestHostOptions): Promise<TestHost>
     config: {
       hostname: '127.0.0.1',
       port: 0,
-      safeMode: false,
+      safeMode: options.safeMode ?? false,
       dataDir: options.dataDir,
       pluginsDir: options.pluginsDir ?? path.join(options.dataDir, 'plugins'),
+      builtinPluginsDir: options.builtinPluginsDir ?? null,
     },
     version: '0.0.0-test',
     hostName: 'Studio Host',

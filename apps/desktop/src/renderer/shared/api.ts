@@ -84,6 +84,8 @@ export interface Api {
   listPlugins(): Promise<ApiResult<PluginList>>;
   setPluginEnabled(id: string, enabled: boolean): Promise<ApiResult<PluginEntry>>;
   setPluginConfig(id: string, config: PluginConfig): Promise<ApiResult<PluginEntry>>;
+  restartPlugin(id: string): Promise<ApiResult<PluginEntry>>;
+  rescanPlugins(): Promise<ApiResult<PluginList>>;
   providerInfo(id: string, refresh: boolean): Promise<ApiResult<ProviderInfoResponse>>;
   recheck(id: string): Promise<ApiResult<ProviderInfoResponse>>;
   usage(id: string, refresh: boolean): Promise<ApiResult<UsageResponse>>;
@@ -148,6 +150,8 @@ export function createApi(bridge: MorrowbotBridge): Api {
     listPlugins: () => call(PluginList, 'GET', at('plugins')),
     setPluginEnabled: (id, enabled) => call(PluginEntry, 'PUT', at('plugins', id, 'enabled'), { enabled }),
     setPluginConfig: (id, config) => call(PluginEntry, 'PUT', at('plugins', id, 'config'), { config }),
+    restartPlugin: (id) => call(PluginEntry, 'POST', at('plugins', id, 'restart')),
+    rescanPlugins: () => call(PluginList, 'POST', at('plugins', 'rescan')),
     providerInfo: (id, refresh) => call(ProviderInfoResponse, 'GET', `${at('plugins', id, 'info')}${refresh ? '?refresh=1' : ''}`),
     recheck: (id) => call(ProviderInfoResponse, 'POST', at('plugins', id, 'recheck')),
     usage: (id, refresh) => call(UsageResponse, 'GET', `${at('plugins', id, 'usage')}${refresh ? '?refresh=1' : ''}`),

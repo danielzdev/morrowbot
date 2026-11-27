@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import type { HostLaunchMessage } from '@morrowbot/contracts';
 import { z } from 'zod';
 import { parseHostConfig, type HostConfig } from './features/config/index.ts';
+import { describeProblem } from './features/plugins/index.ts';
 import { HostLockedError, startHost, type Host } from './host.ts';
 
 const PackageJson = z.object({ version: z.string() });
@@ -68,11 +69,11 @@ async function run(config: HostConfig): Promise<void> {
     return;
   }
   host = started;
-  for (const problem of started.plugins.problems) console.error(`MorrowBot host: skipped plugin ${problem}`);
+  for (const problem of started.plugins.problems()) console.error(`MorrowBot host: skipped plugin ${describeProblem(problem)}`);
   const running = started.plugins.list().filter(({ status }) => status.kind === 'running').length;
   console.log(
     config.safeMode
-      ? 'MorrowBot host: safe mode, 0 plugins loaded'
+      ? `MorrowBot host: safe mode, only the ${String(running)} built-in provider(s) running`
       : `MorrowBot host: ${String(running)} plugin(s) running`,
   );
   console.log(`MorrowBot host ${version} listening on ${started.url}`);
