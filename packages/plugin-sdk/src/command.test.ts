@@ -166,6 +166,19 @@ it("gives a command its own variables on top of the runtime's, replacing one of 
   }
 });
 
+it('starts the guard without the command\'s own variables, so they cannot change how it starts', async () => {
+  const lines: string[] = [];
+  const exit = await commands.run('/bin/sh', { ...options({ args: ['-c', 'echo "$NODE_OPTIONS"'], onLine: (line) => lines.push(line) }), env: { NODE_OPTIONS: '--no-such-flag' }, input: '' });
+  expect({ exit: exit.kind === 'exited' ? exit.code : exit.kind, lines }).toMatchInlineSnapshot(`
+    {
+      "exit": 0,
+      "lines": [
+        "--no-such-flag",
+      ],
+    }
+  `);
+});
+
 it('passes stdin and input files to the command', async () => {
   const { lines } = await run('/bin/sh', ['-c', 'cat; echo; cat "$1"; echo; cat "$2"', 'sh', commandFilePath(0), commandFilePath(1)], {
     input: 'from stdin',

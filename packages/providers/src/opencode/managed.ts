@@ -20,14 +20,27 @@ export async function checkManagedConfig(root: string, platform: string): Promis
     if (((await listDirectory(`${base}${folder}`)) ?? []).length > 0) return withheld(folder);
     if (platform !== 'darwin') return { kind: 'clear' };
     const entries = (await listDirectory(`${base}${PREFERENCES}`)) ?? [];
-    if (entries.includes(PREFERENCES_FILE)) return withheld(`${PREFERENCES}/${PREFERENCES_FILE}`);
-    for (const user of entries.filter((entry) => !entry.endsWith('.plist'))) {
+    if (entries.some(isPreferencesFile)) return withheld(`${PREFERENCES}/${PREFERENCES_FILE}`);
+    for (const user of entries) {
       const dir = `${PREFERENCES}/${user}`;
-      if (((await listDirectory(`${base}${dir}`)) ?? []).includes(PREFERENCES_FILE)) return withheld(`${dir}/${PREFERENCES_FILE}`);
+      if ((await userFolder(`${base}${dir}`)).some(isPreferencesFile)) return withheld(`${dir}/${PREFERENCES_FILE}`);
     }
     return { kind: 'clear' };
   } catch {
     return { kind: 'withheld', reason: "MorrowBot could not check this computer's managed opencode config, which outranks the read-only config MorrowBot gives OpenCode." };
+  }
+}
+
+/** macOS volumes are usually case-insensitive, and opencode looks the file up by path. */
+const isPreferencesFile = (name: string): boolean => name.toLowerCase() === PREFERENCES_FILE;
+
+/** The entries of a user's managed preferences folder; none for a file that is not a folder. */
+async function userFolder(dir: string): Promise<string[]> {
+  try {
+    return (await listDirectory(dir)) ?? [];
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOTDIR') return [];
+    throw error;
   }
 }
 

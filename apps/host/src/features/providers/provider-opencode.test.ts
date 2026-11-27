@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import type { AcpFixture } from '../../testing/acp-fixture.ts';
+import { until } from '../../testing/daemon-fixture.ts';
 import { FAKE_OPENCODE, OPENCODE, startOpenCodeFixture, turnMethods } from '../../testing/opencode-fixture.ts';
 
 let opencode: AcpFixture;
@@ -27,6 +28,7 @@ it('starts one opencode acp daemon with its own folders and read-only config, re
   const thread = await opencode.thread(agent);
   const generationId = await opencode.start(thread, 'hello');
   await opencode.events.finished(generationId);
+  await until(async () => (await opencode.log()).some((entry) => entry.method === 'session/close'));
   const second = await opencode.host.call('GET', '/api/plugins/provider-opencode/info');
   const [launch] = await opencode.launches();
   const config: unknown = JSON.parse(launch?.env?.OPENCODE_CONFIG_CONTENT ?? 'null');

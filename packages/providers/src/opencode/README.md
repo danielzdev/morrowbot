@@ -27,7 +27,8 @@ key is `''`: every turn is stateless, and the host seeds it with the conversatio
 (`capabilities.sessions` is false). As opencode loads no workspace config, the agent's `AGENTS.md`
 comes from MorrowBot (`isolated`), sent ahead of the prompt in an `<instructions>` block. One
 exception opencode 2.4.1 has no switch for: after reading a file, it adds any `AGENTS.md` in the
-folders between that file and the workspace root to the model's context, as workspace content. Stop
+folders between that file and the workspace root to the model's context, as workspace content
+(it follows a symlink to the file first, so the link's target decides where it looks). Stop
 sends `session/cancel`. If opencode ignores it, the host ends the daemon and the next turn gets a
 new one. opencode 2.4.1 starts a helper, `opencode serve --stdio`, in a process group of its own,
 out of the guard's reach; it ends when the daemon's pipe to it closes, even after a SIGKILL (the

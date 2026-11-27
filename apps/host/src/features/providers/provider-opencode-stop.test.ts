@@ -21,17 +21,19 @@ function redact(fixture: AcpFixture, value: unknown): unknown {
 }
 
 it('Stop sends session/cancel and the turn ends cancelled; closing the host leaves no opencode process or child of it running', async () => {
-  const fixture = await startOpenCodeFixture();
+  const fixture = (opencode = await startOpenCodeFixture());
   const thread = await fixture.thread(await fixture.agent());
   const generationId = await fixture.start(thread, 'spawn then stall');
   await until(async () => (await prompts(fixture)) === 1);
   const stop = await fixture.host.call('POST', `/api/threads/${thread.id}/stop`);
   await fixture.events.finished(generationId);
+  await until(async () => (await fixture.log()).some((entry) => entry.method === 'session/close'));
   const log = await fixture.log();
   const pids = [...(await fixture.launches()).map((launch) => launch.pid), ...log.flatMap((entry) => (entry.method === 'spawned' && typeof entry.params === 'object' && entry.params !== null && 'pid' in entry.params && typeof entry.params.pid === 'number' ? [entry.params.pid] : []))];
   const history = await fixture.history(thread);
   const runningBefore = pids.map(isRunning);
   await fixture.close();
+  opencode = undefined;
   expect(fixture.host.errors).toEqual([]);
   await until(() => pids.every((pid) => !isRunning(pid)));
   expect({ stop: stop.status, sent: log.filter((entry) => entry.method.startsWith('session/')).map((entry) => entry.method), history, runningBefore, runningAfter: pids.map(isRunning) })
