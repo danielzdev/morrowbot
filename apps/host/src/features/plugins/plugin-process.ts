@@ -1,9 +1,9 @@
-import { fork } from 'node:child_process';
 import {
   PluginMessage,
   PROTOCOL_VERSION,
   type CrashReason,
   type HostMessage,
+  type OpenPluginChannel,
   type PluginConfig,
   type PluginErrorCode,
   type PluginHealth,
@@ -69,8 +69,8 @@ export interface ChildGroupListener {
   exited(pgid: number): void;
 }
 
+/** One running plugin as the host drives it: a worker process, or a built-in provider in this process. */
 export interface PluginProcess {
-  readonly pid: number | undefined;
   /** Settles once, when the process is gone. */
   readonly exited: Promise<PluginExit>;
   init(config: PluginConfig, dataDir: string): Promise<PluginKind>;
@@ -102,24 +102,14 @@ interface Waiter {
   readonly accept: (message: PluginMessage) => boolean;
 }
 
-export interface SpawnOptions {
-  readonly entryPath: string;
-  readonly cwd: string;
-  readonly env: Readonly<Record<string, string>>;
+export interface ConnectOptions {
   readonly timeouts: PluginTimeouts;
   readonly groups: ChildGroupListener;
   readonly log: (message: string) => void;
 }
 
-/** Starts a plugin in its own Node process and talks to it over IPC (wire protocol v1). */
-export function spawnPluginProcess({ entryPath, cwd, env, timeouts, groups, log }: SpawnOptions): PluginProcess {
-  const child = fork(entryPath, [], {
-    cwd,
-    execArgv: [],
-    env,
-    serialization: 'json',
-    stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
-  });
+/** Starts a plugin through `open` and talks to it over that channel (wire protocol v1). */
+export function connectPlugin(open: OpenPluginChannel, { timeouts, groups, log }: ConnectOptions): PluginProcess {
   const pending = new Map<number, Waiter>();
   const turns = new Map<string, TurnHandlers>();
   const exit = Promise.withResolvers<PluginExit>();
@@ -129,6 +119,26 @@ export function spawnPluginProcess({ entryPath, cwd, env, timeouts, groups, log 
   let failure: CrashReason | undefined;
   let gone = false;
   let killer: NodeJS.Timeout | undefined;
+  const child = open({
+    exit: (code, signal) => {
+      if (failure !== undefined) finish({ kind: 'crashed', reason: failure });
+      else if (stopping) finish({ kind: 'expected' });
+      else finish({ kind: 'crashed', reason: { kind: 'exit', code, signal } });
+    },
+    error: (error, started) => {
+      if (started) {
+        fail({ kind: 'protocol', problem: error.message });
+        return;
+      }
+      failure ??= { kind: 'spawn-error', message: error.message };
+      finish({ kind: 'crashed', reason: failure });
+    },
+    message: (raw) => {
+      const parsed = PluginMessage.safeParse(raw);
+      if (parsed.success) receive(parsed.data);
+      else fail({ kind: 'protocol', problem: `sent a malformed message: ${describeIssues(parsed.error).join('; ')}` });
+    },
+  });
 
   function finish(result: PluginExit): void {
     if (gone) return;
@@ -144,27 +154,8 @@ export function spawnPluginProcess({ entryPath, cwd, env, timeouts, groups, log 
   function fail(reason: CrashReason): void {
     if (gone || failure !== undefined) return;
     if (!stopping) failure = reason;
-    child.kill('SIGKILL');
+    child.kill();
   }
-
-  child.on('exit', (code, signal) => {
-    if (failure !== undefined) finish({ kind: 'crashed', reason: failure });
-    else if (stopping) finish({ kind: 'expected' });
-    else finish({ kind: 'crashed', reason: { kind: 'exit', code, signal } });
-  });
-  child.on('error', (error) => {
-    if (child.pid !== undefined) {
-      fail({ kind: 'protocol', problem: error.message });
-      return;
-    }
-    failure ??= { kind: 'spawn-error', message: error.message };
-    finish({ kind: 'crashed', reason: failure });
-  });
-  child.on('message', (raw: unknown) => {
-    const parsed = PluginMessage.safeParse(raw);
-    if (parsed.success) receive(parsed.data);
-    else fail({ kind: 'protocol', problem: `sent a malformed message: ${describeIssues(parsed.error).join('; ')}` });
-  });
 
   function receive(message: PluginMessage): void {
     switch (message.kind) {
@@ -281,7 +272,6 @@ export function spawnPluginProcess({ entryPath, cwd, env, timeouts, groups, log 
   }
 
   return {
-    pid: child.pid,
     exited: exit.promise,
     init: (config, dataDir) =>
       request(
@@ -341,14 +331,14 @@ export function spawnPluginProcess({ entryPath, cwd, env, timeouts, groups, log 
       send({ kind: 'kill-child-group', pgid });
     },
     kill: () => {
-      if (!gone) child.kill('SIGKILL');
+      if (!gone) child.kill();
     },
     stop: async () => {
       if (!stopping && !gone) {
         stopping = true;
         for (const waiter of pending.values()) clearTimeout(waiter.timer);
         killer = setTimeout(() => {
-          child.kill('SIGKILL');
+          child.kill();
         }, timeouts.shutdownMs);
         request('shutdown', undefined, (id) => ({ kind: 'shutdown', id }), (reply) =>
           reply.kind === 'shutdown-result' ? true : undefined,

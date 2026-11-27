@@ -5,6 +5,9 @@ import WebSocket, { type RawData } from 'ws';
 import type { ChildGroupClock, PluginTimeouts, ProcessProbe } from '../features/plugins/index.ts';
 import { startHost, type Host } from '../host.ts';
 
+export { DEFAULT_PLUGIN_TIMEOUTS } from '../features/plugins/index.ts';
+export type { PluginTimeouts } from '../features/plugins/index.ts';
+
 /** The plugin host's own fixture plugins (`echo` is a provider with scripted prompts). */
 export const PLUGIN_FIXTURES = fileURLToPath(new URL('../features/plugins/fixtures', import.meta.url));
 
@@ -31,6 +34,8 @@ export interface TestHostOptions {
   readonly timeouts?: PluginTimeouts;
   readonly probe?: ProcessProbe;
   readonly clock?: ChildGroupClock;
+  /** The OS the built-in providers act on. Defaults to this one. */
+  readonly platform?: NodeJS.Platform;
 }
 
 export interface Reply {
@@ -67,6 +72,7 @@ export async function startTestHost(options: TestHostOptions): Promise<TestHost>
     ...(options.timeouts === undefined ? {} : { timeouts: options.timeouts }),
     ...(options.probe === undefined ? {} : { probe: options.probe }),
     ...(options.clock === undefined ? {} : { clock: options.clock }),
+    ...(options.platform === undefined ? {} : { platform: options.platform }),
   });
   const call = async (method: string, route: string, body?: unknown): Promise<Reply> => {
     const headers: Record<string, string> = { authorization: `Bearer ${host.token}` };

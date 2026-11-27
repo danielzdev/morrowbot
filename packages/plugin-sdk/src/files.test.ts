@@ -107,43 +107,38 @@ it('finds executables by path or on PATH, skipping files that are not executable
   await chmod(path.join(second, 'tool'), 0o755);
   const found = (executable: Awaited<ReturnType<typeof statExecutable>>) =>
     redact(executable.kind === 'found' ? { kind: 'found', path: executable.path, size: executable.size } : executable);
-  const savedPath = process.env.PATH;
-  process.env.PATH = ['', first, second].join(path.delimiter);
-  try {
-    expect({
-      onPath: found(await statExecutable('tool')),
-      byPath: found(await statExecutable(path.join(second, 'tool'))),
-      notExecutable: found(await statExecutable(path.join(first, 'tool'))),
-      directory: found(await statExecutable(path.join(first, 'tool-dir'))),
-      missingOnPath: found(await statExecutable('no-such-tool')),
-      missingPath: found(await statExecutable(path.join(base, 'no-such-tool'))),
-    }).toMatchInlineSnapshot(`
-      {
-        "byPath": {
-          "kind": "found",
-          "path": "<base>/second/tool",
-          "size": 10,
-        },
-        "directory": {
-          "kind": "missing",
-        },
-        "missingOnPath": {
-          "kind": "missing",
-        },
-        "missingPath": {
-          "kind": "missing",
-        },
-        "notExecutable": {
-          "kind": "missing",
-        },
-        "onPath": {
-          "kind": "found",
-          "path": "<base>/second/tool",
-          "size": 10,
-        },
-      }
-    `);
-  } finally {
-    process.env.PATH = savedPath;
-  }
+  const onPath = ['', first, second].join(path.delimiter);
+  expect({
+    onPath: found(await statExecutable('tool', onPath)),
+    byPath: found(await statExecutable(path.join(second, 'tool'), onPath)),
+    notExecutable: found(await statExecutable(path.join(first, 'tool'), onPath)),
+    directory: found(await statExecutable(path.join(first, 'tool-dir'), onPath)),
+    missingOnPath: found(await statExecutable('no-such-tool', onPath)),
+    missingPath: found(await statExecutable(path.join(base, 'no-such-tool'), onPath)),
+  }).toMatchInlineSnapshot(`
+    {
+      "byPath": {
+        "kind": "found",
+        "path": "<base>/second/tool",
+        "size": 10,
+      },
+      "directory": {
+        "kind": "missing",
+      },
+      "missingOnPath": {
+        "kind": "missing",
+      },
+      "missingPath": {
+        "kind": "missing",
+      },
+      "notExecutable": {
+        "kind": "missing",
+      },
+      "onPath": {
+        "kind": "found",
+        "path": "<base>/second/tool",
+        "size": 10,
+      },
+    }
+  `);
 });

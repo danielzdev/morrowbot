@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import { openCommand, type CommandExit } from './command.ts';
+import type { CommandExit, CommandRunner } from './command.ts';
 
 /**
  * A plugin's shared daemon spoken to as JSON-RPC 2.0, one message per line on its stdin and
- * stdout (Codex `app-server`, `agy acp`). It starts through `openCommand` with `scope: {kind:'daemon'}`,
+ * stdout (Codex `app-server`, `agy acp`). It starts through `PluginRuntime.openCommand` with `scope: {kind:'daemon'}`,
  * so the host registers the daemon's process group before it runs. Start it from `providerInfo`,
  * never lazily during a turn.
  */
@@ -60,7 +60,7 @@ const INTERNAL_ERROR = -32603;
  * JSON message per line. Lines that are not JSON-RPC are ignored. A handler that throws is logged
  * to stderr; it never stops the daemon, which other turns may be using.
  */
-export const jsonRpcProcess: StartJsonRpcProcess = (command, options) => {
+export const jsonRpcProcessOver = (open: CommandRunner['open']): StartJsonRpcProcess => (command, options) => {
   const stop = new AbortController();
   const pending = new Map<number, (reply: JsonRpcReply) => void>();
   let nextId = 0;
@@ -119,7 +119,7 @@ export const jsonRpcProcess: StartJsonRpcProcess = (command, options) => {
     else settle({ kind: 'error', code: INTERNAL_ERROR, message: 'malformed error reply', data: undefined });
   };
 
-  const opened = openCommand(command, {
+  const opened = open(command, {
     args: options.args,
     cwd: options.cwd,
     files: options.files,

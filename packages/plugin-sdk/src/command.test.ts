@@ -2,16 +2,18 @@ import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { commandFilePath, openCommand, runCommand, stopAllCommands, type CommandExit, type CommandOptions } from './command.ts';
+import { commandFilePath, createCommandRunner, type CommandExit, type CommandOptions } from './command.ts';
+import { createGroupLink } from './host-link.ts';
 import { waitUntilGone } from './testing/processes.ts';
 
 /** These tests own the commands themselves: with no host connected, groups are acknowledged at once. */
+const commands = createCommandRunner(createGroupLink(), process.env);
 let work: string;
 beforeEach(async () => {
   work = await realpath(await mkdtemp(path.join(tmpdir(), 'morrowbot-sdk-command-')));
 });
 afterEach(async () => {
-  await stopAllCommands();
+  await commands.stopAll();
   await rm(work, { recursive: true, force: true });
 });
 
@@ -26,7 +28,7 @@ async function run(
 ): Promise<{ lines: string[]; exit: CommandExit; ms: number }> {
   const lines: string[] = [];
   const started = performance.now();
-  const exit = await runCommand(command, { ...options({ args, files, onLine: (line) => lines.push(line) }), input });
+  const exit = await commands.run(command, { ...options({ args, files, onLine: (line) => lines.push(line) }), input });
   return { lines, exit, ms: performance.now() - started };
 }
 
@@ -103,7 +105,7 @@ async function abortAfterFirstLine(command: string, args: readonly string[]): Pr
   const controller = new AbortController();
   const lines: string[] = [];
   const ready = Promise.withResolvers<number>();
-  const opened = openCommand(command, {
+  const opened = commands.open(command, {
     ...options({ args, signal: controller.signal }),
     onLine: (line) => {
       lines.push(line);
@@ -156,7 +158,7 @@ it('on abort stops a command that exits on SIGTERM without waiting for the grace
 it('does not delay one command while another hangs', async () => {
   const controller = new AbortController();
   let hungSettled = false;
-  const hung = openCommand('/bin/sleep', options({ args: ['30'], signal: controller.signal }));
+  const hung = commands.open('/bin/sleep', options({ args: ['30'], signal: controller.signal }));
   void hung.exited.then(() => (hungSettled = true));
   const quick = await run('/bin/echo', ['done']);
   const whileHung = { quick: quick.lines, hungSettled };
@@ -180,13 +182,13 @@ it('never signals a process group from the plugin process', async () => {
   try {
     await run('/bin/sh', ['-c', 'sleep 30 & echo started']);
     const aborted = new AbortController();
-    const cancelled = openCommand('/bin/sleep', options({ args: ['30'], signal: aborted.signal }));
+    const cancelled = commands.open('/bin/sleep', options({ args: ['30'], signal: aborted.signal }));
     setTimeout(() => {
       aborted.abort();
     }, 200);
     await cancelled.exited;
-    const stopped = openCommand('/bin/sleep', options({ args: ['30'] }));
-    setTimeout(() => void stopAllCommands(), 200);
+    const stopped = commands.open('/bin/sleep', options({ args: ['30'] }));
+    setTimeout(() => void commands.stopAll(), 200);
     await stopped.exited;
     expect(kill.mock.calls).toEqual([]);
   } finally {
@@ -198,8 +200,8 @@ it('reports a missing program as not-found and an aborted signal as an immediate
   const aborted = new AbortController();
   aborted.abort();
   expect({
-    missing: await runCommand(path.join(work, 'no-such-cli'), { ...options({ args: [] }), input: '' }),
-    preAborted: await runCommand('/bin/echo', { ...options({ args: ['x'], signal: aborted.signal }), input: '' }),
+    missing: await commands.run(path.join(work, 'no-such-cli'), { ...options({ args: [] }), input: '' }),
+    preAborted: await commands.run('/bin/echo', { ...options({ args: ['x'], signal: aborted.signal }), input: '' }),
   }).toMatchInlineSnapshot(`
     {
       "missing": {
@@ -210,6 +212,39 @@ it('reports a missing program as not-found and an aborted signal as an immediate
         "kind": "exited",
         "signal": null,
         "stderr": "",
+      },
+    }
+  `);
+});
+
+it('abandon closes every owner pipe: each guard sweeps its group, and no command starts afterwards', async () => {
+  const owner = createCommandRunner(createGroupLink(), process.env);
+  const ready = Promise.withResolvers<number>();
+  const opened = owner.open('/bin/sh', {
+    ...options({ args: ['-c', 'sleep 30 & echo $!; wait'] }),
+    onLine: (line) => {
+      ready.resolve(Number(line));
+    },
+  });
+  const grandchild = await ready.promise;
+  owner.abandon();
+  const exit = await opened.exited;
+  expect({
+    exit: exit.kind === 'exited' ? { kind: exit.kind, signal: exit.signal } : exit,
+    after: await waitUntilGone({ grandchild }),
+    later: await owner.run('/bin/echo', { ...options({ args: ['x'] }), input: '' }),
+  }).toMatchInlineSnapshot(`
+    {
+      "after": {
+        "grandchild": "gone",
+      },
+      "exit": {
+        "kind": "exited",
+        "signal": "SIGKILL",
+      },
+      "later": {
+        "kind": "failed",
+        "message": "The plugin has stopped",
       },
     }
   `);

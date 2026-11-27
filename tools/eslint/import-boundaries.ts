@@ -14,7 +14,7 @@ type Boundary =
   | { readonly kind: 'none' };
 
 function boundaryOf(file: string): Boundary {
-  const plugin = /^plugins\/[^/]+/.exec(file);
+  const plugin = /^(?:plugins|packages\/providers\/src)\/[^/.]+(?=\/)/.exec(file);
   if (plugin) return { kind: 'plugin', root: plugin[0] };
   if (isInside(file, RENDERER_ROOT)) return { kind: 'renderer', root: RENDERER_ROOT };
   return { kind: 'none' };
@@ -41,7 +41,7 @@ export const importBoundaries: Rule.RuleModule = {
     schema: [],
     messages: {
       pluginImport:
-        'Plugins may import only @morrowbot/plugin-sdk, @morrowbot/contracts, and files inside their own folder.',
+        'Plugins and built-in providers may import only @morrowbot/plugin-sdk, @morrowbot/contracts, and files inside their own folder.',
       rendererImport:
         'Renderer code may not import host, plugin, or desktop main code. Talk to the host through @morrowbot/contracts.',
       crossFeature: 'Features do not import each other. Move shared types into @morrowbot/contracts.',

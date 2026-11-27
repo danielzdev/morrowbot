@@ -3,16 +3,11 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { ChatEvent, ProviderBinding } from '@morrowbot/contracts';
-import { it } from 'vitest';
 import { z } from 'zod';
 import { startChatFixture, type ChatFixture } from './chat-fixture.ts';
 import type { Reply, TestHostOptions } from './test-host.ts';
 
-/** provider-openai runs turns only on macOS (`platformReason`), so its fake-Codex tests run there. */
-export const onMacOS = it.skipIf(process.platform !== 'darwin');
-
-const PLUGINS = fileURLToPath(new URL('../../../../plugins', import.meta.url));
-const FAKE_CODEX = fileURLToPath(new URL('../features/plugins/fixtures/fake-codex.ts', import.meta.url));
+const FAKE_CODEX = fileURLToPath(new URL('../features/providers/fixtures/fake-codex.ts', import.meta.url));
 
 export const CODEX: Extract<ProviderBinding, { kind: 'bound' }> = {
   kind: 'bound',
@@ -62,7 +57,10 @@ export interface CodexFixture extends ChatFixture {
   turnEvents(generationId: string): ChatEvent[];
 }
 
-/** A host with the real plugins folder, provider-openai pointed at the fake Codex, `$HOME` a temp folder. */
+/**
+ * A host whose built-in Codex provider runs the fake Codex, with `$HOME` a temp folder. Codex offers
+ * turns only on macOS (`platformReason`), so the host acts as on macOS on every OS.
+ */
 export async function startCodexFixture(options: Partial<TestHostOptions> = {}): Promise<CodexFixture> {
   const home = await realpath(await mkdtemp(path.join(tmpdir(), 'morrowbot-codex-')));
   const previousHome = process.env.HOME;
@@ -71,7 +69,7 @@ export async function startCodexFixture(options: Partial<TestHostOptions> = {}):
   await mkdir(dir, { recursive: true });
   const stateFile = path.join(dir, 'state.json');
   await writeFile(stateFile, JSON.stringify(NATIVE));
-  const chat = await startChatFixture({ ...options, dataDir: path.join(home, 'data'), pluginsDir: PLUGINS });
+  const chat = await startChatFixture({ platform: 'darwin', ...options, dataDir: path.join(home, 'data') });
   const configured = await chat.host.call('PUT', '/api/plugins/provider-openai/config', { config: { cliPath: FAKE_CODEX } });
   if (configured.status !== 200) throw new Error(`config refused: ${JSON.stringify(configured.body)}`);
   const readState = async (): Promise<Record<string, unknown>> => z.record(z.string(), z.unknown()).parse(JSON.parse(await readFile(stateFile, 'utf8')));

@@ -9,16 +9,19 @@ export type {
   TurnContext,
 } from './plugin.ts';
 export { defineProvider } from './plugin.ts';
+export type { PluginFactory, PluginRuntime, RuntimeEnv } from './runtime.ts';
+export { standaloneRuntime } from './runtime.ts';
 export type { ApprovalAnswer, ApprovalAsk } from './approvals.ts';
-export { commandFilePath, openCommand, runCommand } from './command.ts';
+export { commandFilePath } from './command.ts';
 export type { CommandExit, CommandOptions, OpenCommand, RunCommandOptions } from './command.ts';
-export { jsonRpcProcess } from './json-rpc-process.ts';
 export type { JsonRpcProcess, JsonRpcProcessOptions, JsonRpcReply, StartJsonRpcProcess } from './json-rpc-process.ts';
 export { confinePath } from './confine.ts';
 export type { Confined } from './confine.ts';
-export { listDirectory, readOptionalFile, statExecutable } from './files.ts';
+export { listDirectory, readOptionalFile } from './files.ts';
 export type { Executable } from './files.ts';
-export { checkVersion, readCliVersion } from './version.ts';
+export { checkVersion } from './version.ts';
 export type { CliVersion, RangeCheck, VersionRange } from './version.ts';
 export { runPlugin } from './run-plugin.ts';
+export { servePlugin } from './serve.ts';
+export type { PluginTransport, ServedPlugin } from './serve.ts';
 export { z } from 'zod';

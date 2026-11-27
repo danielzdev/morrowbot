@@ -134,7 +134,7 @@ it('Recheck whose daemon will not exit quarantines with admission closed; a seco
   await fixture.send(thread, 'hello');
   sticky.stick(fixture.daemonPgid(), () => holding);
   const first = brief(await recheck(fixture));
-  const [entry] = PluginList.parse((await fixture.host.call('GET', '/api/plugins')).body).plugins;
+  const entry = PluginList.parse((await fixture.host.call('GET', '/api/plugins')).body).plugins.find(({ manifest }) => manifest.id === 'daemon');
   const send = brief(await post(fixture, thread.id, 'blocked'));
   const revision = () => fixture.host.host.plugins.revision('daemon').daemonRevision;
   const beforeSecond = revision();

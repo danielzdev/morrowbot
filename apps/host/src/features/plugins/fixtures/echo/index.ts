@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { defineProvider, openCommand, runPlugin, type AccessProfile, type PluginConfig, type TurnEnd } from '@morrowbot/plugin-sdk';
+import { defineProvider, runPlugin, type AccessProfile, type PluginConfig, type TurnEnd } from '@morrowbot/plugin-sdk';
 
 /**
  * A test provider. It answers with its greeting and the prompt; some prompts pick a behavior.
@@ -25,7 +25,7 @@ function end(outcome: TurnEnd['outcome'], accountKey: string, extra: Partial<Tur
   return { outcome, usage: { kind: 'unavailable' }, actualModel: null, accountKey, sessionTouched: true, finalText: null, ...extra };
 }
 
-runPlugin(
+runPlugin((runtime) =>
   defineProvider({
     init: (context) => {
       config = context.config;
@@ -95,7 +95,7 @@ runPlugin(
         case 'signed-out-blank':
           return end({ kind: 'failed', error: { kind: 'signed-out' } }, '', { sessionTouched: false });
         case 'leave-running':
-          openCommand('/bin/sleep', { args: ['30'], cwd: request.cwd, files: [], scope: { kind: 'turn', turnId: request.turnId }, signal, onLine: () => undefined }).end();
+          runtime.openCommand('/bin/sleep', { args: ['30'], cwd: request.cwd, files: [], scope: { kind: 'turn', turnId: request.turnId }, signal, onLine: () => undefined }).end();
           await new Promise((resolve) => setTimeout(resolve, 300));
           break;
         case 'route-changed':
@@ -116,7 +116,7 @@ runPlugin(
           emit({ kind: 'text', text: ` ${JSON.stringify({ session: request.session, system: request.system, selection: request.selection, expectedAccountKey: request.expectedAccountKey })}` });
           return end({ kind: 'completed', finishReason: 'stop' }, current);
         case 'sleep': {
-          const command = openCommand('/bin/sleep', { args: ['30'], cwd: request.cwd, files: [], scope: { kind: 'turn', turnId: request.turnId }, signal, onLine: () => undefined });
+          const command = runtime.openCommand('/bin/sleep', { args: ['30'], cwd: request.cwd, files: [], scope: { kind: 'turn', turnId: request.turnId }, signal, onLine: () => undefined });
           command.end();
           await command.exited;
           return end(signal.aborted ? { kind: 'cancelled' } : { kind: 'completed', finishReason: 'stop' }, current);

@@ -70,6 +70,8 @@ it('boots in safe mode with 0 plugins and stops cleanly on SIGTERM', async () =>
         "code": 0,
         "output": "MorrowBot host: safe mode, 0 plugins loaded
       MorrowBot host 0.0.0 listening on http://127.0.0.1:PORT
+      MorrowBot host: plugin provider-claude is stopped
+      MorrowBot host: plugin provider-openai is stopped
       MorrowBot host: plugin echo is stopped
       MorrowBot host: plugin faulty is stopped
       ",

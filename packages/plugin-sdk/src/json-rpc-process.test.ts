@@ -1,8 +1,10 @@
 import { fileURLToPath } from 'node:url';
 import { afterEach, expect, it } from 'vitest';
-import { jsonRpcProcess, type JsonRpcProcess } from './json-rpc-process.ts';
+import { standaloneRuntime } from './runtime.ts';
+import type { JsonRpcProcess } from './json-rpc-process.ts';
 import { liveness } from './testing/processes.ts';
 
+const { jsonRpcProcess } = standaloneRuntime();
 const SERVER = fileURLToPath(new URL('./testing/json-rpc-server.ts', import.meta.url));
 const started: JsonRpcProcess[] = [];
 

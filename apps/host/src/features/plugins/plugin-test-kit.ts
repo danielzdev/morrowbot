@@ -137,6 +137,7 @@ export async function bootHost(options: BootOptions = {}): Promise<Harness> {
   let ids = 0;
   const host = await startPluginHost({
     pluginsDir: FIXTURES,
+    builtins: [],
     store,
     dataDir: path.join(dir, 'plugin-data'),
     safeMode: options.safeMode ?? false,

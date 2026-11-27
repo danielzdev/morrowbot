@@ -2,7 +2,10 @@ import { chmod, mkdtemp, readFile, realpath, rm, utimes, writeFile } from 'node:
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, it } from 'vitest';
-import { checkVersion, readCliVersion } from './version.ts';
+import { standaloneRuntime } from './runtime.ts';
+import { checkVersion } from './version.ts';
+
+const { readCliVersion } = standaloneRuntime();
 
 let base: string;
 beforeEach(async () => {
