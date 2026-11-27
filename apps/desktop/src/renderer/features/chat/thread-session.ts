@@ -100,6 +100,7 @@ export function problemOf(error: ApiError['error'], action: PendingAction, choic
     case 'forbidden':
     case 'unauthorized':
     case 'internal':
+    case 'instructions-conflict':
       return { kind: 'error', message: error.message };
   }
 }

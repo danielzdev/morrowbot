@@ -72,6 +72,7 @@ const SHORTCUT_COPY: Readonly<Record<ShortcutId, readonly [label: string, descri
   'toggle-sidebar': ['Toggle sidebar', 'Shrink the sidebar to a rail of avatars, or expand it again.'],
   'filter-agents': ['Filter agents', 'Find an agent in the sidebar by name.'],
   extensions: ['Extensions', 'Open Extensions, where your plugins live.'],
+  binding: ['Model and access', "Change the current agent's model, effort and access."],
 };
 
 const CONTEXT_COPY: Readonly<Record<ContextKey, readonly [label: string, description: string]>> = {
@@ -116,6 +117,7 @@ export function keysOf(id: KeyRowId, platform: Platform, sendWith: SendWith): st
     case 'toggle-sidebar':
     case 'filter-agents':
     case 'extensions':
+    case 'binding':
       return shortcutLabel(id, platform);
   }
 }

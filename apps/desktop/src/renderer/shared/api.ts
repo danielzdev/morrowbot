@@ -1,6 +1,8 @@
 import {
   Agent,
-  AgentInstructions,
+  AgentInstructionsView,
+  InstructionsCopyReply,
+  PutInstructionsReply,
   AgentList,
   ApiError,
   ContinueResponse,
@@ -45,8 +47,10 @@ export interface Api {
   createFolder(name: string): Promise<ApiResult<Folder>>;
   renameFolder(id: string, name: string): Promise<ApiResult<Folder>>;
   deleteFolder(id: string): Promise<ApiResult<null>>;
-  instructions(id: string): Promise<ApiResult<AgentInstructions>>;
-  saveInstructions(id: string, content: string): Promise<ApiResult<AgentInstructions>>;
+  instructions(id: string): Promise<ApiResult<AgentInstructionsView>>;
+  /** Creates a missing AGENTS.md (`expectedRevision: null`); the host refuses to replace one. */
+  saveInstructions(id: string, content: string, expectedRevision: string | null): Promise<ApiResult<PutInstructionsReply>>;
+  saveInstructionsCopy(id: string, content: string): Promise<ApiResult<InstructionsCopyReply>>;
   listThreads(agentId: string): Promise<ApiResult<ThreadList>>;
   /** Every agent's chats, newest first (H9, for ⌘K). */
   listAllThreads(): Promise<ApiResult<ThreadList>>;
@@ -97,8 +101,9 @@ export function createApi(bridge: MorrowbotBridge): Api {
     createFolder: (name) => call(Folder, 'POST', at('folders'), { name }),
     renameFolder: (id, name) => call(Folder, 'PATCH', at('folders', id), { name }),
     deleteFolder: (id) => call(NoContent, 'DELETE', at('folders', id)),
-    instructions: (id) => call(AgentInstructions, 'GET', at('agents', id, 'instructions')),
-    saveInstructions: (id, content) => call(AgentInstructions, 'PUT', at('agents', id, 'instructions'), { content }),
+    instructions: (id) => call(AgentInstructionsView, 'GET', at('agents', id, 'instructions')),
+    saveInstructions: (id, content, expectedRevision) => call(PutInstructionsReply, 'PUT', at('agents', id, 'instructions'), { content, expectedRevision }),
+    saveInstructionsCopy: (id, content) => call(InstructionsCopyReply, 'POST', at('agents', id, 'instructions', 'copies'), { content }),
     listThreads: (agentId) => call(ThreadList, 'GET', at('agents', agentId, 'threads')),
     listAllThreads: () => call(ThreadList, 'GET', at('threads')),
     createThread: (agentId, title) => call(Thread, 'POST', at('agents', agentId, 'threads'), title === undefined ? {} : { title }),

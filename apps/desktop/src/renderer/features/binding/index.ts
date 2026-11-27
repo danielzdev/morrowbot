@@ -1,2 +1,2 @@
-export { accessChoices, bindTo, modelChoices, selectChoice, selectModel, SHELL_NOTE, type BoundProvider } from './binding.ts';
-export { AccessNotes, AccessPicker, ModelPicker } from './Pickers.tsx';
+export { accessPill, bindingPill, composerWarnings, sendBlock, type BoundProvider, type ComposerWarning, type Pill } from './binding-display.ts';
+export { BindingControl, BindingWarnings } from './BindingControl.tsx';

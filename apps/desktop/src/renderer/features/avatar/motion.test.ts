@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { combineActivity, motionOf, type AvatarActivity } from './motion.ts';
-import { definitionOf, SHAPES } from './shapes.ts';
+import { AVATARS } from './registry.ts';
 
 const ACTIVITIES: readonly AvatarActivity[] = ['idle', 'queued', 'thinking', 'streaming', 'needs-approval', 'completed'];
 
@@ -60,7 +60,7 @@ it("shows the chat that most needs showing among an agent's chats", () => {
 });
 
 it('draws every shape with one of the engine outlines', () => {
-  expect(SHAPES.map((shape) => `${shape}: ${definitionOf(shape)?.name ?? 'missing'}`)).toMatchInlineSnapshot(`
+  expect(AVATARS.map(({ id, definition }) => `${id}: ${definition?.name ?? 'missing'}`)).toMatchInlineSnapshot(`
     [
       "chat: Chat",
       "controller: Controller",

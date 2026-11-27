@@ -12,6 +12,8 @@ import type { Models } from './models.ts';
 export interface PaletteActions {
   readonly newChat: (agentId: string) => void;
   readonly newAgent: () => void;
+  /** Opens the model, effort and access popover in the open chat (⇧⌘M); null when no chat is on screen. */
+  readonly changeBinding: (() => void) | null;
   readonly openSettings: (link: SettingsLink) => void;
   readonly openExtensions: () => void;
   readonly toggleSidebar: () => void;
@@ -78,6 +80,7 @@ export function Palette(props: {
     ),
     ...(agent === undefined ? [] : [action('new-chat', `New chat with ${agent.name}`, 'chat', () => { actions.newChat(agent.id); }, 'new-chat')]),
     action('new-agent', 'New agent', 'plus', actions.newAgent, 'new-agent'),
+    ...(agent === undefined || actions.changeBinding === null ? [] : [action('binding', 'Change model or effort', 'settings', actions.changeBinding, 'binding', agent.name)]),
     action('settings', 'Settings', 'settings', () => { actions.openSettings('general'); }, 'settings'),
     action('usage', 'Usage', 'gauge', () => { actions.openSettings('usage'); }, 'usage', 'Limits and tokens'),
     action('extensions', 'Extensions', 'plugins', actions.openExtensions, 'extensions'),

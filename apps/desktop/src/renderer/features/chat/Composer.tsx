@@ -1,4 +1,6 @@
 import type { ComponentChildren } from 'preact';
+import { useLayoutEffect, useRef } from 'preact/hooks';
+import { Icon } from '../../shared/ui/Icon.tsx';
 import type { SendWith } from '../../shared/chat-prefs.ts';
 import { isSendPress, PLATFORM } from '../../shared/keys.ts';
 import { useStore } from '../../shared/use-store.ts';
@@ -63,10 +65,33 @@ function Problem(props: { readonly problem: ComposerProblem; readonly session: T
   }
 }
 
-/** The message box. `toolbar` holds the agent's model and access pickers; `sendWith` is Settings › Chat › Send with. */
-export function Composer(props: { readonly session: ThreadSession; readonly toolbar: ComponentChildren; readonly disabledReason: string | null; readonly sendWith: SendWith }) {
+const MAX_LINES = 12;
+
+/** Grows the box with its text, from one line up to twelve. */
+function fit(box: HTMLTextAreaElement): void {
+  box.style.height = 'auto';
+  const line = Number.parseFloat(getComputedStyle(box).lineHeight) || 22;
+  box.style.height = `${String(Math.min(box.scrollHeight, line * MAX_LINES))}px`;
+}
+
+/**
+ * The message box (spec §4.5). `toolbar` holds the binding and access pills, `notes` the warning
+ * strip shown under it while a warning applies. `sendWith` is Settings › Chat › Send with.
+ */
+export function Composer(props: {
+  readonly session: ThreadSession;
+  readonly agentName: string;
+  readonly toolbar: ComponentChildren;
+  readonly notes?: ComponentChildren;
+  readonly disabledReason: string | null;
+  readonly sendWith: SendWith;
+}) {
   const { session } = props;
   const screen = useStore(session.screen);
+  const box = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    if (box.current !== null) fit(box.current);
+  }, [screen.draft]);
   const view = screen.view.kind === 'loaded' ? screen.view.value : null;
   const running = view?.activeTurn != null;
   const blocked = (view?.blockedGroups.length ?? 0) > 0;
@@ -76,10 +101,11 @@ export function Composer(props: { readonly session: ThreadSession; readonly tool
       {screen.problem !== null && <Problem problem={screen.problem} session={session} draft={screen.draft} busy={screen.busy !== null || props.disabledReason !== null} />}
       <div class="composer-box">
         <textarea
+          ref={box}
           aria-label="Message"
-          placeholder={props.disabledReason ?? (running ? 'Wait for the reply, or stop it…' : 'Message the agent…')}
+          placeholder={running ? 'Wait for the reply, or stop it…' : `Message ${props.agentName}…`}
           value={screen.draft}
-          rows={3}
+          rows={1}
           onInput={(event) => {
             session.setDraft(event.currentTarget.value);
           }}
@@ -92,17 +118,19 @@ export function Composer(props: { readonly session: ThreadSession; readonly tool
         />
         <div class="composer-bar">
           <div class="toolbar">{props.toolbar}</div>
+          {props.disabledReason !== null && !running && <span class="composer-reason">{props.disabledReason}</span>}
           {running ? (
-            <button class="danger" disabled={screen.busy !== null} onClick={() => void session.stop()}>
-              {screen.busy === 'stopping' ? 'Stopping…' : 'Stop'}
+            <button class="round-btn stop" aria-label={screen.busy === 'stopping' ? 'Stopping…' : 'Stop'} title="Stop" disabled={screen.busy !== null} onClick={() => void session.stop()}>
+              <Icon name="stop" />
             </button>
           ) : (
-            <button class="primary" disabled={!canSend} onClick={() => void session.send()}>
-              {screen.busy === 'sending' ? 'Sending…' : 'Send'}
+            <button class="round-btn send" aria-label={screen.busy === 'sending' ? 'Sending…' : 'Send'} title="Send" disabled={!canSend} onClick={() => void session.send()}>
+              <Icon name="send" />
             </button>
           )}
         </div>
       </div>
+      {props.notes}
     </div>
   );
 }

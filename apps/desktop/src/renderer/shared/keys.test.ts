@@ -44,6 +44,11 @@ it('labels every shortcut for tooltips and aria-keyshortcuts', () => {
   const ids = Object.keys(SHORTCUTS).filter((id): id is ShortcutId => id in SHORTCUTS);
   expect(Object.fromEntries(ids.map((id) => [id, [shortcutLabel(id, 'mac'), shortcutLabel(id, 'other'), ariaShortcut(id, 'mac')]]))).toMatchInlineSnapshot(`
     {
+      "binding": [
+        "⇧⌘M",
+        "Ctrl+Shift+M",
+        "Meta+Shift+M",
+      ],
       "extensions": [
         "⇧⌘X",
         "Ctrl+Shift+X",

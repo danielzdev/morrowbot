@@ -1,7 +1,7 @@
-import { access, lstat, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { Agent, SendMessageResponse, Thread } from '@morrowbot/contracts';
+import { Agent, AgentInstructionsView, SendMessageResponse, Thread } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { ECHO, hidePid } from './testing/chat-fixture.ts';
 import { PLUGIN_FIXTURES, sequence, startTestHost, type TestHost } from './testing/test-host.ts';
@@ -17,6 +17,13 @@ afterEach(async () => {
   await rm(dataDir, { recursive: true, force: true });
 });
 
+/** An occupied entry's revision, checked to be there, as a stable placeholder. */
+function withoutRevision(body: unknown): unknown {
+  const view = AgentInstructionsView.parse(body);
+  expect(view.revision).not.toBeNull();
+  return { ...view, revision: '<revision>' };
+}
+
 function redact(value: unknown): unknown {
   const redacted: unknown = JSON.parse(hidePid(JSON.stringify(value).replaceAll(dataDir, '<data>')));
   return redacted;
@@ -29,7 +36,7 @@ it('keeps agents, threads, messages and AGENTS.md across a host restart', async 
     (await first.call('POST', '/api/agents', { name: 'Keeper', provider: ECHO }))
       .body,
   );
-  await first.call('PUT', `/api/agents/${agent.id}/instructions`, { content: '# Keeper\nRemember.' });
+  await first.call('PUT', `/api/agents/${agent.id}/instructions`, { content: '# Keeper\nRemember.', expectedRevision: null });
   const thread = Thread.parse((await first.call('POST', `/api/agents/${agent.id}/threads`, {})).body);
   const events = await first.events();
   await events.watch(thread.id);
@@ -41,7 +48,7 @@ it('keeps agents, threads, messages and AGENTS.md across a host restart', async 
   expect(
     redact({
       agents: (await host.call('GET', '/api/agents')).body,
-      instructions: (await host.call('GET', `/api/agents/${agent.id}/instructions`)).body,
+      instructions: withoutRevision((await host.call('GET', `/api/agents/${agent.id}/instructions`)).body),
       threads: (await host.call('GET', `/api/agents/${agent.id}/threads`)).body,
       messages: (await host.call('GET', `/api/threads/${thread.id}/messages`)).body,
     }),
@@ -84,33 +91,35 @@ it('keeps agents, threads, messages and AGENTS.md across a host restart', async 
             "at": "2026-01-01T00:00:04.000Z",
             "kind": "assistant",
             "preview": "hello from pid <pid>: remember me",
-            "threadId": "id-3",
+            "threadId": "id-2",
           },
         ],
       },
       "instructions": {
+        "canReplace": false,
         "content": "# Keeper
     Remember.",
+        "revision": "<revision>",
       },
       "messages": {
         "messages": [
           {
             "createdAt": "2026-01-01T00:00:02.000Z",
-            "id": "id-5",
+            "id": "id-4",
             "kind": "user",
             "text": "remember me",
-            "threadId": "id-3",
+            "threadId": "id-2",
           },
           {
             "createdAt": "2026-01-01T00:00:04.000Z",
-            "id": "id-6",
+            "id": "id-5",
             "kind": "assistant",
             "outcome": {
               "finishReason": "stop",
               "kind": "completed",
             },
             "text": "hello from pid <pid>: remember me",
-            "threadId": "id-3",
+            "threadId": "id-2",
           },
         ],
       },
@@ -119,7 +128,7 @@ it('keeps agents, threads, messages and AGENTS.md across a host restart', async 
           {
             "agentId": "id-1",
             "createdAt": "2026-01-01T00:00:01.000Z",
-            "id": "id-3",
+            "id": "id-2",
             "title": "New chat",
             "updatedAt": "2026-01-01T00:00:04.000Z",
           },
@@ -207,7 +216,9 @@ it('creates, updates and deletes agents and threads', async () => {
       },
       "missingInstructions": {
         "body": {
-          "content": "",
+          "canReplace": false,
+          "content": null,
+          "revision": null,
         },
         "status": 200,
       },
@@ -265,17 +276,4 @@ it('creates, updates and deletes agents and threads', async () => {
     }
   `);
   await access(shared);
-});
-
-it('saves AGENTS.md through a symlink instead of replacing it', async () => {
-  host = await startTestHost({ dataDir });
-  const shared = path.join(dataDir, 'linked');
-  const agent = Agent.parse((await host.call('POST', '/api/agents', { name: 'L', workspace: { kind: 'shared', dir: shared } })).body);
-  await writeFile(path.join(shared, 'CLAUDE.md'), 'old');
-  await symlink('CLAUDE.md', path.join(shared, 'AGENTS.md'));
-  await host.call('PUT', `/api/agents/${agent.id}/instructions`, { content: 'new' });
-  expect({
-    target: await readFile(path.join(shared, 'CLAUDE.md'), 'utf8'),
-    stillLink: (await lstat(path.join(shared, 'AGENTS.md'))).isSymbolicLink(),
-  }).toEqual({ target: 'new', stillLink: true });
 });

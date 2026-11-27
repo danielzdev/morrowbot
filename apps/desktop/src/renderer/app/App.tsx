@@ -7,14 +7,15 @@ import { chatMarkdown } from '../features/chat/index.ts';
 import type { PaletteItem } from '../features/palette/index.ts';
 import { pluginAlert } from '../features/plugins/index.ts';
 import { SettingsModal, type SettingsLink } from '../features/settings/index.ts';
-import { UsageSection, type UsageProvider } from '../features/usage/index.ts';
 import { AppInfo, redact } from '../shared/privacy.ts';
 import { useStore } from '../shared/use-store.ts';
 import { entriesOf, liveFactsOf } from './derive.ts';
 import { createModels } from './models.ts';
+import { AgentDialogs, type AgentDialog } from './AgentDialogs.tsx';
 import { Pages, type Page } from './Pages.tsx';
 import { Palette } from './Palette.tsx';
 import { Shell } from './Shell.tsx';
+import { UsagePane } from './UsagePane.tsx';
 
 const NO_INFO: AppInfo = { appVersion: '', homeDir: '', userName: '', dataDir: '' };
 
@@ -41,6 +42,8 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
   const [palette, setPalette] = useState(false);
   /** A palette pick runs once the palette has closed and handed focus back, so what it opens returns focus there too. */
   const picked = useRef<PaletteItem | null>(null);
+  const [bindingRequest, setBindingRequest] = useState(0);
+  const [dialog, setDialog] = useState<AgentDialog | null>(null);
   const [info, setInfo] = useState<AppInfo | null>(null);
   const copies = useRef(0);
   const state = useStore(models.agents.state);
@@ -85,10 +88,6 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
     if (threadId !== null) models.agents.openThread(agentId, threadId);
     setPage({ kind: 'chat' });
   };
-  const usageProviders: readonly UsageProvider[] | null =
-    cards.kind === 'loaded'
-      ? cards.value.filter(({ entry }) => entry.manifest.kind === 'provider').map(({ entry, info, usage }) => ({ id: entry.manifest.id, name: entry.manifest.name, enabled: entry.enabled, info, usage }))
-      : null;
   const newChat = (agentId: string): void => {
     models.agents.selectAgent(agentId);
     setPage({ kind: 'chat' });
@@ -119,7 +118,8 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
           if (id === 'palette') setPalette(true);
           if (id === 'usage') openSettings('usage');
           if (id === 'new-chat' && agent !== undefined) newChat(agent.id);
-          if (id === 'new-agent') setPage({ kind: 'new-agent' });
+          if (id === 'new-agent') setDialog({ kind: 'new-agent' });
+          if (id === 'binding') setBindingRequest((count) => count + 1);
           if (id === 'settings') openSettings('general');
           if (id === 'filter-agents') setFilterRequest((count) => count + 1);
           if (id === 'extensions') setPage({ kind: 'plugins' });
@@ -139,8 +139,8 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
               controls.dismiss();
             }}
             onNewChat={(agentId) => { newChat(agentId); controls.dismiss(); }}
-            onAgentSettings={(agentId) => { models.agents.selectAgent(agentId); setPage({ kind: 'agent-settings' }); controls.dismiss(); }}
-            onNewAgent={() => { setPage({ kind: 'new-agent' }); controls.dismiss(); }}
+            onAgentSettings={(agentId) => { setDialog({ kind: 'agent-settings', agentId, section: 'general' }); controls.dismiss(); }}
+            onNewAgent={() => { setDialog({ kind: 'new-agent' }); controls.dismiss(); }}
             onSettings={() => { openSettings('general'); }}
             onUsage={() => { openSettings('usage'); }}
             onExtensions={() => { setPage({ kind: 'plugins' }); controls.dismiss(); }}
@@ -161,7 +161,8 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
                 avatar={avatarOf}
                 actions={{
                   newChat,
-                  newAgent: () => { setPage({ kind: 'new-agent' }); },
+                  newAgent: () => { setDialog({ kind: 'new-agent' }); },
+                  changeBinding: page.kind === 'chat' && agent !== undefined ? () => { setBindingRequest((count) => count + 1); } : null,
                   openSettings,
                   openExtensions: () => { setPage({ kind: 'plugins' }); },
                   toggleSidebar: chrome.showSidebar,
@@ -181,9 +182,33 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
                 }}
               />
             )}
-            <Pages page={page} onPage={setPage} models={models} bridge={bridge} agent={agent} chrome={chrome} info={info} reducedMotion={appearance.reducedMotion} onCopy={copyChat} onNewChat={newChat} />
+            <Pages
+              page={page}
+              onPage={setPage}
+              models={models}
+              bridge={bridge}
+              agent={agent}
+              chrome={chrome}
+              info={info}
+              reducedMotion={appearance.reducedMotion}
+              bindingRequest={bindingRequest}
+              onAgentSettings={(agentId, section) => { setDialog({ kind: 'agent-settings', agentId, section }); }}
+              onNewAgent={() => { setDialog({ kind: 'new-agent' }); }}
+              onCopy={copyChat}
+              onNewChat={newChat}
+            />
           </>
         )}
+      />
+      <AgentDialogs
+        dialog={dialog}
+        onDialog={setDialog}
+        models={models}
+        bridge={bridge}
+        info={info}
+        reducedMotion={appearance.reducedMotion}
+        onOpenProviders={() => { setPage({ kind: 'plugins' }); }}
+        onCreated={(created) => { newChat(created.id); }}
       />
       {settings !== null && (
         <SettingsModal
@@ -194,14 +219,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
           chatPrefs={models.chatPrefs}
           info={info}
           bridge={bridge}
-          usage={
-            <UsageSection
-              providers={usageProviders}
-              onRefreshLimits={(id) => models.plugins.refreshUsage(id)}
-              loadTokens={(range) => models.api.tokenUsage(range)}
-              agentName={(agentId) => (state.agents.kind === 'loaded' ? (state.agents.value.find(({ id }) => id === agentId)?.name ?? null) : null)}
-            />
-          }
+          usage={<UsagePane models={models} />}
         />
       )}
     </>

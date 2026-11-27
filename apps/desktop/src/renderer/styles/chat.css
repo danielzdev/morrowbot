@@ -209,38 +209,3 @@
   gap: 6px;
   min-width: 0;
 }
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-1);
-  min-height: 24px;
-  padding: 2px var(--s-2);
-  border: 1px solid var(--hairline-strong);
-  border-radius: var(--r-pill);
-  background: none;
-  color: var(--text-2);
-  font: var(--t-small);
-}
-.chip select {
-  min-height: 0;
-  max-width: 180px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--text-1);
-  font: var(--t-small);
-}
-.chip.warning {
-  border-color: var(--warn);
-  color: var(--warn);
-}
-.chip.error {
-  border-color: var(--danger);
-  color: var(--danger);
-}
-.chip-label {
-  color: var(--text-3);
-}
-.access-notes {
-  padding: 0 max(var(--s-5), calc((100% - var(--reading-w)) / 2)) var(--s-3);
-}
