@@ -6,6 +6,7 @@ export interface BridgeChannels {
   readonly event: 'morrowbot:event';
   readonly subscribe: 'morrowbot:subscribe';
   readonly hostReady: 'morrowbot:host-ready';
+  readonly hostLost: 'morrowbot:host-lost';
   readonly pickFolder: 'morrowbot:pick-folder';
   readonly copyText: 'morrowbot:copy-text';
   readonly openExternal: 'morrowbot:open-external';
@@ -47,6 +48,8 @@ export interface MorrowbotBridge {
   unsubscribe(threadId: string): void;
   /** The host started, or restarted after a crash with a new epoch: reload everything held from the API. */
   onHostReady(listener: () => void): () => void;
+  /** The host's event stream dropped: the host may be restarting or down until the next `onHostReady`. */
+  onHostLost(listener: () => void): () => void;
   /** Asks the user for a folder with the system dialog; null when they cancel. */
   pickFolder(): Promise<string | null>;
   /** Puts text on the system clipboard. */

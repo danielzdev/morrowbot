@@ -4,66 +4,11 @@ import { Icon } from '../../shared/ui/Icon.tsx';
 import type { SendWith } from '../../shared/chat-prefs.ts';
 import { isSendPress, PLATFORM } from '../../shared/keys.ts';
 import { useStore } from '../../shared/use-store.ts';
-import type { ComposerProblem, ThreadSession } from './thread-session.ts';
+import { ComposerBanners } from './ComposerBanners.tsx';
+import type { ThreadSession } from './thread-session.ts';
 
-function Problem(props: { readonly problem: ComposerProblem; readonly session: ThreadSession; readonly draft: string; readonly busy: boolean }) {
-  const { problem, session } = props;
-  const nothingToSend = problem.kind !== 'error' && problem.action.kind === 'send' && props.draft.trim() === '';
-  const held = props.busy || nothingToSend;
-  switch (problem.kind) {
-    case 'session-choice':
-      return (
-        <div class="card choice" role="alertdialog" aria-label="Session choice">
-          <div class="card-body">{problem.prompt}</div>
-          <div class="card-actions">
-            {problem.options.map((option) => (
-              <button key={option.choice.kind} class="primary" disabled={held} onClick={() => void session.choose(option.choice)}>
-                {option.label}
-              </button>
-            ))}
-            <button
-              class="ghost"
-              onClick={() => {
-                session.dismissProblem();
-              }}
-            >
-              Cancel
-            </button>
-          </div>
-          {problem.options.map(
-            (option) => option.warning !== null && <div key={option.choice.kind} class="card-foot">{option.warning}</div>,
-          )}
-        </div>
-      );
-    case 'retry':
-      return (
-        <div class="banner warning">
-          <div class="banner-row">
-            <span>{problem.message} Your message was kept.</span>
-            <button class="secondary" disabled={held} onClick={() => void session.retry()}>
-              Retry
-            </button>
-          </div>
-        </div>
-      );
-    case 'error':
-      return (
-        <div class="banner error">
-          <div class="banner-row">
-            <span>{problem.message}</span>
-            <button
-              class="ghost"
-              onClick={() => {
-                session.dismissProblem();
-              }}
-            >
-              Dismiss
-            </button>
-          </div>
-        </div>
-      );
-  }
-}
+/** Why Send waits while the host can't be reached; the draft stays. */
+const RECONNECTING = 'Reconnecting to MorrowBot… your message is kept.';
 
 const MAX_LINES = 12;
 
@@ -85,6 +30,9 @@ export function Composer(props: {
   readonly notes?: ComponentChildren;
   readonly disabledReason: string | null;
   readonly sendWith: SendWith;
+  /** Host text made safe to show (spec §9.1), or null when it can't be. */
+  readonly safe: (text: string) => string | null;
+  readonly onOpenProviders: () => void;
 }) {
   const { session } = props;
   const screen = useStore(session.screen);
@@ -95,10 +43,18 @@ export function Composer(props: {
   const view = screen.view.kind === 'loaded' ? screen.view.value : null;
   const running = view?.activeTurn != null;
   const blocked = (view?.blockedGroups.length ?? 0) > 0;
-  const canSend = view !== null && !running && !blocked && screen.busy === null && props.disabledReason === null && screen.draft.trim() !== '';
+  const disabledReason = props.disabledReason ?? (screen.connection === 'reconnecting' ? RECONNECTING : null);
+  const canSend = view !== null && !running && !blocked && screen.busy === null && disabledReason === null && screen.draft.trim() !== '';
   return (
     <div class="composer">
-      {screen.problem !== null && <Problem problem={screen.problem} session={session} draft={screen.draft} busy={screen.busy !== null || props.disabledReason !== null} />}
+      <ComposerBanners
+        problem={screen.problem}
+        session={session}
+        draft={screen.draft}
+        busy={screen.busy !== null || disabledReason !== null}
+        safe={props.safe}
+        onOpenProviders={props.onOpenProviders}
+      />
       <div class="composer-box">
         <textarea
           ref={box}
@@ -118,9 +74,9 @@ export function Composer(props: {
         />
         <div class="composer-bar">
           <div class="toolbar">{props.toolbar}</div>
-          {props.disabledReason !== null && !running && <span class="composer-reason">{props.disabledReason}</span>}
+          {disabledReason !== null && !running && <span class="composer-reason">{disabledReason}</span>}
           {running ? (
-            <button class="round-btn stop" aria-label={screen.busy === 'stopping' ? 'Stopping…' : 'Stop'} title="Stop" disabled={screen.busy !== null} onClick={() => void session.stop()}>
+            <button class="round-btn stop" aria-label={screen.busy === 'stopping' ? 'Stopping…' : 'Stop'} title="Stop" disabled={screen.busy !== null || screen.connection !== 'live'} onClick={() => void session.stop()}>
               <Icon name="stop" />
             </button>
           ) : (

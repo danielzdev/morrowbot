@@ -2,15 +2,13 @@ import type { Agent } from '@morrowbot/contracts';
 import type { MorrowbotBridge } from '../bridge.ts';
 import type { AgentSection } from '../features/agents/index.ts';
 import { PluginsPage } from '../features/plugins/index.ts';
-import { redact, type AppInfo } from '../shared/privacy.ts';
+import type { AppInfo } from '../shared/privacy.ts';
 import { useStore } from '../shared/use-store.ts';
 import { ChatPane, type Chrome } from './ChatPane.tsx';
 import type { Models } from './models.ts';
 import { PageFrame } from './PageFrame.tsx';
 
 export type Page = { readonly kind: 'chat' } | { readonly kind: 'plugins' };
-
-const NO_INFO: AppInfo = { appVersion: '', homeDir: '', userName: '', dataDir: '' };
 
 /** The main pane's page: the selected agent's chat, or Plugins. New Agent and Agent Settings are dialogs. */
 export function Pages(props: {
@@ -22,7 +20,11 @@ export function Pages(props: {
   readonly chrome: Chrome;
   readonly info: AppInfo | null;
   readonly reducedMotion: boolean;
+  readonly findRequest: number;
   readonly bindingRequest: number;
+  /** The chat whose pending approval the sidebar asked to show. */
+  readonly approvalFocus: string | null;
+  readonly onApprovalFocused: () => void;
   readonly onAgentSettings: (agentId: string, section: AgentSection) => void;
   readonly onNewAgent: () => void;
   readonly onCopy: (threadId: string) => void;
@@ -39,11 +41,15 @@ export function Pages(props: {
           <ChatPane
             key={agent.id}
             models={models}
+            bridge={bridge}
             agent={agent}
             chrome={chrome}
             reducedMotion={props.reducedMotion}
+            info={info}
+            findRequest={props.findRequest}
             bindingRequest={props.bindingRequest}
-            redact={(text) => redact(text, info ?? NO_INFO)}
+            approvalFocus={props.approvalFocus}
+            onApprovalFocused={props.onApprovalFocused}
             onAgentSettings={(section) => { props.onAgentSettings(agent.id, section); }}
             onPlugins={() => { props.onPage({ kind: 'plugins' }); }}
             onCopy={props.onCopy}

@@ -21,6 +21,8 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
   const [page, setPage] = useState<Page>({ kind: 'chat' });
   const [settings, setSettings] = useState<SettingsLink | null>(null);
   const [filterRequest, setFilterRequest] = useState(0);
+  const [findRequest, setFindRequest] = useState(0);
+  const [approvalFocus, setApprovalFocus] = useState<string | null>(null);
   const [bindingRequest, setBindingRequest] = useState(0);
   const [dialog, setDialog] = useState<AgentDialog | null>(null);
   const [info, setInfo] = useState<AppInfo | null>(null);
@@ -88,6 +90,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
           if (id === 'settings') openSettings('general');
           if (id === 'filter-agents') setFilterRequest((count) => count + 1);
           if (id === 'extensions') setPage({ kind: 'plugins' });
+          if (id === 'find' && page.kind === 'chat') setFindRequest((count) => count + 1);
         }}
         sidebar={(mode, controls) => (
           <Sidebar
@@ -102,6 +105,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
             onOpenAgent={(agentId, threadId) => {
               models.agents.selectAgent(agentId);
               if (threadId !== null) models.agents.openThread(agentId, threadId);
+              setApprovalFocus(threadId);
               setPage({ kind: 'chat' });
               controls.dismiss();
             }}
@@ -129,7 +133,10 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
               chrome={chrome}
               info={info}
               reducedMotion={appearance.reducedMotion}
+              findRequest={findRequest}
               bindingRequest={bindingRequest}
+              approvalFocus={approvalFocus}
+              onApprovalFocused={() => { setApprovalFocus(null); }}
               onAgentSettings={(agentId, section) => { setDialog({ kind: 'agent-settings', agentId, section }); }}
               onNewAgent={() => { setDialog({ kind: 'new-agent' }); }}
               onCopy={copyChat}

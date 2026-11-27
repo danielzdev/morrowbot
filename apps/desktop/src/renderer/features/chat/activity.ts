@@ -1,4 +1,4 @@
-import type { ActiveTurnView, ThreadView } from './thread-model.ts';
+import { pendingApprovals, type ActiveTurnView, type ThreadView } from './thread-model.ts';
 
 /** What a chat is doing: its turn's progress, or a turn that just completed. */
 export type ChatActivity = 'idle' | 'queued' | 'thinking' | 'streaming' | 'needs-approval' | 'completed';
@@ -8,9 +8,9 @@ export const COMPLETED_MS = 4_000;
 
 function turnActivity(turn: ActiveTurnView | null): ChatActivity {
   if (turn === null) return 'idle';
-  if (turn.approvals.length > 0) return 'needs-approval';
+  if (pendingApprovals(turn).length > 0) return 'needs-approval';
   if (turn.state === 'queued') return 'queued';
-  return turn.text === '' && turn.tools.length === 0 ? 'thinking' : 'streaming';
+  return turn.text === '' && turn.steps.length === 0 ? 'thinking' : 'streaming';
 }
 
 /**
