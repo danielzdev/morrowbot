@@ -16,8 +16,8 @@ export interface CommandOptions {
   /** Written to the command's stdin, which is then closed. */
   readonly input: string;
   /**
-   * Extra inputs the command reads as files, kept out of the process list. Each is written
-   * to a private (0600) temporary file whose name is removed before the command starts, so
+   * Extra inputs the command reads as files, kept out of the process list. Each goes in a
+   * private (0600) temporary file whose name is removed before its contents are written, so
    * only the command's file descriptor reaches it. Put `commandFilePath(index)` in `args`
    * where the command expects a path.
    */
@@ -176,23 +176,25 @@ function outcome(
 /** A private file with `contents` that has no name on disk: only the returned descriptor reaches it. */
 function unlinkedFile(contents: string): number {
   const dir = mkdtempSync(path.join(tmpdir(), 'morrowbot-'));
-  const file = path.join(dir, 'input');
+  let fd: number;
   try {
-    const fd = openSync(file, 'wx+', 0o600);
-    try {
-      const bytes = Buffer.from(contents);
-      for (let written = 0; written < bytes.length; ) {
-        const count = writeSync(fd, bytes, written, bytes.length - written, written);
-        if (count === 0) throw new Error('Could not write a command input file');
-        written += count;
-      }
-      return fd;
-    } catch (error) {
-      closeSync(fd);
-      throw error;
-    }
-  } finally {
+    fd = openSync(path.join(dir, 'input'), 'wx+', 0o600);
+  } catch (error) {
     rmSync(dir, { recursive: true, force: true });
+    throw error;
+  }
+  try {
+    rmSync(dir, { recursive: true, force: true });
+    const bytes = Buffer.from(contents);
+    for (let written = 0; written < bytes.length; ) {
+      const count = writeSync(fd, bytes, written, bytes.length - written, written);
+      if (count === 0) throw new Error('Could not write a command input file');
+      written += count;
+    }
+    return fd;
+  } catch (error) {
+    closeSync(fd);
+    throw error;
   }
 }
 
