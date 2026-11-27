@@ -102,7 +102,7 @@ function handle(served: Served, message: HostMessage): void {
     case 'provider-info':
     case 'usage':
     case 'route-info':
-      void answer(served, message).catch((error: unknown) => {
+      answer(served, message).catch((error: unknown) => {
         served.send(failure(message.id, error));
       });
       return;

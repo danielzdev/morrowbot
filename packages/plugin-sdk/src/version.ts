@@ -65,7 +65,7 @@ export async function readCliVersion(tools: VersionTools, command: string, optio
     case 'exited':
       break;
   }
-  const version = /\d+\.\d+\.\d+/.exec(output)?.[0];
+  const version = /(?<!\d)\d{1,9}\.\d{1,9}\.\d{1,9}/.exec(output)?.[0];
   if (version === undefined) return { kind: 'failed', message: `"${command} --version" printed no version` };
   tools.cache.set(key, version);
   return { kind: 'version', version };

@@ -156,7 +156,7 @@ function openCommand(command: string, options: CommandOptions, owner: Owner): Op
   let killed = false;
   let pgid: number | undefined;
   let report: GuardMessage | undefined;
-  /** Why the command was stopped while its output was read: `onLine` threw, or a line ran past `LINE_LIMIT`. */
+  /** Why the command was stopped while its output was read: `onLine` threw, a line ran past `LINE_LIMIT`, or a probe past `PROBE_OUTPUT_LIMIT`. */
   let lineError: string | undefined;
   let errorOutput = '';
   let partial: string[] = [];
