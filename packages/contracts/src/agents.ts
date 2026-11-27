@@ -18,10 +18,26 @@ export const AgentWorkspaceRequest = z.discriminatedUnion('kind', [
 ]);
 export type AgentWorkspaceRequest = z.infer<typeof AgentWorkspaceRequest>;
 
+/** The bot's silhouette. */
+export const AvatarShape = z.enum(['chat', 'controller', 'barbell', 'mug', 'lightbulb', 'sprout', 'watering-can']);
+export type AvatarShape = z.infer<typeof AvatarShape>;
+
+/** The bot's surface. */
+export const AvatarFinish = z.enum(['flat', 'fluffy', 'matte', 'metallic']);
+export type AvatarFinish = z.infer<typeof AvatarFinish>;
+
 export const AgentAvatar = z.discriminatedUnion('kind', [
-  z.strictObject({ kind: z.literal('initials'), color: z.string().regex(/^#[0-9a-f]{6}$/i, 'Use a #rrggbb color') }),
+  z.strictObject({
+    kind: z.literal('bot'),
+    shape: AvatarShape,
+    color: z.string().regex(/^#[0-9a-f]{6}$/i, 'Use a #rrggbb color'),
+    finish: AvatarFinish,
+  }),
 ]);
 export type AgentAvatar = z.infer<typeof AgentAvatar>;
+
+/** The avatar of an agent created without one, and of agents saved before avatars had a shape. */
+export const DEFAULT_AVATAR: AgentAvatar = { kind: 'bot', shape: 'chat', color: '#6b7280', finish: 'flat' };
 
 export const ProviderBinding = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('unbound') }),
@@ -54,7 +70,7 @@ export const CreateAgentRequest = z.strictObject({
   name: AgentName,
   description: AgentDescription.default(''),
   workspace: AgentWorkspaceRequest.default({ kind: 'dedicated' }),
-  avatar: AgentAvatar.default({ kind: 'initials', color: '#6b7280' }),
+  avatar: AgentAvatar.default(DEFAULT_AVATAR),
   provider: ProviderBinding.default({ kind: 'unbound' }),
 });
 export type CreateAgentRequest = z.infer<typeof CreateAgentRequest>;

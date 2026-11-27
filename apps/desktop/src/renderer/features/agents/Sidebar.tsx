@@ -1,25 +1,17 @@
 import type { Agent, Thread } from '@morrowbot/contracts';
+import type { ComponentChildren } from 'preact';
 import { useState } from 'preact/hooks';
 import { useStore } from '../../shared/use-store.ts';
 import type { AgentsModel } from './agents-model.ts';
 
 export type Page = { readonly kind: 'chat' } | { readonly kind: 'agent-settings' } | { readonly kind: 'new-agent' } | { readonly kind: 'plugins' };
 
-export function Avatar({ agent }: { readonly agent: Agent }) {
-  const initials = agent.name
-    .split(/\s+/)
-    .map((word) => word[0] ?? '')
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-  return (
-    <span class="avatar" style={{ background: agent.avatar.color }} aria-hidden="true">
-      {initials}
-    </span>
-  );
-}
-
-export function Sidebar(props: { readonly model: AgentsModel; readonly page: Page; readonly onPage: (page: Page) => void }) {
+export function Sidebar(props: {
+  readonly model: AgentsModel;
+  readonly page: Page;
+  readonly onPage: (page: Page) => void;
+  readonly avatar: (agent: Agent) => ComponentChildren;
+}) {
   const state = useStore(props.model.state);
   return (
     <nav class="sidebar" aria-label="Agents">
@@ -38,7 +30,7 @@ export function Sidebar(props: { readonly model: AgentsModel; readonly page: Pag
                 props.onPage({ kind: 'chat' });
               }}
             >
-              <Avatar agent={agent} />
+              {props.avatar(agent)}
               <span class="agent-name">{agent.name}</span>
               {agent.provider.kind === 'unbound' && <span class="dot" title="No provider" />}
             </button>

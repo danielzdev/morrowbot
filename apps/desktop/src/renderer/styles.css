@@ -76,7 +76,6 @@ button:disabled { opacity: 0.5; cursor: default; }
 .agent-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav-item { color: var(--muted); }
 .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--warning); }
-.avatar { width: 24px; height: 24px; border-radius: 7px; display: inline-grid; place-items: center; font-size: 11px; font-weight: 600; color: #fff; flex: none; }
 
 /* Main */
 .main { display: flex; flex-direction: column; flex: 1; min-height: 0; }
@@ -171,3 +170,21 @@ textarea.instructions { min-height: 220px; font: 13px/1.5 ui-monospace, Menlo, m
 .meter > div { height: 100%; background: var(--accent); }
 .settings { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
 .settings .row { grid-column: 1 / -1; }
+
+/* Avatars */
+.bot-avatar { position: relative; display: inline-block; flex: none; }
+.bot-avatar-engine { position: absolute; inset: 0; display: block; }
+.bot-avatar-defs { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
+.avatar-picker { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.avatar-preview { width: 132px; height: 132px; display: grid; place-items: center; border-radius: var(--radius); background: var(--bg-raised); border: 1px solid var(--border); flex: none; }
+.avatar-options { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.avatar-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.avatar-tile { padding: 3px; border: 1px solid var(--border); background: var(--bg-raised); display: grid; place-items: center; }
+.avatar-tile:hover { background: var(--bg-hover); }
+.avatar-tile.selected, .swatch.selected { outline: 2px solid var(--accent); outline-offset: 1px; }
+.swatch { width: 22px; height: 22px; padding: 0; border-radius: 50%; border: 1px solid var(--border); }
+.swatch-custom { width: 26px; height: 26px; padding: 0; border: none; background: none; cursor: pointer; }
+.segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; align-self: flex-start; }
+.segmented button { border-radius: 0; padding: 4px 12px; color: var(--muted); }
+.segmented button + button { border-left: 1px solid var(--border); }
+.segmented button.selected { background: var(--accent); color: var(--accent-text); }

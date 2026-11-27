@@ -1,5 +1,6 @@
-import type { Agent, AgentWorkspaceRequest, ProviderBinding } from '@morrowbot/contracts';
-import { useEffect, useState } from 'preact/hooks';
+import type { Agent, AgentAvatar, AgentWorkspaceRequest, ProviderBinding } from '@morrowbot/contracts';
+import type { ComponentChildren } from 'preact';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { MorrowbotBridge } from '../../bridge.ts';
 import type { AgentsModel } from './agents-model.ts';
 
@@ -9,7 +10,9 @@ export interface ProviderOption {
   readonly name: string;
 }
 
-const COLORS = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6b7280'];
+/** Shows an avatar and lets the user change it. */
+export type AvatarEditor = (value: AgentAvatar, onChange: (next: AgentAvatar) => void) => ComponentChildren;
+
 const NONE = '';
 
 function ProviderSelect(props: { readonly providers: readonly ProviderOption[]; readonly value: string; readonly onChange: (pluginId: string) => void }) {
@@ -25,15 +28,19 @@ function ProviderSelect(props: { readonly providers: readonly ProviderOption[]; 
   );
 }
 
-/** Creates an agent: a name, its workspace folder and its provider. */
+/** Creates an agent: a name, its avatar, its workspace folder and its provider. */
 export function NewAgent(props: {
   readonly model: AgentsModel;
   readonly bridge: Pick<MorrowbotBridge, 'pickFolder'>;
   readonly providers: readonly ProviderOption[];
   readonly bindingFor: (pluginId: string) => ProviderBinding;
+  readonly avatarEditor: AvatarEditor;
+  /** The avatar the form starts with. */
+  readonly initialAvatar: AgentAvatar;
   readonly onCreated: (agent: Agent) => void;
 }) {
   const [name, setName] = useState('');
+  const [avatar, setAvatar] = useState(props.initialAvatar);
   const [description, setDescription] = useState('');
   const [workspace, setWorkspace] = useState<AgentWorkspaceRequest>({ kind: 'dedicated' });
   const [pluginId, setPluginId] = useState(props.providers[0]?.id ?? NONE);
@@ -45,13 +52,12 @@ export function NewAgent(props: {
       onSubmit={(event) => {
         event.preventDefault();
         setSaving(true);
-        const color = COLORS[Math.floor(Math.random() * COLORS.length)] ?? '#6b7280';
         void props.model
           .createAgent({
             name,
             description,
             workspace,
-            avatar: { kind: 'initials', color },
+            avatar,
             provider: pluginId === NONE ? { kind: 'unbound' } : props.bindingFor(pluginId),
           })
           .then((result) => {
@@ -62,6 +68,10 @@ export function NewAgent(props: {
       }}
     >
       <h2>New agent</h2>
+      <div class="field">
+        <span>Avatar</span>
+        {props.avatarEditor(avatar, setAvatar)}
+      </div>
       <label class="field">
         <span>Name</span>
         <input required value={name} onInput={(event) => { setName(event.currentTarget.value); }} />
@@ -145,26 +155,39 @@ function Instructions(props: { readonly model: AgentsModel; readonly agentId: st
   );
 }
 
-/** Edits an agent: name, description, provider, and its AGENTS.md. */
+/** Edits an agent: name, description, avatar, provider, and its AGENTS.md. */
 export function AgentSettings(props: {
   readonly model: AgentsModel;
   readonly agent: Agent;
   readonly providers: readonly ProviderOption[];
   readonly bindingFor: (pluginId: string) => ProviderBinding;
+  readonly avatarEditor: AvatarEditor;
   readonly onDeleted: () => void;
 }) {
   const { agent, model } = props;
   const [name, setName] = useState(agent.name);
   const [description, setDescription] = useState(agent.description);
+  const [avatar, setAvatar] = useState(agent.avatar);
   const [problem, setProblem] = useState<string | null>(null);
+  /** Saves go one at a time, in order, so the last choice is the one that stays. */
+  const saves = useRef<Promise<void>>(Promise.resolve());
   const update = (request: Parameters<AgentsModel['updateAgent']>[1]): void => {
-    void model.updateAgent(agent.id, request).then((result) => {
-      setProblem(result.kind === 'refused' ? result.message : null);
-    });
+    const save = (): Promise<void> =>
+      model.updateAgent(agent.id, request).then((result) => {
+        setProblem(result.kind === 'refused' ? result.message : null);
+      });
+    saves.current = saves.current.then(save, save);
   };
   return (
     <div class="page form">
       <h2>{agent.name}</h2>
+      <div class="field">
+        <span>Avatar</span>
+        {props.avatarEditor(avatar, (next) => {
+          setAvatar(next);
+          update({ avatar: next });
+        })}
+      </div>
       <label class="field">
         <span>Name</span>
         <input
