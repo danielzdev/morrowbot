@@ -26,10 +26,38 @@ describe('HealthResponse', () => {
 });
 
 describe('PluginManifest', () => {
-  it('rejects a bad id and version', () => {
+  const valid = {
+    id: 'web-search',
+    name: 'Web Search',
+    version: '1.2.3',
+    kind: 'tool',
+    main: 'src/index.ts',
+    permissions: ['network'],
+    settingsSchema: {
+      apiKey: { kind: 'string', label: 'API key' },
+      engine: { kind: 'select', label: 'Engine', options: ['a', 'b'], default: 'a' },
+    },
+  };
+
+  it('accepts a full manifest and rejects bad fields', () => {
     expect([
-      issues(PluginManifest.safeParse({ id: 'web-search', name: 'Web Search', version: '1.2.3' })),
-      issues(PluginManifest.safeParse({ id: 'Web Search', name: '', version: 'v1' })),
+      issues(PluginManifest.safeParse(valid)),
+      issues(
+        PluginManifest.safeParse({
+          ...valid,
+          id: 'Web Search',
+          name: '',
+          version: 'v1',
+          kind: 'theme',
+          main: '../outside.ts',
+          permissions: ['network', 'network'],
+          settingsSchema: {
+            'bad key': { kind: 'boolean', label: 'x' },
+            engine: { kind: 'select', label: 'Engine', options: ['a'], default: 'z' },
+            limit: { kind: 'number', label: 'Limit', min: 1, max: 3, default: 99 },
+          },
+        }),
+      ),
     ]).toMatchInlineSnapshot(`
       [
         "valid",
@@ -37,6 +65,12 @@ describe('PluginManifest', () => {
           "id: Use lowercase letters, digits, and dashes",
           "name: Too small: expected string to have >=1 characters",
           "version: Use a MAJOR.MINOR.PATCH version",
+          "kind: Invalid option: expected one of "provider"|"tool"",
+          "main: Use a path inside the plugin folder",
+          "permissions: List each permission once",
+          "settingsSchema.bad key: Invalid key in record",
+          "settingsSchema.engine.default: The default must be one of the options",
+          "settingsSchema.limit.default: The default must be between min and max",
         ],
       ]
     `);
