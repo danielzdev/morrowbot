@@ -63,6 +63,8 @@ export function openTestWindow(target: HostTarget): TestWindow {
     openExternal: () => Promise.resolve(),
     revealPath: () => Promise.resolve(),
     appInfo: () => Promise.resolve({ appVersion: '0.0.0', homeDir: '/Users/tester', userName: 'tester', dataDir: '/Users/tester/.morrowbot' }),
+    loginItem: () => Promise.resolve({ kind: 'unsupported' }),
+    setOpenAtLogin: () => Promise.resolve({ kind: 'unsupported' }),
   };
   return {
     bridge,

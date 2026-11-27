@@ -1,4 +1,6 @@
 import type { ComponentChildren } from 'preact';
+import type { SendWith } from '../../shared/chat-prefs.ts';
+import { isSendPress, PLATFORM } from '../../shared/keys.ts';
 import { useStore } from '../../shared/use-store.ts';
 import type { ComposerProblem, ThreadSession } from './thread-session.ts';
 
@@ -61,8 +63,8 @@ function Problem(props: { readonly problem: ComposerProblem; readonly session: T
   }
 }
 
-/** The message box. `toolbar` holds the agent's model and access pickers. */
-export function Composer(props: { readonly session: ThreadSession; readonly toolbar: ComponentChildren; readonly disabledReason: string | null }) {
+/** The message box. `toolbar` holds the agent's model and access pickers; `sendWith` is Settings › Chat › Send with. */
+export function Composer(props: { readonly session: ThreadSession; readonly toolbar: ComponentChildren; readonly disabledReason: string | null; readonly sendWith: SendWith }) {
   const { session } = props;
   const screen = useStore(session.screen);
   const view = screen.view.kind === 'loaded' ? screen.view.value : null;
@@ -82,7 +84,7 @@ export function Composer(props: { readonly session: ThreadSession; readonly tool
             session.setDraft(event.currentTarget.value);
           }}
           onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+            if (isSendPress(event, props.sendWith, PLATFORM)) {
               event.preventDefault();
               if (canSend) void session.send();
             }
