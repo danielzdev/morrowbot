@@ -61,7 +61,7 @@ async function ask(host: PluginHost, content: string, signal?: AbortSignal): Pro
     (chunk) => chunks.push(chunk),
     signal,
   );
-  const text = chunks.map((chunk) => chunk.text).join('');
+  const text = chunks.flatMap((chunk) => (chunk.kind === 'text' ? [chunk.text] : [])).join('');
   return `${text.replace(/pid (\d+)/, (_, pid: string) => (Number(pid) === process.pid ? 'pid HOST' : 'pid CHILD'))} [${finish}]`;
 }
 

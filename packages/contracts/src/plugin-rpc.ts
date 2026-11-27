@@ -18,7 +18,14 @@ export type ChatMessage = z.infer<typeof ChatMessage>;
 export const ProviderStreamRequest = z.strictObject({ messages: z.array(ChatMessage) });
 export type ProviderStreamRequest = z.infer<typeof ProviderStreamRequest>;
 
-export const StreamChunk = z.discriminatedUnion('kind', [z.strictObject({ kind: z.literal('text'), text: z.string() })]);
+/** One piece of a streamed reply: a text delta, a status line, a tool call starting or ending, or the final reply text. */
+export const StreamChunk = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('text'), text: z.string() }),
+  z.strictObject({ kind: z.literal('status'), text: z.string().min(1) }),
+  z.strictObject({ kind: z.literal('tool-start'), toolUseId: z.string().min(1), name: z.string().min(1), input: z.json() }),
+  z.strictObject({ kind: z.literal('tool-end'), toolUseId: z.string().min(1), outcome: z.enum(['ok', 'error']) }),
+  z.strictObject({ kind: z.literal('final'), text: z.string() }),
+]);
 export type StreamChunk = z.infer<typeof StreamChunk>;
 
 export const FinishReason = z.enum(['stop', 'length', 'cancelled']);

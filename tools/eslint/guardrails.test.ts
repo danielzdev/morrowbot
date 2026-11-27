@@ -114,7 +114,7 @@ describe('import boundaries', () => {
     `);
   });
 
-  it('lets plugins import only the SDK, contracts, and their own files', () => {
+  it('lets plugins import only the SDK, contracts, and their own files (and vitest in tests)', () => {
     const plugin = 'plugins/demo/src/index.ts';
     expect({
       sdk: lintBoundaries(plugin, "export * from '@morrowbot/plugin-sdk';"),
@@ -126,6 +126,8 @@ describe('import boundaries', () => {
       dynamicImport: lintBoundaries(plugin, "export const m = import('@morrowbot/host');"),
       templateImport: lintBoundaries(plugin, 'export const t = import(`@morrowbot/host`);'),
       computedImport: lintBoundaries(plugin, "export const c = import('@morrowbot/' + 'host');"),
+      vitestInTest: lintBoundaries('plugins/demo/src/index.test.ts', "export * from 'vitest';"),
+      vitestOutsideTests: lintBoundaries(plugin, "export * from 'vitest';"),
     }).toMatchInlineSnapshot(`
       {
         "computedImport": [
@@ -147,6 +149,10 @@ describe('import boundaries', () => {
         "ownFile": [],
         "sdk": [],
         "templateImport": [
+          "1: morrowbot/import-boundaries: Plugins may import only @morrowbot/plugin-sdk, @morrowbot/contracts, and files inside their own folder.",
+        ],
+        "vitestInTest": [],
+        "vitestOutsideTests": [
           "1: morrowbot/import-boundaries: Plugins may import only @morrowbot/plugin-sdk, @morrowbot/contracts, and files inside their own folder.",
         ],
       }

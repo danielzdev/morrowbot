@@ -3,6 +3,7 @@ import type { ESLint, Linter, Rule } from 'eslint';
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
 const PLUGIN_PACKAGES = new Set(['@morrowbot/plugin-sdk', '@morrowbot/contracts']);
+const PLUGIN_TEST_PACKAGES = new Set([...PLUGIN_PACKAGES, 'vitest']);
 const RENDERER_PACKAGES = new Set(['@morrowbot/contracts']);
 const RENDERER_ROOT = 'apps/desktop/src/renderer';
 const FEATURE_ENTRY = new Set(['', 'index', 'index.ts']);
@@ -51,6 +52,7 @@ export const importBoundaries: Rule.RuleModule = {
     const file = toPosix(path.relative(REPO_ROOT, context.filename));
     const boundary = boundaryOf(file);
     const sourceFeature = featureOf(file);
+    const pluginPackages = file.endsWith('.test.ts') ? PLUGIN_TEST_PACKAGES : PLUGIN_PACKAGES;
 
     function check(node: Rule.Node, specifier: string): void {
       const relative = specifier.startsWith('.');
@@ -58,7 +60,7 @@ export const importBoundaries: Rule.RuleModule = {
 
       switch (boundary.kind) {
         case 'plugin':
-          if (target === undefined ? !PLUGIN_PACKAGES.has(specifier) : !isInside(target, boundary.root)) {
+          if (target === undefined ? !pluginPackages.has(specifier) : !isInside(target, boundary.root)) {
             context.report({ node, messageId: 'pluginImport' });
           }
           break;

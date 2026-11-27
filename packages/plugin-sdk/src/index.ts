@@ -8,4 +8,7 @@ export type {
   StreamChunk,
 } from '@morrowbot/contracts';
 export type { LifecycleHooks, PluginContext, PluginDefinition, ProviderPlugin, StreamSink, ToolPlugin } from './plugin.ts';
+export { runCommand } from './command.ts';
+export type { CommandExit, CommandOptions } from './command.ts';
 export { runPlugin } from './run-plugin.ts';
+export { z } from 'zod';

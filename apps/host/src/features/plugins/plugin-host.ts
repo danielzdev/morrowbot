@@ -107,7 +107,7 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
     setStatus(slot, { kind: 'starting' });
     let child: PluginProcess;
     try {
-      child = spawnPluginProcess({ entryPath, cwd: dir, timeouts });
+      child = spawnPluginProcess({ entryPath, cwd: dir, envNames: manifest.env, timeouts });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setStatus(slot, { kind: 'crashed', reason: { kind: 'spawn-error', message } });

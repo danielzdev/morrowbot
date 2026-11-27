@@ -18,6 +18,8 @@ const RelativeEntry = z
     { error: 'Use a path inside the plugin folder' },
   );
 
+const EnvName = z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, 'Use an environment variable name');
+
 export const PluginManifest = z.strictObject({
   id: z.string().regex(/^[a-z][a-z0-9-]*$/, 'Use lowercase letters, digits, and dashes'),
   name: z.string().min(1),
@@ -27,6 +29,11 @@ export const PluginManifest = z.strictObject({
   permissions: z.array(PluginPermission).refine((list) => new Set(list).size === list.length, {
     error: 'List each permission once',
   }),
+  /** Host environment variables the plugin process receives besides `PATH`. Unset ones are left out. */
+  env: z
+    .array(EnvName)
+    .refine((list) => new Set(list).size === list.length, { error: 'List each variable once' })
+    .default([]),
   settingsSchema: PluginSettingsSchema,
 });
 

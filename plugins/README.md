@@ -27,7 +27,9 @@ plus its own files. `npm run lint` enforces this.
 ```
 
 A setting without a `default` must be filled in before the plugin starts. The
-entry file serves the plugin over IPC with `runPlugin`:
+plugin process gets only `PATH` from the host's environment, plus any variable
+named in the optional `"env"` list (for example `"env": ["HOME"]`). The entry
+file serves the plugin over IPC with `runPlugin`:
 
 ```ts
 import { runPlugin } from '@morrowbot/plugin-sdk';
@@ -43,4 +45,11 @@ runPlugin({
 });
 ```
 
-Working examples live in `apps/host/src/features/plugins/fixtures/`.
+A stream emits `text` deltas, and may also emit `status` lines, `tool-start` and
+`tool-end` events, and the `final` reply text. The SDK also gives plugins `z`
+(Zod) to parse outside data, and `runCommand` to run a program; aborting its
+signal stops the program's whole process group, and commands still running when
+the plugin stops are stopped with it.
+
+`provider-claude/` is the first real plugin. Small examples live in
+`apps/host/src/features/plugins/fixtures/`.

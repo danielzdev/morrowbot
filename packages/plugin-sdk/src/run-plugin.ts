@@ -1,4 +1,5 @@
 import { HostMessage, type PluginMessage } from '@morrowbot/contracts';
+import { stopAllCommands } from './command.ts';
 import type { PluginDefinition } from './plugin.ts';
 
 type Send = (message: PluginMessage, done?: () => void) => void;
@@ -51,6 +52,7 @@ async function handle(
         for (const controller of streams.values()) controller.abort();
         let reply: PluginMessage = { kind: 'shutdown-result', id };
         try {
+          await stopAllCommands();
           await plugin.shutdown?.();
         } catch (error) {
           reply = failure(id, error);
