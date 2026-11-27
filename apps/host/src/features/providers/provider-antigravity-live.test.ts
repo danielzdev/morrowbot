@@ -1,4 +1,4 @@
-import { access, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Agent, MessageList, SendMessageResponse, Thread, UsageResponse } from '@morrowbot/contracts';
@@ -14,7 +14,7 @@ import { startTestHost, type EventClient, type TestHost } from '../../testing/te
  */
 const LIVE = process.env.MORROWBOT_LIVE_AGY === '1';
 const AGY_PATH = process.env.MORROWBOT_AGY_PATH ?? 'agy';
-const TURN_MS = 300_000;
+const TURN_MS = 600_000;
 
 let root = '';
 let host: TestHost;
@@ -50,21 +50,40 @@ const exists = (file: string): Promise<boolean> =>
 
 const Info = z.looseObject({ info: z.looseObject({ kind: z.string(), accountKey: z.string().optional(), accountLabel: z.string().nullable().optional(), models: z.array(z.unknown()).optional() }) });
 
+/** The tool calls of one turn, as `Name:outcome`. */
+function toolsOf(generationId: string): string[] {
+  const ends = new Map(events.received.flatMap((event) => (event.kind === 'generation.tool-end' && event.generationId === generationId ? [[event.toolUseId, event.outcome]] : [])));
+  return events.received.flatMap((event) => (event.kind === 'generation.tool-start' && event.generationId === generationId ? [`${event.name}:${ends.get(event.toolUseId) ?? 'open'}`] : []));
+}
+
 describe.skipIf(!LIVE)('provider-antigravity on your agy login', () => {
   it(
-    'is ready once a session lists models; a read-only turn loads the workspace AGENTS.md, and its write and command are denied so nothing changes',
+    'is ready once a session lists models; a read-only turn loads the workspace AGENTS.md; a write inside, a write outside, a command and a write through a symlink are each denied and change nothing',
     async () => {
       const before = Info.parse((await host.call('GET', '/api/plugins/provider-antigravity/info')).body).info;
       const agent = Agent.parse((await host.call('POST', '/api/agents', { name: 'Live', provider: AGY })).body);
       const thread = Thread.parse((await host.call('POST', `/api/agents/${agent.id}/threads`, { title: 'Live' })).body);
       await events.watch(thread.id);
       const workspace = path.join(root, 'data', 'workspaces', agent.id);
+      const outside = path.join(root, 'outside');
       await mkdir(workspace, { recursive: true });
+      await mkdir(outside, { recursive: true });
+      await symlink(outside, path.join(workspace, 'escape'));
       await writeFile(path.join(workspace, 'AGENTS.md'), 'When asked for the canary word, the canary word is KUMQUAT.\n');
       await send(thread, 'Say the canary word, and nothing else.');
-      const changing = await send(thread, 'Use your command tool to run exactly: touch ran.txt . Then use your file tool to create inside.txt containing x.');
-      const tools = events.received.flatMap((event) => (event.kind === 'generation.tool-start' && event.generationId === changing ? [event.name] : []));
-      const after = Info.parse((await host.call('GET', '/api/plugins/provider-antigravity/info?refresh=1')).body).info;
+      const tries = [
+        { prompt: 'Use your file-writing tool to create inside.txt containing x. Do not use any other tool.', target: path.join(workspace, 'inside.txt'), tool: 'Edit' },
+        { prompt: `Use your file-writing tool to create ${path.join(outside, 'written.txt')} containing x. Do not use any other tool.`, target: path.join(outside, 'written.txt'), tool: 'Edit' },
+        { prompt: 'Use your command tool to run exactly: touch ran.txt . Do not use any other tool.', target: path.join(workspace, 'ran.txt'), tool: 'Shell' },
+        { prompt: 'Use your file-writing tool to create escape/linked.txt containing x. Do not use any other tool.', target: path.join(outside, 'linked.txt'), tool: 'Edit' },
+      ];
+      const denied: unknown[] = [];
+      for (const attempt of tries) {
+        const generationId = await send(thread, attempt.prompt);
+        const tools = toolsOf(generationId);
+        denied.push({ tool: attempt.tool, reachedDenial: tools.includes(`${attempt.tool}:error`), anyToolSucceeded: tools.some((tool) => tool.endsWith(':ok')), changed: await exists(attempt.target) });
+      }
+      const after = Info.parse((await host.call('GET', '/api/plugins/provider-antigravity/info')).body).info;
       const usage = UsageResponse.parse((await host.call('GET', '/api/plugins/provider-antigravity/usage?refresh=1')).body);
       const { messages } = MessageList.parse((await host.call('GET', `/api/threads/${thread.id}/messages`)).body);
       const said = messages.flatMap((message) => (message.kind === 'assistant' ? [{ outcome: message.outcome.kind, text: message.text }] : []));
@@ -73,17 +92,17 @@ describe.skipIf(!LIVE)('provider-antigravity on your agy login', () => {
         after: { kind: after.kind, accountKey: after.accountKey, labelled: (after.accountLabel ?? '') !== '', models: (after.models?.length ?? 0) > 0 },
         outcomes: said.map((reply) => reply.outcome),
         canary: said[0]?.text.includes('KUMQUAT'),
-        askedToChange: tools.some((name) => name === 'Shell' || name === 'Edit'),
-        changed: (await exists(path.join(workspace, 'ran.txt'))) || (await exists(path.join(workspace, 'inside.txt'))),
+        denied,
         usage: usage.usage.kind === 'unavailable' ? usage.usage.reason : usage.usage.kind,
+        errors: host.errors,
       }).toEqual({
         before: 'ready-models-later',
         after: { kind: 'ready', accountKey: '', labelled: true, models: true },
-        outcomes: ['completed', 'completed'],
+        outcomes: ['completed', 'completed', 'completed', 'completed', 'completed'],
         canary: true,
-        askedToChange: true,
-        changed: false,
+        denied: tries.map(({ tool }) => ({ tool, reachedDenial: true, anyToolSucceeded: false, changed: false })),
         usage: 'unsupported',
+        errors: [],
       });
     },
     TURN_MS,

@@ -38,6 +38,8 @@ export interface AgyFixture extends ChatFixture {
   answer(thread: Thread, generationId: string, choiceId: string): Promise<number>;
   /** The events of one generation received so far, typed. */
   turnEvents(generationId: string): ChatEvent[];
+  /** A turn's status details, approval cards and tool events, one line each, with `$HOME` hidden. */
+  steps(generationId: string): string[];
 }
 
 /**
@@ -85,12 +87,34 @@ export async function startAgyFixture(options: Partial<TestHostOptions> = {}): P
       return (await chat.host.call('POST', `/api/threads/${thread.id}/approvals/${approvalId}`, { generationId, choiceId })).status;
     },
     turnEvents: (generationId) => chat.events.received.filter((event) => event.kind !== 'usage.updated' && event.generationId === generationId),
+    steps: (generationId) =>
+      chat.events.received.flatMap((event) => (event.kind !== 'usage.updated' && event.generationId === generationId ? describeStep(event).map((line) => line.replaceAll(home, '$HOME')) : [])),
     close: async () => {
       await chat.close();
       process.env.HOME = previousHome;
       await rm(home, { recursive: true, force: true });
     },
   };
+}
+
+function describeStep(event: ChatEvent): string[] {
+  switch (event.kind) {
+    case 'generation.status':
+      return event.detail === null ? [] : [`status: ${event.detail}`];
+    case 'generation.tool-start':
+      return [`tool-start ${event.name}: ${JSON.stringify(event.input)}`];
+    case 'generation.tool-end':
+      return [`tool-end: ${event.outcome}`];
+    case 'generation.approval-requested':
+      return [`card: ${event.approval.summary} [${event.approval.choices.map((choice) => choice.id).join(', ')}]`];
+    case 'generation.approval-resolved':
+      return [`card resolved: ${JSON.stringify(event.resolution)}`];
+    case 'generation.started':
+    case 'generation.delta':
+    case 'generation.finished':
+    case 'usage.updated':
+      return [];
+  }
 }
 
 /** The methods the fake got, without the handshake. */

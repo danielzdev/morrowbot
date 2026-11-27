@@ -1,6 +1,6 @@
 import type { ApprovalAnswer, ApprovalAsk } from '@morrowbot/plugin-sdk';
 import type { PermissionOption, PermissionRequest } from './protocol.ts';
-import { tilde } from './tool-input.ts';
+import { mask, tilde } from './tool-input.ts';
 
 /** Tool kinds that only look: agy asks for them when they reach outside the workspace (checked on agy 1.5.18). */
 const LOOKING = new Set(['read', 'search', 'fetch']);
@@ -48,11 +48,11 @@ function selected(option: PermissionOption): unknown {
   return { outcome: { outcome: 'selected', optionId: option.optionId } };
 }
 
-/** "read ~/notes/a.txt": the tool's kind and what it names, never its content. */
+/** "read ~/notes/a.txt": the tool's kind and what it names, secrets masked, never its content. */
 function describe(request: PermissionRequest, home: string | null): string {
   const { kind, title, locations } = request.toolCall;
   const paths = (locations ?? []).map((location) => location.path);
   const target = paths.length > 0 ? paths.join(', ') : (title ?? '');
-  const text = tilde(`${kind ?? 'a tool'}${target === '' ? '' : ` ${target}`}`, home);
+  const text = mask(tilde(`${kind ?? 'a tool'}${target === '' ? '' : ` ${target}`}`, home));
   return text.length <= MAX_SUMMARY_CHARS ? text : `${text.slice(0, MAX_SUMMARY_CHARS - 1)}…`;
 }

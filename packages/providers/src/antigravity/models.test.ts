@@ -112,3 +112,45 @@ it('lists the models of a real new session, with thinking levels for the default
     }
   `);
 });
+
+it('leaves out blank and repeated values, and knows no model while agy names none', () => {
+  const catalog = createModelCatalog();
+  const select = (id: string, currentValue: string, values: readonly string[]) => ({ id, name: '', type: 'select', currentValue, options: values.map((value) => ({ value, name: '' })) });
+  const blank = catalog.observe([select('model', '', ['a'])], true);
+  catalog.observe([select('model', 'a', ['a', '', ' ', 'a', 'b']), select('thought_level', 'hi', ['hi', '', 'hi', 'lo'])], true);
+  expect({ blank, models: catalog.models() }).toMatchInlineSnapshot(`
+    {
+      "blank": null,
+      "models": [
+        {
+          "id": "a",
+          "isDefault": true,
+          "label": "a",
+          "options": [
+            {
+              "choices": [
+                {
+                  "id": "hi",
+                  "label": "hi",
+                },
+                {
+                  "id": "lo",
+                  "label": "lo",
+                },
+              ],
+              "defaultChoiceId": "hi",
+              "id": "thought_level",
+              "label": "Thinking",
+            },
+          ],
+        },
+        {
+          "id": "b",
+          "isDefault": false,
+          "label": "b",
+          "options": [],
+        },
+      ],
+    }
+  `);
+});

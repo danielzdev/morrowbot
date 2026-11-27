@@ -4,7 +4,9 @@ import type { ModelCatalog } from './models.ts';
 import { APPROVAL_CHOICES, decide, permissionResult } from './permission.ts';
 import { PromptResponse, type PermissionRequest } from './protocol.ts';
 import { closeSession, configureSession, openSession, vendorError } from './session.ts';
-import { createSessionStream, type Breach } from './session-stream.ts';
+import { ASKING_MODE, createSessionStream, type Breach } from './session-stream.ts';
+import { tilde } from './tool-input.ts';
+import type { WorkspaceCheck } from './workspace.ts';
 
 /** A prompt has no deadline of its own: Stop cancels it, and the host ends a daemon that ignores that. */
 const PROMPT_MS = 24 * 60 * 60_000;
@@ -14,10 +16,13 @@ export interface TurnDeps {
   readonly live: () => Live | undefined;
   /** Why the CLI cannot run turns now (missing, outdated or untested), or null. */
   readonly checkCli: (cwd: string) => Promise<ProviderError | null>;
+  /** Whether agy would load customizations that run code in the turn's workspace. */
+  readonly checkWorkspace: (cwd: string, signal: AbortSignal) => Promise<WorkspaceCheck>;
   /** Why this OS is not supported, or null. */
   readonly platformReason: string | null;
   /** Why turns are no longer offered in this run, or null. */
   readonly breach: () => string | null;
+  /** Records why no more turns run, and ends the daemon with every turn on it. */
   readonly onBreach: (reason: string) => void;
   readonly home: string | null;
 }
@@ -33,7 +38,8 @@ export interface Live {
 /**
  * Runs one read-only turn on the shared daemon: checks, a session in Default mode with the picked
  * model, then the prompt. Every write and command agy asks for is denied; a read, search or fetch
- * it asks for goes to an approval card. If agy changes something without asking, the turn stops.
+ * it asks for goes to an approval card. If agy changes something without asking or leaves Default
+ * mode, the daemon ends at once, so nothing on it runs on.
  */
 export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<TurnEnd> {
   const { request, signal, emit } = context;
@@ -53,7 +59,7 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
   });
   const unlessStopped = <T>(work: Promise<T>): Promise<T | 'stopped'> => Promise.race([work, abort]);
 
-  const checked = await unlessStopped(preflight(request, deps));
+  const checked = await unlessStopped(preflight(request, deps, signal));
   if (checked === 'stopped') return ended({ kind: 'cancelled' }, { sessionTouched: false });
   if (checked.kind === 'refused') return refuse(checked.error);
   const { live } = checked;
@@ -61,30 +67,39 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
 
   let armed = false;
   let breached: string | null = null;
+  const fenced = Promise.withResolvers<null>();
   let sessionId: string | null = null;
   const cancelPrompt = (): void => {
     if (sessionId !== null) daemon.notify('session/cancel', { sessionId });
+  };
+  const breach = (found: Breach): void => {
+    if (breached !== null) return;
+    breached = breachReason(found, daemon.version);
+    fenced.resolve(null);
+    emit({ kind: 'status', text: breached });
+    cancelPrompt();
+    deps.onBreach(breached);
   };
   const stream = createSessionStream({
     home: deps.home,
     emit,
     onBreach: (found) => {
-      if (!armed || breached !== null) return;
-      breached = breachReason(found, daemon.version);
-      deps.onBreach(breached);
-      emit({ kind: 'status', text: breached });
-      cancelPrompt();
+      if (armed) breach(found);
     },
   });
+  /** Why nothing more is allowed: this or another turn saw agy break the read-only rules. */
+  const whyRefusing = (): string | null => breached ?? deps.breach();
+  /** No answer allows anything once agy broke the rules, or after Stop. */
+  const refusing = (): boolean => stopped() || whyRefusing() !== null;
   const answer = async (asked: PermissionRequest): Promise<unknown> => {
     const decision = decide(asked, deps.home);
     if (decision.kind === 'deny') {
       emit({ kind: 'status', text: decision.status });
       return permissionResult(asked.options, null, stopped());
     }
-    if (stopped() || breached !== null) return permissionResult(asked.options, null, stopped());
-    const chosen = await context.ask({ summary: `Antigravity wants to ${decision.summary}`, choices: APPROVAL_CHOICES });
-    return permissionResult(asked.options, chosen, stopped());
+    if (refusing()) return permissionResult(asked.options, null, true);
+    const chosen = await Promise.race([context.ask({ summary: `Antigravity wants to ${decision.summary}`, choices: APPROVAL_CHOICES }), fenced.promise]);
+    return refusing() ? permissionResult(asked.options, null, true) : permissionResult(asked.options, chosen, false);
   };
   const handlers: SessionHandlers = {
     onUpdate: (update) => {
@@ -119,11 +134,20 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
   live.tier = opened.tier ?? live.tier;
   try {
     const before = live.catalog.models();
-    const configured = await unlessStopped(configureSession(daemon, opened.sessionId, opened.options, request.selection, live.catalog, opened.isNew));
+    const setup = { selection: request.selection, catalog: live.catalog, fresh: opened.isNew };
+    const configured = await unlessStopped(configureSession(daemon, opened.sessionId, opened.options, setup));
     const after = live.catalog.models();
     if (after !== null && after !== before) emit({ kind: 'model-options-changed', models: [...after] });
     if (configured === 'stopped') return ended({ kind: 'cancelled' }, { sessionTouched: false });
-    if (configured.kind === 'refused') return refuse(configured.error);
+    if (configured.kind === 'refused') {
+      if (configured.error.kind === 'signed-out') live.signedOut = true;
+      return refuse(configured.error);
+    }
+    armed = true;
+    const mode = stream.mode();
+    if (mode !== null && mode !== ASKING_MODE) breach({ kind: 'mode-changed', mode });
+    const fence = whyRefusing();
+    if (fence !== null) return refuse({ kind: 'access-not-supported', reason: fence });
     return await prompt(opened.sessionId, configured.model);
   } finally {
     opened.detach();
@@ -131,22 +155,21 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
   }
 
   async function prompt(id: string, model: string | null): Promise<TurnEnd> {
-    armed = true;
     signal.addEventListener('abort', cancelPrompt, { once: true });
     try {
       if (stopped()) return ended({ kind: 'cancelled' }, { sessionTouched: false });
-      const reply = await daemon.call('session/prompt', { sessionId: id, prompt: [{ type: 'text', text: promptText(request) }] }, PromptResponse, PROMPT_MS);
+      const reply = await Promise.race([daemon.call('session/prompt', { sessionId: id, prompt: [{ type: 'text', text: promptText(request) }] }, PromptResponse, PROMPT_MS), fenced.promise]);
       const touched = { actualModel: model, sessionTouched: true };
+      if (reply === null || breached !== null) {
+        const usage: TurnUsage = reply?.kind === 'ok' ? usageOf(reply.value) : { kind: 'unavailable' };
+        return ended({ kind: 'failed', error: { kind: 'access-not-supported', reason: breached ?? 'Antigravity broke the read-only rules.' } }, { ...touched, usage });
+      }
       switch (reply.kind) {
-        case 'ok': {
-          const usage = usageOf(reply.value);
-          if (breached !== null) return ended({ kind: 'failed', error: { kind: 'access-not-supported', reason: breached } }, { ...touched, usage });
-          return ended(outcomeOf(reply.value.stopReason, stopped()), { ...touched, usage });
-        }
+        case 'ok':
+          return ended(outcomeOf(reply.value.stopReason, stopped()), { ...touched, usage: usageOf(reply.value) });
         case 'error': {
           const error = vendorError(reply.code, reply.message);
           if (error.kind === 'signed-out') live.signedOut = true;
-          if (breached !== null) return ended({ kind: 'failed', error: { kind: 'access-not-supported', reason: breached } }, touched);
           return ended(stopped() ? { kind: 'cancelled' } : { kind: 'failed', error }, touched);
         }
         case 'unanswered':
@@ -162,10 +185,10 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
 type Checked = { readonly kind: 'ok'; readonly live: Live } | { readonly kind: 'refused'; readonly error: ProviderError };
 
 /**
- * Checks a turn before any session opens: the access it asks for, the OS, the CLI, the daemon, and
- * the account. agy reports no account, so the key is '' and only a turn admitted for '' runs.
+ * Checks a turn before any session opens: the access it asks for, the OS, the CLI, the workspace,
+ * the daemon, and the account. agy reports no account, so the key is '' and only a turn admitted for '' runs.
  */
-async function preflight(request: TurnRequest, deps: TurnDeps): Promise<Checked> {
+async function preflight(request: TurnRequest, deps: TurnDeps, signal: AbortSignal): Promise<Checked> {
   const refused = (error: ProviderError): Checked => ({ kind: 'refused', error });
   if (request.access !== 'read-only' || request.vendorSettings !== 'personal') {
     return refused({
@@ -179,6 +202,18 @@ async function preflight(request: TurnRequest, deps: TurnDeps): Promise<Checked>
   if (breach !== null) return refused({ kind: 'access-not-supported', reason: breach });
   const cli = await deps.checkCli(request.cwd);
   if (cli !== null) return refused(cli);
+  const workspace = await deps.checkWorkspace(request.cwd, signal);
+  switch (workspace.kind) {
+    case 'clear':
+      break;
+    case 'customized':
+      return refused({
+        kind: 'access-not-supported',
+        reason: `Antigravity runs the hooks in ${tilde(workspace.folder, deps.home)} (and its plugins and MCP servers) without asking (checked on agy 1.5.18), so MorrowBot cannot run it read-only there. Move that folder out of the workspace to chat with Antigravity.`,
+      });
+    case 'unknown':
+      return refused({ kind: 'access-not-supported', reason: workspace.reason });
+  }
   const live = deps.live();
   if (live?.daemon.alive() !== true) return refused({ kind: 'transient', retryAfterMs: null });
   if (request.expectedAccountKey !== '') return refused(request.expectedRouteKey === '' ? { kind: 'account-changed' } : { kind: 'route-changed' });
@@ -219,7 +254,7 @@ export function usageOf(response: PromptResponse): TurnUsage {
 function breachReason(breach: Breach, version: string | null): string {
   const agy = version === null ? 'agy' : `agy ${version}`;
   const what = breach.kind === 'unasked-change' ? `ran "${breach.tool}" without asking` : `left its Default mode for "${breach.mode}"`;
-  return `Antigravity (${agy}) ${what}. MorrowBot stopped the turn and offers no Antigravity turns until it restarts.`;
+  return `Antigravity (${agy}) ${what}. MorrowBot ended it and offers no Antigravity turns until the provider restarts.`;
 }
 
 /** A seeded new session gets the earlier conversation (the host's `<user>` / `<assistant>` blocks) before the prompt. */

@@ -31,12 +31,12 @@ function usageOf(generationId: string): unknown {
   return row;
 }
 
-it('reports models-later until a session lists them, starting one daemon with its own --gemini-dir through provider-info', async () => {
+it('reports models-later until a session lists them, then ready without a forced refresh, starting one daemon with its own --gemini-dir through provider-info', async () => {
   const before = agy.daemonPgids().length;
   const first = await agy.host.call('GET', '/api/plugins/provider-antigravity/info');
   const thread = await agy.thread(await agy.agent());
   await agy.send(thread, 'hello');
-  const second = await agy.host.call('GET', '/api/plugins/provider-antigravity/info?refresh=1');
+  const second = await agy.host.call('GET', '/api/plugins/provider-antigravity/info');
   expect(redact({ before, after: agy.daemonPgids().length, launches: (await agy.launches()).map((launch) => launch.args), first: first.body, second: second.body })).toMatchInlineSnapshot(`
     {
       "after": 1,

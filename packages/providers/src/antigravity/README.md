@@ -23,16 +23,22 @@ account key is `''`. Every turn is therefore stateless: the host seeds it with t
 `capabilities.sessions` is false. `session/load` is still supported, with agy's replayed history
 filtered out, for the day agy names an account.
 
-**Access.** One profile: read-only, interactive, with your own Antigravity skills and the
-workspace's instructions (`personal`):
+**Access.** One profile: read-only, interactive, with your own skills (agy also reads
+`~/.claude/skills`) and the workspace's instructions (`personal`):
 
 - every write and every command agy asks permission for is denied without a card;
 - a read, search or fetch it asks for (agy asks when one reaches outside the workspace) goes to an
   approval card, "Allow once" or "Deny". `allow_always` is never chosen;
 - requests from agy to write a file or run a terminal through MorrowBot (`fs/write_text_file`,
   `terminal/*`) are refused, and the client offers neither;
-- if agy reports an edit or command that finished without asking, or leaves Default mode, the turn
-  stops (`access-not-supported`) and the profile is withheld until the provider restarts.
+- a turn is refused, before any session opens, in a workspace that has one of agy's own
+  customization folders (`.agents`, `.agent`, `_agents`, `_agent`), there or in a folder above it up
+  to its git root. agy runs the hooks, plugins and MCP servers in them without asking, even with its
+  own `--gemini-dir` (checked on agy 1.5.18);
+- if agy reports an edit or command that finished without asking, or leaves Default mode (during a
+  turn, or while MorrowBot sets the session up), the turn fails (`access-not-supported`), the
+  daemon ends at once with every turn on it, and the profile is withheld until the provider
+  restarts. An open approval card is withdrawn and a late answer allows nothing.
 
 **Held back** (checked on agy 1.5.18, shown on the Plugins page):
 

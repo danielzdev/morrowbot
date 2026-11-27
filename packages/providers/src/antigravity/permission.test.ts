@@ -78,3 +78,19 @@ it('allows once only when the user chose Allow, never always; a stopped turn ans
     }
   `);
 });
+
+it('masks secrets and shows the home folder as ~ in what a card or a denial says', () => {
+  const ask = (kind: string, title: string) => decide({ sessionId: 's', toolCall: { kind, title, locations: [] }, options: OFFERED }, '/home/me');
+  expect([ask('fetch', 'https://example.com/?api_key=abc123'), ask('execute', 'curl -H "Authorization: Bearer abc.def" /home/me/x')]).toMatchInlineSnapshot(`
+    [
+      {
+        "kind": "ask",
+        "summary": "fetch https://example.com/?api_key=***",
+      },
+      {
+        "kind": "deny",
+        "status": "Denied execute curl -H "Authorization: Bearer *** ~/x: MorrowBot runs Antigravity read-only.",
+      },
+    ]
+  `);
+});

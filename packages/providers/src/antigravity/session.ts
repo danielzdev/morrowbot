@@ -7,9 +7,11 @@ import { ASKING_MODE } from './session-stream.ts';
 const OPEN_MS = 60_000;
 const SET_MS = 15_000;
 const CLOSE_MS = 5_000;
+/** The ACP answer to a permission request MorrowBot does not ask about. */
+const CANCELLED = { outcome: { outcome: 'cancelled' } };
 const SESSION_GONE = /not found|no such|does not exist|unknown session/i;
-export const SIGNED_OUT = /not logged in|log ?in|sign ?in|authenticat|unauthori[sz]ed/i;
-/** ACP's "authentication required" error code. */
+const SIGNED_OUT = /authentication required|not (logged|signed) in|unauthenticated/i;
+/** ACP's "authentication required" error code, which agy 1.5.18 answers `session/new` with when signed out. */
 const AUTH_REQUIRED = -32000;
 
 export type Opened =
@@ -32,7 +34,7 @@ export type Opened =
 export async function openSession(daemon: AcpDaemon, cwd: string, session: TurnSession, handlers: SessionHandlers): Promise<Opened> {
   if (session.kind === 'new') {
     const created = await daemon.call('session/new', { cwd, mcpServers: [] }, SessionNewResponse, OPEN_MS);
-    if (created.kind !== 'ok') return { kind: 'refused', error: openError('start a session', created) };
+    if (created.kind !== 'ok') return { kind: 'refused', error: callError('start a session', created) };
     const { sessionId, configOptions, _meta } = created.value;
     return { kind: 'opened', sessionId, isNew: true, options: configOptions ?? [], tier: _meta?.antigravity?.tier?.name ?? null, detach: daemon.attach(sessionId, handlers) };
   }
@@ -43,13 +45,13 @@ export async function openSession(daemon: AcpDaemon, cwd: string, session: TurnS
     onUpdate: (update) => {
       if (replay.done) handlers.onUpdate(update);
     },
-    onPermission: (request) => (replay.done ? handlers.onPermission(request) : Promise.reject(new Error('MorrowBot does not approve anything while a chat reloads.'))),
+    onPermission: (request) => (replay.done ? handlers.onPermission(request) : Promise.resolve(CANCELLED)),
     onRefused: handlers.onRefused,
   });
   const loaded = await daemon.call('session/load', { sessionId: ref, cwd, mcpServers: [] }, SessionLoadResponse, OPEN_MS);
   if (loaded.kind !== 'ok') {
     detach();
-    return { kind: 'refused', error: loaded.kind === 'error' && SESSION_GONE.test(loaded.message) ? { kind: 'session-lost' } : openError('reopen the session', loaded) };
+    return { kind: 'refused', error: loaded.kind === 'error' && SESSION_GONE.test(loaded.message) ? { kind: 'session-lost' } : callError('reopen the session', loaded) };
   }
   replay.done = true;
   const { configOptions, _meta } = loaded.value;
@@ -63,26 +65,38 @@ export type Configured = { readonly kind: 'configured'; readonly model: string |
  * model and its choices, checking each against agy's answer. The session is refused unless agy
  * reports Default mode at the end. Teaches `catalog` each model's settings as agy reports them.
  */
-export async function configureSession(daemon: AcpDaemon, sessionId: string, opened: readonly ConfigOption[], selection: ModelSelection, catalog: ModelCatalog, fresh: boolean): Promise<Configured> {
+export async function configureSession(
+  daemon: AcpDaemon,
+  sessionId: string,
+  opened: readonly ConfigOption[],
+  setup: { readonly selection: ModelSelection; readonly catalog: ModelCatalog; readonly fresh: boolean },
+): Promise<Configured> {
+  const { selection, catalog } = setup;
   let options = opened;
-  const set = async (configId: string, value: string): Promise<Call<SetConfigResponse>> => {
+  const set = async (configId: string, value: string): Promise<ProviderError | null> => {
     const reply = await daemon.call('session/set_config_option', { sessionId, configId, value }, SetConfigResponse, SET_MS);
-    if (reply.kind === 'ok') options = reply.value.configOptions;
-    return reply;
+    if (reply.kind !== 'ok') return callError(`change its ${configId} setting`, reply);
+    options = reply.value.configOptions;
+    return null;
   };
-  catalog.observe(options, fresh);
-  if (selectOf(options, 'mode')?.current !== ASKING_MODE) await set('mode', ASKING_MODE);
+  catalog.observe(options, setup.fresh);
+  if (selectOf(options, 'mode')?.current !== ASKING_MODE) {
+    const failed = await set('mode', ASKING_MODE);
+    if (failed !== null) return { kind: 'refused', error: failed };
+  }
   if (selection.kind === 'model') {
     if (selectOf(options, MODEL)?.current !== selection.id) {
-      const moved = await set(MODEL, selection.id);
-      if (moved.kind !== 'ok' || selectOf(options, MODEL)?.current !== selection.id) return { kind: 'refused', error: { kind: 'invalid-model' } };
+      const failed = await set(MODEL, selection.id);
+      if (failed !== null) return { kind: 'refused', error: failed.kind === 'other' ? { kind: 'invalid-model' } : failed };
+      if (selectOf(options, MODEL)?.current !== selection.id) return { kind: 'refused', error: { kind: 'invalid-model' } };
       catalog.observe(options, false);
     }
     const thought = selection.choices[THOUGHT];
     const offered = selectOf(options, THOUGHT);
     if (thought !== undefined && offered !== null && offered.current !== thought && offered.values.some((entry) => entry.value === thought)) {
-      const chosen = await set(THOUGHT, thought);
-      if (chosen.kind !== 'ok') return { kind: 'refused', error: { kind: 'other', message: `Antigravity did not take the thinking level "${thought}"` } };
+      const failed = await set(THOUGHT, thought);
+      if (failed !== null) return { kind: 'refused', error: failed };
+      if (selectOf(options, THOUGHT)?.current !== thought) return { kind: 'refused', error: { kind: 'other', message: `Antigravity did not take the thinking level "${thought}".` } };
     }
   }
   if (selectOf(options, 'mode')?.current !== ASKING_MODE) {
@@ -109,10 +123,9 @@ export function vendorError(code: number, message: string): ProviderError {
   return { kind: 'other', message: `Antigravity: ${message}` };
 }
 
-function openError(what: string, call: { readonly kind: 'error'; readonly code: number; readonly message: string } | { readonly kind: 'unanswered'; readonly reason: string }): ProviderError {
-  if (call.kind === 'error') {
-    const error = vendorError(call.code, call.message);
-    return error.kind === 'other' ? { kind: 'other', message: `Antigravity could not ${what}: ${call.message}` } : error;
-  }
-  return { kind: 'other', message: call.reason };
+/** Why a call failed, as the contract's error: agy's own error, or `transient` when the daemon gave no usable answer. */
+function callError(what: string, call: Exclude<Call<unknown>, { readonly kind: 'ok' }>): ProviderError {
+  if (call.kind === 'unanswered') return { kind: 'transient', retryAfterMs: null };
+  const error = vendorError(call.code, call.message);
+  return error.kind === 'other' ? { kind: 'other', message: `Antigravity could not ${what}: ${call.message}` } : error;
 }

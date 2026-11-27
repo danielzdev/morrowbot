@@ -35,6 +35,7 @@ export function tilde(text: string, home: string | null): string {
   return text === dir ? '~' : text.split(`${dir}/`).join('~/');
 }
 
-function mask(text: string): string {
+/** `text` with tokens, passwords, keys and bearer credentials shown as `***`. */
+export function mask(text: string): string {
   return text.replace(SECRET, '$1$2***').replace(BEARER, '$1***');
 }

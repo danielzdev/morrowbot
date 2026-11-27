@@ -18,6 +18,16 @@ function redact(fixture: AgyFixture, value: unknown): unknown {
   return JSON.parse(JSON.stringify(value).replaceAll(FAKE_AGY, '<fake-agy>').replaceAll(fixture.home, '$HOME').replace(/sess-\d+-/g, 'sess-<pid>-'));
 }
 
+/** Each request as `method session`, sessions lettered A, B… in the order they first appear (two turns open theirs in either order). */
+function bySession(entries: readonly { readonly method: string; readonly params: unknown }[]): string[] {
+  const letters = new Map<string, string>();
+  return entries.map((entry) => {
+    const id = JSON.stringify(entry.params).match(/sess-[\w-]+/)?.[0] ?? '';
+    if (!letters.has(id)) letters.set(id, String.fromCharCode(65 + letters.size));
+    return `${entry.method} ${letters.get(id) ?? ''}`;
+  });
+}
+
 it('Stop sends session/cancel for that turn only, and the other turn keeps running on the same daemon', async () => {
   const fixture = (agy = await startAgyFixture());
   const agent = await fixture.agent();
@@ -36,7 +46,7 @@ it('Stop sends session/cancel for that turn only, and the other turn keeps runni
       status: reply.status,
       stillRunning,
       samePgid: fixture.daemonPgids().join() === pgids.join(),
-      sent: (await fixture.log()).slice(from).map((entry) => `${entry.method} ${JSON.stringify(entry.params)}`),
+      sent: bySession((await fixture.log()).slice(from)),
       histories: [await fixture.history(stopped), await fixture.history(running)],
     }),
   ).toMatchInlineSnapshot(`
@@ -53,10 +63,10 @@ it('Stop sends session/cancel for that turn only, and the other turn keeps runni
       ],
       "samePgid": true,
       "sent": [
-        "session/cancel {"sessionId":"sess-<pid>-1"}",
-        "session/close {"sessionId":"sess-<pid>-1"}",
-        "session/cancel {"sessionId":"sess-<pid>-2"}",
-        "session/close {"sessionId":"sess-<pid>-2"}",
+        "session/cancel A",
+        "session/close A",
+        "session/cancel B",
+        "session/close B",
       ],
       "status": 200,
       "stillRunning": true,

@@ -3,14 +3,15 @@
  * A stand-in for `agy` 1.5.18 that speaks `agy acp` (the Agent Client Protocol) over stdio, shaped
  * like the recorded real transcripts in `packages/providers/src/antigravity/fixtures/1.5.18/`. It
  * keeps its state in `$HOME/fake-agy/`: `state.json` (read on every request) can sign it out
- * (`signedOut`), start sessions in another mode (`startMode`), refuse mode changes (`lockMode`) or
- * report another ACP version (`protocolVersion`); every request is appended to `log.jsonl`, and
- * every launch's arguments to `launches.jsonl`. The prompt picks a turn's behavior: `think` thinks
- * first; `write`, `command` and `read-outside` ask for permission (an allowed write or command
- * really writes `inside.txt` or `ran.txt` in the session's folder); `sneaky` reports an edit it never
- * asked for; `switch-mode` leaves Default mode; `fs-write` asks the client to write a file; `stall`
- * waits for `session/cancel`; `ignore-cancel` never ends; `quota` fails on the plan's quota;
- * anything else replies with "Echo: <the last user message>".
+ * (`signedOut`, answered on `session/new` as agy 1.5.18 does), start sessions in another mode
+ * (`startMode`), refuse mode changes (`lockMode`), leave Default mode right after a model change
+ * (`driftOnModel`) or report another ACP version (`protocolVersion`); every request is appended to
+ * `log.jsonl`, and every launch's arguments to `launches.jsonl`. The prompt picks a turn's behavior:
+ * `think` thinks first; `write`, `command` and `read-outside` ask for permission (an allowed write or
+ * command really writes `inside.txt` or `ran.txt` in the session's folder); `sneaky` reports an edit
+ * it never asked for, and `switch-mode` leaves Default mode, both then ignoring `session/cancel`;
+ * `fs-write` asks the client to write a file; `stall` waits for `session/cancel`; `ignore-cancel`
+ * never ends; `quota` fails on the plan's quota; anything else replies with "Echo: <the last user message>".
  */
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -32,6 +33,7 @@ const State = z.object({
   signedOut: z.boolean().default(false),
   startMode: z.string().default('default'),
   lockMode: z.boolean().default(false),
+  driftOnModel: z.boolean().default(false),
   protocolVersion: z.number().default(1),
 });
 const Message = z.looseObject({ id: z.union([z.number(), z.string()]).optional(), method: z.string().optional(), params: z.unknown().optional(), result: z.unknown().optional(), error: z.unknown().optional() });
@@ -160,7 +162,6 @@ async function permitted(sessionId: string, call: { readonly id: string; readonl
 
 async function prompt(sessionId: string, session: Session, sent: string): Promise<unknown> {
   const text = lastUserMessage(sent);
-  if (state().signedOut) throw Object.assign(new Error('You are not logged into Antigravity.'), { code: -32000 });
   if (text.includes('quota')) throw new Error('RESOURCE_EXHAUSTED: You have exhausted your quota for this model.');
   if (text.includes('think')) update(sessionId, { sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: 'Hmm.' } });
   if (text.includes('fs-write')) {
@@ -190,7 +191,7 @@ async function prompt(sessionId: string, session: Session, sent: string): Promis
       session.mode = 'auto';
       update(sessionId, { sessionUpdate: 'config_option_update', configOptions: configOptions(session) });
     }
-    return { stopReason: (await cancelled(session, 5_000)) ? 'cancelled' : 'end_turn', usage: USAGE };
+    return new Promise(() => undefined);
   }
   if (text.includes('ignore-cancel')) return new Promise(() => undefined);
   if (text.includes('stall')) {
@@ -215,6 +216,7 @@ async function answer(method: string, raw: unknown): Promise<unknown> {
         authMethods: [{ id: 'oauth-personal', name: 'Log in with Google' }],
       };
     case 'session/new': {
+      if (state().signedOut) throw Object.assign(new Error('Authentication required'), { code: -32000 });
       const id = `sess-${String(process.pid)}-${String(++opened)}`;
       const session: Session = { cwd: params.cwd ?? home, model: 'fake-pro', thought: 'high', mode: state().startMode, cancel: null };
       sessions.set(id, session);
@@ -240,6 +242,14 @@ async function answer(method: string, raw: unknown): Promise<unknown> {
         if (thinking === undefined) throw new Error(`model ${value} not found`);
         session.model = value;
         session.thought = thinking.start;
+        if (state().driftOnModel) {
+          const answer = configOptions(session);
+          session.mode = 'auto';
+          setImmediate(() => {
+            update(id, { sessionUpdate: 'config_option_update', configOptions: configOptions(session) });
+          });
+          return { configOptions: answer };
+        }
       } else if (params.configId === 'thought_level') session.thought = value;
       else if (params.configId === 'mode' && !state().lockMode) session.mode = value;
       setImmediate(() => {

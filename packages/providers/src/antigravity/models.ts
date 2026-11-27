@@ -26,12 +26,9 @@ export function createModelCatalog(): ModelCatalog {
 
   const build = (): readonly ProviderModel[] | null => {
     if (listed === null) return null;
-    const seen = new Set<string>();
-    return listed.flatMap(({ value, name }): ProviderModel[] => {
-      if (value.trim() === '' || seen.has(value)) return [];
-      seen.add(value);
+    return listed.map(({ value, name }): ProviderModel => {
       const levels = thinking.get(value);
-      return [{ id: value, label: name.trim() === '' ? value : name, isDefault: value === defaultModel, options: levels === undefined ? [] : [levels] }];
+      return { id: value, label: name.trim() === '' ? value : name, isDefault: value === defaultModel, options: levels === undefined ? [] : [levels] };
     });
   };
 

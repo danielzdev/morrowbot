@@ -31,8 +31,11 @@ export type ConfigOption = z.infer<typeof ConfigOption>;
 
 const ConfigOptions = z.array(ConfigOption);
 
+/** A name agy may leave blank (`""`): null then, as the contract allows no empty names. */
+const Named = z.string().transform((name) => (name.trim() === '' ? null : name));
+
 const SessionMeta = z
-  .looseObject({ antigravity: z.looseObject({ tier: z.looseObject({ name: z.string() }).nullish() }).nullish() })
+  .looseObject({ antigravity: z.looseObject({ tier: z.looseObject({ name: Named }).nullish() }).nullish() })
   .nullish();
 
 export const SessionNewResponse = z.looseObject({ sessionId: z.string().min(1), configOptions: ConfigOptions.nullish(), _meta: SessionMeta });
@@ -91,15 +94,23 @@ export type PermissionRequest = z.infer<typeof PermissionRequest>;
 
 export const SessionScoped = z.looseObject({ sessionId: z.string() });
 
-/** The current value of a select setting and the values it offers, or null when `id` is not a select. */
+/**
+ * The current value of a select setting and the values it offers, or null when `id` is not a select
+ * or has no current value. Blank and repeated values are left out, as the contract allows neither.
+ */
 export function selectOf(options: readonly ConfigOption[], id: string): { readonly current: string; readonly values: readonly { readonly value: string; readonly name: string }[] } | null {
   const option = options.find((entry) => entry.id === id);
-  if (option?.type !== 'select' || typeof option.currentValue !== 'string') return null;
+  if (option?.type !== 'select' || typeof option.currentValue !== 'string' || option.currentValue.trim() === '') return null;
+  const seen = new Set<string>();
   const values = (option.options ?? []).flatMap((entry) => {
     const value = SelectValue.safeParse(entry);
-    if (value.success) return [value.data];
     const group = SelectGroup.safeParse(entry);
-    return group.success ? group.data.options : [];
+    const listed = value.success ? [value.data] : group.success ? group.data.options : [];
+    return listed.filter(({ value: each }) => {
+      if (each.trim() === '' || seen.has(each)) return false;
+      seen.add(each);
+      return true;
+    });
   });
   return { current: option.currentValue, values };
 }

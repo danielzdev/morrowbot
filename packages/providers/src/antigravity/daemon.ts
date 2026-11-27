@@ -2,10 +2,11 @@ import type { JsonRpcProcess, StartJsonRpcProcess, z } from '@morrowbot/plugin-s
 import { InitializeResponse, PermissionRequest, SessionNotification, SessionScoped } from './protocol.ts';
 import { refusal } from './permission.ts';
 
-const INITIALIZE_MS = 60_000;
-const CLIENT_INFO = { name: 'morrowbot', title: 'MorrowBot', version: '0.1.0' } as const;
+/** Under the host's 30 s provider-info deadline, which starts the daemon. */
+const INITIALIZE_MS = 25_000;
+const CLIENT_INFO = { name: 'morrowbot', title: 'MorrowBot', version: '0.1.0' };
 /** MorrowBot offers agy no file or terminal access of its own: agy uses its own tools, which ask first. */
-const CLIENT_CAPABILITIES = { fs: { readTextFile: false, writeTextFile: false }, terminal: false } as const;
+const CLIENT_CAPABILITIES = { fs: { readTextFile: false, writeTextFile: false }, terminal: false };
 
 /** The answer to one daemon call: a parsed result, the daemon's own error, or no usable answer. */
 export type Call<T> =
@@ -24,8 +25,6 @@ export interface SessionHandlers {
 }
 
 export interface AcpDaemon {
-  /** Counts the daemons this provider started. */
-  readonly generation: number;
   readonly version: string | null;
   /** Whether agy can reopen a saved session (`session/load`) and free one (`session/close`). */
   readonly canLoad: boolean;
@@ -47,7 +46,7 @@ export type DaemonStart = { readonly kind: 'started'; readonly daemon: AcpDaemon
  * `geminiDir` is MorrowBot's own Antigravity folder, so agy reads none of the user's settings,
  * permission grants, hooks, plugins or MCP servers; the Google sign-in is shared through the keychain.
  */
-export async function startDaemon(jsonRpcProcess: StartJsonRpcProcess, cliPath: string, cwd: string, geminiDir: string, generation: number): Promise<DaemonStart> {
+export async function startDaemon(jsonRpcProcess: StartJsonRpcProcess, cliPath: string, cwd: string, geminiDir: string): Promise<DaemonStart> {
   const sessions = new Map<string, SessionHandlers>();
   let alive = true;
   const refuse = (method: string, params: unknown, why: string): Promise<never> => {
@@ -68,7 +67,7 @@ export async function startDaemon(jsonRpcProcess: StartJsonRpcProcess, cliPath: 
     onRequest: (method, params) => {
       if (method === 'session/request_permission') {
         const request = PermissionRequest.safeParse(params);
-        if (!request.success) return Promise.reject(new Error('MorrowBot could not read this permission request, so it is denied.'));
+        if (!request.success) return Promise.resolve({ outcome: { outcome: 'cancelled' } });
         const handlers = sessions.get(request.data.sessionId);
         return handlers === undefined ? Promise.resolve(refusal(request.data.options)) : handlers.onPermission(request.data);
       }
@@ -113,7 +112,6 @@ export async function startDaemon(jsonRpcProcess: StartJsonRpcProcess, cliPath: 
   return {
     kind: 'started',
     daemon: {
-      generation,
       version: hello.value.agentInfo?.version ?? null,
       canLoad: capabilities?.loadSession === true,
       canClose: capabilities?.sessionCapabilities?.close !== undefined,

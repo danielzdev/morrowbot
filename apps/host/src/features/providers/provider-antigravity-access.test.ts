@@ -18,31 +18,6 @@ function redact(value: unknown): unknown {
   return JSON.parse(JSON.stringify(value).replaceAll(agy.home, '$HOME').replace(/sess-\d+-/g, 'sess-<pid>-'));
 }
 
-/** The turn's status details, approval cards and tool events. */
-function steps(generationId: string): unknown {
-  return redact(
-    agy.turnEvents(generationId).flatMap((event) => {
-      switch (event.kind) {
-        case 'generation.status':
-          return event.detail === null ? [] : [`status: ${event.detail}`];
-        case 'generation.tool-start':
-          return [`tool-start ${event.name}: ${JSON.stringify(event.input)}`];
-        case 'generation.tool-end':
-          return [`tool-end: ${event.outcome}`];
-        case 'generation.approval-requested':
-          return [`card: ${event.approval.summary} [${event.approval.choices.map((choice) => choice.id).join(', ')}]`];
-        case 'generation.approval-resolved':
-          return [`card resolved: ${JSON.stringify(event.resolution)}`];
-        case 'generation.started':
-        case 'generation.delta':
-        case 'generation.finished':
-        case 'usage.updated':
-          return [];
-      }
-    }),
-  );
-}
-
 async function permissionReplies(): Promise<unknown[]> {
   return (await agy.log()).filter((entry) => entry.method === 'permission-reply' || entry.method === 'client-reply').map((entry) => entry.params);
 }
@@ -59,7 +34,7 @@ it('denies a file write and a command without asking, so nothing is written or r
   await agy.events.finished(write);
   const command = await agy.start(thread, 'run a command');
   await agy.events.finished(command);
-  expect({ write: steps(write), command: steps(command), replies: await permissionReplies(), history: await agy.history(thread), files: await workspaceFiles() }).toMatchInlineSnapshot(`
+  expect({ write: agy.steps(write), command: agy.steps(command), replies: await permissionReplies(), history: await agy.history(thread), files: await workspaceFiles() }).toMatchInlineSnapshot(`
     {
       "command": [
         "tool-start Shell: {"title":"touch ran.txt"}",
@@ -121,7 +96,7 @@ it('asks before reading outside the workspace: Allow reads it once, Deny fails t
   const denied = await agy.start(thread, 'read-outside again');
   const denyStatus = await agy.answer(thread, denied, 'deny');
   await agy.events.finished(denied);
-  expect({ allowStatus, denyStatus, allowed: steps(allowed), denied: steps(denied), replies: await permissionReplies(), history: await agy.history(thread) }).toMatchInlineSnapshot(`
+  expect({ allowStatus, denyStatus, allowed: agy.steps(allowed), denied: agy.steps(denied), replies: await permissionReplies(), history: await agy.history(thread) }).toMatchInlineSnapshot(`
     {
       "allowStatus": 204,
       "allowed": [
@@ -181,7 +156,7 @@ it('refuses a file write agy asks the client for, and the turn goes on', async (
   const thread = await agy.thread(await agy.agent());
   const turn = await agy.start(thread, 'fs-write');
   await agy.events.finished(turn);
-  expect({ steps: steps(turn), history: await agy.history(thread), files: await workspaceFiles() }).toMatchInlineSnapshot(`
+  expect({ steps: agy.steps(turn), history: await agy.history(thread), files: await workspaceFiles() }).toMatchInlineSnapshot(`
     {
       "files": [],
       "history": [
@@ -190,119 +165,6 @@ it('refuses a file write agy asks the client for, and the turn goes on', async (
       ],
       "steps": [
         "status: Refused Antigravity's fs/write_text_file: MorrowBot runs it read-only.",
-      ],
-    }
-  `);
-});
-
-it('stops a turn in which agy changes a file without asking, and offers no more turns until the provider restarts', async () => {
-  const thread = await agy.thread(await agy.agent());
-  const turn = await agy.start(thread, 'sneaky edit');
-  await agy.events.finished(turn);
-  const info = await agy.host.call('GET', '/api/plugins/provider-antigravity/info?refresh=1');
-  const next = await agy.post(thread, 'hello');
-  const cancels = (await agy.log()).filter((entry) => entry.method === 'session/cancel').length;
-  expect(redact({ steps: steps(turn), cancels, history: await agy.history(thread), info: info.body, next: next.body })).toMatchInlineSnapshot(`
-    {
-      "cancels": 1,
-      "history": [
-        "user: sneaky edit",
-        "assistant(failed access-not-supported): ",
-      ],
-      "info": {
-        "info": {
-          "accountKey": "",
-          "accountLabel": "Google AI Pro",
-          "capabilities": {
-            "approvals": true,
-            "profiles": [],
-            "sessions": false,
-            "usage": "none",
-            "withheld": [
-              {
-                "access": "read-only",
-                "reason": "Antigravity (agy 1.5.18) ran "Edit File sneaky.txt" without asking. MorrowBot stopped the turn and offers no Antigravity turns until it restarts.",
-                "vendorSettings": "personal",
-              },
-              {
-                "access": "workspace-write",
-                "reason": "MorrowBot runs Antigravity read-only in this version: it cannot yet confine each file write to the workspace, and agy runs commands outside any sandbox.",
-                "vendorSettings": "personal",
-              },
-              {
-                "access": "read-only",
-                "reason": "Antigravity always loads the workspace's own AGENTS.md (checked on agy 1.5.18), so MorrowBot cannot replace its instructions. The agent's AGENTS.md still applies.",
-                "vendorSettings": "isolated",
-              },
-              {
-                "access": "workspace-write",
-                "reason": "Antigravity always loads the workspace's own AGENTS.md (checked on agy 1.5.18), so MorrowBot cannot replace its instructions. The agent's AGENTS.md still applies.",
-                "vendorSettings": "isolated",
-              },
-            ],
-          },
-          "kind": "ready",
-          "models": [
-            {
-              "id": "fake-pro",
-              "isDefault": true,
-              "label": "Fake Pro",
-              "options": [
-                {
-                  "choices": [
-                    {
-                      "id": "low",
-                      "label": "LOW",
-                    },
-                    {
-                      "id": "high",
-                      "label": "HIGH",
-                    },
-                  ],
-                  "defaultChoiceId": "high",
-                  "id": "thought_level",
-                  "label": "Thinking Level",
-                },
-              ],
-            },
-            {
-              "id": "fake-flash",
-              "isDefault": false,
-              "label": "Fake Flash",
-              "options": [],
-            },
-          ],
-          "version": "1.5.18",
-          "warning": null,
-        },
-      },
-      "next": {
-        "error": {
-          "kind": "conflict",
-          "message": "Antigravity (agy 1.5.18) ran "Edit File sneaky.txt" without asking. MorrowBot stopped the turn and offers no Antigravity turns until it restarts.",
-        },
-      },
-      "steps": [
-        "tool-start Edit: {"title":"File sneaky.txt"}",
-        "tool-end: ok",
-        "status: Antigravity (agy 1.5.18) ran "Edit File sneaky.txt" without asking. MorrowBot stopped the turn and offers no Antigravity turns until it restarts.",
-      ],
-    }
-  `);
-});
-
-it('stops a turn in which agy leaves Default mode', async () => {
-  const thread = await agy.thread(await agy.agent());
-  const turn = await agy.start(thread, 'switch-mode now');
-  await agy.events.finished(turn);
-  expect(redact({ steps: steps(turn), history: await agy.history(thread) })).toMatchInlineSnapshot(`
-    {
-      "history": [
-        "user: switch-mode now",
-        "assistant(failed access-not-supported): ",
-      ],
-      "steps": [
-        "status: Antigravity (agy 1.5.18) left its Default mode for "auto". MorrowBot stopped the turn and offers no Antigravity turns until it restarts.",
       ],
     }
   `);

@@ -5,6 +5,7 @@ import { createModelCatalog } from './models.ts';
 import { parseSettings, type Settings } from './settings.ts';
 import { runTurn, type Live } from './turn.ts';
 import { readVersion, SUPPORTED_TEXT } from './version.ts';
+import { checkWorkspace } from './workspace.ts';
 
 interface Started {
   readonly settings: Settings;
@@ -19,7 +20,6 @@ export function createAntigravityProvider(runtime: PluginRuntime): ProviderPlugi
   let started: Started | undefined;
   let live: Live | undefined;
   let starting: Promise<Live | string> | undefined;
-  let generation = 0;
   let breach: string | null = null;
 
   const current = (): Started => {
@@ -31,7 +31,7 @@ export function createAntigravityProvider(runtime: PluginRuntime): ProviderPlugi
   const ensureDaemon = async (): Promise<Live | string> => {
     if (live?.daemon.alive() === true) return live;
     const { settings, probeCwd, geminiDir } = current();
-    starting ??= startDaemon(runtime.jsonRpcProcess, settings.cliPath, probeCwd, geminiDir, ++generation)
+    starting ??= startDaemon(runtime.jsonRpcProcess, settings.cliPath, probeCwd, geminiDir)
       .then((result) => {
         if (result.kind === 'failed') return result.reason;
         const fresh: Live = { daemon: result.daemon, catalog: createModelCatalog(), tier: null, signedOut: false };
@@ -113,10 +113,17 @@ export function createAntigravityProvider(runtime: PluginRuntime): ProviderPlugi
       runTurn(context, {
         live: () => live,
         checkCli,
+        checkWorkspace: (cwd, signal) => checkWorkspace(runtime.runCommand, cwd, signal),
         platformReason: platformReason(runtime.platform),
         breach: () => breach,
         onBreach: (reason) => {
-          breach = reason;
+          breach ??= reason;
+          const daemon = live?.daemon;
+          setTimeout(() => {
+            daemon?.close().catch((error: unknown) => {
+              console.error('provider-antigravity: could not end the daemon after agy broke the read-only rules', error);
+            });
+          }, 0);
         },
         home: runtime.env.HOME ?? null,
       }),

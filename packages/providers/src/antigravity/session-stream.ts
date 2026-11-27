@@ -6,7 +6,7 @@ import { describeTool } from './tool-input.ts';
 export const ASKING_MODE = 'default';
 
 /** Tool kinds that change something. MorrowBot never allows one, so a finished one ran without asking. */
-const CHANGING = new Set(['edit', 'delete', 'move', 'execute']);
+const CHANGING = new Set(['edit', 'delete', 'move', 'execute', 'switch_mode']);
 const ENDED = new Set(['completed', 'failed']);
 
 /** Why the turn must stop at once: agy did something a read-only turn never allows. */
@@ -17,6 +17,11 @@ export type Breach =
 export interface SessionStream {
   /** Hears one `session/update`. */
   hear(update: unknown): void;
+  /**
+   * The mode agy last announced in an update, or null. Answers to MorrowBot's own changes are not
+   * counted: one can be read after a later update, so only updates keep agy's order.
+   */
+  mode(): string | null;
 }
 
 export interface StreamOptions {
@@ -30,7 +35,12 @@ export function createSessionStream(options: StreamOptions): SessionStream {
   const { emit, home } = options;
   const tools = new Map<string, { kind: string | null; title: string | null; ended: boolean }>();
   let thinking = false;
+  let mode: string | null = null;
   const breach = options.onBreach;
+  const heardMode = (current: string): void => {
+    mode = current;
+    if (current !== ASKING_MODE) breach({ kind: 'mode-changed', mode: current });
+  };
 
   const tool = (raw: unknown): void => {
     const parsed = ToolCall.safeParse(raw);
@@ -73,18 +83,19 @@ export function createSessionStream(options: StreamOptions): SessionStream {
           return;
         case 'config_option_update': {
           const parsed = ConfigOptionUpdate.safeParse(update);
-          const mode = parsed.success ? selectOf(parsed.data.configOptions, 'mode') : null;
-          if (mode !== null && mode.current !== ASKING_MODE) breach({ kind: 'mode-changed', mode: mode.current });
+          const reported = parsed.success ? selectOf(parsed.data.configOptions, 'mode') : null;
+          if (reported !== null) heardMode(reported.current);
           return;
         }
         case 'current_mode_update': {
           const parsed = ModeUpdate.safeParse(update);
-          if (parsed.success && parsed.data.currentModeId !== ASKING_MODE) breach({ kind: 'mode-changed', mode: parsed.data.currentModeId });
+          if (parsed.success) heardMode(parsed.data.currentModeId);
           return;
         }
         default:
           return;
       }
     },
+    mode: () => mode,
   };
 }

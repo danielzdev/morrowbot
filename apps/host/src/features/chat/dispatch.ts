@@ -202,6 +202,7 @@ function onChunk(core: ChatCore, turn: Turn, chunk: TurnChunk): void {
       core.events.publish({ kind: 'generation.approval-resolved', ...ref, approvalId: chunk.approvalId, resolution: { kind: 'expired' } });
       return;
     case 'model-options-changed':
+      void core.options.plugins.info(turn.pluginId, true);
       return;
   }
 }
