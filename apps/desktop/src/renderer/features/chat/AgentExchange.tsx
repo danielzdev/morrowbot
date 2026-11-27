@@ -1,9 +1,9 @@
-import { COLLABORATOR_NOTICE, type AgentMessage } from '@morrowbot/contracts';
+import { COLLABORATOR_NOTICE, type AgentMessage, type TurnOutcome } from '@morrowbot/contracts';
 import type { ComponentChildren } from 'preact';
 import { useId, useState } from 'preact/hooks';
 import { messageTime } from '../../shared/format.ts';
 import { Icon } from '../../shared/ui/Icon.tsx';
-import { directionOf, replyNote, summarize } from './agent-exchange.ts';
+import { directionOf, readNote, replyNote, summarize } from './agent-exchange.ts';
 import { Markdown, type MarkdownActions } from './Markdown.tsx';
 
 /** The agents a chat can show beside agent messages: their names, accent colors and avatars. */
@@ -14,7 +14,7 @@ export interface PeerDirectory {
   avatar(agentId: string, size: number): ComponentChildren;
 }
 
-function Peer(props: { readonly peers: PeerDirectory; readonly agentId: string }) {
+export function Peer(props: { readonly peers: PeerDirectory; readonly agentId: string }) {
   return (
     <span class="exchange-peer" style={{ '--peer': props.peers.color(props.agentId) }}>
       <span class="exchange-avatar" aria-hidden="true">{props.peers.avatar(props.agentId, 16)}</span>
@@ -23,10 +23,17 @@ function Peer(props: { readonly peers: PeerDirectory; readonly agentId: string }
   );
 }
 
-function ExchangeCard(props: { readonly message: AgentMessage; readonly threadId: string; readonly peers: PeerDirectory; readonly actions: MarkdownActions }) {
+function ExchangeCard(props: {
+  readonly message: AgentMessage;
+  readonly threadId: string;
+  readonly peers: PeerDirectory;
+  readonly actions: MarkdownActions;
+  readonly readEnd: TurnOutcome | undefined;
+}) {
   const { message, peers } = props;
   const sender = message.from.agentId;
   const incoming = directionOf(message, props.threadId) === 'incoming';
+  const note = readNote(props.readEnd);
   return (
     <li class={`exchange-card ${incoming ? 'incoming' : 'outgoing'}`} style={{ '--peer': peers.color(sender) }} data-agent-message-id={message.id}>
       <div class="exchange-from">
@@ -40,6 +47,7 @@ function ExchangeCard(props: { readonly message: AgentMessage; readonly threadId
           <div class="exchange-meta">
             {replyNote(message)} · {messageTime(message.createdAt, Date.now())}
             {incoming && <span class="exchange-trust" title={COLLABORATOR_NOTICE}> · From an agent, not you</span>}
+            {note !== null && <span class="exchange-read-note"> · {note}</span>}
           </div>
         </div>
       </div>
@@ -53,6 +61,8 @@ export function AgentExchange(props: {
   readonly threadId: string;
   readonly peers: PeerDirectory;
   readonly actions: MarkdownActions;
+  /** How background turns that read these messages ended early, by message id. */
+  readonly readEnds: Readonly<Record<string, TurnOutcome>>;
 }) {
   const [open, setOpen] = useState(false);
   const bodyId = useId();
@@ -88,7 +98,14 @@ export function AgentExchange(props: {
       {open && (
         <ol id={bodyId} class="exchange-cards">
           {props.messages.map((message) => (
-            <ExchangeCard key={message.id} message={message} threadId={props.threadId} peers={props.peers} actions={props.actions} />
+            <ExchangeCard
+              key={message.id}
+              message={message}
+              threadId={props.threadId}
+              peers={props.peers}
+              actions={props.actions}
+              readEnd={props.readEnds[message.id]}
+            />
           ))}
         </ol>
       )}

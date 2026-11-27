@@ -3,7 +3,7 @@ import { mkdir, realpath } from 'node:fs/promises';
 import { hostname } from 'node:os';
 import path from 'node:path';
 import type { PluginStatusEvent } from '@morrowbot/contracts';
-import { createAgentMessageService } from './features/agent-messages/index.ts';
+import { createAgentMessageService, type SendRefusal } from './features/agent-messages/index.ts';
 import { createAgentService, createFolderService } from './features/agents/index.ts';
 import { startApiServer } from './features/api/index.ts';
 import { createChatService, type ProviderPlugins } from './features/chat/index.ts';
@@ -118,9 +118,23 @@ export async function startHost(options: HostOptions): Promise<Host> {
       newId,
       now,
     });
+    const agentMessages = createAgentMessageService({
+      records: storage.agentMessages,
+      agentExists: (id) => agents.get(id) !== undefined,
+      threads: storage.threads,
+      newId,
+      now,
+    });
     const chat = createChatService({
       store: chatStore(storage),
       agents,
+      inbox: {
+        waiting: (threadId) => storage.agentMessages.waiting(threadId),
+        reply: (message, text) => {
+          const sent = agentMessages.send(message.to.agentId, { kind: 'reply', replyToMessageId: message.id, text, expectsReply: false });
+          return sent.kind === 'sent' ? { kind: 'sent' } : { kind: 'refused', reason: refusalReason(sent) };
+        },
+      },
       plugins: providerPlugins(plugins),
       newId,
       now,
@@ -128,6 +142,13 @@ export async function startHost(options: HostOptions): Promise<Host> {
       report,
     });
     undo.push(() => chat.close());
+    const stopReading = agentMessages.subscribe((message) => {
+      chat.readAgentMessages(message.to.threadId);
+    });
+    undo.push(() => {
+      stopReading();
+    });
+    chat.readAgentMessages(null);
     const token = randomBytes(32).toString('base64url');
     const api = await startApiServer({
       address: { hostname: config.hostname, port: config.port },
@@ -159,13 +180,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
           releaseGroup: (regId) => plugins.releaseGroup(regId),
         },
         pairing: createPairingService({ records: storage.devices, newId, now }),
-        agentMessages: createAgentMessageService({
-          records: storage.agentMessages,
-          agentExists: (id) => agents.get(id) !== undefined,
-          threads: storage.threads,
-          newId,
-          now,
-        }),
+        agentMessages,
       },
       fallback: healthListener(options.version),
       report,
@@ -183,6 +198,10 @@ export async function startHost(options: HostOptions): Promise<Host> {
     await unwind();
     throw error;
   }
+}
+
+function refusalReason(refusal: SendRefusal): string {
+  return refusal.kind === 'not-found' ? `${refusal.what} not found` : refusal.reason;
 }
 
 function chatStore(storage: Storage): Parameters<typeof createChatService>[0]['store'] {

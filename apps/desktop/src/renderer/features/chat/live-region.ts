@@ -11,6 +11,7 @@ const MAX_REPLY_CHARS = 600;
 /**
  * What the polite live region says after the view changes (spec §4.1): a turn starting, an
  * approval request, a finished reply or an error. Never streamed text, and nothing on first load.
+ * A background turn stays quiet unless it needs an approval.
  */
 export function viewAnnouncement(before: ThreadView | null, after: ThreadView, agent: string, context: CopyContext, mode: AnnounceMode): string | null {
   if (before === null) return null;
@@ -29,6 +30,7 @@ export function viewAnnouncement(before: ThreadView | null, after: ThreadView, a
   if (turn === null) return null;
   const pendingBefore = new Set(before.activeTurn === null ? [] : pendingApprovals(before.activeTurn).map(({ approvalId }) => approvalId));
   if (pendingApprovals(turn).some(({ approvalId }) => !pendingBefore.has(approvalId))) return `${agent} needs approval.`;
+  if (turn.trigger.kind === 'agent-message') return null;
   if (before.activeTurn?.generationId !== turn.generationId) return turn.state === 'queued' ? `${agent} is queued.` : `${agent} is working.`;
   return null;
 }

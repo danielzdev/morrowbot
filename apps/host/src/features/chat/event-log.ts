@@ -46,7 +46,7 @@ export class EventLog {
     const stamped = withCursor(event, { hostEpoch: this.hostEpoch, seq: log.seq });
     log.events.push(stamped);
     if (log.events.length > KEEP_PER_THREAD) log.events.shift();
-    if (event.kind === 'generation.finished') {
+    if (event.kind === 'generation.finished' || event.kind === 'generation.background-finished') {
       log.trim = setTimeout(() => {
         log.events = [];
         log.trim = undefined;
@@ -103,6 +103,10 @@ function withCursor(event: NewThreadEvent, cursor: Cursor): ChatEvent {
     case 'generation.approval-resolved':
       return { ...event, cursor };
     case 'generation.finished':
+      return { ...event, cursor };
+    case 'generation.background-started':
+      return { ...event, cursor };
+    case 'generation.background-finished':
       return { ...event, cursor };
   }
 }

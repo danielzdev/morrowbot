@@ -71,7 +71,7 @@ export async function dispatch(core: ChatCore, turn: Turn): Promise<void> {
     selection: turn.binding.selection,
     session,
     system: turn.binding.vendorSettings === 'isolated' ? instructions : null,
-    prompt: turn.sourceInput.text,
+    prompt: turn.input.kind === 'chat' ? turn.input.message.text : turn.input.prompt,
   };
   try {
     store.transaction(() => {

@@ -95,6 +95,6 @@ it('follows new output near the bottom and shows the pill otherwise', () => {
     following: onGrowth(true, false),
     reading: onGrowth(false, false),
     sentWhileReading: onGrowth(false, true),
-    growsOnText: growthOf(view) !== growthOf({ ...view, activeTurn: { generationId: 'g', state: 'running', queueNote: null, detail: null, text: 'x', steps: [], startedAt: 0 } }),
+    growsOnText: growthOf(view) !== growthOf({ ...view, activeTurn: { generationId: 'g', trigger: { kind: 'chat' }, state: 'running', queueNote: null, detail: null, text: 'x', steps: [], startedAt: 0 } }),
   }).toEqual({ atBottom: true, readingAbove: false, following: 'follow', reading: 'pill', sentWhileReading: 'follow', growsOnText: true });
 });
