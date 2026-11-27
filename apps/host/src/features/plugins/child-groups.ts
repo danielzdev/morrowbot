@@ -59,6 +59,8 @@ export type ReleaseResult = 'released' | 'not-found' | 'not-blocked' | 'too-earl
 export class ChildGroupRegistry {
   private readonly groups = new Map<number, Tracked>();
   private readonly listeners = new Set<(row: ChildGroupRow) => void>();
+  private readonly blockedListeners = new Set<(row: ChildGroupRow) => void>();
+  private closed = false;
   private readonly options: ChildGroupRegistryOptions;
   private bootId: string | null = null;
   private timer: NodeJS.Timeout | undefined;
@@ -73,7 +75,7 @@ export class ChildGroupRegistry {
     this.bootId = await this.options.probe.bootId();
     const rows = this.options.store.list();
     for (const row of rows) this.groups.set(row.pgid, { row, worker: null, blockedSince: this.options.clock.monotonic() });
-    await Promise.all(rows.map((row) => this.check(row.pgid, row.regId, null)));
+    await Promise.all(rows.map((row) => this.check(row.pgid, row.regId)));
     this.timer = setInterval(() => {
       void this.reprobe();
     }, REPROBE_MS);
@@ -83,6 +85,17 @@ export class ChildGroupRegistry {
   onReleased(listener: (row: ChildGroupRow) => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
+  }
+
+  /** Hears each group that could not be confirmed gone and now blocks (it is still re-probed). */
+  onBlocked(listener: (row: ChildGroupRow) => void): () => void {
+    this.blockedListeners.add(listener);
+    return () => this.blockedListeners.delete(listener);
+  }
+
+  /** Whether the group is blocked (not confirmed gone after its verify). */
+  isBlocked(pgid: number): boolean {
+    return (this.groups.get(pgid)?.blockedSince ?? null) !== null;
   }
 
   /** Records a group a guard reported, in one transaction (releasing a stale row with the same pgid first). */
@@ -112,18 +125,23 @@ export class ChildGroupRegistry {
 
   /**
    * Confirms a group is gone, retrying every 100 ms for up to 2 s (an unreaped guard can stay visible
-   * briefly). Resolves true once released; false leaves it blocked and re-probed every 2 s.
+   * briefly). Resolves true once that row no longer blocks (released here or elsewhere, or replaced);
+   * false leaves it blocked and re-probed every 2 s.
    */
   async verify(pgid: number): Promise<boolean> {
     const tracked = this.groups.get(pgid);
     if (tracked === undefined) return true;
     const deadline = this.options.clock.monotonic() + VERIFY_MS;
     for (;;) {
-      const outcome = await this.check(pgid, tracked.row.regId, tracked.worker);
-      if (outcome !== 'blocked') return outcome === 'released';
+      if ((await this.check(pgid, tracked.row.regId)) === 'gone') return true;
+      if (this.closed) return false;
       if (this.options.clock.monotonic() >= deadline) {
         const current = this.groups.get(pgid);
-        if (current?.row.regId === tracked.row.regId) current.blockedSince ??= this.options.clock.monotonic();
+        if (current?.row.regId !== tracked.row.regId) return true;
+        if (current.blockedSince === null) {
+          current.blockedSince = this.options.clock.monotonic();
+          this.notifyBlocked(current.row);
+        }
         return false;
       }
       await new Promise((resolve) => setTimeout(resolve, RETRY_MS));
@@ -146,15 +164,15 @@ export class ChildGroupRegistry {
     return [...this.groups.values()].map(({ row }) => row).filter((row) => row.generationIds.some((id) => generationIds.has(id)));
   }
 
-  /** Groups that hold their plugin: blocked rows, or rows recorded by an earlier host. */
+  /** Turn and daemon groups that hold their plugin: blocked rows, or rows recorded by an earlier host. A probe blocks nothing. */
   blocked(pluginId?: string): BlockedGroup[] {
     return [...this.groups.values()]
-      .filter((group) => group.blockedSince !== null && (pluginId === undefined || group.row.pluginId === pluginId))
+      .filter((group) => holds(group) && (pluginId === undefined || group.row.pluginId === pluginId))
       .map((group) => this.view(group));
   }
 
   blockedRows(pluginId: string): ChildGroupRow[] {
-    return [...this.groups.values()].filter((group) => group.blockedSince !== null && group.row.pluginId === pluginId).map(({ row }) => row);
+    return [...this.groups.values()].filter((group) => holds(group) && group.row.pluginId === pluginId).map(({ row }) => row);
   }
 
   view(group: Tracked): BlockedGroup {
@@ -180,7 +198,9 @@ export class ChildGroupRegistry {
     return 'released';
   }
 
+  /** Stops re-probing. Results that arrive later change nothing (the rows stay for the next boot). */
   close(): void {
+    this.closed = true;
     clearInterval(this.timer);
   }
 
@@ -189,15 +209,16 @@ export class ChildGroupRegistry {
     this.probing = true;
     try {
       const blocked = [...this.groups.values()].filter((group) => group.blockedSince !== null);
-      await Promise.all(blocked.map((group) => this.check(group.row.pgid, group.row.regId, group.worker)));
+      await Promise.all(blocked.map((group) => this.check(group.row.pgid, group.row.regId)));
     } finally {
       this.probing = false;
     }
   }
 
-  private async check(pgid: number, regId: string, worker: number | null): Promise<'released' | 'blocked' | 'replaced'> {
+  /** Probes one row. 'gone' when it was released now, or is no longer tracked (released elsewhere or replaced). */
+  private async check(pgid: number, regId: string): Promise<'gone' | 'blocked'> {
     const before = this.groups.get(pgid);
-    if (before?.row.regId !== regId) return 'replaced';
+    if (before?.row.regId !== regId) return 'gone';
     let gone: boolean;
     try {
       gone = await isGroupGone(before.row, this.bootId, this.options.probe);
@@ -206,10 +227,11 @@ export class ChildGroupRegistry {
       gone = false;
     }
     const after = this.groups.get(pgid);
-    if (after?.row.regId !== regId || after.worker !== worker) return 'replaced';
+    if (after?.row.regId !== regId) return 'gone';
+    if (this.closed) return 'blocked';
     if (gone) {
       this.release(after);
-      return 'released';
+      return 'gone';
     }
     return 'blocked';
   }
@@ -218,6 +240,16 @@ export class ChildGroupRegistry {
     this.options.store.delete(tracked.row.pgid);
     this.groups.delete(tracked.row.pgid);
     this.notify(tracked.row);
+  }
+
+  private notifyBlocked(row: ChildGroupRow): void {
+    for (const listener of this.blockedListeners) {
+      try {
+        listener(row);
+      } catch (error) {
+        this.options.log(`a group blocked listener threw: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
   }
 
   private notify(row: ChildGroupRow): void {
@@ -229,4 +261,8 @@ export class ChildGroupRegistry {
       }
     }
   }
+}
+
+function holds(group: Tracked): boolean {
+  return group.blockedSince !== null && group.row.kind !== 'probe';
 }

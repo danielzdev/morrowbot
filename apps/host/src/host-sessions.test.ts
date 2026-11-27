@@ -107,6 +107,26 @@ it('keeps an interrupted or untouched session honest: diverged needs a choice, u
   `);
 });
 
+it('marks the session needs-seed on route-changed even when the plugin did not touch it', async () => {
+  await chat.configure({ sessions: true });
+  const agent = await chat.agent();
+  const thread = await chat.thread(agent);
+  const sends = [
+    outcome(await chat.send(thread, 'describe')),
+    outcome(await chat.send(thread, 'route-changed')),
+    outcome(await chat.send(thread, 'describe')),
+    outcome(await chat.send(thread, 'describe', { kind: 'continue-existing' })),
+  ];
+  expect(sends).toMatchInlineSnapshot(`
+    [
+      "202",
+      "202",
+      "409 {"kind":"session-choice-required","reason":"unseeded-history","message":"This thread has history the provider has not seen. Start a new session seeded from this thread."}",
+      "409 {"kind":"session-choice-required","reason":"unseeded-history","message":"This thread has history the provider has not seen. Start a new session seeded from this thread."}",
+    ]
+  `);
+});
+
 it("treats an unknown account ('') as stateless: full seed every turn, never a session choice", async () => {
   await chat.configure({ sessions: true, accountKey: '' });
   const agent = await chat.agent();

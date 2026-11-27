@@ -140,13 +140,19 @@ export interface ProviderPlugins {
   >;
   routeInfo(pluginId: string, cwd: string): Promise<RouteAnswer>;
   startTurn(pluginId: string, worker: number, request: TurnRequest, sink: TurnSink): 'started' | 'binding-changed';
+  /** Whether `startTurn` on `worker` would be accepted now: checked before the dispatch writes anything. */
+  canStart(pluginId: string, worker: number): boolean;
   cancelTurn(pluginId: string, turnId: string): void;
   replyApproval(pluginId: string, turnId: string, approvalId: string, choiceId: string): void;
   /** Whether any process group (live or blocked) still belongs to the generation. */
   holdsGeneration(generationId: string): boolean;
+  /** Whether a group of the generation is still being checked (neither released nor blocked yet). */
+  cleaningUp(generationId: string): boolean;
   blockedGroups(generationIds: ReadonlySet<string>): BlockedGroup[];
   /** Hears each group release, with the generations it held. */
   onGroupReleased(listener: (generationIds: readonly string[]) => void): () => void;
+  /** Hears each group that could not be confirmed gone, with the generations it holds. */
+  onGroupBlocked(listener: (generationIds: readonly string[]) => void): () => void;
 }
 
 export interface ChatServiceOptions {

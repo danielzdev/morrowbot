@@ -11,11 +11,10 @@ const READ_ONLY_ISOLATED: AccessProfile = {
   readsOutsideCwd: false,
 };
 
-const model = (id: string, label: string, isDefault = false): ProviderModel => ({ id, label, isDefault, options: [] });
+const model = (id: string, label: string): ProviderModel => ({ id, label, isDefault: false, options: [] });
 
-/** Claude Code's model aliases; `default` keeps Claude Code's own choice. */
+/** Claude Code's model aliases. Claude Code's own choice is the `default` selection, which passes no `--model`. */
 export const MODELS: readonly ProviderModel[] = [
-  model('default', 'Default', true),
   model('fable', 'Fable'),
   model('opus', 'Opus'),
   model('sonnet', 'Sonnet'),

@@ -17,7 +17,12 @@ export async function readUsage(core: ChatCore, pluginId: string, refresh: boole
   const live = answer.usage;
   if (live.accountKey === '') {
     const kept = core.liveUsage.get(pluginId);
-    const usage = live.kind === 'unavailable' && live.reason === 'not-yet-observed' && kept !== undefined ? kept : live;
+    const entries = kept?.worker === answer.worker ? [...kept.windows.values()] : [];
+    if (live.kind === 'available' || live.reason !== 'not-yet-observed' || entries.length === 0) {
+      return { kind: 'ok', response: { usage: live, stale: false, persisted: false } };
+    }
+    const observedAt = entries.map((entry) => entry.observedAt).reduce((a, b) => (Date.parse(a) >= Date.parse(b) ? a : b));
+    const usage: UsageResult = { kind: 'available', observedAt, accountKey: '', windows: entries.map((entry) => entry.window) };
     return { kind: 'ok', response: { usage, stale: false, persisted: false } };
   }
   const fenced = core.fenced.has(laneKey(pluginId, live.accountKey));

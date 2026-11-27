@@ -93,7 +93,7 @@ export function createChatService(options: ChatServiceOptions): ChatService {
     const turn = core.active.get(threadId);
     if (turn === undefined) return { kind: 'idle' };
     const message = await stopTurn(turn);
-    await turn.released.promise;
+    await turn.quiet.promise;
     return { kind: 'stopped', message };
   };
 

@@ -35,6 +35,8 @@ export interface ProviderRequests {
   routeInfo(pluginId: string, cwd: string): Promise<RouteAnswer>;
   /** Sends a turn to `worker`. Refused when that worker is no longer the plugin's current, serving one. */
   startTurn(pluginId: string, worker: number, request: TurnRequest, sink: TurnSink): 'started' | 'binding-changed';
+  /** Whether `startTurn` on `worker` would be accepted right now (checked before any dispatch write). */
+  canStart(pluginId: string, worker: number): boolean;
   /**
    * Stop: sends `cancel`, then, if the turn has not ended after 5 s, kills the worker through its
    * handle. The worker's groups are then checked and its turns settled through `onLost`.
@@ -69,14 +71,16 @@ export function providerRequests({ slotOf, statusOf, isServing, groups, timeouts
     const worker = slot.worker;
     if (reason !== undefined || child === undefined || worker === null) return { kind: 'unavailable', reason: reason ?? 'not running' };
     if (refresh || slot.info?.worker !== worker) {
-      const entry: NonNullable<Slot['info']> = { worker, value: child.providerInfo(refresh), settled: undefined };
+      const previous = slot.info?.worker === worker ? slot.info.settled : undefined;
+      const entry: NonNullable<Slot['info']> = { worker, value: child.providerInfo(refresh), settled: previous };
       slot.info = entry;
       entry.value.then(
         (value) => {
           entry.settled = value;
         },
         () => {
-          if (slot.info === entry) slot.info = undefined;
+          if (slot.info !== entry) return;
+          slot.info = previous === undefined ? undefined : { worker, value: Promise.resolve(previous), settled: previous };
         },
       );
     }
@@ -127,6 +131,10 @@ export function providerRequests({ slotOf, statusOf, isServing, groups, timeouts
         if (error instanceof PluginTimeoutError) return { kind: 'timeout' };
         return { kind: 'failed', reason: error instanceof Error ? error.message : String(error) };
       }
+    },
+    canStart: (pluginId, worker) => {
+      const slot = slotOf(pluginId);
+      return unavailable(slot) === undefined && slot.process !== undefined && slot.worker === worker;
     },
     startTurn: (pluginId, worker, request, sink) => {
       const slot = slotOf(pluginId);

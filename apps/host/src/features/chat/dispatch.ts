@@ -1,8 +1,9 @@
-import type { TurnChunk, TurnEnd, TurnRequest, TurnSession } from '@morrowbot/contracts';
+import { realpath } from 'node:fs/promises';
+import type { ProviderInfo, TurnChunk, TurnEnd, TurnRequest, TurnSession, UsageWindow } from '@morrowbot/contracts';
 import { profileAllowed } from './admission-rules.ts';
 import type { TurnSink } from './ports.ts';
 import { instructionsHash, renderSeed, SEEDED_SESSION_BUDGET, statelessBudget, type Seed } from './seed.ts';
-import { laneKey, laneOf, localSettlement, settle, type ChatCore, type Turn } from './turn.ts';
+import { laneKey, laneOf, localSettlement, settle, type ChatCore, type LiveUsage, type Turn } from './turn.ts';
 
 const FLUSH_MS = 1_000;
 
@@ -14,30 +15,36 @@ const FLUSH_MS = 1_000;
 export async function dispatch(core: ChatCore, turn: Turn): Promise<void> {
   const { store, agents, plugins } = core.options;
   turn.state = 'dispatching';
-  let instructions: string;
-  try {
-    instructions = (await agents.readInstructions(turn.agentId)) ?? '';
-  } catch (error) {
-    core.options.report(error);
-    instructions = '';
-  }
+  const read = await readTurnInputs(core, turn);
   if (turn.stopRequested) {
     settle(core, turn, localSettlement({ kind: 'cancelled' }));
     return;
   }
+  if (read.kind === 'unreadable') {
+    settle(core, turn, localSettlement({ kind: 'failed', error: { kind: 'other', message: read.message } }));
+    return;
+  }
+  const { instructions } = read;
   const agent = agents.get(turn.agentId);
   const revision = plugins.revision(turn.pluginId);
   const info = plugins.cachedInfo(turn.pluginId);
   const unchanged =
     agent !== undefined &&
+    read.cwd === turn.cwd &&
     JSON.stringify(agent.provider) === turn.bindingJson &&
     agent.workspace.dir === turn.workspaceDir &&
     revision.configRevision === turn.configRevision &&
     revision.worker === turn.worker &&
+    plugins.canStart(turn.pluginId, turn.worker) &&
     info?.worker === turn.worker &&
     profileAllowed(info.info, turn.binding, 'interactive') === undefined;
   if (!unchanged) {
     settle(core, turn, localSettlement({ kind: 'failed', error: { kind: 'binding-changed' } }));
+    return;
+  }
+  if (accountMoved(turn, info.info)) {
+    settle(core, turn, localSettlement({ kind: 'failed', error: { kind: 'account-changed' } }));
+    accountChanged(core, turn.pluginId, turn.accountKey);
     return;
   }
   const hash = instructionsHash(instructions);
@@ -90,6 +97,28 @@ export async function dispatch(core: ChatCore, turn: Turn): Promise<void> {
   }
 }
 
+type TurnInputs =
+  | { readonly kind: 'read'; readonly instructions: string; readonly cwd: string }
+  | { readonly kind: 'unreadable'; readonly message: string };
+
+/** AGENTS.md as it is now, and the workspace's canonical path (a moved symlink no longer matches the admitted cwd). */
+async function readTurnInputs(core: ChatCore, turn: Turn): Promise<TurnInputs> {
+  try {
+    const [instructions, cwd] = await Promise.all([core.options.agents.readInstructions(turn.agentId), realpath(turn.workspaceDir)]);
+    return { kind: 'read', instructions: instructions ?? '', cwd };
+  } catch (error) {
+    core.options.report(error);
+    return { kind: 'unreadable', message: "Could not read the agent's workspace or AGENTS.md" };
+  }
+}
+
+/** A stateless turn whose account the plugin now reports differently: it would be refused, so it is not sent. */
+function accountMoved(turn: Turn, info: ProviderInfo): boolean {
+  if (turn.plan.kind !== 'stateless' || turn.accountKey === '') return false;
+  if (info.kind !== 'ready' && info.kind !== 'ready-models-later') return false;
+  return !info.capabilities.sessions && info.accountKey !== turn.accountKey;
+}
+
 function seedFor(turn: Turn): Seed {
   switch (turn.plan.kind) {
     case 'stateless':
@@ -139,7 +168,9 @@ function onChunk(core: ChatCore, turn: Turn, chunk: TurnChunk): void {
       core.events.publish({ kind: 'generation.tool-end', ...ref, toolUseId: chunk.toolUseId, outcome: chunk.outcome });
       return;
     case 'session-bound': {
-      if (chunk.accountKey === '' || chunk.accountKey !== turn.accountKey || turn.plan.kind === 'stateless' || turn.systemHash === null) return;
+      if (chunk.accountKey === '' || chunk.accountKey !== turn.accountKey || chunk.routeKey !== turn.routeKey) return;
+      if (turn.plan.kind === 'stateless' || turn.systemHash === null) return;
+      if (turn.plan.kind === 'resume' && chunk.ref === turn.plan.ref) return;
       const key = { pluginId: turn.pluginId, accountKey: chunk.accountKey, routeKey: chunk.routeKey, cwd: turn.cwd, threadId: turn.threadId };
       const systemHash = turn.systemHash;
       store.transaction(() => {
@@ -150,7 +181,7 @@ function onChunk(core: ChatCore, turn: Turn, chunk: TurnChunk): void {
     }
     case 'usage-update':
       if (chunk.accountKey === '') {
-        core.liveUsage.set(turn.pluginId, { kind: 'available', observedAt: chunk.observedAt, accountKey: '', windows: chunk.windows });
+        mergeLiveUsage(core, turn, chunk.observedAt, chunk.windows);
       } else if (chunk.accountKey !== turn.accountKey || core.fenced.has(laneKey(turn.pluginId, chunk.accountKey))) {
         return;
       } else {
@@ -173,8 +204,25 @@ function onChunk(core: ChatCore, turn: Turn, chunk: TurnChunk): void {
   }
 }
 
+function mergeLiveUsage(core: ChatCore, turn: Turn, observedAt: string, windows: readonly UsageWindow[]): void {
+  const current = core.liveUsage.get(turn.pluginId);
+  const live: LiveUsage = current?.worker === turn.worker ? current : { worker: turn.worker, windows: new Map() };
+  core.liveUsage.set(turn.pluginId, live);
+  for (const window of windows) {
+    const seen = live.windows.get(window.id);
+    if (seen === undefined || Date.parse(seen.observedAt) < Date.parse(observedAt)) live.windows.set(window.id, { observedAt, window });
+  }
+}
+
 function onEnd(core: ChatCore, turn: Turn, end: TurnEnd): void {
   const fenced = turn.fenced;
+  if (!fenced && turn.accountKey !== '' && end.accountKey !== turn.accountKey) {
+    // Output that claims another account is never stored as this turn's reply.
+    turn.text = '';
+    settle(core, turn, { ...localSettlement({ kind: 'failed', error: { kind: 'account-changed' } }), sessionTouched: end.sessionTouched });
+    accountChanged(core, turn.pluginId, turn.accountKey);
+    return;
+  }
   settle(core, turn, {
     outcome: end.outcome,
     usage: fenced ? { kind: 'unavailable' } : end.usage,

@@ -92,6 +92,8 @@ runPlugin(
           emit({ kind: 'text', text: ` ${JSON.stringify({ session: request.session })}` });
           return end({ kind: 'completed', finishReason: 'stop' }, current);
         }
+        case 'route-changed':
+          return end({ kind: 'failed', error: { kind: 'route-changed' } }, current, { sessionTouched: false });
         case 'session-lost':
           return end({ kind: 'failed', error: { kind: 'session-lost' } }, current);
         case 'final-only':

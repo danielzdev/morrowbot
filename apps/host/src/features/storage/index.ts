@@ -1,4 +1,5 @@
 export { openStorage } from './storage.ts';
+export { MIGRATIONS } from './schema.ts';
 export type { Storage } from './storage.ts';
 export { DataDirLockedError, lockDataDir } from './lock.ts';
 export type { DataDirLock } from './lock.ts';

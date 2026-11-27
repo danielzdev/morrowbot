@@ -5,13 +5,19 @@ import type {
   ProviderBinding,
   TurnOutcome,
   TurnUsage,
-  UsageResult,
+  UsageWindow,
   UserMessage,
 } from '@morrowbot/contracts';
 import type { EventLog } from './event-log.ts';
 import type { ChatServiceOptions, SessionState } from './ports.ts';
 
 export type BoundProvider = Extract<ProviderBinding, { kind: 'bound' }>;
+
+export interface LiveUsage {
+  readonly worker: number;
+  /** Each window with the time it was observed: a window is replaced only by a newer observation. */
+  readonly windows: Map<string, { readonly observedAt: string; readonly window: UsageWindow }>;
+}
 
 /** Which vendor session a turn uses, decided at admission. */
 export type SessionPlan =
@@ -53,7 +59,10 @@ export interface Turn {
   stopRequested: boolean;
   readonly approvals: Map<string, PendingApproval>;
   readonly settled: PromiseWithResolvers<AssistantMessage>;
+  /** Resolves once the turn's process groups are all gone: the thread and its slot are free. */
   readonly released: PromiseWithResolvers<void>;
+  /** Resolves once cleanup is over: groups gone, or the rest blocked (the thread stays busy until they go). */
+  readonly quiet: PromiseWithResolvers<void>;
 }
 
 /** Turns that share a concurrency slot pool: one plugin and account. */
@@ -75,8 +84,8 @@ export interface ChatCore {
   readonly fenced: Set<string>;
   /** Plugins in Recheck: no new sends are admitted. */
   readonly rechecking: Set<string>;
-  /** Live-only usage for turns whose account is unknown (''): shown, never saved. */
-  readonly liveUsage: Map<string, UsageResult>;
+  /** Live-only usage windows per plugin worker for turns whose account is unknown (''): shown, never saved. */
+  readonly liveUsage: Map<string, LiveUsage>;
   readonly deletingThreads: Set<string>;
   readonly deletingAgents: Set<string>;
   /** Sends a turn that got a slot (see dispatch.ts). */
@@ -119,32 +128,16 @@ export function settle(core: ChatCore, turn: Turn, result: Settlement): Assistan
   if (turn.state === 'settled') return undefined;
   turn.state = 'settled';
   clearTimeout(turn.flushTimer);
-  const { store, newId, now } = core.options;
+  const { newId, now } = core.options;
   const createdAt = now();
   const text = turn.text !== '' ? turn.text : (result.finalText ?? '');
   const base: AssistantMessage = { kind: 'assistant', id: newId(), threadId: turn.threadId, text, outcome: result.outcome, createdAt };
   const message: AssistantMessage = turn.seedTruncated ? { ...base, seedTruncated: true } : base;
-  try {
-    store.transaction(() => {
-      store.messages.insert(message);
-      store.threads.touch(turn.threadId, createdAt);
-      store.generations.settle(turn.generationId, message.id);
-      if (!turn.dispatched) return;
-      store.generations.insertUsage({
-        generationId: turn.generationId,
-        agentId: turn.agentId,
-        threadId: turn.threadId,
-        pluginId: turn.pluginId,
-        accountKey: turn.accountKey,
-        actualModel: result.actualModel,
-        usage: turn.fenced ? { kind: 'unavailable' } : result.usage,
-        outcome: result.outcome,
-        createdAt,
-      });
-      applySessionEffect(core, turn, result);
-    });
-  } catch (error) {
-    core.options.report(error);
+  if (!persistSettlement(core, turn, message, result, createdAt)) {
+    // Nothing was stored: the thread stays busy and the next boot settles the turn as interrupted.
+    turn.settled.resolve(message);
+    turn.quiet.resolve();
+    return undefined;
   }
   for (const approval of turn.approvals.values()) {
     core.events.publish({
@@ -162,6 +155,47 @@ export function settle(core: ChatCore, turn: Turn, result: Settlement): Assistan
   return message;
 }
 
+/**
+ * Writes the reply, usage, settled generation and session effect in one transaction. If that fails,
+ * at least the reply and the settled generation; false when even that fails.
+ */
+function persistSettlement(core: ChatCore, turn: Turn, message: AssistantMessage, result: Settlement, createdAt: string): boolean {
+  const { store } = core.options;
+  const reply = (): void => {
+    store.messages.insert(message);
+    store.threads.touch(turn.threadId, createdAt);
+    store.generations.settle(turn.generationId, message.id);
+  };
+  try {
+    store.transaction(() => {
+      reply();
+      if (!turn.dispatched) return;
+      store.generations.insertUsage({
+        generationId: turn.generationId,
+        agentId: turn.agentId,
+        threadId: turn.threadId,
+        pluginId: turn.pluginId,
+        accountKey: turn.accountKey,
+        actualModel: result.actualModel,
+        usage: turn.fenced ? { kind: 'unavailable' } : result.usage,
+        outcome: result.outcome,
+        createdAt,
+      });
+      applySessionEffect(core, turn, result);
+    });
+    return true;
+  } catch (error) {
+    core.options.report(error);
+  }
+  try {
+    store.transaction(reply);
+    return true;
+  } catch (error) {
+    core.options.report(error);
+    return false;
+  }
+}
+
 function applySessionEffect(core: ChatCore, turn: Turn, result: Settlement): void {
   const { sessions } = core.options.store;
   const row = turn.plan.kind === 'resume' ? turn.plan.rowId : turn.boundRow;
@@ -173,29 +207,51 @@ function applySessionEffect(core: ChatCore, turn: Turn, result: Settlement): voi
     sessions.setState(row, 'needs-seed');
   } else if (!result.sessionTouched && turn.plan.kind === 'resume') {
     sessions.setState(row, turn.plan.priorState);
-  } else if (outcome.kind === 'completed' && (turn.boundRow !== null || (turn.plan.kind === 'resume' && turn.plan.priorState === 'clean'))) {
+  } else if (outcome.kind === 'completed' && cleanAfterCompletion(turn)) {
     sessions.setState(row, 'clean');
   }
 }
 
-/** A thread stays busy until its turn is settled and every process group of the turn is confirmed gone. */
+/** A completed turn cleans a session it freshly bound, or a resumed one that was clean before; a diverged ref stays diverged. */
+function cleanAfterCompletion(turn: Turn): boolean {
+  switch (turn.plan.kind) {
+    case 'fresh':
+      return turn.boundRow !== null;
+    case 'resume':
+      return turn.plan.priorState === 'clean';
+    case 'stateless':
+      return false;
+  }
+}
+
+/**
+ * A thread stays busy until its turn is settled and every process group of the turn is confirmed gone.
+ * Stop returns earlier, once the remaining groups are blocked (shown in `/state`) rather than still being checked.
+ */
 function releaseWhenGone(core: ChatCore, turn: Turn): void {
+  const { plugins } = core.options;
   const release = (): void => {
     if (core.active.get(turn.threadId) === turn) core.active.delete(turn.threadId);
     const lane = laneOf(core, turn);
     lane.running.delete(turn);
+    turn.quiet.resolve();
     turn.released.resolve();
     pump(core, lane);
   };
-  if (!core.options.plugins.holdsGeneration(turn.generationId)) {
-    release();
-    return;
+  const update = (): boolean => {
+    if (!plugins.holdsGeneration(turn.generationId)) {
+      release();
+      return true;
+    }
+    if (!plugins.cleaningUp(turn.generationId)) turn.quiet.resolve();
+    return false;
+  };
+  if (update()) return;
+  const stops = [plugins.onGroupReleased(listen), plugins.onGroupBlocked(listen)];
+  function listen(): void {
+    if (!update()) return;
+    for (const stop of stops) stop();
   }
-  const stopListening = core.options.plugins.onGroupReleased(() => {
-    if (core.options.plugins.holdsGeneration(turn.generationId)) return;
-    stopListening();
-    release();
-  });
 }
 
 /** Starts queued turns while the lane has a free slot. */

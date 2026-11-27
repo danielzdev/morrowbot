@@ -157,8 +157,9 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
       child.forgetTurn(turnId);
       turn.sink.onLost();
     }
-    if (blocked.length > 0) quarantine(slot, blocked.map((row) => row.pgid));
-    return blocked.length === 0;
+    const holding = blocked.filter((row) => row.kind !== 'probe');
+    if (holding.length > 0 && stopping === undefined) quarantine(slot, holding.map((row) => row.pgid));
+    return holding.length === 0;
   }
 
   async function start(slot: Slot, record: PluginRecord | undefined): Promise<void> {
@@ -199,14 +200,14 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
           exited: (pgid) => {
             const row = groups.row(pgid);
             void groups.verify(pgid).then((released) => {
-              if (released || row === undefined) return;
+              if (released || row === undefined || stopping !== undefined) return;
               for (const turnId of row.generationIds) {
                 const turn = slot.turns.get(turnId);
                 if (turn?.worker !== worker || !child.forgetTurn(turnId)) continue;
                 slot.turns.delete(turnId);
                 turn.sink.onLost();
               }
-              quarantine(slot, [pgid]);
+              if (row.kind !== 'probe') quarantine(slot, [pgid]);
             });
           },
         },

@@ -7,20 +7,30 @@ export type NewThreadEvent = ThreadEvent extends infer E ? (E extends ThreadEven
 export type Replay = { readonly kind: 'events'; readonly events: readonly ChatEvent[] } | { readonly kind: 'resync' };
 
 const KEEP_PER_THREAD = 1_000;
+const IDLE_TRIM_MS = 60_000;
+
+interface ThreadLog {
+  seq: number;
+  events: ChatEvent[];
+  trim: NodeJS.Timeout | undefined;
+}
 
 /**
  * Numbers each thread's events (`{hostEpoch, seq}`) and keeps the latest ones, so a client that
  * reconnects with its cursor gets exactly the events it missed, or `resync` when they are gone
- * (another host epoch, or older than what is kept). Everything here is synchronous, so a replay
- * and the switch to live events can never miss or repeat an event.
+ * (another host epoch, or older than what is kept). A thread idle for `idleMs` after a turn
+ * finished keeps only its seq. Everything here is synchronous, so a replay and the switch to live
+ * events can never miss or repeat an event.
  */
 export class EventLog {
-  private readonly threads = new Map<string, { seq: number; events: ChatEvent[] }>();
+  private readonly threads = new Map<string, ThreadLog>();
   private readonly listeners = new Set<(event: ChatEvent) => void>();
   readonly hostEpoch: string;
+  private readonly idleMs: number;
 
-  constructor(hostEpoch: string) {
+  constructor(hostEpoch: string, idleMs = IDLE_TRIM_MS) {
     this.hostEpoch = hostEpoch;
+    this.idleMs = idleMs;
   }
 
   cursor(threadId: string): Cursor {
@@ -28,12 +38,20 @@ export class EventLog {
   }
 
   publish(event: NewThreadEvent): ChatEvent {
-    const log = this.threads.get(event.threadId) ?? { seq: 0, events: [] };
+    const log = this.threads.get(event.threadId) ?? { seq: 0, events: [], trim: undefined };
     this.threads.set(event.threadId, log);
+    clearTimeout(log.trim);
+    log.trim = undefined;
     log.seq += 1;
     const stamped = withCursor(event, { hostEpoch: this.hostEpoch, seq: log.seq });
     log.events.push(stamped);
     if (log.events.length > KEEP_PER_THREAD) log.events.shift();
+    if (event.kind === 'generation.finished') {
+      log.trim = setTimeout(() => {
+        log.events = [];
+        log.trim = undefined;
+      }, this.idleMs).unref();
+    }
     this.emit(stamped);
     return stamped;
   }
@@ -54,6 +72,7 @@ export class EventLog {
   }
 
   forget(threadId: string): void {
+    clearTimeout(this.threads.get(threadId)?.trim);
     this.threads.delete(threadId);
   }
 

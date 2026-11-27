@@ -75,7 +75,12 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
         return { kind: 'no_provider', reason: route.reason };
     }
   }
-  const instructions = capabilities.sessions ? ((await agents.readInstructions(first.thread.agentId)) ?? '') : '';
+  let instructions = '';
+  try {
+    if (capabilities.sessions) instructions = (await agents.readInstructions(first.thread.agentId)) ?? '';
+  } catch {
+    return { kind: 'no_provider', reason: "Could not read the agent's AGENTS.md" };
+  }
 
   // Everything below is synchronous: nothing can change between the re-check and the write.
   const late = input.kind === 'continue' ? store.generations.continuation(threadId, input.failedMessageId) : undefined;
@@ -160,6 +165,7 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
     approvals: new Map(),
     settled: Promise.withResolvers(),
     released: Promise.withResolvers(),
+    quiet: Promise.withResolvers(),
   };
   core.active.set(threadId, turn);
   core.events.publish({

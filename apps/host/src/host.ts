@@ -164,6 +164,7 @@ function providerPlugins(plugins: PluginHost): ProviderPlugins {
     usage: (pluginId, refresh) => plugins.usage(pluginId, refresh),
     routeInfo: (pluginId, cwd) => plugins.routeInfo(pluginId, cwd),
     startTurn: (pluginId, worker, request, sink) => plugins.startTurn(pluginId, worker, request, sink),
+    canStart: (pluginId, worker) => plugins.canStart(pluginId, worker),
     cancelTurn: (pluginId, turnId) => {
       plugins.cancelTurn(pluginId, turnId);
     },
@@ -171,12 +172,17 @@ function providerPlugins(plugins: PluginHost): ProviderPlugins {
       plugins.replyApproval(pluginId, turnId, approvalId, choiceId);
     },
     holdsGeneration: (generationId) => plugins.groups.groupsOf(new Set([generationId])).length > 0,
+    cleaningUp: (generationId) => plugins.groups.groupsOf(new Set([generationId])).some((row) => !plugins.groups.isBlocked(row.pgid)),
     blockedGroups: (generationIds) => {
       const held = new Set(plugins.groups.groupsOf(generationIds).map((row) => row.regId));
       return plugins.groups.blocked().filter((group) => held.has(group.regId));
     },
     onGroupReleased: (listener) =>
       plugins.groups.onReleased((row) => {
+        listener(row.generationIds);
+      }),
+    onGroupBlocked: (listener) =>
+      plugins.groups.onBlocked((row) => {
         listener(row.generationIds);
       }),
   };

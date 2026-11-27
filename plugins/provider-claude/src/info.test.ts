@@ -66,12 +66,6 @@ it('offers the read-only profile only on a tested version with no policy and a p
         "kind": "ready",
         "models": [
           {
-            "id": "default",
-            "isDefault": true,
-            "label": "Default",
-            "options": [],
-          },
-          {
             "id": "fable",
             "isDefault": false,
             "label": "Fable",
@@ -121,12 +115,6 @@ it('offers the read-only profile only on a tested version with no policy and a p
         },
         "kind": "ready",
         "models": [
-          {
-            "id": "default",
-            "isDefault": true,
-            "label": "Default",
-            "options": [],
-          },
           {
             "id": "fable",
             "isDefault": false,

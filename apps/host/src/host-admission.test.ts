@@ -3,7 +3,7 @@ import path from 'node:path';
 import { MessageList, SendMessageResponse, type Thread } from '@morrowbot/contracts';
 import { afterEach, expect, it } from 'vitest';
 import { DEFAULT_PLUGIN_TIMEOUTS } from './features/plugins/index.ts';
-import { ECHO, startChatFixture, type ChatFixture } from './testing/chat-fixture.ts';
+import { ECHO, hidePid, startChatFixture, type ChatFixture } from './testing/chat-fixture.ts';
 
 let chat: ChatFixture | undefined;
 afterEach(async () => {
@@ -143,7 +143,7 @@ it('drops the oldest messages from an oversized seed and marks the reply', async
   for (const letter of ['a', 'b']) await chat.send(thread, letter.repeat(90_000));
   await chat.send(thread, 'last');
   const { messages } = MessageList.parse((await chat.host.call('GET', `/api/threads/${thread.id}/messages`)).body);
-  expect(messages.map((message) => ({ kind: message.kind, bytes: message.text.length, truncated: message.kind === 'assistant' ? (message.seedTruncated ?? false) : null }))).toMatchInlineSnapshot(`
+  expect(messages.map((message) => ({ kind: message.kind, bytes: hidePid(message.text).length, truncated: message.kind === 'assistant' ? (message.seedTruncated ?? false) : null }))).toMatchInlineSnapshot(`
     [
       {
         "bytes": 90000,

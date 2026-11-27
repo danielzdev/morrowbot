@@ -215,3 +215,28 @@ it('sends resync to a cursor from an earlier host start', async () => {
     await rm(dataDir, { recursive: true, force: true });
   }
 });
+
+it('refuses a provider recheck while it has a turn, and runs it once the turn is stopped', async () => {
+  chat = await startChatFixture();
+  const agent = await chat.agent();
+  const thread = await chat.thread(agent);
+  const generationId = await start(chat, thread, 'stall-polite');
+  await chat.events.until((event) => event.kind === 'generation.delta' && event.generationId === generationId);
+  const during = await chat.host.call('POST', '/api/plugins/echo/recheck');
+  await chat.host.call('POST', `/api/threads/${thread.id}/stop`);
+  const after = await chat.host.call('POST', '/api/plugins/echo/recheck');
+  expect({ during, after: after.status }).toMatchInlineSnapshot(`
+    {
+      "after": 200,
+      "during": {
+        "body": {
+          "error": {
+            "kind": "conflict",
+            "message": "Stop the turns using this provider before rechecking it.",
+          },
+        },
+        "status": 409,
+      },
+    }
+  `);
+});

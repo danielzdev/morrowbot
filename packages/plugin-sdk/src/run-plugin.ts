@@ -1,5 +1,4 @@
-import { HostMessage, PROTOCOL_VERSION, TurnRequest, type PluginMessage, type TurnEnd } from '@morrowbot/contracts';
-import { z } from 'zod';
+import { HostMessage, PROTOCOL_VERSION, type PluginMessage, type TurnEnd, type TurnRequest } from '@morrowbot/contracts';
 import { stopAllCommands } from './command.ts';
 import { ackGroup, connectHost, killGroup } from './host-link.ts';
 import type { PluginDefinition, ProviderPlugin } from './plugin.ts';
@@ -121,16 +120,13 @@ function provider(plugin: PluginDefinition): ProviderPlugin {
   }
 }
 
-/** A `turn` frame without its `kind`. */
-const TurnFields = z.object(TurnRequest.shape);
-
 async function runTurn(
   plugin: PluginDefinition,
   message: Extract<HostMessage, { kind: 'turn' }>,
   send: Send,
   turns: Turns,
 ): Promise<void> {
-  const request = TurnFields.parse(message);
+  const request = requestOf(message);
   const { turnId } = request;
   if (turns.has(turnId)) {
     console.error(`MorrowBot plugin: ignored a second turn with id ${turnId}`);
@@ -164,6 +160,12 @@ async function runTurn(
     turns.delete(turnId);
   }
   send({ kind: 'turn-end', turnId, ...end });
+}
+
+/** The turn frame, already parsed at the IPC boundary, without its `kind`. */
+function requestOf(message: Extract<HostMessage, { kind: 'turn' }>): TurnRequest {
+  const { turnId, cwd, mode, access, vendorSettings, expectedAccountKey, expectedRouteKey, selection, session, system, prompt } = message;
+  return { turnId, cwd, mode, access, vendorSettings, expectedAccountKey, expectedRouteKey, selection, session, system, prompt };
 }
 
 class UnsupportedError extends Error {}
