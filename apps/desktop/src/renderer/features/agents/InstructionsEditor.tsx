@@ -98,7 +98,7 @@ export function InstructionsEditor(props: {
           redact={props.redact}
           onUseDisk={() => { editor.useDisk(); }}
           onCopy={() => void editor.saveCopy()}
-          onRetry={save}
+          onRetry={state.outcome.kind === 'failed' && state.outcome.conflict !== null ? () => void editor.saveCopy() : save}
           onReveal={props.onReveal}
         />
       )}

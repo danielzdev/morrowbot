@@ -17,28 +17,17 @@ export function AccessSegment(props: {
   readonly state: AccessState | null;
   /** The access shown as chosen: the saved one, or the one staged in a form. */
   readonly value: AccessKey;
+  /** While a pick is saving: segments stay focusable but say they are unavailable, and picks are ignored. */
   readonly disabled: boolean;
   /** False in the popover, where each pick is saved: arrows only move, Space or Enter picks. */
   readonly arrowsSelect?: boolean;
   readonly redact: (text: string) => string;
   readonly onPick: (profile: AccessProfile) => void;
-  readonly onOpenProviders: () => void;
 }) {
   const group = useRef<HTMLDivElement>(null);
   const [focused, setFocused] = useState<string | null>(null);
   const { state } = props;
   if (state === null) return null;
-  if (state.offered.length === 0) {
-    const reason = state.withheld[0]?.reason;
-    return (
-      <div class="access-empty">
-        <p class="binding-note">{reason === undefined ? 'No interactive access is available.' : withheldReason(reason, props.redact)}</p>
-        <button type="button" class="btn secondary" onClick={props.onOpenProviders}>
-          Open Providers
-        </button>
-      </div>
-    );
-  }
   const selected = state.offered.find((profile) => sameAccess(profile, props.value));
   const described = state.offered.find((profile) => accessKey(profile) === focused) ?? selected;
   const pick = (profile: AccessProfile): void => {
@@ -72,7 +61,7 @@ export function AccessSegment(props: {
               aria-checked={checked}
               data-access={accessKey(profile)}
               tabIndex={checked || (selected === undefined && index === 0) ? 0 : -1}
-              disabled={props.disabled}
+              aria-disabled={props.disabled}
               class={`segment ${profileWarnings(profile).length > 0 ? 'warns' : ''}`}
               onFocus={() => {
                 setFocused(accessKey(profile));

@@ -291,15 +291,35 @@ it.skipIf(process.getuid?.() === 0)('reports an unreadable file as present with 
   expect(read.revision).not.toBeNull();
 });
 
-it('refuses a write it is not allowed to make with a path-free reason, reports nothing, and leaves no staging file', async () => {
+it.skipIf(process.getuid?.() === 0)('in a folder it cannot write: reports an existing AGENTS.md as occupied, refuses other writes with a path-free reason, reports nothing, leaves no staging file', async () => {
   const { agent, file } = await sharedAgent('locked');
   const dir = path.dirname(file);
+  const occupied = await sharedAgent('locked-occupied');
+  await writeFile(occupied.file, 'theirs');
   await chmod(dir, 0o500);
+  await chmod(path.dirname(occupied.file), 0o500);
   try {
     const put = await host.call('PUT', `/api/agents/${agent.id}/instructions`, { content: 'mine', expectedRevision: null });
-    expect({ put, entries: await readdir(dir) }).toMatchInlineSnapshot(`
+    const shared = await host.call('POST', '/api/agents', { name: 'nested', workspace: { kind: 'shared', dir: path.join(dir, 'inner') }, initialInstructions: 'x' });
+    const overExisting = stable(await host.call('PUT', `/api/agents/${occupied.agent.id}/instructions`, { content: 'mine', expectedRevision: null }));
+    expect({ put, shared, overExisting, entries: await readdir(dir) }).toMatchInlineSnapshot(`
       {
         "entries": [],
+        "overExisting": {
+          "body": {
+            "error": {
+              "current": {
+                "canReplace": false,
+                "content": "theirs",
+                "revision": "<revision>",
+              },
+              "kind": "instructions-conflict",
+              "message": "This folder already has an AGENTS.md, so MorrowBot kept it and wrote nothing.",
+              "reason": "occupied",
+            },
+          },
+          "status": 409,
+        },
         "put": {
           "body": {
             "error": {
@@ -309,9 +329,19 @@ it('refuses a write it is not allowed to make with a path-free reason, reports n
           },
           "status": 500,
         },
+        "shared": {
+          "body": {
+            "error": {
+              "kind": "internal",
+              "message": "The workspace folder could not be made. MorrowBot isn't allowed to write in this folder.",
+            },
+          },
+          "status": 500,
+        },
       }
     `);
   } finally {
     await chmod(dir, 0o700);
+    await chmod(path.dirname(occupied.file), 0o700);
   }
 });

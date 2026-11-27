@@ -58,7 +58,15 @@ async function readTarget(file: string): Promise<Target> {
     if (!stats.isFile()) throw Object.assign(new Error('not a file'), { code: 'not-a-file' });
     const identity = identityOf(stats);
     if (stats.size > BigInt(MAX_BYTES)) return { kind: 'too-large', identity };
-    return { kind: 'read', identity, bytes: await handle.readFile() };
+    const buffer = Buffer.alloc(MAX_BYTES + 1);
+    let read = 0;
+    for (;;) {
+      const { bytesRead } = await handle.read(buffer, read, buffer.length - read, read);
+      if (bytesRead === 0) break;
+      read += bytesRead;
+      if (read > MAX_BYTES) return { kind: 'too-large', identity };
+    }
+    return { kind: 'read', identity, bytes: buffer.subarray(0, read) };
   } finally {
     await handle.close();
   }
@@ -110,7 +118,7 @@ function writeError(code: string): string {
 export type WriteFailure = { readonly kind: 'failed'; readonly message: string };
 
 /** Runs a write; a filesystem error becomes a path-free failure instead of an error that names the file. */
-async function guarded<T>(write: () => Promise<T>): Promise<T | WriteFailure> {
+export async function guarded<T>(write: () => Promise<T>): Promise<T | WriteFailure> {
   try {
     return await write();
   } catch (error) {
@@ -121,6 +129,27 @@ async function guarded<T>(write: () => Promise<T>): Promise<T | WriteFailure> {
 }
 
 type Published = { readonly kind: 'published'; readonly identity: string } | { readonly kind: 'exists' };
+
+/** `link()` errors from a file system without hard links (FAT, exFAT, some network mounts). */
+const NO_HARD_LINKS = new Set(['ENOTSUP', 'EOPNOTSUPP', 'EPERM', 'EXDEV', 'ENOSYS']);
+
+/** Exclusive create straight at `file`, for file systems without hard links; a crash mid-write can leave it partial there. */
+async function writeExclusive(file: string, bytes: Buffer): Promise<Published> {
+  let handle;
+  try {
+    handle = await open(file, 'wx');
+  } catch (error) {
+    if (codeOf(error) === 'EEXIST') return { kind: 'exists' };
+    throw error;
+  }
+  try {
+    await handle.writeFile(bytes);
+    await handle.sync();
+    return { kind: 'published', identity: identityOf(await handle.stat({ bigint: true })) };
+  } finally {
+    await handle.close();
+  }
+}
 
 /**
  * Publishes `bytes` as `dir/name` only if no entry has that name, not even a dangling link. The text is
@@ -142,12 +171,25 @@ async function publish(dir: string, name: string, bytes: Buffer): Promise<Publis
     try {
       await link(staging, path.join(dir, name));
     } catch (error) {
-      if (codeOf(error) === 'EEXIST') return { kind: 'exists' };
+      const code = codeOf(error);
+      if (code === 'EEXIST') return { kind: 'exists' };
+      if (code !== null && NO_HARD_LINKS.has(code)) return await writeExclusive(path.join(dir, name), bytes);
       throw error;
     }
     return { kind: 'published', identity };
   } finally {
     await unlink(staging).catch(() => undefined);
+  }
+}
+
+/** Whether an entry has this name, a dangling link included; checked first so a read-only folder still reports it. */
+async function present(file: string): Promise<boolean> {
+  try {
+    await lstat(file);
+    return true;
+  } catch (error) {
+    if (codeOf(error) === 'ENOENT') return false;
+    throw error;
   }
 }
 
@@ -157,6 +199,7 @@ export type CreateInstructionsResult = { readonly kind: 'created'; readonly revi
 export function createInstructions(dir: string, content: string): Promise<CreateInstructionsResult> {
   return guarded(async () => {
     await mkdir(dir, { recursive: true });
+    if (await present(path.join(dir, INSTRUCTIONS_FILE))) return { kind: 'occupied' };
     const bytes = Buffer.from(content, 'utf8');
     const published = await publish(dir, INSTRUCTIONS_FILE, bytes);
     if (published.kind === 'exists') return { kind: 'occupied' };

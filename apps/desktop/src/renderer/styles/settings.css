@@ -1,5 +1,5 @@
 /* The Settings modal shell, its rows, and the full-page forms (New agent, Agent settings, Plugins). */
-.settings-modal .modal-panel {
+.settings-modal > .modal-panel {
   width: 960px;
   height: min(720px, 100%);
   overflow: hidden;

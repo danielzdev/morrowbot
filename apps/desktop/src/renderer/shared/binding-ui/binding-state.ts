@@ -80,15 +80,18 @@ function warningsOf(choices: readonly ProviderChoice[], binding: ProviderBinding
   return current?.kind === 'offered' ? profileWarnings(current.profile) : [];
 }
 
-/** What a binding change must confirm first (spec §4.6): a provider switch, and any warning the new access adds. */
+/**
+ * What a binding change must confirm first (spec §4.6): a switch from one provider to another, with all
+ * of the new profile's warnings, or an access change that adds a warning.
+ */
 export interface ChangeCheck {
   readonly switched: boolean;
   readonly added: readonly string[];
 }
 
 export function changeCheck(choices: readonly ProviderChoice[], before: ProviderBinding, after: ProviderBinding): ChangeCheck {
-  const switched = after.kind === 'bound' && (before.kind !== 'bound' || before.pluginId !== after.pluginId);
-  const had = warningsOf(choices, before);
+  const switched = before.kind === 'bound' && after.kind === 'bound' && before.pluginId !== after.pluginId;
+  const had = switched ? [] : warningsOf(choices, before);
   return { switched, added: warningsOf(choices, after).filter((warning) => !had.includes(warning)) };
 }
 

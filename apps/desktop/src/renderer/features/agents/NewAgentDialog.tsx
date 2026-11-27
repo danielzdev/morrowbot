@@ -28,7 +28,8 @@ export function NewAgentDialog(props: {
   readonly onCreated: (agent: Agent) => void;
   readonly onClose: () => void;
 }) {
-  const [avatar, setAvatar] = useState(props.newAvatar);
+  const [initialAvatar] = useState(props.newAvatar);
+  const [avatar, setAvatar] = useState(initialAvatar);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [binding, setBinding] = useState<ProviderBinding>({ kind: 'unbound' });
@@ -38,7 +39,7 @@ export function NewAgentDialog(props: {
   const [problem, setProblem] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [leaving, setLeaving] = useState<(() => void) | null>(null);
-  const typed = name !== '' || description !== '' || instructions !== '' || workspace.kind === 'shared';
+  const typed = touched || avatar !== initialAvatar || name !== '' || description !== '' || instructions !== '' || workspace.kind === 'shared';
   const leave = (then: () => void) => (): void => {
     if (typed) setLeaving(() => then);
     else then();

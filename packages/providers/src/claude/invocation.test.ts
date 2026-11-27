@@ -200,4 +200,3 @@ it('passes no --effort for a model that reports no efforts, and refuses one aske
     }
   `);
 });
-

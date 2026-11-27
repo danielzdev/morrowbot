@@ -1,4 +1,4 @@
-import { writeFile } from 'node:fs/promises';
+import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { Agent } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it } from 'vitest';
@@ -44,7 +44,9 @@ function shown(): unknown {
         ? { kind: 'copied', revealId: outcome.revealId.replace(/^[\dT:.Z-]+-(?=\d+\.md$)/, '<time>-') }
         : outcome?.kind === 'conflict'
           ? { kind: 'conflict', disk: outcome.current.content }
-          : outcome,
+          : outcome?.kind === 'failed'
+            ? { kind: 'failed', message: outcome.message, resolving: outcome.conflict?.content ?? null }
+            : outcome,
   };
 }
 
@@ -158,6 +160,42 @@ it('refuses to create over an AGENTS.md that appeared after the editor loaded, a
         "canReplace": false,
         "content": "Theirs.",
         "revision": "<revision>",
+      },
+    }
+  `);
+});
+
+it.skipIf(process.getuid?.() === 0)('retries the copy, not the create, when "Save mine as a copy" fails', async () => {
+  editor.setDraft('Mine.');
+  await onDisk('Theirs.');
+  await editor.save();
+  const drafts = path.join(chat.dataDir, 'instructions-drafts');
+  await mkdir(drafts, { recursive: true });
+  await chmod(drafts, 0o500);
+  await editor.saveCopy();
+  const refused = shown();
+  await chmod(drafts, 0o700);
+  await editor.saveCopy();
+  expect({ refused, retried: shown() }).toMatchInlineSnapshot(`
+    {
+      "refused": {
+        "dirty": true,
+        "draft": "Mine.",
+        "mode": "create",
+        "outcome": {
+          "kind": "failed",
+          "message": "MorrowBot isn't allowed to write in this folder.",
+          "resolving": "Theirs.",
+        },
+      },
+      "retried": {
+        "dirty": false,
+        "draft": "Mine.",
+        "mode": "copy",
+        "outcome": {
+          "kind": "copied",
+          "revealId": "<time>-1.md",
+        },
       },
     }
   `);

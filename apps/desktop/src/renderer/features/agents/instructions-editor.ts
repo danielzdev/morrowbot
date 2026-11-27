@@ -9,7 +9,8 @@ export type SaveOutcome =
   | { readonly kind: 'copied'; readonly revealId: string; readonly content: string }
   /** The file on disk is not the one the editor loaded; nothing was written. */
   | { readonly kind: 'conflict'; readonly current: AgentInstructionsView }
-  | { readonly kind: 'failed'; readonly message: string };
+  /** `conflict`: the disk version a failed "Save mine as a copy" was resolving, so Try again copies again. */
+  | { readonly kind: 'failed'; readonly message: string; readonly conflict: AgentInstructionsView | null };
 
 export type InstructionsEditorState =
   | { readonly kind: 'loading' }
@@ -41,7 +42,7 @@ export interface InstructionsEditor {
   setDraft(draft: string): void;
   /** Save (create) for a missing file; Save a copy, after checking the revision, for an existing one. */
   save(): Promise<void>;
-  /** Writes the draft straight to a copy: the conflict's "Save mine as a copy". */
+  /** Writes the draft straight to a copy: the conflict's "Save mine as a copy", and its Try again. */
   saveCopy(): Promise<void>;
   /** The conflict's "Use disk version": the disk text replaces the draft. */
   useDisk(): void;
@@ -49,8 +50,8 @@ export interface InstructionsEditor {
 
 type Port = Pick<Api, 'instructions' | 'saveInstructions' | 'saveInstructionsCopy'>;
 
-const failed = (result: ApiFailure): SaveOutcome =>
-  result.error.kind === 'instructions-conflict' ? { kind: 'conflict', current: result.error.current } : { kind: 'failed', message: result.error.message };
+const failed = (result: ApiFailure, conflict: AgentInstructionsView | null = null): SaveOutcome =>
+  result.error.kind === 'instructions-conflict' ? { kind: 'conflict', current: result.error.current } : { kind: 'failed', message: result.error.message, conflict };
 
 /**
  * The AGENTS.md editor of one agent (spec §5.2, H8 v1). Saves run one at a time, each checked
@@ -66,9 +67,9 @@ export function createInstructionsEditor(api: Port, agentId: string): Instructio
     const current = ready();
     if (current !== null) state.set({ ...current, ...change });
   };
-  const copy = async (content: string): Promise<SaveOutcome> => {
+  const copy = async (content: string, conflict: AgentInstructionsView | null): Promise<SaveOutcome> => {
     const result = await api.saveInstructionsCopy(agentId, content);
-    return result.kind === 'ok' ? { kind: 'copied', revealId: result.value.revealId, content } : failed(result);
+    return result.kind === 'ok' ? { kind: 'copied', revealId: result.value.revealId, content } : failed(result, conflict);
   };
   const run = async (work: (current: Extract<InstructionsEditorState, { kind: 'ready' }>) => Promise<void>): Promise<void> => {
     const current = ready();
@@ -111,12 +112,13 @@ export function createInstructionsEditor(api: Port, agentId: string): Instructio
           patch({ outcome: { kind: 'conflict', current: now } });
           return;
         }
-        patch({ loaded: now, outcome: await copy(draft) });
+        patch({ loaded: now, outcome: await copy(draft, null) });
       }),
     saveCopy: () =>
       run(async ({ draft, outcome, loaded }) => {
-        const resolved = outcome?.kind === 'conflict' ? outcome.current : loaded;
-        const saved = await copy(draft);
+        const conflict = outcome?.kind === 'conflict' ? outcome.current : outcome?.kind === 'failed' ? outcome.conflict : null;
+        const resolved = conflict ?? loaded;
+        const saved = await copy(draft, conflict);
         patch(saved.kind === 'copied' ? { loaded: resolved, outcome: saved } : { outcome: saved });
       }),
     useDisk: () => {

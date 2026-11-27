@@ -36,7 +36,7 @@ export function agentRoutes({ agents, folders, chat }: ApiServices): Route[] {
           case 'instructions-occupied':
             return instructionsConflict('occupied', created.current);
           case 'failed':
-            return failure('internal', `AGENTS.md was not written: ${created.message}`);
+            return failure('internal', created.message);
         }
       },
     },

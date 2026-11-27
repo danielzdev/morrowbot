@@ -86,6 +86,7 @@ export function BindingControl(props: {
       {note && <span class="binding-applies" role="status">{`Applies to all of ${props.agentName}'s chats`}</span>}
       {open !== null && (
         <BindingPopover
+          key={open}
           agentName={props.agentName}
           choices={props.choices}
           binding={binding}

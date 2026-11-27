@@ -47,6 +47,16 @@ export function BindingPopover(props: {
   useEffect(() => {
     if (props.focus === 'access') root.current?.querySelector<HTMLElement>('.access-row [tabindex="0"]')?.focus();
   }, [props.focus]);
+  useEffect(() => {
+    setConfirm(null);
+  }, [JSON.stringify(binding)]);
+  const asked = useRef(false);
+  useEffect(() => {
+    const at = (selector: string): HTMLElement | null => root.current?.querySelector<HTMLElement>(selector) ?? null;
+    if (confirm !== null) at('.confirm-strip [data-autofocus]')?.focus();
+    else if (asked.current) (at('.access-row [tabindex="0"]') ?? at('.switch-button'))?.focus();
+    asked.current = confirm !== null;
+  }, [confirm]);
   const own = browse === binding.pluginId;
   const browsed = choices.find(({ id }) => id === browse);
   const runnable = browsed !== undefined && isRunnable(browsed);
@@ -104,13 +114,13 @@ export function BindingPopover(props: {
                     {`Switch to ${browsed.name}`}
                   </button>
                 )}
-                <ModelList key={browse} state={models} runtime={browsed.runtime} disabled={false} showCurrent={own} onPick={pickModel} />
+                <ModelList key={browse} state={models} runtime={browsed.runtime} disabled={pending} showCurrent={own} onPick={pickModel} />
               </>
             )}
           </div>
           <OptionColumn
             state={own && runnable ? models : NOT_READY}
-            disabled={false}
+            disabled={pending}
             arrowsSelect={false}
             onChoose={(optionId, choiceId) => void commit({ ...binding, selection: withChoice(binding.selection, optionId, choiceId) })}
           />
@@ -118,7 +128,7 @@ export function BindingPopover(props: {
         <footer class="binding-footer">
           {confirm === null ? (
             !runnable ? null : own ? (
-              <AccessSegment state={accessState(browsed.info, binding)} value={binding} disabled={false} arrowsSelect={false} redact={props.redact} onPick={pickAccess} onOpenProviders={props.onOpenProviders} />
+              <AccessSegment state={accessState(browsed.info, binding)} value={binding} disabled={pending} arrowsSelect={false} redact={props.redact} onPick={pickAccess} />
             ) : (
               <p class="binding-note">Access is set when you switch.</p>
             )

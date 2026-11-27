@@ -314,7 +314,7 @@ it('shows each saved binding in the pills, blocks only what cannot send, and nev
   `);
 });
 
-it('asks first for a provider switch or an access that adds a warning, and never for one that keeps or drops warnings', () => {
+it('asks first for a switch (with all the new warnings) or an access that adds a warning, and never for one that keeps or drops warnings', () => {
   const personal = (access: 'read-only' | 'workspace-write'): Pick<BoundProvider, 'access' | 'vendorSettings'> => ({ access, vendorSettings: 'personal' });
   const both: ProviderChoice = choice('both', ready({ capabilities: { ...CODEX_CAPABILITIES, profiles: [PERSONAL_READ, { ...PERSONAL_READ, access: 'workspace-write', readsOutsideCwd: false }, ISOLATED_READ] } }));
   const choices = [...PROVIDERS, both];
@@ -325,6 +325,8 @@ it('asks first for a provider switch or an access that adds a warning, and never
     ['access keeps a warning, drops one', bound('both', auto, personal('read-only')), bound('both', auto, personal('workspace-write'))],
     ['access drops warnings', bound('both', auto, personal('read-only')), bound('both', auto)],
     ['first binding', { kind: 'unbound' }, bound('claude', auto)],
+    ['first binding with warnings', { kind: 'unbound' }, bound('codex', auto, personal('read-only'))],
+    ['switch between two personal setups', bound('codex', auto, personal('read-only')), bound('both', auto, personal('read-only'))],
   ];
   expect(Object.fromEntries(steps.map(([name, before, after]) => [name, changeCheck(choices, before, after)]))).toMatchInlineSnapshot(`
     {
@@ -345,6 +347,20 @@ it('asks first for a provider switch or an access that adds a warning, and never
       },
       "first binding": {
         "added": [],
+        "switched": false,
+      },
+      "first binding with warnings": {
+        "added": [
+          "Can read your files outside the workspace.",
+          "Also loads your personal CLI instructions.",
+        ],
+        "switched": false,
+      },
+      "switch between two personal setups": {
+        "added": [
+          "Can read your files outside the workspace.",
+          "Also loads your personal CLI instructions.",
+        ],
         "switched": true,
       },
       "switch provider": {

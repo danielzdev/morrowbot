@@ -19,14 +19,14 @@ function ChoiceGroup(props: { readonly option: ModelOption; readonly chosen: str
         class="option-choices"
         onKeyDown={(event) => {
           const step = STEP[event.key];
-          if (step === undefined || props.disabled) return;
+          if (step === undefined) return;
           event.preventDefault();
           const active = document.activeElement instanceof HTMLElement ? document.activeElement.dataset.choice : undefined;
           const from = props.arrowsSelect ? props.chosen : (active ?? props.chosen);
           const at = option.choices.findIndex(({ id }) => id === from);
           const next = option.choices[(at + step + option.choices.length) % option.choices.length];
           if (next === undefined) return;
-          if (props.arrowsSelect) props.onChoose(next.id);
+          if (props.arrowsSelect && !props.disabled) props.onChoose(next.id);
           group.current?.querySelector<HTMLElement>(`[data-choice="${next.id}"]`)?.focus();
         }}
       >
@@ -41,10 +41,10 @@ function ChoiceGroup(props: { readonly option: ModelOption; readonly chosen: str
               aria-checked={checked}
               data-choice={choice.id}
               tabIndex={reachable ? 0 : -1}
-              disabled={props.disabled}
+              aria-disabled={props.disabled}
               class={`option-choice ${checked ? 'selected' : ''}`}
               onClick={() => {
-                if (!checked) props.onChoose(choice.id);
+                if (!checked && !props.disabled) props.onChoose(choice.id);
               }}
             >
               <span class="check">{checked && <Icon name="check" />}</span>
@@ -61,6 +61,7 @@ function ChoiceGroup(props: { readonly option: ModelOption; readonly chosen: str
 /** The selected model's options (spec §4.6 rule 8), each headed with the provider's own label. */
 export function OptionColumn(props: {
   readonly state: ModelState;
+  /** While a pick is saving: choices stay focusable but say they are unavailable, and picks are ignored. */
   readonly disabled: boolean;
   /** False in the popover, where each pick is saved: arrows only move, Space or Enter picks. */
   readonly arrowsSelect?: boolean;

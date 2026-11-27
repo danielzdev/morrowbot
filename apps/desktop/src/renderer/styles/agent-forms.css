@@ -1,5 +1,5 @@
 /* New Agent, Agent Settings sections and the avatar picker (spec §5). */
-.new-agent .modal-panel {
+.new-agent > .modal-panel {
   width: 640px;
 }
 .new-agent-form {

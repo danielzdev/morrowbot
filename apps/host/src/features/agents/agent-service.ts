@@ -1,7 +1,7 @@
 import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { Agent, AgentInstructionsView, AgentWorkspace, AgentWorkspaceRequest, CreateAgentRequest, UpdateAgentRequest } from '@morrowbot/contracts';
-import { createInstructions, INSTRUCTIONS_FILE, readInstructionsView, saveInstructionsCopy, type CreateInstructionsResult, type SaveCopyResult, type WriteFailure } from './instructions-file.ts';
+import { createInstructions, guarded, INSTRUCTIONS_FILE, readInstructionsView, saveInstructionsCopy, type CreateInstructionsResult, type SaveCopyResult, type WriteFailure } from './instructions-file.ts';
 
 /** Where agent records are kept (the storage feature provides one). */
 export interface AgentRecords {
@@ -90,7 +90,11 @@ export function createAgentService(options: AgentServiceOptions): AgentService {
         createdAt: at,
         updatedAt: at,
       };
-      await mkdir(agent.workspace.dir, { recursive: true });
+      const made = await guarded(async () => {
+        await mkdir(agent.workspace.dir, { recursive: true });
+        return null;
+      });
+      if (made !== null) return { kind: 'failed', message: `The workspace folder could not be made. ${made.message}` };
       if (unknownFolder(agent.folderId)) return { kind: 'invalid', reason: NO_SUCH_FOLDER };
       if (request.initialInstructions !== null) {
         const written = await createInstructions(agent.workspace.dir, request.initialInstructions);
@@ -100,7 +104,7 @@ export function createAgentService(options: AgentServiceOptions): AgentService {
           case 'occupied':
             return { kind: 'instructions-occupied', current: await readInstructionsView(agent.workspace.dir) };
           case 'failed':
-            return written;
+            return { kind: 'failed', message: `AGENTS.md was not written. ${written.message}` };
         }
       }
       if (unknownFolder(agent.folderId)) return { kind: 'invalid', reason: NO_SUCH_FOLDER };

@@ -1,5 +1,5 @@
 import type { Agent, ProviderBinding } from '@morrowbot/contracts';
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { changeCheck, needsConfirm } from '../../shared/binding-ui/binding-state.ts';
 import { readyInfo, type ProviderChoice } from '../../shared/binding-ui/selection.ts';
 import { Icon } from '../../shared/ui/Icon.tsx';
@@ -42,6 +42,14 @@ export function AgentBrain(props: {
   useEffect(() => {
     props.onDirty(dirty);
   }, [dirty]);
+  const root = useRef<HTMLDivElement>(null);
+  const asked = useRef(false);
+  useEffect(() => {
+    const at = (selector: string): HTMLElement | null => root.current?.querySelector<HTMLElement>(selector) ?? null;
+    if (confirming) at('.confirm-strip [data-autofocus]')?.focus();
+    else if (asked.current) (at('.section-actions .btn.primary:not(:disabled)') ?? at('.brain-fields [tabindex="0"]'))?.focus();
+    asked.current = confirming;
+  }, [confirming]);
   const check = changeCheck(props.choices, agent.provider, binding);
   const { switched, added } = check;
   const save = (): void => {
@@ -54,7 +62,7 @@ export function AgentBrain(props: {
   };
   const choice = binding.kind === 'bound' ? props.choices.find(({ id }) => id === binding.pluginId) : undefined;
   return (
-    <div class="settings-section">
+    <div ref={root} class="settings-section">
       <BrainFields
         choices={props.choices}
         value={binding}

@@ -22,6 +22,7 @@ export function ModelList(props: {
   readonly state: ModelState;
   /** Who chooses on Auto, such as "Claude Code". */
   readonly runtime: string;
+  /** While a pick is saving: options stay focusable but say they are unavailable, and picks are ignored. */
   readonly disabled: boolean;
   /** False while browsing another provider: nothing there is this agent's yet. */
   readonly showCurrent?: boolean;
@@ -97,10 +98,10 @@ export function ModelList(props: {
                   data-roving={model.label}
                   data-autofocus={selected ? true : undefined}
                   tabIndex={selected || (selectedId === null && index === 0) ? 0 : -1}
-                  disabled={props.disabled}
+                  aria-disabled={props.disabled}
                   class={`model-option ${selected ? 'selected' : ''}`}
                   onClick={() => {
-                    props.onPick(model);
+                    if (!props.disabled) props.onPick(model);
                   }}
                 >
                   <span class="check">{selected && <Icon name="check" />}</span>

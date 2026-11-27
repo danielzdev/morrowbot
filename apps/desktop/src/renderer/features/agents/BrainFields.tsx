@@ -37,7 +37,7 @@ export function BrainFields(props: {
           }}
         />
       )}
-      {!props.choices.some(isRunnable) && props.choices.length > 0 && (
+      {value.kind === 'unbound' && !props.choices.some(isRunnable) && props.choices.length > 0 && (
         <div class="row">
           <span class="binding-note">No provider is ready yet.</span>
           <button type="button" class="btn secondary" onClick={props.onOpenProviders}>
@@ -78,7 +78,6 @@ export function BrainFields(props: {
             value={value}
             disabled={false}
             redact={props.redact}
-            onOpenProviders={props.onOpenProviders}
             onPick={(profile) => {
               props.onChange({ ...value, access: profile.access, vendorSettings: profile.vendorSettings });
             }}
