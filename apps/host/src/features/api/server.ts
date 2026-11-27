@@ -49,7 +49,8 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
       pairing: options.services.pairing,
       hostName: options.hostName,
       hostVersion: options.hostVersion,
-      remoteUrl: () => (isLoopback(listener.hostname) || isWildcard(listener.hostname) ? undefined : `http://${authority(listener)}`),
+      remoteUrl: () =>
+        isLoopback(listener.hostname) || isWildcard(listener.hostname) ? undefined : new URL(`http://${authority(listener)}`).origin,
       closeDeviceSockets: (deviceId) => {
         for (const ws of deviceSockets.get(deviceId) ?? []) ws.close(1008, 'This device was unpaired');
       },
@@ -63,7 +64,11 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
       send(response, rejection);
       return;
     }
-    const caller = identify(request, options.token, options.services.pairing);
+    const caller = identifyOrReport(request, options);
+    if (caller === undefined) {
+      send(response, failure('internal', 'The host hit an unexpected error'));
+      return;
+    }
     const path = pathOf(request);
     if (!path.startsWith('/api/')) {
       const denied = admit('token', caller);
@@ -84,10 +89,10 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
 
   server.on('upgrade', (request: IncomingMessage, socket: Duplex, head: Buffer) => {
     const screened = screen(request, listener);
-    const caller: Caller = screened === undefined ? identify(request, options.token, options.services.pairing) : { kind: 'anonymous' };
-    const rejection = screened ?? admit('token', caller);
-    if (rejection !== undefined || pathOf(request) !== EVENTS_PATH) {
-      const status = rejection?.status === 401 ? '401 Unauthorized' : '403 Forbidden';
+    const caller: Caller | undefined = screened === undefined ? identifyOrReport(request, options) : { kind: 'anonymous' };
+    const rejection = screened ?? (caller === undefined ? failure('internal', 'Authentication failed') : admit('token', caller));
+    if (rejection !== undefined || caller === undefined || pathOf(request) !== EVENTS_PATH) {
+      const status = rejection?.status === 401 ? '401 Unauthorized' : rejection?.status === 500 ? '500 Internal Server Error' : '403 Forbidden';
       socket.end(`HTTP/1.1 ${status}\r\nconnection: close\r\n\r\n`);
       return;
     }
@@ -109,6 +114,16 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
       await closeServer(server);
     },
   };
+}
+
+/** Who sent the request; undefined (after reporting) when the device lookup itself failed, such as a storage error. */
+function identifyOrReport(request: IncomingMessage, options: ApiServerOptions): Caller | undefined {
+  try {
+    return identify(request, options.token, options.services.pairing);
+  } catch (error) {
+    options.report(error);
+    return undefined;
+  }
 }
 
 /** Remembers a paired device's open socket, so unpairing the device can close it. */
@@ -193,7 +208,9 @@ function pathOf(request: IncomingMessage): string {
 /** Routes an `/api/` request. Without a valid token, only a public route is found; anything else is 401. */
 async function route(routes: readonly Route[], path: string, request: IncomingMessage, caller: Caller): Promise<Reply> {
   const found = find(routes, path, request.method);
-  const denied = admit(found.kind === 'route' ? (found.route.access ?? 'token') : 'token', caller);
+  const access = found.kind === 'route' ? (found.route.access ?? 'token') : 'token';
+  if (access === 'public' && request.headers.origin !== undefined) return failure('forbidden', 'Browser pages may not claim a pairing code');
+  const denied = admit(access, caller);
   if (denied !== undefined) return denied;
   if (found.kind === 'reply') return found.reply;
   const query = URL.parse(request.url ?? '/', 'http://127.0.0.1')?.searchParams ?? new URLSearchParams();

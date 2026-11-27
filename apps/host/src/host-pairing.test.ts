@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { ClaimPairingResponse, PairingCodeResponse } from '@morrowbot/contracts';
+import { ClaimPairingResponse, PairedDeviceList, PairingCodeResponse } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import { startTestHost, type Sequence, type TestHost } from './testing/test-host.ts';
@@ -186,6 +186,9 @@ it('keeps codes short-lived and single-use, and pauses claims after five wrong c
   const used = await newCode();
   const first = await claim(used);
   const reused = await claim(used);
+  const raced = await newCode();
+  const together = (await Promise.all([claim(raced), claim(raced)])).sort();
+  const devicesAfterRace = PairedDeviceList.parse((await host.call('GET', '/api/pairing/devices')).body).devices.length;
 
   const expiring = await newCode();
   nowMs += 5 * 60_000;
@@ -204,9 +207,10 @@ it('keeps codes short-lived and single-use, and pauses claims after five wrong c
   const cancelledAfterPause = await claim(guessed);
   const freshAfterPause = await claim(await newCode());
 
-  expect({ first, reused, expired, replacedByNewer, guesses, rightCodeWhilePaused, cancelledAfterPause, freshAfterPause }).toMatchInlineSnapshot(`
+  expect({ first, reused, together, devicesAfterRace, expired, replacedByNewer, guesses, rightCodeWhilePaused, cancelledAfterPause, freshAfterPause }).toMatchInlineSnapshot(`
     {
       "cancelledAfterPause": 401,
+      "devicesAfterRace": 2,
       "expired": 401,
       "first": 201,
       "freshAfterPause": 201,
@@ -220,6 +224,10 @@ it('keeps codes short-lived and single-use, and pauses claims after five wrong c
       "replacedByNewer": 401,
       "reused": 401,
       "rightCodeWhilePaused": 429,
+      "together": [
+        201,
+        401,
+      ],
     }
   `);
 });
@@ -232,11 +240,19 @@ it('lets only the desktop token mint codes and manage devices, and needs a url t
     revokeByDevice: (await as(device.token, 'DELETE', `/api/pairing/devices/${device.deviceId}`)).status,
     mintByNobody: (await as(undefined, 'POST', '/api/pairing/codes', {})).status,
     listByNobody: (await as(undefined, 'GET', '/api/pairing/devices')).status,
+    claimFromBrowserPage: (
+      await fetch(`${host.url}/api/pairing/claim`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', origin: host.url },
+        body: JSON.stringify({ code: await newCode(), deviceName: 'Pocket Phone', platform: 'ios' }),
+      })
+    ).status,
     claimWithBadBody: await as(undefined, 'POST', '/api/pairing/claim', { code: '12345', deviceName: '', platform: 'toaster' }),
     mintWithoutUrl: await host.call('POST', '/api/pairing/codes', {}),
     mintWithPathUrl: await host.call('POST', '/api/pairing/codes', { url: `${URL_FOR_DEVICES}/api` }),
   }).toMatchInlineSnapshot(`
     {
+      "claimFromBrowserPage": 403,
       "claimWithBadBody": {
         "body": {
           "error": {

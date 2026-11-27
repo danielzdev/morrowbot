@@ -8,10 +8,14 @@ export type PairingCode = z.infer<typeof PairingCode>;
 export const DevicePlatform = z.enum(['ios', 'android', 'macos', 'windows', 'linux']);
 export type DevicePlatform = z.infer<typeof DevicePlatform>;
 
-/** Where a device reaches the host, such as `http://100.64.0.1:47800`. */
+/** Where a device reaches the host, such as `http://100.64.0.1:47800`. Parsed to its origin (one spelling per endpoint). */
 export const HostUrl = z
   .url({ protocol: /^https?$/ })
-  .refine((value) => URL.parse(value)?.origin === value, 'Use only the scheme, host and port');
+  .refine((value) => {
+    const url = URL.parse(value);
+    return url !== null && url.pathname === '/' && url.search === '' && url.hash === '' && url.username === '' && url.password === '';
+  }, 'Use only the scheme, host and port')
+  .transform((value) => new URL(value).origin);
 export type HostUrl = z.infer<typeof HostUrl>;
 
 /** `url` is the address the device should use; it defaults to the host's own LAN or Tailscale listen address. */

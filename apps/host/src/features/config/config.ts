@@ -11,9 +11,12 @@ const PortString = z
   .transform((value) => Number(value))
   .pipe(z.number().int().min(0).max(65_535));
 
+/** One spelling per address (IPv6 compressed and lowercased), so loopback and wildcard checks see a single form. */
 const BindAddress = z
   .string()
-  .refine((value) => isIP(value) !== 0 && !value.includes('%'), 'Expected an IPv4 or IPv6 address, such as 100.64.0.1 or 0.0.0.0');
+  .refine((value) => isIP(value) !== 0 && !value.includes('%'), 'Expected an IPv4 or IPv6 address, such as 100.64.0.1 or 0.0.0.0')
+  .transform((value) => (isIP(value) === 6 ? new URL(`http://[${value}]`).hostname.slice(1, -1) : value))
+  .refine((value) => !value.startsWith('::ffff:'), 'Use the IPv4 form of an IPv4-mapped address');
 
 const AbsolutePath = z.string().refine((value) => path.isAbsolute(value), 'Expected an absolute path');
 

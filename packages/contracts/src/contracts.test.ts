@@ -157,25 +157,37 @@ describe('AgentAvatar', () => {
 
 describe('pairing', () => {
   it('builds the QR payload a device scans and accepts only a bare host URL', () => {
+    const url = (value: string) => {
+      const parsed = HostUrl.safeParse(value);
+      return parsed.success ? parsed.data : issues(parsed);
+    };
     expect({
       uri: pairingUri('http://100.64.0.1:47800', '042137'),
-      ipv6: issues(HostUrl.safeParse('http://[fd7a:115c:a1e0::1]:47800')),
-      withPath: issues(HostUrl.safeParse('http://100.64.0.1:47800/api')),
-      withSlash: issues(HostUrl.safeParse('http://100.64.0.1:47800/')),
-      websocket: issues(HostUrl.safeParse('ws://100.64.0.1:47800')),
+      ipv6: url('http://[FD7A:115C:A1E0:0:0:0:0:1]:47800'),
+      defaultPort: url('http://100.64.0.1:80'),
+      withSlash: url('http://100.64.0.1:47800/'),
+      withPath: url('http://100.64.0.1:47800/api'),
+      withQuery: url('http://100.64.0.1:47800/?x=1'),
+      withCredentials: url('http://user:pw@100.64.0.1:47800'),
+      websocket: url('ws://100.64.0.1:47800'),
     }).toMatchInlineSnapshot(`
       {
-        "ipv6": "valid",
+        "defaultPort": "http://100.64.0.1",
+        "ipv6": "http://[fd7a:115c:a1e0::1]:47800",
         "uri": "morrowbot://pair?url=http%3A%2F%2F100.64.0.1%3A47800&code=042137",
         "websocket": [
           "(root): Invalid URL",
         ],
+        "withCredentials": [
+          "(root): Use only the scheme, host and port",
+        ],
         "withPath": [
           "(root): Use only the scheme, host and port",
         ],
-        "withSlash": [
+        "withQuery": [
           "(root): Use only the scheme, host and port",
         ],
+        "withSlash": "http://100.64.0.1:47800",
       }
     `);
   });

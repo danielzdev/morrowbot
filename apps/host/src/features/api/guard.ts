@@ -25,9 +25,10 @@ export function authority({ hostname, port }: Listener): string {
 }
 
 /**
- * Blocks DNS rebinding on a loopback listener (wrong Host) and every cross-site browser page (a foreign Origin).
+ * Blocks DNS rebinding on a loopback listener (wrong Host) and cross-site browser pages (an Origin other than the Host).
  * A native client sends no Origin, or (like a WebSocket library that adds one) exactly the host's own origin.
- * A LAN or Tailscale listener takes any Host, since every route but the rate-limited claim needs a token.
+ * A LAN or Tailscale listener takes any Host, so a rebound page passes here; it still needs a token for every
+ * route, and the public claim refuses any Origin.
  */
 export function screen(request: IncomingMessage, listener: Listener): Reply | undefined {
   const host = request.headers.host?.toLowerCase() ?? '';
