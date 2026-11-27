@@ -4,13 +4,22 @@ import type { AgentsModel } from './agents-model.ts';
 import type { AvatarEditor } from './NewAgentDialog.tsx';
 
 /** Save / Cancel for a staged section, with the reason the last save was refused. */
-export function SectionActions(props: { readonly dirty: boolean; readonly saving: boolean; readonly problem: string | null; readonly saveLabel?: string; readonly onSave: () => void; readonly onCancel: () => void }) {
+export function SectionActions(props: {
+  readonly dirty: boolean;
+  /** False when the staged values can't be saved as they are; Cancel still works. */
+  readonly valid?: boolean;
+  readonly saving: boolean;
+  readonly problem: string | null;
+  readonly saveLabel?: string;
+  readonly onSave: () => void;
+  readonly onCancel: () => void;
+}) {
   return (
     <div class="section-actions">
       {props.problem !== null && <p class="note error" role="alert">{props.problem}</p>}
       <div class="row">
         <button type="button" class="btn secondary" disabled={!props.dirty || props.saving} onClick={props.onCancel}>Cancel</button>
-        <button type="button" class="btn primary" disabled={!props.dirty || props.saving} onClick={props.onSave}>
+        <button type="button" class="btn primary" disabled={!props.dirty || props.valid === false || props.saving} onClick={props.onSave}>
           {props.saving ? 'Saving…' : (props.saveLabel ?? 'Save')}
         </button>
       </div>
@@ -53,7 +62,8 @@ export function AgentGeneral(props: {
         <input value={description} onInput={(event) => { setDescription(event.currentTarget.value); }} />
       </label>
       <SectionActions
-        dirty={dirty && name.trim() !== ''}
+        dirty={dirty}
+        valid={name.trim() !== ''}
         saving={saving}
         problem={problem}
         onCancel={() => {

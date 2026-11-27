@@ -4,7 +4,7 @@ import { accessState, modelState } from '../../shared/binding-ui/binding-state.t
 import { ModelList } from '../../shared/binding-ui/ModelList.tsx';
 import { OptionColumn } from '../../shared/binding-ui/OptionColumn.tsx';
 import { ProviderRail } from '../../shared/binding-ui/ProviderRail.tsx';
-import { isRunnable, newBinding, pinModel, withChoice, type ProviderChoice } from '../../shared/binding-ui/selection.ts';
+import { isRunnable, newBinding, pinModel, readinessOf, statusLine, withChoice, type ProviderChoice } from '../../shared/binding-ui/selection.ts';
 
 /**
  * Provider cards, then the chosen provider's models, options and access, inline (spec §5.1, §5.2).
@@ -19,7 +19,8 @@ export function BrainFields(props: {
 }) {
   const { value } = props;
   const choice = value.kind === 'bound' ? props.choices.find(({ id }) => id === value.pluginId) : undefined;
-  const models = value.kind === 'bound' ? modelState(choice?.info, value.selection) : null;
+  const runnable = choice !== undefined && isRunnable(choice);
+  const models = value.kind === 'bound' && runnable ? modelState(choice.info, value.selection) : null;
   return (
     <div class="brain-fields">
       {props.choices.length === 0 ? (
@@ -44,10 +45,19 @@ export function BrainFields(props: {
           </button>
         </div>
       )}
+      {value.kind === 'bound' && !runnable && (
+        <div class="row">
+          <span class="binding-note warn">{choice === undefined ? "This agent's provider isn't installed." : `${choice.name}: ${statusLine(readinessOf(choice))}`}</span>
+          <button type="button" class="btn secondary" onClick={props.onOpenProviders}>
+            Open Providers
+          </button>
+        </div>
+      )}
       {value.kind === 'bound' && models !== null && (
         <>
           <div class="brain-models">
             <ModelList
+              key={value.pluginId}
               state={models}
               runtime={choice?.runtime ?? ''}
               disabled={false}

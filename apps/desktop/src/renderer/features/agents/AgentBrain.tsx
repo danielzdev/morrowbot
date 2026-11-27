@@ -1,19 +1,11 @@
 import type { Agent, ProviderBinding } from '@morrowbot/contracts';
 import { useEffect, useState } from 'preact/hooks';
-import { profileWarnings } from '../../shared/binding-ui/access-copy.ts';
-import { accessState } from '../../shared/binding-ui/binding-state.ts';
+import { changeCheck, needsConfirm } from '../../shared/binding-ui/binding-state.ts';
 import { readyInfo, type ProviderChoice } from '../../shared/binding-ui/selection.ts';
 import { Icon } from '../../shared/ui/Icon.tsx';
 import { SectionActions } from './AgentGeneral.tsx';
 import type { AgentsModel } from './agents-model.ts';
 import { BrainFields } from './BrainFields.tsx';
-
-/** The warnings a binding's access brings, as the provider reports that profile now. */
-function warningsOf(choices: readonly ProviderChoice[], binding: ProviderBinding): readonly string[] {
-  if (binding.kind === 'unbound') return [];
-  const current = accessState(choices.find(({ id }) => id === binding.pluginId)?.info, binding)?.current;
-  return current?.kind === 'offered' ? profileWarnings(current.profile) : [];
-}
 
 /** What the provider can do, in one line each, from its capabilities. */
 function Capabilities(props: { readonly choice: ProviderChoice | undefined }) {
@@ -50,9 +42,8 @@ export function AgentBrain(props: {
   useEffect(() => {
     props.onDirty(dirty);
   }, [dirty]);
-  const switched = binding.kind === 'bound' && (agent.provider.kind !== 'bound' || agent.provider.pluginId !== binding.pluginId);
-  const before = warningsOf(props.choices, agent.provider);
-  const added = warningsOf(props.choices, binding).filter((warning) => !before.includes(warning));
+  const check = changeCheck(props.choices, agent.provider, binding);
+  const { switched, added } = check;
   const save = (): void => {
     setConfirming(false);
     setSaving(true);
@@ -64,7 +55,16 @@ export function AgentBrain(props: {
   const choice = binding.kind === 'bound' ? props.choices.find(({ id }) => id === binding.pluginId) : undefined;
   return (
     <div class="settings-section">
-      <BrainFields choices={props.choices} value={binding} redact={props.redact} onOpenProviders={props.onOpenProviders} onChange={setBinding} />
+      <BrainFields
+        choices={props.choices}
+        value={binding}
+        redact={props.redact}
+        onOpenProviders={props.onOpenProviders}
+        onChange={(next) => {
+          setConfirming(false);
+          setBinding(next);
+        }}
+      />
       {binding.kind === 'unbound' && <p class="binding-note">{`Choose a provider for ${agent.name}.`}</p>}
       <Capabilities choice={choice} />
       {confirming ? (
@@ -90,7 +90,7 @@ export function AgentBrain(props: {
             setProblem(null);
           }}
           onSave={() => {
-            if (switched || added.length > 0) setConfirming(true);
+            if (needsConfirm(check)) setConfirming(true);
             else save();
           }}
         />

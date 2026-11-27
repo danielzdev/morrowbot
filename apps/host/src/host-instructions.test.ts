@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Agent, AgentInstructionsView } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it } from 'vitest';
-import { startTestHost, type Reply, type TestHost } from './testing/test-host.ts';
+import { sequence, startTestHost, type Reply, type TestHost } from './testing/test-host.ts';
 
 let dataDir: string;
 let host: TestHost;
@@ -223,6 +223,8 @@ it('creates a missing AGENTS.md once, with the revision a read reports, and chan
 });
 
 it('keeps Save a copy in the data folder with a counter, never touching the live file', async () => {
+  await host.close();
+  host = await startTestHost({ dataDir, sequence: { ...sequence(), now: () => '2026-01-01T00:00:00.000Z' } });
   const { agent, file } = await sharedAgent('copies');
   await writeFile(file, 'live');
   const first = await host.call('POST', `/api/agents/${agent.id}/instructions/copies`, { content: 'draft one' });
@@ -244,8 +246,8 @@ it('keeps Save a copy in the data folder with a counter, never touching the live
       ],
       "live": "live",
       "names": [
-        "2026-01-01T00-00-01.000Z-1.md",
-        "2026-01-01T00-00-02.000Z-1.md",
+        "2026-01-01T00-00-00.000Z-1.md",
+        "2026-01-01T00-00-00.000Z-2.md",
       ],
       "replies": [
         201,
@@ -254,10 +256,10 @@ it('keeps Save a copy in the data folder with a counter, never touching the live
       ],
       "revealIds": [
         {
-          "revealId": "2026-01-01T00-00-01.000Z-1.md",
+          "revealId": "2026-01-01T00-00-00.000Z-1.md",
         },
         {
-          "revealId": "2026-01-01T00-00-02.000Z-1.md",
+          "revealId": "2026-01-01T00-00-00.000Z-2.md",
         },
       ],
     }
@@ -287,4 +289,29 @@ it.skipIf(process.getuid?.() === 0)('reports an unreadable file as present with 
   await chmod(file, 0o600);
   expect(read).toMatchObject({ content: null, readError: "MorrowBot isn't allowed to read AGENTS.md.", canReplace: false });
   expect(read.revision).not.toBeNull();
+});
+
+it('refuses a write it is not allowed to make with a path-free reason, reports nothing, and leaves no staging file', async () => {
+  const { agent, file } = await sharedAgent('locked');
+  const dir = path.dirname(file);
+  await chmod(dir, 0o500);
+  try {
+    const put = await host.call('PUT', `/api/agents/${agent.id}/instructions`, { content: 'mine', expectedRevision: null });
+    expect({ put, entries: await readdir(dir) }).toMatchInlineSnapshot(`
+      {
+        "entries": [],
+        "put": {
+          "body": {
+            "error": {
+              "kind": "internal",
+              "message": "MorrowBot isn't allowed to write in this folder.",
+            },
+          },
+          "status": 500,
+        },
+      }
+    `);
+  } finally {
+    await chmod(dir, 0o700);
+  }
 });

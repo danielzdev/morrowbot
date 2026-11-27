@@ -43,7 +43,7 @@ export function AgentSettingsDialog(props: {
 }) {
   const { agent, model } = props;
   const [dirty, setDirty] = useState<Readonly<Partial<Record<AgentSection, boolean>>>>({});
-  const [discarding, setDiscarding] = useState(false);
+  const [discarding, setDiscarding] = useState<(() => void) | null>(null);
   const mark = (section: AgentSection) => (value: boolean): void => {
     setDirty((current) => (current[section] === value ? current : { ...current, [section]: value }));
   };
@@ -54,9 +54,9 @@ export function AgentSettingsDialog(props: {
     },
     { label: null, items: [{ id: 'danger', label: TITLES.danger, icon: ICONS.danger }] },
   ];
-  const close = (): void => {
-    if (Object.values(dirty).some(Boolean)) setDiscarding(true);
-    else props.onClose();
+  const leave = (then: () => void) => (): void => {
+    if (Object.values(dirty).some(Boolean)) setDiscarding(() => then);
+    else then();
   };
   const bound = agent.provider.kind === 'bound' ? agent.provider : null;
   const choice = bound === null ? undefined : props.choices.find(({ id }) => id === bound.pluginId);
@@ -70,13 +70,13 @@ export function AgentSettingsDialog(props: {
           if (isSection(id)) props.onSection(id);
         }}
         breadcrumb={[agent.name, TITLES[props.section]]}
-        onClose={close}
+        onClose={leave(props.onClose)}
       >
         <div hidden={props.section !== 'general'}>
           <AgentGeneral model={model} agent={agent} avatarEditor={props.avatarEditor} redact={props.redact} onDirty={mark('general')} />
         </div>
         <div hidden={props.section !== 'brain'}>
-          <AgentBrain model={model} agent={agent} choices={props.choices} redact={props.redact} onOpenProviders={props.onOpenProviders} onDirty={mark('brain')} />
+          <AgentBrain model={model} agent={agent} choices={props.choices} redact={props.redact} onOpenProviders={leave(props.onOpenProviders)} onDirty={mark('brain')} />
         </div>
         <div hidden={props.section !== 'instructions'}>
           <InstructionsEditor
@@ -92,16 +92,16 @@ export function AgentSettingsDialog(props: {
         {props.section === 'workspace' && <WorkspaceSection agent={agent} pathLabel={props.workspaceLabel} onCopy={props.onCopyPath} onReveal={props.onRevealWorkspace} />}
         {props.section === 'danger' && <DangerZone agent={agent} onDelete={() => void model.deleteAgent(agent.id).then(props.onDeleted)} />}
       </SettingsShell>
-      {discarding && (
+      {discarding !== null && (
         <ConfirmDialog
           title="Discard changes?"
           body={<p>Your unsaved changes in these settings will be lost.</p>}
           confirmLabel="Discard"
           tone="danger"
-          onCancel={() => { setDiscarding(false); }}
+          onCancel={() => { setDiscarding(null); }}
           onConfirm={() => {
-            setDiscarding(false);
-            props.onClose();
+            setDiscarding(null);
+            discarding();
           }}
         />
       )}

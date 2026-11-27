@@ -32,8 +32,8 @@ export interface ApiAgents {
   create(request: CreateAgentRequest): Promise<ApiCreateAgentResult>;
   update(id: string, request: UpdateAgentRequest): ApiUpdateAgentResult;
   instructionsView(id: string): Promise<AgentInstructionsView | undefined>;
-  createInstructions(id: string, content: string): Promise<{ readonly kind: 'created'; readonly revision: string } | { readonly kind: 'occupied' } | undefined>;
-  saveInstructionsCopy(id: string, content: string): Promise<string | undefined>;
+  createInstructions(id: string, content: string): Promise<{ readonly kind: 'created'; readonly revision: string } | { readonly kind: 'occupied' } | WriteFailure | undefined>;
+  saveInstructionsCopy(id: string, content: string): Promise<{ readonly kind: 'saved'; readonly name: string } | WriteFailure | undefined>;
   /** Each agent's newest message with text, for the sidebar. */
   lastMessages(): LastMessage[];
 }
@@ -41,7 +41,14 @@ export interface ApiAgents {
 export type ApiCreateAgentResult =
   | { readonly kind: 'created'; readonly agent: Agent }
   | { readonly kind: 'invalid'; readonly reason: string }
-  | { readonly kind: 'instructions-occupied'; readonly current: AgentInstructionsView };
+  | { readonly kind: 'instructions-occupied'; readonly current: AgentInstructionsView }
+  | WriteFailure;
+
+/** A file the host could not write, with a reason that never names a path. */
+export interface WriteFailure {
+  readonly kind: 'failed';
+  readonly message: string;
+}
 
 export type ApiUpdateAgentResult =
   | { readonly kind: 'updated'; readonly agent: Agent }

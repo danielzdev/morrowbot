@@ -2,20 +2,23 @@ import type { AccessProfile, ProviderModel } from '@morrowbot/contracts';
 import type { RefObject } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { AccessSegment } from '../../shared/binding-ui/AccessSegment.tsx';
-import { profileName, profileWarnings } from '../../shared/binding-ui/access-copy.ts';
-import { accessState, modelState, type ModelState } from '../../shared/binding-ui/binding-state.ts';
+import { profileName } from '../../shared/binding-ui/access-copy.ts';
+import { accessState, changeCheck, modelState, needsConfirm, type ChangeCheck, type ModelState } from '../../shared/binding-ui/binding-state.ts';
 import { ModelList } from '../../shared/binding-ui/ModelList.tsx';
 import { OptionColumn } from '../../shared/binding-ui/OptionColumn.tsx';
 import { ProviderRail } from '../../shared/binding-ui/ProviderRail.tsx';
-import { defaultProfile, isRunnable, newBinding, pinModel, readinessOf, readyInfo, statusLine, withChoice, type ProviderChoice } from '../../shared/binding-ui/selection.ts';
+import { isRunnable, newBinding, pinModel, readinessOf, statusLine, withChoice, type ProviderChoice } from '../../shared/binding-ui/selection.ts';
 import { Icon } from '../../shared/ui/Icon.tsx';
 import { Popover } from '../../shared/ui/Popover.tsx';
 import type { BoundProvider } from './binding-display.ts';
 
 /** A change that needs an inline yes first (spec §4.6): a provider switch, or access that adds a warning. */
-type Confirm =
-  | { readonly kind: 'switch'; readonly next: BoundProvider; readonly provider: string; readonly warnings: readonly string[] }
-  | { readonly kind: 'access'; readonly next: BoundProvider; readonly profile: AccessProfile };
+interface Confirm {
+  readonly next: BoundProvider;
+  readonly check: ChangeCheck;
+  /** The switch target's name, or the new access profile's. */
+  readonly name: string;
+}
 
 const NOT_READY: ModelState = { kind: 'not-ready' };
 
@@ -43,25 +46,28 @@ export function BindingPopover(props: {
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (props.focus === 'access') root.current?.querySelector<HTMLElement>('.access-row [tabindex="0"]')?.focus();
-  }, []);
+  }, [props.focus]);
   const own = browse === binding.pluginId;
   const browsed = choices.find(({ id }) => id === browse);
   const runnable = browsed !== undefined && isRunnable(browsed);
-  const models = browsed === undefined ? NOT_READY : modelState(browsed.info, own ? binding.selection : { kind: 'default' });
+  const models = browsed === undefined || !runnable ? NOT_READY : modelState(browsed.info, own ? binding.selection : { kind: 'default' });
+  const saving = useRef(false);
   const commit = async (next: BoundProvider): Promise<void> => {
+    if (saving.current) return;
+    saving.current = true;
     setConfirm(null);
     setPending(true);
     setProblem(null);
     const refused = await props.onCommit(next);
+    saving.current = false;
     setPending(false);
     if (refused !== null) setProblem(props.redact(refused));
   };
   const switchTo = (choice: ProviderChoice, model: ProviderModel | null): void => {
     const fresh = newBinding(choice);
-    const info = readyInfo(choice.info);
-    const profile = info === null ? null : defaultProfile(info);
-    if (fresh.kind !== 'bound' || profile === null) return;
-    setConfirm({ kind: 'switch', next: model === null ? fresh : { ...fresh, selection: pinModel(model) }, provider: choice.name, warnings: profileWarnings(profile) });
+    if (fresh.kind !== 'bound') return;
+    const next = model === null ? fresh : { ...fresh, selection: pinModel(model) };
+    setConfirm({ next, check: changeCheck(choices, binding, next), name: choice.name });
   };
   const pickModel = (model: ProviderModel): void => {
     if (!own) {
@@ -72,7 +78,8 @@ export function BindingPopover(props: {
   };
   const pickAccess = (profile: AccessProfile): void => {
     const next = { ...binding, access: profile.access, vendorSettings: profile.vendorSettings };
-    if (profileWarnings(profile).length > 0) setConfirm({ kind: 'access', next, profile });
+    const check = changeCheck(choices, binding, next);
+    if (needsConfirm(check)) setConfirm({ next, check, name: profileName(profile) });
     else void commit(next);
   };
   return (
@@ -85,48 +92,49 @@ export function BindingPopover(props: {
         <div class="binding-columns">
           <ProviderRail label="Providers" layout="rail" choices={choices} selected={browse} onPick={(id) => { setBrowse(id); setConfirm(null); }} />
           <div class="binding-models">
-            {browsed !== undefined && !runnable ? (
+            {browsed === undefined || !runnable ? (
               <div class="binding-unrunnable">
-                <p class="binding-note">{`${browsed.name}: ${statusLine(readinessOf(browsed))}`}</p>
+                <p class="binding-note">{browsed === undefined ? "This agent's provider isn't installed." : `${browsed.name}: ${statusLine(readinessOf(browsed))}`}</p>
                 <button type="button" class="btn secondary" onClick={props.onOpenProviders}>Open Providers</button>
               </div>
             ) : (
               <>
-                {!own && browsed !== undefined && (
+                {!own && (
                   <button type="button" class="btn secondary switch-button" onClick={() => { switchTo(browsed, null); }}>
                     {`Switch to ${browsed.name}`}
                   </button>
                 )}
-                <ModelList state={models} runtime={browsed?.runtime ?? ''} disabled={pending} showCurrent={own} onPick={pickModel} />
+                <ModelList key={browse} state={models} runtime={browsed.runtime} disabled={false} showCurrent={own} onPick={pickModel} />
               </>
             )}
           </div>
           <OptionColumn
-            state={own ? models : NOT_READY}
-            disabled={pending}
+            state={own && runnable ? models : NOT_READY}
+            disabled={false}
+            arrowsSelect={false}
             onChoose={(optionId, choiceId) => void commit({ ...binding, selection: withChoice(binding.selection, optionId, choiceId) })}
           />
         </div>
         <footer class="binding-footer">
           {confirm === null ? (
-            own ? (
-              <AccessSegment state={accessState(browsed?.info, binding)} value={binding} disabled={pending} redact={props.redact} onPick={pickAccess} onOpenProviders={props.onOpenProviders} />
+            !runnable ? null : own ? (
+              <AccessSegment state={accessState(browsed.info, binding)} value={binding} disabled={false} arrowsSelect={false} redact={props.redact} onPick={pickAccess} onOpenProviders={props.onOpenProviders} />
             ) : (
               <p class="binding-note">Access is set when you switch.</p>
             )
           ) : (
             <div class="confirm-strip" role="alert">
               <p>
-                {confirm.kind === 'switch'
-                  ? `Switch ${props.agentName} to ${confirm.provider}? This applies to all this agent's chats. A chat may ask to start a new session on its next send.`
-                  : `Use ${profileName(confirm.profile)}?`}
+                {confirm.check.switched
+                  ? `Switch ${props.agentName} to ${confirm.name}? This applies to all this agent's chats. A chat may ask to start a new session on its next send.`
+                  : `Use ${confirm.name}?`}
               </p>
-              {(confirm.kind === 'switch' ? confirm.warnings : profileWarnings(confirm.profile)).map((warning) => (
+              {confirm.check.added.map((warning) => (
                 <p key={warning} class="binding-note warn"><Icon name="warning" /> {warning}</p>
               ))}
               <div class="row">
                 <button type="button" class="btn primary" data-autofocus onClick={() => void commit(confirm.next)}>
-                  {confirm.kind === 'switch' ? 'Switch' : 'Use it'}
+                  {confirm.check.switched ? 'Switch' : 'Use it'}
                 </button>
                 <button type="button" class="btn secondary" onClick={() => { setConfirm(null); }}>Cancel</button>
               </div>

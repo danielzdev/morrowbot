@@ -21,7 +21,9 @@ function Outcome(props: { readonly outcome: SaveOutcome; readonly disk: boolean;
         <div class="conflict" role="alert">
           <p class="binding-note warn">This file changed on disk.</p>
           <div class="conflict-panes">
-            <pre class="instructions disk" aria-label="Disk version">{outcome.current.content ?? 'AGENTS.md could not be read.'}</pre>
+            <pre class="instructions disk" aria-label="Disk version">
+              {outcome.current.content ?? (outcome.current.revision === null ? 'AGENTS.md was removed from disk.' : props.redact(outcome.current.readError ?? 'AGENTS.md could not be read.'))}
+            </pre>
           </div>
           <div class="row">
             {props.disk && <button type="button" class="btn secondary" onClick={props.onUseDisk}>Use disk version</button>}

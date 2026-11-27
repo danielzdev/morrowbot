@@ -40,7 +40,7 @@ export function ModelList(props: {
     );
   }
   const current: CurrentModel = props.showCurrent === false ? { kind: 'auto' } : state.current;
-  const wanted = query.trim().toLowerCase();
+  const wanted = state.models.length >= SEARCH_AT ? query.trim().toLowerCase() : '';
   const shown = wanted === '' ? state.models : state.models.filter(({ id, label }) => label.toLowerCase().includes(wanted) || id.toLowerCase().includes(wanted));
   const selectedId = current.kind === 'pinned' ? current.model.id : null;
   return (
@@ -53,7 +53,8 @@ export function ModelList(props: {
           if (!props.disabled) props.onPick(numbered);
           return;
         }
-        if (event.key === 'ArrowDown' && event.target instanceof HTMLInputElement) {
+        if (event.target instanceof HTMLInputElement) {
+          if (event.key !== 'ArrowDown') return;
           event.preventDefault();
           list.current?.querySelector<HTMLElement>('[data-roving]')?.focus();
           return;

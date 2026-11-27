@@ -1,5 +1,6 @@
-import type { AccessLevel, AccessProfile, ModelSelection, ProviderInfo, ProviderModel, VendorSettings, WithheldProfile } from '@morrowbot/contracts';
-import { interactiveProfiles, readyInfo } from './selection.ts';
+import type { AccessLevel, AccessProfile, ModelSelection, ProviderBinding, ProviderInfo, ProviderModel, VendorSettings, WithheldProfile } from '@morrowbot/contracts';
+import { profileWarnings } from './access-copy.ts';
+import { interactiveProfiles, readyInfo, type ProviderChoice } from './selection.ts';
 
 /** The saved model against what the provider lists (spec §4.6 rules 2, 4 and 7). */
 export type CurrentModel =
@@ -71,3 +72,24 @@ export function accessState(info: ProviderInfo | undefined, saved: AccessKey): A
     profile !== undefined ? { kind: 'offered', profile } : held !== undefined ? { kind: 'withheld', reason: held.reason } : { kind: 'not-offered' };
   return { offered, withheld, approvals, current };
 }
+
+/** The warnings a binding's access brings, as its provider reports that profile now. */
+function warningsOf(choices: readonly ProviderChoice[], binding: ProviderBinding): readonly string[] {
+  if (binding.kind === 'unbound') return [];
+  const current = accessState(choices.find(({ id }) => id === binding.pluginId)?.info, binding)?.current;
+  return current?.kind === 'offered' ? profileWarnings(current.profile) : [];
+}
+
+/** What a binding change must confirm first (spec §4.6): a provider switch, and any warning the new access adds. */
+export interface ChangeCheck {
+  readonly switched: boolean;
+  readonly added: readonly string[];
+}
+
+export function changeCheck(choices: readonly ProviderChoice[], before: ProviderBinding, after: ProviderBinding): ChangeCheck {
+  const switched = after.kind === 'bound' && (before.kind !== 'bound' || before.pluginId !== after.pluginId);
+  const had = warningsOf(choices, before);
+  return { switched, added: warningsOf(choices, after).filter((warning) => !had.includes(warning)) };
+}
+
+export const needsConfirm = (check: ChangeCheck): boolean => check.switched || check.added.length > 0;

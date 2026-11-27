@@ -5,8 +5,8 @@ import type { ModelState } from './binding-state.ts';
 
 const STEP: Readonly<Record<string, number>> = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 };
 
-/** One option's choices as a radio group: arrows move and select, "Default" marks `defaultChoiceId`. */
-function ChoiceGroup(props: { readonly option: ModelOption; readonly chosen: string; readonly disabled: boolean; readonly onChoose: (choiceId: string) => void }) {
+/** One option's choices as a radio group; "Default" marks `defaultChoiceId`. Arrows move focus, and select too when `arrowsSelect`. */
+function ChoiceGroup(props: { readonly option: ModelOption; readonly chosen: string; readonly disabled: boolean; readonly arrowsSelect: boolean; readonly onChoose: (choiceId: string) => void }) {
   const group = useRef<HTMLDivElement>(null);
   const { option } = props;
   return (
@@ -21,15 +21,18 @@ function ChoiceGroup(props: { readonly option: ModelOption; readonly chosen: str
           const step = STEP[event.key];
           if (step === undefined || props.disabled) return;
           event.preventDefault();
-          const at = option.choices.findIndex(({ id }) => id === props.chosen);
+          const active = document.activeElement instanceof HTMLElement ? document.activeElement.dataset.choice : undefined;
+          const from = props.arrowsSelect ? props.chosen : (active ?? props.chosen);
+          const at = option.choices.findIndex(({ id }) => id === from);
           const next = option.choices[(at + step + option.choices.length) % option.choices.length];
           if (next === undefined) return;
-          props.onChoose(next.id);
+          if (props.arrowsSelect) props.onChoose(next.id);
           group.current?.querySelector<HTMLElement>(`[data-choice="${next.id}"]`)?.focus();
         }}
       >
-        {option.choices.map((choice) => {
+        {option.choices.map((choice, index) => {
           const checked = choice.id === props.chosen;
+          const reachable = checked || (index === 0 && !option.choices.some(({ id }) => id === props.chosen));
           return (
             <button
               key={choice.id}
@@ -37,11 +40,11 @@ function ChoiceGroup(props: { readonly option: ModelOption; readonly chosen: str
               role="radio"
               aria-checked={checked}
               data-choice={choice.id}
-              tabIndex={checked ? 0 : -1}
+              tabIndex={reachable ? 0 : -1}
               disabled={props.disabled}
               class={`option-choice ${checked ? 'selected' : ''}`}
               onClick={() => {
-                props.onChoose(choice.id);
+                if (!checked) props.onChoose(choice.id);
               }}
             >
               <span class="check">{checked && <Icon name="check" />}</span>
@@ -59,6 +62,8 @@ function ChoiceGroup(props: { readonly option: ModelOption; readonly chosen: str
 export function OptionColumn(props: {
   readonly state: ModelState;
   readonly disabled: boolean;
+  /** False in the popover, where each pick is saved: arrows only move, Space or Enter picks. */
+  readonly arrowsSelect?: boolean;
   readonly onChoose: (optionId: string, choiceId: string) => void;
 }) {
   const { state } = props;
@@ -85,6 +90,7 @@ export function OptionColumn(props: {
           option={option}
           chosen={current.choices[option.id] ?? option.defaultChoiceId}
           disabled={props.disabled}
+          arrowsSelect={props.arrowsSelect !== false}
           onChoose={(choiceId) => {
             props.onChoose(option.id, choiceId);
           }}

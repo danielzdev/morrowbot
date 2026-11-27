@@ -35,6 +35,8 @@ export function agentRoutes({ agents, folders, chat }: ApiServices): Route[] {
             return failure('invalid_request', created.reason);
           case 'instructions-occupied':
             return instructionsConflict('occupied', created.current);
+          case 'failed':
+            return failure('internal', `AGENTS.md was not written: ${created.message}`);
         }
       },
     },
@@ -98,6 +100,8 @@ export function agentRoutes({ agents, folders, chat }: ApiServices): Route[] {
             const current = await agents.instructionsView(id);
             return current === undefined ? notFound('Agent') : instructionsConflict('occupied', current);
           }
+          case 'failed':
+            return failure('internal', created.message);
         }
       },
     },
@@ -107,10 +111,16 @@ export function agentRoutes({ agents, folders, chat }: ApiServices): Route[] {
       handle: async (context) => {
         const request = await parseBody(context, InstructionsCopyRequest);
         if (request.kind === 'rejected') return request.reply;
-        const revealId = await agents.saveInstructionsCopy(context.params.get('id'), request.value.content);
-        if (revealId === undefined) return notFound('Agent');
-        const body: InstructionsCopyReply = { revealId };
-        return json(201, body);
+        const saved = await agents.saveInstructionsCopy(context.params.get('id'), request.value.content);
+        if (saved === undefined) return notFound('Agent');
+        switch (saved.kind) {
+          case 'saved': {
+            const body: InstructionsCopyReply = { revealId: saved.name };
+            return json(201, body);
+          }
+          case 'failed':
+            return failure('internal', saved.message);
+        }
       },
     },
   ];

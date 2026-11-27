@@ -1,6 +1,6 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { constants, type BigIntStats } from 'node:fs';
-import { lstat, mkdir, open, unlink, type FileHandle } from 'node:fs/promises';
+import { link, lstat, mkdir, open, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import type { AgentInstructionsView } from '@morrowbot/contracts';
 
@@ -8,6 +8,9 @@ export const INSTRUCTIONS_FILE = 'AGENTS.md';
 
 /** The longest text the instructions contract carries. */
 const MAX_CHARS = 1_000_000;
+
+/** No UTF-8 text of `MAX_CHARS` is longer, so a bigger file is refused before it is read. */
+const MAX_BYTES = MAX_CHARS * 4;
 
 const identityOf = (stats: BigIntStats): string => [stats.dev, stats.ino, stats.size, stats.mtimeNs].join(':');
 
@@ -17,7 +20,7 @@ const hashOf = (bytes: Buffer): string => createHash('sha256').update(bytes).dig
  * An opaque revision of the `AGENTS.md` entry: its own `lstat` identity, plus the identity and
  * content hash of what it resolves to when that can be read, or the read error's code.
  */
-function revisionOf(entry: string, target: string | null, content: string | null, problem: string | null): string {
+function revisionOf(entry: string | null, target: string | null, content: string | null, problem: string | null): string {
   return createHash('sha256').update(JSON.stringify([entry, target, content, problem])).digest('hex');
 }
 
@@ -46,12 +49,16 @@ function readError(code: string | null): string {
 
 const MISSING: AgentInstructionsView = { content: null, revision: null, canReplace: false };
 
-async function readTarget(file: string): Promise<{ readonly identity: string; readonly bytes: Buffer }> {
+type Target = { readonly kind: 'read'; readonly identity: string; readonly bytes: Buffer } | { readonly kind: 'too-large'; readonly identity: string };
+
+async function readTarget(file: string): Promise<Target> {
   const handle = await open(file, constants.O_RDONLY | constants.O_NONBLOCK);
   try {
     const stats = await handle.stat({ bigint: true });
     if (!stats.isFile()) throw Object.assign(new Error('not a file'), { code: 'not-a-file' });
-    return { identity: identityOf(stats), bytes: await handle.readFile() };
+    const identity = identityOf(stats);
+    if (stats.size > BigInt(MAX_BYTES)) return { kind: 'too-large', identity };
+    return { kind: 'read', identity, bytes: await handle.readFile() };
   } finally {
     await handle.close();
   }
@@ -60,81 +67,115 @@ async function readTarget(file: string): Promise<{ readonly identity: string; re
 /** What `dir/AGENTS.md` holds now. Occupancy comes from the entry itself, so a dangling link is present. */
 export async function readInstructionsView(dir: string): Promise<AgentInstructionsView> {
   const file = path.join(dir, INSTRUCTIONS_FILE);
-  let entry: BigIntStats;
+  let entry: string;
   try {
-    entry = await lstat(file, { bigint: true });
-  } catch (error) {
-    if (codeOf(error) === 'ENOENT') return MISSING;
-    throw error;
-  }
-  try {
-    const { identity, bytes } = await readTarget(file);
-    const content = bytes.toString('utf8');
-    const revision = revisionOf(identityOf(entry), identity, hashOf(bytes), null);
-    if (content.length > MAX_CHARS) return { content: null, revision, canReplace: false, readError: readError('too-large') };
-    return { content, revision, canReplace: false };
+    entry = identityOf(await lstat(file, { bigint: true }));
   } catch (error) {
     const code = codeOf(error);
-    return { content: null, revision: revisionOf(identityOf(entry), null, null, code), canReplace: false, readError: readError(code) };
+    if (code === 'ENOENT') return MISSING;
+    return { content: null, revision: revisionOf(null, null, null, code), canReplace: false, readError: readError(code) };
+  }
+  try {
+    const target = await readTarget(file);
+    const tooLarge = { content: null, revision: revisionOf(entry, target.identity, null, 'too-large'), canReplace: false, readError: readError('too-large') };
+    if (target.kind === 'too-large') return tooLarge;
+    const content = target.bytes.toString('utf8');
+    if (content.length > MAX_CHARS) return tooLarge;
+    return { content, revision: revisionOf(entry, target.identity, hashOf(target.bytes), null), canReplace: false };
+  } catch (error) {
+    const code = codeOf(error);
+    return { content: null, revision: revisionOf(entry, null, null, code), canReplace: false, readError: readError(code) };
   }
 }
 
-export type CreateInstructionsResult = { readonly kind: 'created'; readonly revision: string } | { readonly kind: 'occupied' };
+/** Why a write failed, in words that never carry a path. */
+function writeError(code: string): string {
+  switch (code) {
+    case 'EACCES':
+    case 'EPERM':
+      return "MorrowBot isn't allowed to write in this folder.";
+    case 'EROFS':
+      return 'This folder is read-only.';
+    case 'ENOSPC':
+    case 'EDQUOT':
+      return 'The disk is full.';
+    case 'ENOENT':
+    case 'ENOTDIR':
+      return 'The folder is missing.';
+    default:
+      return 'The file could not be written.';
+  }
+}
+
+export type WriteFailure = { readonly kind: 'failed'; readonly message: string };
+
+/** Runs a write; a filesystem error becomes a path-free failure instead of an error that names the file. */
+async function guarded<T>(write: () => Promise<T>): Promise<T | WriteFailure> {
+  try {
+    return await write();
+  } catch (error) {
+    const code = codeOf(error);
+    if (code === null) throw error;
+    return { kind: 'failed', message: writeError(code) };
+  }
+}
+
+type Published = { readonly kind: 'published'; readonly identity: string } | { readonly kind: 'exists' };
 
 /**
- * Creates `dir/AGENTS.md` with exclusive create (`O_CREAT|O_EXCL`), which also fails on a symlink or
- * a dangling one, so an existing entry is never replaced. The revision matches what a read returns.
+ * Publishes `bytes` as `dir/name` only if no entry has that name, not even a dangling link. The text is
+ * written and synced to a staging file first, then hard-linked into place (atomic, fails on any
+ * existing entry), so a crash never leaves a partial file and nothing else's file is ever removed.
  */
-export async function createInstructions(dir: string, content: string): Promise<CreateInstructionsResult> {
-  await mkdir(dir, { recursive: true });
-  const file = path.join(dir, INSTRUCTIONS_FILE);
-  let handle: FileHandle;
+async function publish(dir: string, name: string, bytes: Buffer): Promise<Published> {
+  const staging = path.join(dir, `.${name}.${randomUUID()}.tmp`);
+  const handle = await open(staging, 'wx');
   try {
-    handle = await open(file, 'wx');
-  } catch (error) {
-    if (codeOf(error) === 'EEXIST') return { kind: 'occupied' };
-    throw error;
-  }
-  const bytes = Buffer.from(content, 'utf8');
-  try {
-    await handle.writeFile(bytes);
-    await handle.sync();
-    const identity = identityOf(await handle.stat({ bigint: true }));
-    return { kind: 'created', revision: revisionOf(identity, identity, hashOf(bytes), null) };
-  } catch (error) {
-    await removeOwn(file, handle);
-    throw error;
-  } finally {
-    await handle.close();
-  }
-}
-
-/** Removes the half-written file this save created, and nothing that has taken its place since. */
-async function removeOwn(file: string, handle: FileHandle): Promise<void> {
-  const [mine, now] = await Promise.all([handle.stat({ bigint: true }), lstat(file, { bigint: true })]).catch(() => [null, null]);
-  if (mine !== null && now !== null && mine.dev === now.dev && mine.ino === now.ino) await unlink(file).catch(() => undefined);
-}
-
-/** Writes `content` as a new file in `dir`, named after `at` with a counter; returns the file name. */
-export async function saveInstructionsCopy(dir: string, at: string, content: string): Promise<string> {
-  await mkdir(dir, { recursive: true });
-  const stamp = at.replaceAll(':', '-');
-  for (let n = 1; n < 1_000_000; n++) {
-    const name = `${stamp}-${String(n)}.md`;
-    let handle: FileHandle;
+    let identity: string;
     try {
-      handle = await open(path.join(dir, name), 'wx');
-    } catch (error) {
-      if (codeOf(error) === 'EEXIST') continue;
-      throw error;
-    }
-    try {
-      await handle.writeFile(content, 'utf8');
+      await handle.writeFile(bytes);
       await handle.sync();
+      identity = identityOf(await handle.stat({ bigint: true }));
     } finally {
       await handle.close();
     }
-    return name;
+    try {
+      await link(staging, path.join(dir, name));
+    } catch (error) {
+      if (codeOf(error) === 'EEXIST') return { kind: 'exists' };
+      throw error;
+    }
+    return { kind: 'published', identity };
+  } finally {
+    await unlink(staging).catch(() => undefined);
   }
-  throw new Error('Too many copies saved at the same time');
+}
+
+export type CreateInstructionsResult = { readonly kind: 'created'; readonly revision: string } | { readonly kind: 'occupied' } | WriteFailure;
+
+/** Creates `dir/AGENTS.md` only when no entry has that name, so an existing file or link is never replaced. */
+export function createInstructions(dir: string, content: string): Promise<CreateInstructionsResult> {
+  return guarded(async () => {
+    await mkdir(dir, { recursive: true });
+    const bytes = Buffer.from(content, 'utf8');
+    const published = await publish(dir, INSTRUCTIONS_FILE, bytes);
+    if (published.kind === 'exists') return { kind: 'occupied' };
+    return { kind: 'created', revision: revisionOf(published.identity, published.identity, hashOf(bytes), null) };
+  });
+}
+
+export type SaveCopyResult = { readonly kind: 'saved'; readonly name: string } | WriteFailure;
+
+/** Writes `content` as a new file in `dir`, named after `at` with a counter. */
+export function saveInstructionsCopy(dir: string, at: string, content: string): Promise<SaveCopyResult> {
+  return guarded(async () => {
+    await mkdir(dir, { recursive: true });
+    const stamp = at.replaceAll(':', '-');
+    const bytes = Buffer.from(content, 'utf8');
+    for (let n = 1; n < 1_000_000; n++) {
+      const name = `${stamp}-${String(n)}.md`;
+      if ((await publish(dir, name, bytes)).kind === 'published') return { kind: 'saved', name };
+    }
+    throw new Error('Too many copies saved at the same time');
+  });
 }

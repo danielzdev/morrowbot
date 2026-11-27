@@ -114,12 +114,14 @@ export function createInstructionsEditor(api: Port, agentId: string): Instructio
         patch({ loaded: now, outcome: await copy(draft) });
       }),
     saveCopy: () =>
-      run(async ({ draft }) => {
-        patch({ outcome: await copy(draft) });
+      run(async ({ draft, outcome, loaded }) => {
+        const resolved = outcome?.kind === 'conflict' ? outcome.current : loaded;
+        const saved = await copy(draft);
+        patch(saved.kind === 'copied' ? { loaded: resolved, outcome: saved } : { outcome: saved });
       }),
     useDisk: () => {
       const current = ready();
-      if (current?.outcome?.kind !== 'conflict' || current.outcome.current.content === null) return;
+      if (current === null || current.saving || current.outcome?.kind !== 'conflict' || current.outcome.current.content === null) return;
       const disk = current.outcome.current;
       state.set({ ...current, loaded: disk, draft: disk.content ?? '', outcome: null });
     },

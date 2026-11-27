@@ -18,6 +18,8 @@ export function AccessSegment(props: {
   /** The access shown as chosen: the saved one, or the one staged in a form. */
   readonly value: AccessKey;
   readonly disabled: boolean;
+  /** False in the popover, where each pick is saved: arrows only move, Space or Enter picks. */
+  readonly arrowsSelect?: boolean;
   readonly redact: (text: string) => string;
   readonly onPick: (profile: AccessProfile) => void;
   readonly onOpenProviders: () => void;
@@ -56,7 +58,7 @@ export function AccessSegment(props: {
           const at = state.offered.findIndex((profile) => accessKey(profile) === (focused ?? (selected === undefined ? '' : accessKey(selected))));
           const next = state.offered[(at + step + state.offered.length) % state.offered.length];
           if (next === undefined) return;
-          pick(next);
+          if (props.arrowsSelect !== false) pick(next);
           group.current?.querySelector<HTMLElement>(`[data-access="${accessKey(next)}"]`)?.focus();
         }}
       >

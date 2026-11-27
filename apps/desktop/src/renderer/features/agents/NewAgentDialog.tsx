@@ -3,6 +3,7 @@ import type { ComponentChildren } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import type { MorrowbotBridge } from '../../bridge.ts';
 import { newBinding, prefill, type ProviderChoice } from '../../shared/binding-ui/selection.ts';
+import { ConfirmDialog } from '../../shared/ui/ConfirmDialog.tsx';
 import { Modal } from '../../shared/ui/Modal.tsx';
 import type { AgentsModel } from './agents-model.ts';
 import { BrainFields } from './BrainFields.tsx';
@@ -36,6 +37,12 @@ export function NewAgentDialog(props: {
   const [instructions, setInstructions] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [leaving, setLeaving] = useState<(() => void) | null>(null);
+  const typed = name !== '' || description !== '' || instructions !== '' || workspace.kind === 'shared';
+  const leave = (then: () => void) => (): void => {
+    if (typed) setLeaving(() => then);
+    else then();
+  };
   const first = prefill(props.choices);
   useEffect(() => {
     if (!touched && binding.kind === 'unbound' && first !== null) setBinding(newBinding(first));
@@ -53,7 +60,7 @@ export function NewAgentDialog(props: {
       });
   };
   return (
-    <Modal label="New agent" class="new-agent" onClose={props.onClose}>
+    <Modal label="New agent" class="new-agent" onClose={leave(props.onClose)}>
       <form
         class="new-agent-form"
         onSubmit={(event) => {
@@ -81,7 +88,7 @@ export function NewAgentDialog(props: {
             choices={props.choices}
             value={binding}
             redact={props.redact}
-            onOpenProviders={props.onOpenProviders}
+            onOpenProviders={leave(props.onOpenProviders)}
             onChange={(next) => {
               setTouched(true);
               setBinding(next);
@@ -90,7 +97,7 @@ export function NewAgentDialog(props: {
           {binding.kind === 'unbound' && (
             <div class="note row">
               <span>This agent will start without a provider. Choose one later in Brain.</span>
-              <button type="button" class="btn secondary" onClick={props.onOpenProviders}>Open Providers</button>
+              <button type="button" class="btn secondary" onClick={leave(props.onOpenProviders)}>Open Providers</button>
             </div>
           )}
         </section>
@@ -139,12 +146,25 @@ export function NewAgentDialog(props: {
         </details>
         {problem !== null && <div class="note error" role="alert">{problem}</div>}
         <div class="dialog-actions">
-          <button type="button" class="btn secondary" onClick={props.onClose}>Cancel</button>
+          <button type="button" class="btn secondary" onClick={leave(props.onClose)}>Cancel</button>
           <button type="submit" class="btn primary" disabled={saving || name.trim() === ''}>
             {saving ? 'Creating…' : 'Create'}
           </button>
         </div>
       </form>
+      {leaving !== null && (
+        <ConfirmDialog
+          title="Discard this new agent?"
+          body={<p>What you entered will be lost.</p>}
+          confirmLabel="Discard"
+          tone="danger"
+          onCancel={() => { setLeaving(null); }}
+          onConfirm={() => {
+            setLeaving(null);
+            leaving();
+          }}
+        />
+      )}
     </Modal>
   );
 }

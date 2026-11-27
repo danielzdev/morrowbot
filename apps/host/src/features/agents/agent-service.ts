@@ -1,7 +1,7 @@
 import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { Agent, AgentInstructionsView, AgentWorkspace, AgentWorkspaceRequest, CreateAgentRequest, UpdateAgentRequest } from '@morrowbot/contracts';
-import { createInstructions, INSTRUCTIONS_FILE, readInstructionsView, saveInstructionsCopy, type CreateInstructionsResult } from './instructions-file.ts';
+import { createInstructions, INSTRUCTIONS_FILE, readInstructionsView, saveInstructionsCopy, type CreateInstructionsResult, type SaveCopyResult, type WriteFailure } from './instructions-file.ts';
 
 /** Where agent records are kept (the storage feature provides one). */
 export interface AgentRecords {
@@ -28,7 +28,8 @@ export type CreateAgentResult =
   | { readonly kind: 'created'; readonly agent: Agent }
   | { readonly kind: 'invalid'; readonly reason: string }
   /** The workspace has an `AGENTS.md` already, so `initialInstructions` was not written and no agent was made. */
-  | { readonly kind: 'instructions-occupied'; readonly current: AgentInstructionsView };
+  | { readonly kind: 'instructions-occupied'; readonly current: AgentInstructionsView }
+  | WriteFailure;
 
 
 export type UpdateAgentResult =
@@ -51,7 +52,7 @@ export interface AgentService {
   /** Creates a missing `AGENTS.md`; never replaces an entry that is there. Undefined for an unknown agent. */
   createInstructions(id: string, content: string): Promise<CreateInstructionsResult | undefined>;
   /** Saves `content` as a copy in the data folder and returns its file name. Undefined for an unknown agent. */
-  saveInstructionsCopy(id: string, content: string): Promise<string | undefined>;
+  saveInstructionsCopy(id: string, content: string): Promise<SaveCopyResult | undefined>;
 }
 
 export function createAgentService(options: AgentServiceOptions): AgentService {
@@ -90,9 +91,17 @@ export function createAgentService(options: AgentServiceOptions): AgentService {
         updatedAt: at,
       };
       await mkdir(agent.workspace.dir, { recursive: true });
+      if (unknownFolder(agent.folderId)) return { kind: 'invalid', reason: NO_SUCH_FOLDER };
       if (request.initialInstructions !== null) {
         const written = await createInstructions(agent.workspace.dir, request.initialInstructions);
-        if (written.kind === 'occupied') return { kind: 'instructions-occupied', current: await readInstructionsView(agent.workspace.dir) };
+        switch (written.kind) {
+          case 'created':
+            break;
+          case 'occupied':
+            return { kind: 'instructions-occupied', current: await readInstructionsView(agent.workspace.dir) };
+          case 'failed':
+            return written;
+        }
       }
       if (unknownFolder(agent.folderId)) return { kind: 'invalid', reason: NO_SUCH_FOLDER };
       records.insert(agent);

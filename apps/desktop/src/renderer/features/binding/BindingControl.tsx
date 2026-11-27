@@ -27,7 +27,8 @@ export function BindingControl(props: {
 }) {
   const [open, setOpen] = useState<'model' | 'access' | null>(null);
   const [note, setNote] = useState(false);
-  const anchor = useRef<HTMLDivElement>(null);
+  const modelButton = useRef<HTMLButtonElement>(null);
+  const accessButton = useRef<HTMLButtonElement>(null);
   const seen = useRef(props.openRequest);
   useEffect(() => {
     if (props.openRequest === seen.current) return;
@@ -56,13 +57,28 @@ export function BindingControl(props: {
   const model = bindingPill(choice, binding);
   const access = accessPill(choice, binding);
   return (
-    <div ref={anchor} class="binding-pills">
-      <button type="button" class={`pill ${model.warn ? 'warn' : ''}`} aria-haspopup="dialog" aria-expanded={open !== null} aria-keyshortcuts={ariaShortcut('binding', PLATFORM)} onClick={() => { setOpen('model'); }}>
+    <div class="binding-pills">
+      <button
+        ref={modelButton}
+        type="button"
+        class={`pill ${model.warn ? 'warn' : ''}`}
+        aria-haspopup="dialog"
+        aria-expanded={open === 'model'}
+        aria-keyshortcuts={ariaShortcut('binding', PLATFORM)}
+        onClick={() => { setOpen(open === 'model' ? null : 'model'); }}
+      >
         <ProviderGlyph name={choice?.name ?? '?'} size="sm" />
         <span>{model.label}</span>
         <Icon name="chevron-down" />
       </button>
-      <button type="button" class={`pill ${access.warn ? 'warn' : ''}`} aria-haspopup="dialog" aria-expanded={open === 'access'} onClick={() => { setOpen('access'); }}>
+      <button
+        ref={accessButton}
+        type="button"
+        class={`pill ${access.warn ? 'warn' : ''}`}
+        aria-haspopup="dialog"
+        aria-expanded={open === 'access'}
+        onClick={() => { setOpen(open === 'access' ? null : 'access'); }}
+      >
         <Icon name="lock" />
         <span>{access.label}</span>
         <Icon name="chevron-down" />
@@ -73,7 +89,7 @@ export function BindingControl(props: {
           agentName={props.agentName}
           choices={props.choices}
           binding={binding}
-          anchor={anchor}
+          anchor={open === 'access' ? accessButton : modelButton}
           focus={open}
           redact={props.redact}
           onOpenProviders={() => {

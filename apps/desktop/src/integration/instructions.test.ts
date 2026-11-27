@@ -148,7 +148,7 @@ it('refuses to create over an AGENTS.md that appeared after the editor loaded, a
       "copied": {
         "dirty": false,
         "draft": "Mine.",
-        "mode": "create",
+        "mode": "copy",
         "outcome": {
           "kind": "copied",
           "revealId": "<time>-1.md",
