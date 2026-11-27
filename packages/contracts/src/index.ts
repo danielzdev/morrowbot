@@ -20,3 +20,6 @@ export * from './messages.ts';
 export * from './chat-api.ts';
 export * from './host-ipc.ts';
 export * from './pairing.ts';
+export * from './attachments.ts';
+export * from './memories.ts';
+export * from './skills.ts';

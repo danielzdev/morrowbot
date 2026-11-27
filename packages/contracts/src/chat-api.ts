@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Agent, AgentInstructionsView, Folder, LastMessage } from './agents.ts';
+import { MAX_ATTACHMENTS } from './attachments.ts';
 import { EntityId, PluginId, Timestamp } from './ids.ts';
 import { AssistantMessage, Message, UserMessage } from './messages.ts';
 import { PluginManifest } from './plugin-manifest.ts';
@@ -54,10 +55,15 @@ export const SessionChoice = z.discriminatedUnion('kind', [
 ]);
 export type SessionChoice = z.infer<typeof SessionChoice>;
 
-export const SendMessageRequest = z.strictObject({
-  text: z.string().min(1).max(1_000_000),
-  sessionChoice: SessionChoice.default({ kind: 'auto' }),
-});
+/** A send needs text, attachments (uploaded to the thread first), or both. */
+export const SendMessageRequest = z
+  .strictObject({
+    text: z.string().max(1_000_000),
+    attachmentIds: z.array(EntityId).max(MAX_ATTACHMENTS).default([]),
+    sessionChoice: SessionChoice.default({ kind: 'auto' }),
+  })
+  .refine((request) => request.text.trim() !== '' || request.attachmentIds.length > 0, { error: 'Write a message or attach a file' })
+  .refine((request) => new Set(request.attachmentIds).size === request.attachmentIds.length, { error: 'Attach each file once' });
 export type SendMessageRequest = z.infer<typeof SendMessageRequest>;
 
 export const SendMessageResponse = z.strictObject({ generationId: EntityId, userMessage: UserMessage });

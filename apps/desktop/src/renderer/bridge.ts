@@ -21,7 +21,10 @@ export type RevealTarget =
   | { readonly kind: 'data-dir' }
   | { readonly kind: 'agent-workspace'; readonly agentId: string }
   /** An AGENTS.md copy kept by Save a copy; `revealId` is the file name the host returned. */
-  | { readonly kind: 'instructions-copy'; readonly agentId: string; readonly revealId: string };
+  | { readonly kind: 'instructions-copy'; readonly agentId: string; readonly revealId: string }
+  /** A skills folder, made first if it is not there yet. */
+  | { readonly kind: 'global-skills' }
+  | { readonly kind: 'agent-skills'; readonly agentId: string };
 
 /** Open at login: only the installed app on macOS and Windows can register a login item. */
 export type LoginItem = { readonly kind: 'unsupported' } | { readonly kind: 'supported'; readonly openAtLogin: boolean };

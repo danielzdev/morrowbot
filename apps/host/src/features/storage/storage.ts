@@ -2,10 +2,12 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { agentRepository, type AgentRepository } from './agents-repo.ts';
+import { attachmentRepository, type AttachmentRepository } from './attachments-repo.ts';
 import { childGroupRepository, type ChildGroupRepository } from './child-groups-repo.ts';
 import { deviceRepository, type DeviceRepository } from './devices-repo.ts';
 import { folderRepository, type FolderRepository } from './folders-repo.ts';
 import { generationRepository, type GenerationRepository } from './generations-repo.ts';
+import { memoryRepository, type MemoryRepository } from './memories-repo.ts';
 import { messageRepository, type MessageRepository } from './messages-repo.ts';
 import { pluginSettingsRepository, type PluginSettingsRepository } from './plugins-repo.ts';
 import { migrate } from './schema.ts';
@@ -24,6 +26,8 @@ export interface Storage {
   readonly childGroups: ChildGroupRepository;
   readonly usage: UsageSnapshotRepository;
   readonly devices: DeviceRepository;
+  readonly attachments: AttachmentRepository;
+  readonly memories: MemoryRepository;
   /** Runs `work` in one write transaction (`BEGIN IMMEDIATE`), rolled back if it throws. Not reentrant. */
   transaction<T>(work: () => T): T;
   close(): void;
@@ -49,6 +53,8 @@ export function openStorage(file: string, now: () => string): Storage {
       childGroups: childGroupRepository(db),
       usage: usageSnapshotRepository(db),
       devices: deviceRepository(db),
+      attachments: attachmentRepository(db),
+      memories: memoryRepository(db),
       transaction: (work) => {
         db.exec('BEGIN IMMEDIATE');
         try {

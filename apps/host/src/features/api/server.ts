@@ -4,13 +4,16 @@ import type { Duplex } from 'node:stream';
 import { EventClientFrame, type EventServerFrame } from '@morrowbot/contracts';
 import { WebSocketServer, type RawData, type WebSocket } from 'ws';
 import { agentRoutes } from './agent-routes.ts';
+import { attachmentRoutes } from './attachment-routes.ts';
 import { folderRoutes } from './folder-routes.ts';
+import { memoryRoutes } from './memory-routes.ts';
 import { admit, authority, identify, isLoopback, isWildcard, screen, type Caller, type Listener } from './guard.ts';
 import { pairingRoutes } from './pairing-routes.ts';
 import { pluginRoutes } from './plugin-routes.ts';
 import type { ApiServices } from './ports.ts';
 import { failure, readJson, send, type Reply } from './reply.ts';
 import { matchPath, type Params, type Route } from './route.ts';
+import { skillRoutes } from './skill-routes.ts';
 import { threadRoutes } from './thread-routes.ts';
 
 export const EVENTS_PATH = '/api/events';
@@ -53,6 +56,9 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
     ...agentRoutes(options.services),
     ...folderRoutes(options.services),
     ...threadRoutes(options.services),
+    ...attachmentRoutes(options.services),
+    ...memoryRoutes(options.services),
+    ...skillRoutes(options.services),
     ...pluginRoutes(options.services),
     ...pairingRoutes({
       pairing: options.services.pairing,
@@ -240,7 +246,7 @@ async function route(routes: readonly Route[], path: string, request: IncomingMe
     params: found.params,
     query,
     source: request.socket.remoteAddress ?? '',
-    body: () => readJson(request, access === 'public' ? PUBLIC_BODY_BYTES : undefined),
+    body: () => readJson(request, access === 'public' ? PUBLIC_BODY_BYTES : found.route.bodyBytes),
   });
 }
 

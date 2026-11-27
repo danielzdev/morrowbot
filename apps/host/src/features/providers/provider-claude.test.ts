@@ -88,6 +88,7 @@ it('streams text, status and tool events, and stores the reply with its model an
         "state": "queued",
         "threadId": "id-2",
         "userMessage": {
+          "attachments": [],
           "createdAt": "2026-01-01T00:00:03.000Z",
           "id": "id-4",
           "kind": "user",

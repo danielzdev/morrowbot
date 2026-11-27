@@ -2,13 +2,14 @@ import type { ApiError, AssistantMessage, EventServerFrame, SessionChoice, Sessi
 import type { MorrowbotBridge } from '../../bridge.ts';
 import type { Api } from '../../shared/api.ts';
 import { Store, type Loadable } from '../../shared/store.ts';
+import { attachmentImages, composerAttachments, type ComposerAttachments } from './composer-attachments.ts';
 import { memoryDrafts, type DraftStore } from './drafts.ts';
 import type { BannerReason } from './outcome-copy.ts';
 import { applyEvent, endApproval, pendingApprovals, viewOf, type ThreadView } from './thread-model.ts';
 
 /** Something the composer asked the host to start. Kept so it can be retried exactly. */
 export type PendingAction =
-  | { readonly kind: 'send'; readonly text: string }
+  | { readonly kind: 'send'; readonly text: string; readonly attachmentIds: readonly string[] }
   | { readonly kind: 'continue'; readonly failedMessageId: string };
 
 /** Why the last send or Continue did not start. In every case the host wrote nothing, so the draft stays. */
@@ -32,6 +33,10 @@ export interface ThreadScreen {
 export interface ThreadSession {
   readonly threadId: string;
   readonly screen: Store<ThreadScreen>;
+  /** The files waiting above the message box for the next send. */
+  readonly attachments: ComposerAttachments;
+  /** A sent image as a data URL, for the chat's bubbles; null when it can't be loaded. */
+  readonly image: (id: string) => Promise<string | null>;
   /** Fetches `/state`, replaces the view, and follows events from its cursor. */
   load(): Promise<void>;
   /** A frame from the host's event stream. */
@@ -107,6 +112,8 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
       return change.view === undefined ? next : { ...next, answering: next.answering.filter((id) => stillPending(next.view, id)) };
     });
   };
+  const attachments = composerAttachments(api, threadId);
+  const image = attachmentImages(api);
   let streamUp = true;
   let loads = 0;
   let loading = false;
@@ -175,22 +182,29 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
     patch({ busy: 'sending', problem: null });
     const result =
       action.kind === 'send'
-        ? await api.send(threadId, action.text, sessionChoice)
+        ? await api.send(threadId, action.text, action.attachmentIds, sessionChoice)
         : await api.continueTurn(threadId, action.failedMessageId, sessionChoice);
     if (result.kind === 'ok') {
       const { draft } = screen.get();
       patch({ busy: null, draft: action.kind === 'send' && draft.trim() === action.text ? '' : draft });
+      if (action.kind === 'send') attachments.sent(action.attachmentIds);
       return;
     }
     patch({ busy: null, problem: problemOf(result.error, action, sessionChoice) });
     if (result.error.kind === 'conflict') await load();
   }
 
-  /** The refused action, with a send taking the draft as it is now so an edit is never lost. */
-  function pendingAction(action: PendingAction): PendingAction | undefined {
-    if (action.kind === 'continue') return action;
+  /** A send of the draft and the uploaded files as they are now, so an edit is never lost; undefined when there is nothing to send yet. */
+  function draftAction(): PendingAction | undefined {
     const text = screen.get().draft.trim();
-    return text === '' ? undefined : { kind: 'send', text };
+    const attachmentIds = attachments.readyIds();
+    if (attachmentIds === null || (text === '' && attachmentIds.length === 0)) return undefined;
+    return { kind: 'send', text, attachmentIds };
+  }
+
+  /** The refused action, with a send taking the draft as it is now. */
+  function pendingAction(action: PendingAction): PendingAction | undefined {
+    return action.kind === 'continue' ? action : draftAction();
   }
 
   function problemAction(): PendingAction | undefined {
@@ -201,6 +215,8 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
   return {
     threadId,
     screen,
+    attachments,
+    image,
     load,
     handle,
     setStream: (up) => {
@@ -212,9 +228,8 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
       patch({ draft });
     },
     send: async () => {
-      const text = screen.get().draft.trim();
-      if (text === '') return;
-      await run({ kind: 'send', text }, { kind: 'auto' });
+      const action = draftAction();
+      if (action !== undefined) await run(action, { kind: 'auto' });
     },
     choose: async (choice) => {
       const action = problemAction();

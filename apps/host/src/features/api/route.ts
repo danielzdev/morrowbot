@@ -20,6 +20,8 @@ export interface Route {
   readonly path: string;
   /** Who may call it: anyone (`public`), only the desktop's launch token (`host`), or by default any valid token. */
   readonly access?: 'public' | 'host';
+  /** The largest body it reads, when not the usual 2 MB. */
+  readonly bodyBytes?: number;
   readonly handle: (context: RouteContext) => Promise<Reply> | Reply;
 }
 

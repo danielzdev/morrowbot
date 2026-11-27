@@ -168,7 +168,7 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
     signal.addEventListener('abort', cancelPrompt, { once: true });
     try {
       if (stopped()) return ended({ kind: 'cancelled' }, { sessionTouched: false });
-      const reply = await Promise.race([daemon.call('session/prompt', { sessionId: id, prompt: [{ type: 'text', text: promptText(request) }] }, acp.PromptResponse, PROMPT_MS), deps.fenced.then(() => null)]);
+      const reply = await Promise.race([daemon.call('session/prompt', { sessionId: id, prompt: acp.promptBlocks(promptText(request), request.images) }, acp.PromptResponse, PROMPT_MS), deps.fenced.then(() => null)]);
       const touched = { actualModel: model, sessionTouched: true };
       const fenceNow = fence();
       if (reply === null || fenceNow !== null) {

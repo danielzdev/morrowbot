@@ -102,5 +102,6 @@ export function turnFrame(turnId: string, cwd: string, spec: TurnSpec): HostMess
     session: { kind: 'new', seed: null },
     system: null,
     prompt: JSON.stringify(spec),
+    images: [],
   };
 }

@@ -111,3 +111,11 @@ export function selectOf(options: readonly ConfigOption[], id: string): { readon
   });
   return { current: option.currentValue, values };
 }
+
+/** A `session/prompt` content block: the attached images first, then the text. */
+export type PromptBlock = { readonly type: 'image'; readonly mimeType: string; readonly data: string } | { readonly type: 'text'; readonly text: string };
+
+/** The `prompt` of a `session/prompt` call for `text` and the images sent with it. */
+export function promptBlocks(text: string, images: readonly { readonly mimeType: string; readonly data: string }[]): PromptBlock[] {
+  return [...images.map(({ mimeType, data }) => ({ type: 'image' as const, mimeType, data })), { type: 'text', text }];
+}

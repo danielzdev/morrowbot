@@ -1,4 +1,4 @@
-import type { AssistantMessage, Message, ThreadState, TurnOutcome } from '@morrowbot/contracts';
+import type { AssistantMessage, ThreadState, TurnOutcome, UserMessage } from '@morrowbot/contracts';
 import { expect, it } from 'vitest';
 import { problemText, viewAnnouncement } from './live-region.ts';
 import { applyEvent, viewOf, type ThreadEvent, type ThreadView } from './thread-model.ts';
@@ -14,7 +14,7 @@ const BASE: ThreadState = {
 };
 const COPY = { provider: 'Claude', safe: (text: string) => text };
 const reply = (id: string, outcome: TurnOutcome, text = 'Here is the plan.'): AssistantMessage => ({ kind: 'assistant', id, threadId: 't', text, createdAt: AT, outcome });
-const user: Message = { kind: 'user', id: 'u1', threadId: 't', text: 'Plan my week', createdAt: AT };
+const user: UserMessage = { kind: 'user', id: 'u1', threadId: 't', text: 'Plan my week', createdAt: AT, attachments: [] };
 
 /** Each event's announcement in "Status only" and "Status and replies". */
 function announce(events: readonly ThreadEvent[]): string[] {
@@ -68,7 +68,7 @@ it('announces a turn starting, an approval, a finished reply and an error, but n
 });
 
 it('announces why a send was refused', () => {
-  const action: PendingAction = { kind: 'send', text: 'hi' };
+  const action: PendingAction = { kind: 'send', text: 'hi', attachmentIds: [] };
   expect([
     problemText({ kind: 'retry', reason: 'rechecking', action, sessionChoice: { kind: 'auto' } }, () => null),
     problemText({ kind: 'session-choice', reason: 'diverged', action }, () => null),

@@ -9,3 +9,5 @@ export type { GenerationRecord, GenerationRepository, SessionState, TurnUsageRec
 export type { SessionKey, SessionRecord, SessionRepository } from './sessions-repo.ts';
 export type { UsageSnapshot, UsageSnapshotRepository } from './usage-repo.ts';
 export type { DeviceRepository } from './devices-repo.ts';
+export type { AttachmentRepository } from './attachments-repo.ts';
+export type { MemoryRepository } from './memories-repo.ts';
