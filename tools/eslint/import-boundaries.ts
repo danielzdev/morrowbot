@@ -96,6 +96,17 @@ export const importBoundaries: Rule.RuleModule = {
         typeof source.quasis[0]?.value.cooked === 'string'
       ) {
         check(node, source.quasis[0].value.cooked);
+      } else if (node.type === 'ImportExpression') {
+        switch (boundary.kind) {
+          case 'plugin':
+            context.report({ node, messageId: 'pluginImport' });
+            break;
+          case 'renderer':
+            context.report({ node, messageId: 'rendererImport' });
+            break;
+          case 'none':
+            break;
+        }
       }
     }
 

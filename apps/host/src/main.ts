@@ -17,8 +17,14 @@ switch (result.kind) {
     );
     const server = await startHealthServer(result.config, version);
     console.log(`MorrowBot host ${version} listening on ${server.url}`);
+    let stopping = false;
     const stop = (): void => {
-      void server.close();
+      if (stopping) return;
+      stopping = true;
+      void server.close().catch((error: unknown) => {
+        console.error('MorrowBot host: failed to close server', error);
+        process.exitCode = 1;
+      });
     };
     process.once('SIGINT', stop);
     process.once('SIGTERM', stop);

@@ -125,8 +125,12 @@ describe('import boundaries', () => {
       otherPlugin: lintBoundaries(plugin, "export * from '../../other/src/index.ts';"),
       dynamicImport: lintBoundaries(plugin, "export const m = import('@morrowbot/host');"),
       templateImport: lintBoundaries(plugin, 'export const t = import(`@morrowbot/host`);'),
+      computedImport: lintBoundaries(plugin, "export const c = import('@morrowbot/' + 'host');"),
     }).toMatchInlineSnapshot(`
       {
+        "computedImport": [
+          "1: morrowbot/import-boundaries: Plugins may import only @morrowbot/plugin-sdk, @morrowbot/contracts, and files inside their own folder.",
+        ],
         "contracts": [],
         "dynamicImport": [
           "1: morrowbot/import-boundaries: Plugins may import only @morrowbot/plugin-sdk, @morrowbot/contracts, and files inside their own folder.",
