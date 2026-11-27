@@ -54,6 +54,7 @@ describe('PluginManifest', () => {
           settingsSchema: {
             'bad key': { kind: 'boolean', label: 'x' },
             engine: { kind: 'select', label: 'Engine', options: ['a'], default: 'z' },
+            limit: { kind: 'number', label: 'Limit', min: 1, max: 3, default: 99 },
           },
         }),
       ),
@@ -69,6 +70,7 @@ describe('PluginManifest', () => {
           "permissions: List each permission once",
           "settingsSchema.bad key: Invalid key in record",
           "settingsSchema.engine.default: The default must be one of the options",
+          "settingsSchema.limit.default: The default must be between min and max",
         ],
       ]
     `);

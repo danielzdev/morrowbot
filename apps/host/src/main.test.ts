@@ -16,9 +16,10 @@ it('boots in safe mode with 0 plugins and stops cleanly on SIGTERM', async () =>
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let output = '';
+    let signalled = false;
     host.stdout.on('data', (data: Buffer) => {
       output += data.toString();
-      if (output.includes('listening on')) host.kill('SIGTERM');
+      if (!signalled && output.includes('listening on')) signalled = host.kill('SIGTERM');
     });
     host.stderr.on('data', (data: Buffer) => (output += data.toString()));
     const code = await new Promise<number | null>((resolve) => host.once('exit', resolve));
@@ -27,6 +28,8 @@ it('boots in safe mode with 0 plugins and stops cleanly on SIGTERM', async () =>
         "code": 0,
         "output": "MorrowBot host: safe mode, 0 plugins loaded
       MorrowBot host 0.0.0 listening on http://127.0.0.1:PORT
+      MorrowBot host: plugin echo is stopped
+      MorrowBot host: plugin faulty is stopped
       ",
       }
     `);

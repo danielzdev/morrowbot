@@ -89,6 +89,8 @@ export function spawnPluginProcess({ entryPath, cwd, timeouts }: SpawnOptions): 
   let stopping = false;
   let failure: CrashReason | undefined;
   let gone = false;
+  let killer: NodeJS.Timeout | undefined;
+  const abandoned = new Set<number>();
 
   function finish(result: PluginExit): void {
     if (gone) return;
@@ -103,7 +105,7 @@ export function spawnPluginProcess({ entryPath, cwd, timeouts }: SpawnOptions): 
 
   function fail(reason: CrashReason): void {
     if (gone || failure !== undefined) return;
-    failure = reason;
+    if (!stopping) failure = reason;
     child.kill('SIGKILL');
   }
 
@@ -128,6 +130,10 @@ export function spawnPluginProcess({ entryPath, cwd, timeouts }: SpawnOptions): 
 
   function receive(message: PluginMessage): void {
     const waiter = pending.get(message.id);
+    if (waiter === undefined && abandoned.has(message.id)) {
+      if (message.kind === 'stream-end' || message.kind === 'error') abandoned.delete(message.id);
+      return;
+    }
     if (waiter === undefined) {
       fail({ kind: 'protocol', problem: `answered unknown request ${String(message.id)}` });
       return;
@@ -150,7 +156,12 @@ export function spawnPluginProcess({ entryPath, cwd, timeouts }: SpawnOptions): 
         return;
       case 'stream-chunk':
         if (waiter.kind !== 'stream') break;
-        waiter.onChunk(message.chunk);
+        try {
+          waiter.onChunk(message.chunk);
+        } catch (error) {
+          abandon(message.id);
+          waiter.reject(error instanceof Error ? error : new Error(String(error)));
+        }
         return;
       case 'stream-end':
         if (waiter.kind !== 'stream') break;
@@ -168,6 +179,15 @@ export function spawnPluginProcess({ entryPath, cwd, timeouts }: SpawnOptions): 
   function settle(id: number): void {
     clearTimeout(pending.get(id)?.timer);
     pending.delete(id);
+  }
+
+  /** Stops waiting for a stream and tells the plugin to cancel it; its late replies are ignored. */
+  function abandon(id: number): boolean {
+    if (!pending.has(id)) return false;
+    settle(id);
+    abandoned.add(id);
+    send({ kind: 'cancel', id });
+    return true;
   }
 
   function send(message: HostMessage): void {
@@ -212,37 +232,42 @@ export function spawnPluginProcess({ entryPath, cwd, timeouts }: SpawnOptions): 
       }),
     stream: (streamRequest, onChunk, signal) =>
       new Promise((resolve, reject) => {
-        let id = -1;
-        const cancel = (): void => {
-          if (pending.has(id)) send({ kind: 'cancel', id });
+        const onAbort = (): void => {
+          if (!abandon(id)) return;
+          signal?.removeEventListener('abort', onAbort);
+          resolve('cancelled');
         };
-        const done = { resolve, reject };
-        id = request(
+        const id = request(
           {
             kind: 'stream',
             onChunk,
             resolve: (reason) => {
-              signal?.removeEventListener('abort', cancel);
-              done.resolve(reason);
+              signal?.removeEventListener('abort', onAbort);
+              resolve(reason);
             },
           },
           (error) => {
-            signal?.removeEventListener('abort', cancel);
-            done.reject(error);
+            signal?.removeEventListener('abort', onAbort);
+            reject(error);
           },
           undefined,
           (requestId) => ({ kind: 'stream', id: requestId, request: streamRequest }),
         );
-        if (signal?.aborted) cancel();
-        else signal?.addEventListener('abort', cancel, { once: true });
+        if (signal?.aborted) onAbort();
+        else signal?.addEventListener('abort', onAbort, { once: true });
       }),
     stop: async () => {
-      if (gone) return;
-      stopping = true;
-      const killer = setTimeout(() => {
-        child.kill('SIGKILL');
-      }, timeouts.shutdownMs);
-      request({ kind: 'shutdown', resolve: () => undefined }, () => undefined, undefined, (id) => ({ kind: 'shutdown', id }));
+      if (!stopping && !gone) {
+        stopping = true;
+        for (const waiter of pending.values()) clearTimeout(waiter.timer);
+        killer = setTimeout(() => {
+          child.kill('SIGKILL');
+        }, timeouts.shutdownMs);
+        request({ kind: 'shutdown', resolve: () => undefined }, () => undefined, undefined, (id) => ({
+          kind: 'shutdown',
+          id,
+        }));
+      }
       await exit.promise;
       clearTimeout(killer);
     },

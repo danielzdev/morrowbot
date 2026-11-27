@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, open, readFile, rename } from 'node:fs/promises';
 import path from 'node:path';
 import { PluginConfig } from '@morrowbot/contracts';
 import { z } from 'zod';
@@ -31,7 +31,11 @@ export function createJsonPluginStore(file: string): PluginStore {
     return next;
   };
   return {
-    read: (pluginId) => serial(async () => (await load(file)).plugins[pluginId]),
+    read: (pluginId) =>
+      serial(async () => {
+        const { plugins } = await load(file);
+        return Object.hasOwn(plugins, pluginId) ? plugins[pluginId] : undefined;
+      }),
     write: (pluginId, record) =>
       serial(async () => {
         const current = await load(file);
@@ -64,6 +68,12 @@ async function load(file: string): Promise<StoreFile> {
 async function save(file: string, contents: StoreFile): Promise<void> {
   await mkdir(path.dirname(file), { recursive: true });
   const temporary = `${file}.${String(process.pid)}.tmp`;
-  await writeFile(temporary, `${JSON.stringify(contents, null, 2)}\n`);
+  const handle = await open(temporary, 'w');
+  try {
+    await handle.writeFile(`${JSON.stringify(contents, null, 2)}\n`);
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
   await rename(temporary, file);
 }

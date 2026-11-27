@@ -19,22 +19,25 @@ switch (result.kind) {
     const { version } = PackageJson.parse(
       JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')),
     );
+    const server = await startHealthServer(config, version);
     const plugins = await startPluginHost({
       pluginsDir: config.pluginsDir,
       safeMode: config.safeMode,
       store: createJsonPluginStore(path.join(config.dataDir, 'plugins.json')),
+      onStatus: ({ pluginId, status }) => {
+        console.log(`MorrowBot host: plugin ${pluginId} is ${status.kind}`);
+      },
+    }).catch(async (error: unknown) => {
+      await server.close();
+      throw error;
     });
     for (const problem of plugins.problems) console.error(`MorrowBot host: skipped plugin ${problem}`);
-    plugins.onStatus(({ pluginId, status }) => {
-      console.log(`MorrowBot host: plugin ${pluginId} is ${status.kind}`);
-    });
     const running = plugins.list().filter(({ status }) => status.kind === 'running').length;
     console.log(
       config.safeMode
         ? 'MorrowBot host: safe mode, 0 plugins loaded'
         : `MorrowBot host: ${String(running)} plugin(s) running`,
     );
-    const server = await startHealthServer(config, version);
     console.log(`MorrowBot host ${version} listening on ${server.url}`);
     let stopping = false;
     const stop = (): void => {

@@ -47,11 +47,17 @@ async function handle(
       case 'health':
         send({ kind: 'health-result', id, health: plugin.health ? await plugin.health() : { kind: 'ok' } });
         return;
-      case 'shutdown':
+      case 'shutdown': {
         for (const controller of streams.values()) controller.abort();
-        await plugin.shutdown?.();
-        send({ kind: 'shutdown-result', id }, () => process.exit(0));
+        let reply: PluginMessage = { kind: 'shutdown-result', id };
+        try {
+          await plugin.shutdown?.();
+        } catch (error) {
+          reply = failure(id, error);
+        }
+        send(reply, () => process.exit(0));
         return;
+      }
       case 'stream':
         await stream(plugin, message, send, streams);
         return;
@@ -60,8 +66,12 @@ async function handle(
         return;
     }
   } catch (error) {
-    send({ kind: 'error', id, code: 'failed', message: error instanceof Error ? error.message : String(error) });
+    send(failure(id, error));
   }
+}
+
+function failure(id: number, error: unknown): PluginMessage {
+  return { kind: 'error', id, code: 'failed', message: error instanceof Error ? error.message : String(error) };
 }
 
 async function stream(
@@ -79,11 +89,12 @@ async function stream(
       break;
   }
   const controller = new AbortController();
+  let ended = false;
   streams.set(id, controller);
   try {
     const finishReason = await plugin.stream(message.request, {
       emit: (chunk) => {
-        if (!controller.signal.aborted) send({ kind: 'stream-chunk', id, chunk });
+        if (!ended && !controller.signal.aborted) send({ kind: 'stream-chunk', id, chunk });
       },
       signal: controller.signal,
     });
@@ -92,6 +103,7 @@ async function stream(
     if (!controller.signal.aborted) throw error;
     send({ kind: 'stream-end', id, finishReason: 'cancelled' });
   } finally {
+    ended = true;
     streams.delete(id);
   }
 }

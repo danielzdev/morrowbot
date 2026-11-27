@@ -11,6 +11,8 @@ runPlugin({
   stream: (request, sink) => {
     const last = request.messages.at(-1)?.content ?? '';
     sink.emit({ kind: 'text', text: `${String(config.greeting)} from pid ${String(process.pid)}:` });
+    if (last === 'crash') process.exit(3);
+    if (last === 'stall') return new Promise(() => undefined);
     for (let i = 0; i < Number(config.repeat); i += 1) sink.emit({ kind: 'text', text: ` ${last}` });
     return Promise.resolve('stop');
   },

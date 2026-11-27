@@ -17,6 +17,7 @@ export const PluginStatus = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('running') }),
   z.strictObject({ kind: z.literal('unhealthy'), detail: z.string() }),
   z.strictObject({ kind: z.literal('crashed'), reason: CrashReason }),
+  z.strictObject({ kind: z.literal('stopped') }),
 ]);
 export type PluginStatus = z.infer<typeof PluginStatus>;
 

@@ -6,13 +6,23 @@ const label = z.string().min(1);
 
 export const SettingField = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('string'), label, default: z.string().optional() }),
-  z.strictObject({
-    kind: z.literal('number'),
-    label,
-    default: z.number().optional(),
-    min: z.number().optional(),
-    max: z.number().optional(),
-  }),
+  z
+    .strictObject({
+      kind: z.literal('number'),
+      label,
+      default: z.number().optional(),
+      min: z.number().optional(),
+      max: z.number().optional(),
+    })
+    .refine((field) => field.min === undefined || field.max === undefined || field.min <= field.max, {
+      error: 'min must not be above max',
+      path: ['min'],
+    })
+    .refine(
+      ({ default: value, min, max }) =>
+        value === undefined || ((min === undefined || value >= min) && (max === undefined || value <= max)),
+      { error: 'The default must be between min and max', path: ['default'] },
+    ),
   z.strictObject({ kind: z.literal('boolean'), label, default: z.boolean().optional() }),
   z
     .strictObject({

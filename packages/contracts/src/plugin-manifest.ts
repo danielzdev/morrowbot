@@ -10,9 +10,13 @@ export type PluginPermission = z.infer<typeof PluginPermission>;
 const RelativeEntry = z
   .string()
   .min(1)
-  .refine((value) => !value.startsWith('/') && !value.split(/[\\/]/).includes('..'), {
-    error: 'Use a path inside the plugin folder',
-  });
+  .refine(
+    (value) =>
+      !value.includes('\0') &&
+      !/^([\\/]|[a-zA-Z]:)/.test(value) &&
+      !value.split(/[\\/]/).includes('..'),
+    { error: 'Use a path inside the plugin folder' },
+  );
 
 export const PluginManifest = z.strictObject({
   id: z.string().regex(/^[a-z][a-z0-9-]*$/, 'Use lowercase letters, digits, and dashes'),

@@ -16,11 +16,11 @@ export interface Discovery {
 
 const MANIFEST_FILE = 'manifest.json';
 
-/** Reads every `<pluginsDir>/<folder>/manifest.json`. Never runs plugin code. */
+/** Reads every `<pluginsDir>/<folder>/manifest.json`. Never runs plugin code and never throws: bad folders become problems. */
 export async function discoverPlugins(pluginsDir: string): Promise<Discovery> {
-  const folders = await listFolders(pluginsDir);
-  const plugins = new Map<string, DiscoveredPlugin>();
   const problems: string[] = [];
+  const folders = await listFolders(pluginsDir, problems);
+  const plugins = new Map<string, DiscoveredPlugin>();
   for (const folder of folders) {
     const dir = path.join(pluginsDir, folder);
     const result = await readManifest(dir);
@@ -39,7 +39,7 @@ export async function discoverPlugins(pluginsDir: string): Promise<Discovery> {
   return { plugins: [...plugins.values()], problems };
 }
 
-async function listFolders(pluginsDir: string): Promise<string[]> {
+async function listFolders(pluginsDir: string, problems: string[]): Promise<string[]> {
   try {
     const entries = await readdir(pluginsDir, { withFileTypes: true });
     return entries
@@ -47,8 +47,8 @@ async function listFolders(pluginsDir: string): Promise<string[]> {
       .map((entry) => entry.name)
       .sort();
   } catch (error) {
-    if (isMissing(error)) return [];
-    throw error;
+    if (!isMissing(error)) problems.push(`${pluginsDir}: could not read the plugins folder (${describe(error)})`);
+    return [];
   }
 }
 
@@ -61,8 +61,7 @@ async function readManifest(dir: string): Promise<ManifestResult> {
   try {
     text = await readFile(path.join(dir, MANIFEST_FILE), 'utf8');
   } catch (error) {
-    if (isMissing(error)) return { kind: 'invalid', problem: `no ${MANIFEST_FILE}` };
-    throw error;
+    return { kind: 'invalid', problem: isMissing(error) ? `no ${MANIFEST_FILE}` : `could not read ${MANIFEST_FILE} (${describe(error)})` };
   }
   let json: unknown;
   try {
@@ -73,6 +72,10 @@ async function readManifest(dir: string): Promise<ManifestResult> {
   const parsed = PluginManifest.safeParse(json);
   if (parsed.success) return { kind: 'ok', manifest: parsed.data };
   return { kind: 'invalid', problem: describeIssues(parsed.error).join('; ') };
+}
+
+function describe(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function isMissing(error: unknown): boolean {

@@ -1,11 +1,11 @@
-import {
-  PluginConfig,
-  type FinishReason,
-  type PluginManifest,
-  type PluginStatus,
-  type PluginStatusEvent,
-  type ProviderStreamRequest,
-  type StreamChunk,
+import { isDeepStrictEqual } from 'node:util';
+import type {
+  FinishReason,
+  PluginManifest,
+  PluginStatus,
+  PluginStatusEvent,
+  ProviderStreamRequest,
+  StreamChunk,
 } from '@morrowbot/contracts';
 import { discoverPlugins, type DiscoveredPlugin } from './discovery.ts';
 import { PluginRequestError, spawnPluginProcess, type PluginProcess, type PluginTimeouts } from './plugin-process.ts';
@@ -13,15 +13,16 @@ import type { PluginStore } from './plugin-store.ts';
 import { resolvePluginConfig, type ConfigResult } from './settings.ts';
 
 export const DEFAULT_PLUGIN_TIMEOUTS: PluginTimeouts = { initMs: 10_000, healthMs: 5_000, shutdownMs: 3_000 };
-const DEFAULT_HEALTH_INTERVAL_MS = 30_000;
+const HEALTH_INTERVAL_MS = 30_000;
 
 export interface PluginHostOptions {
   readonly pluginsDir: string;
   readonly store: PluginStore;
   /** Starts no plugin processes. Enable and config changes are still saved for the next normal start. */
   readonly safeMode: boolean;
+  /** Hears every status change, including the ones during startup. */
+  readonly onStatus?: (event: PluginStatusEvent) => void;
   readonly timeouts?: PluginTimeouts;
-  readonly healthIntervalMs?: number;
 }
 
 export interface PluginSummary {
@@ -33,7 +34,6 @@ export interface PluginHost {
   /** Plugin folders that could not be loaded, and why. */
   readonly problems: readonly string[];
   list(): PluginSummary[];
-  onStatus(listener: (event: PluginStatusEvent) => void): () => void;
   setEnabled(pluginId: string, enabled: boolean): Promise<void>;
   /** Saves new settings and restarts the plugin if they are valid; returns the problems otherwise. */
   setConfig(pluginId: string, input: unknown): Promise<ConfigResult>;
@@ -44,6 +44,7 @@ export interface PluginHost {
     onChunk: (chunk: StreamChunk) => void,
     signal?: AbortSignal,
   ): Promise<FinishReason>;
+  /** Stops every plugin process. The host refuses further changes afterwards. */
   stop(): Promise<void>;
 }
 
@@ -52,6 +53,7 @@ interface Slot {
   status: PluginStatus;
   process: PluginProcess | undefined;
   queue: Promise<void>;
+  health: Promise<PluginStatus> | undefined;
 }
 
 /** Discovers plugins and starts each enabled one in its own process (none in safe mode). */
@@ -59,11 +61,11 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
   const { store, safeMode } = options;
   const timeouts = options.timeouts ?? DEFAULT_PLUGIN_TIMEOUTS;
   const discovery = await discoverPlugins(options.pluginsDir);
-  const listeners = new Set<(event: PluginStatusEvent) => void>();
   const slots = new Map<string, Slot>();
+  let stopped = false;
   for (const plugin of discovery.plugins) {
     const status: PluginStatus = safeMode ? { kind: 'safe-mode' } : { kind: 'starting' };
-    slots.set(plugin.manifest.id, { plugin, status, process: undefined, queue: Promise.resolve() });
+    slots.set(plugin.manifest.id, { plugin, status, process: undefined, queue: Promise.resolve(), health: undefined });
   }
 
   function slotOf(pluginId: string): Slot {
@@ -73,13 +75,16 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
   }
 
   function setStatus(slot: Slot, status: PluginStatus): void {
+    if (isDeepStrictEqual(slot.status, status)) return;
     slot.status = status;
-    const event: PluginStatusEvent = { pluginId: slot.plugin.manifest.id, status };
-    for (const listener of listeners) listener(event);
+    options.onStatus?.({ pluginId: slot.plugin.manifest.id, status });
   }
 
   function enqueue(slot: Slot, task: () => Promise<void>): Promise<void> {
-    const run = slot.queue.then(task);
+    const run = slot.queue.then(() => {
+      if (stopped) throw new Error('The plugin host has stopped');
+      return task();
+    });
     slot.queue = run.catch(() => undefined);
     return run;
   }
@@ -97,7 +102,14 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
       return;
     }
     setStatus(slot, { kind: 'starting' });
-    const child = spawnPluginProcess({ entryPath, cwd: dir, timeouts });
+    let child: PluginProcess;
+    try {
+      child = spawnPluginProcess({ entryPath, cwd: dir, timeouts });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStatus(slot, { kind: 'crashed', reason: { kind: 'spawn-error', message } });
+      return;
+    }
     slot.process = child;
     void child.exited.then((exit) => {
       if (slot.process !== child) return;
@@ -119,6 +131,7 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
       await stopFailed(slot, `manifest.json says "${manifest.kind}" but the plugin runs as "${kind}"`);
     } catch (error) {
       if (error instanceof PluginRequestError) await stopFailed(slot, error.message);
+      else await child.exited;
     }
   }
 
@@ -133,7 +146,14 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
     setStatus(slot, { kind: 'crashed', reason: { kind: 'init-error', message } });
   }
 
-  async function checkHealth(slot: Slot): Promise<PluginStatus> {
+  function checkHealth(slot: Slot): Promise<PluginStatus> {
+    slot.health ??= probe(slot).finally(() => {
+      slot.health = undefined;
+    });
+    return slot.health;
+  }
+
+  async function probe(slot: Slot): Promise<PluginStatus> {
     const child = slot.process;
     if (child === undefined || !isServing(slot.status)) return slot.status;
     try {
@@ -141,7 +161,7 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
       if (slot.process !== child) return slot.status;
       switch (health.kind) {
         case 'ok':
-          if (slot.status.kind !== 'running') setStatus(slot, { kind: 'running' });
+          setStatus(slot, { kind: 'running' });
           break;
         case 'degraded':
           setStatus(slot, { kind: 'unhealthy', detail: health.detail });
@@ -154,20 +174,35 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
     return slot.status;
   }
 
-  if (!safeMode) await Promise.all([...slots.values()].map((slot) => enqueue(slot, () => start(slot))));
+  async function stopAll(): Promise<void> {
+    stopped = true;
+    clearInterval(healthTimer);
+    await Promise.all(
+      [...slots.values()].map(async (slot) => {
+        await slot.queue;
+        await stopProcess(slot);
+        setStatus(slot, { kind: 'stopped' });
+      }),
+    );
+  }
 
   const healthTimer = setInterval(() => {
     for (const slot of slots.values()) void checkHealth(slot);
-  }, options.healthIntervalMs ?? DEFAULT_HEALTH_INTERVAL_MS);
+  }, HEALTH_INTERVAL_MS);
   healthTimer.unref();
+
+  if (!safeMode) {
+    const boots = await Promise.allSettled([...slots.values()].map((slot) => enqueue(slot, () => start(slot))));
+    const failed = boots.find((boot) => boot.status === 'rejected');
+    if (failed !== undefined) {
+      await stopAll();
+      throw failed.reason;
+    }
+  }
 
   return {
     problems: discovery.problems,
     list: () => [...slots.values()].map((slot) => ({ manifest: slot.plugin.manifest, status: slot.status })),
-    onStatus: (listener) => {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
     setEnabled: (pluginId, enabled) => {
       const slot = slotOf(pluginId);
       return enqueue(slot, async () => {
@@ -186,11 +221,10 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
       const slot = slotOf(pluginId);
       const resolved = resolvePluginConfig(slot.plugin.manifest.settingsSchema, input);
       if (resolved.kind === 'invalid') return resolved;
-      const config = PluginConfig.parse(input);
       await enqueue(slot, async () => {
         const record = await store.read(pluginId);
         const enabled = record?.enabled ?? true;
-        await store.write(pluginId, { enabled, config });
+        await store.write(pluginId, { enabled, config: resolved.saved });
         if (safeMode || !enabled) return;
         await stopProcess(slot);
         await start(slot);
@@ -209,10 +243,7 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
       }
       return child.stream(request, onChunk, signal);
     },
-    stop: async () => {
-      clearInterval(healthTimer);
-      await Promise.all([...slots.values()].map((slot) => enqueue(slot, () => stopProcess(slot))));
-    },
+    stop: stopAll,
   };
 }
 
