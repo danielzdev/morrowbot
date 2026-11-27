@@ -78,6 +78,33 @@ it('boots in safe mode with 0 plugins and stops cleanly on SIGTERM', async () =>
   });
 });
 
+it('runs the built-in Claude and Codex providers with no plugins folder configured', async () => {
+  await withDataDir(async (dataDir) => {
+    const env = { PATH: process.env.PATH, HOME: dataDir, MORROWBOT_HOST_PORT: '0', MORROWBOT_DATA_DIR: path.join(dataDir, 'data') };
+    const host = spawn(process.execPath, [MAIN], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+    let output = '';
+    let signalled = false;
+    host.stdout.on('data', (data: Buffer) => {
+      output += data.toString();
+      if (!signalled && output.includes('listening on')) signalled = host.kill('SIGTERM');
+    });
+    host.stderr.on('data', (data: Buffer) => (output += data.toString()));
+    const code = await new Promise<number | null>((resolve) => host.once('exit', resolve));
+    const lines = output.split('\n').filter((line) => /running|listening/.test(line));
+    expect({ code, lines: lines.map((line) => line.replace(/:\d+$/, ':PORT')).sort() }).toMatchInlineSnapshot(`
+      {
+        "code": 0,
+        "lines": [
+          "MorrowBot host 0.0.0 listening on http://127.0.0.1:PORT",
+          "MorrowBot host: 2 plugin(s) running",
+          "MorrowBot host: plugin provider-claude is running",
+          "MorrowBot host: plugin provider-openai is running",
+        ],
+      }
+    `);
+  });
+});
+
 it('tells its parent the url and token, and the API accepts only that token', async () => {
   await withDataDir(async (dataDir) => {
     const { child, output } = forkHost(dataDir);
