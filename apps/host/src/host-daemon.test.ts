@@ -350,7 +350,7 @@ it('refuses provider-info and usage while a daemon row from before a restart is 
     usage: (await fixture.host.call('GET', '/api/plugins/daemon/usage')).status,
   });
   const blocked = await read();
-  const listed = PluginList.parse((await fixture.host.call('GET', '/api/plugins')).body).plugins[0]?.blockedGroups;
+  const listed = PluginList.parse((await fixture.host.call('GET', '/api/plugins')).body).plugins.find(({ manifest }) => manifest.id === 'daemon')?.blockedGroups;
   const eventsWhileBlocked = await fixture.daemonEvents();
   const early = (await fixture.host.call('POST', '/api/child-groups/old-daemon/release')).status;
   skipped = 61_000;

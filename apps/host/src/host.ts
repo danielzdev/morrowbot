@@ -15,6 +15,7 @@ import {
   type PluginTimeouts,
   type ProcessProbe,
 } from './features/plugins/index.ts';
+import { builtinProviders } from './features/providers/index.ts';
 import { lockDataDir, openStorage, type Storage } from './features/storage/index.ts';
 
 export { DataDirLockedError as HostLockedError } from './features/storage/index.ts';
@@ -33,6 +34,7 @@ export interface HostOptions {
   readonly timeouts?: PluginTimeouts;
   readonly probe?: ProcessProbe;
   readonly clock?: ChildGroupClock;
+  /** The OS the host and its built-in providers act on (tests may pretend). */
   readonly platform?: NodeJS.Platform;
 }
 
@@ -45,7 +47,7 @@ export interface Host {
 }
 
 /**
- * Takes the data folder's lock, opens storage, starts the plugins, and serves the local API.
+ * Takes the data folder's lock, opens storage, starts the built-in providers and the plugins, and serves the local API.
  * Closing stops active turns (saving their replies), then the plugins, then storage, then the lock.
  */
 export async function startHost(options: HostOptions): Promise<Host> {
@@ -69,8 +71,10 @@ export async function startHost(options: HostOptions): Promise<Host> {
     });
     const pluginPath = options.pluginPath ?? (await resolvePluginPath());
     options.signal?.throwIfAborted();
+    const platform = options.platform ?? process.platform;
     const plugins = await startPluginHost({
       pluginsDir: config.pluginsDir,
+      builtins: builtinProviders(platform),
       safeMode: config.safeMode,
       dataDir: path.join(dataDir, 'plugin-data'),
       store: storage.plugins,
@@ -95,7 +99,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
       ...(options.timeouts === undefined ? {} : { timeouts: options.timeouts }),
       ...(options.probe === undefined ? {} : { probe: options.probe }),
       ...(options.clock === undefined ? {} : { clock: options.clock }),
-      ...(options.platform === undefined ? {} : { platform: options.platform }),
+      platform,
       newId: randomUUID,
     });
     undo.push(() => plugins.stop());

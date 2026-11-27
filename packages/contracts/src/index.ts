@@ -10,6 +10,7 @@ export {
   PROTOCOL_VERSION,
   RequestId,
 } from './plugin-rpc.ts';
+export type { OpenPluginChannel, PluginChannel, PluginChannelEvents } from './plugin-channel.ts';
 export { CrashReason, PluginStatus, PluginStatusEvent } from './plugin-runtime.ts';
 export * from './ids.ts';
 export * from './provider.ts';

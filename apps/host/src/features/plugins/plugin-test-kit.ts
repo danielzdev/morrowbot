@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { PluginStatus, PluginStatusEvent, TurnChunk, TurnEnd, TurnRequest } from '@morrowbot/contracts';
 import type { ChildGroupRow, ChildGroupStore } from './child-groups.ts';
+import type { PluginSource } from './discovery.ts';
 import { DEFAULT_PLUGIN_TIMEOUTS, startPluginHost, type PluginHost } from './plugin-host.ts';
 import type { PluginTimeouts } from './plugin-process.ts';
 import { createJsonPluginStore, type PluginRecord, type PluginStore } from './plugin-store.ts';
@@ -93,6 +94,7 @@ export function groupRow(pgid: number, fields: Partial<ChildGroupRow> = {}): Chi
 }
 
 export interface BootOptions {
+  readonly builtins?: readonly PluginSource[];
   readonly records?: Readonly<Record<string, PluginRecord>>;
   readonly timeouts?: Partial<PluginTimeouts>;
   readonly rows?: readonly ChildGroupRow[];
@@ -137,6 +139,7 @@ export async function bootHost(options: BootOptions = {}): Promise<Harness> {
   let ids = 0;
   const host = await startPluginHost({
     pluginsDir: FIXTURES,
+    builtins: options.builtins ?? [],
     store,
     dataDir: path.join(dir, 'plugin-data'),
     safeMode: options.safeMode ?? false,

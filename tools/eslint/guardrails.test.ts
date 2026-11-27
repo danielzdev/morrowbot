@@ -128,33 +128,60 @@ describe('import boundaries', () => {
       computedImport: lintBoundaries(plugin, "export const c = import('@morrowbot/' + 'host');"),
       vitestInTest: lintBoundaries('plugins/demo/src/index.test.ts', "export * from 'vitest';"),
       vitestOutsideTests: lintBoundaries(plugin, "export * from 'vitest';"),
+      dottedFolder: lintBoundaries('plugins/acme.provider/index.ts', "export * from 'node:fs';"),
     }).toMatchInlineSnapshot(`
       {
         "computedImport": [
-          "1: morrowbot/import-boundaries: Plugins may import only @morrowbot/plugin-sdk, @morrowbot/contracts, and files inside their own folder.",
+          "1: morrowbot/import-boundaries: Plugins and built-in providers may import only @morrowbot/plugin-sdk, @morrowbot/contracts, and files inside their own folder.",
         ],
         "contracts": [],
+        "dottedFolder": [
+          "1: morrowbot/import-boundaries: Plugins and built-in providers may import only @morrowbot/plugin-sdk, @morrowbot/contracts, and files inside their own folder.",
+        ],
         "dynamicImport": [
-          "1: morrowbot/import-boundaries: Plugins may import only @morrowbot/plugin-sdk, @morrowbot/contracts, and files inside their own folder.",
+          "1: morrowbot/import-boundaries: Plugins and built-in providers may import only @morrowbot/plugin-sdk, @morrowbot/contracts, and files inside their own folder.",
         ],
         "host": [
-          "1: morrowbot/import-boundaries: Plugins may import only @morrowbot/plugin-sdk, @morrowbot/contracts, and files inside their own folder.",
+          "1: morrowbot/import-boundaries: Plugins and built-in providers may import only @morrowbot/plugin-sdk, @morrowbot/contracts, and files inside their own folder.",
         ],
         "nodeBuiltin": [
-          "1: morrowbot/import-boundaries: Plugins may import only @morrowbot/plugin-sdk, @morrowbot/contracts, and files inside their own folder.",
+          "1: morrowbot/import-boundaries: Plugins and built-in providers may import only @morrowbot/plugin-sdk, @morrowbot/contracts, and files inside their own folder.",
         ],
         "otherPlugin": [
-          "1: morrowbot/import-boundaries: Plugins may import only @morrowbot/plugin-sdk, @morrowbot/contracts, and files inside their own folder.",
+          "1: morrowbot/import-boundaries: Plugins and built-in providers may import only @morrowbot/plugin-sdk, @morrowbot/contracts, and files inside their own folder.",
         ],
         "ownFile": [],
         "sdk": [],
         "templateImport": [
-          "1: morrowbot/import-boundaries: Plugins may import only @morrowbot/plugin-sdk, @morrowbot/contracts, and files inside their own folder.",
+          "1: morrowbot/import-boundaries: Plugins and built-in providers may import only @morrowbot/plugin-sdk, @morrowbot/contracts, and files inside their own folder.",
         ],
         "vitestInTest": [],
         "vitestOutsideTests": [
-          "1: morrowbot/import-boundaries: Plugins may import only @morrowbot/plugin-sdk, @morrowbot/contracts, and files inside their own folder.",
+          "1: morrowbot/import-boundaries: Plugins and built-in providers may import only @morrowbot/plugin-sdk, @morrowbot/contracts, and files inside their own folder.",
         ],
+      }
+    `);
+  });
+
+  it('holds each built-in provider to the plugin rule, while the registry may list them', () => {
+    const claude = 'packages/providers/src/claude/provider.ts';
+    expect({
+      sdk: lintBoundaries(claude, "export * from '@morrowbot/plugin-sdk';"),
+      ownFile: lintBoundaries(claude, "export * from './turn.ts';"),
+      otherProvider: lintBoundaries(claude, "export * from '../openai/index.ts';"),
+      host: lintBoundaries(claude, "export * from '../../../../apps/host/src/host.ts';"),
+      registry: lintBoundaries('packages/providers/src/index.ts', "export * from './claude/index.ts';"),
+    }).toMatchInlineSnapshot(`
+      {
+        "host": [
+          "1: morrowbot/import-boundaries: Plugins and built-in providers may import only @morrowbot/plugin-sdk, @morrowbot/contracts, and files inside their own folder.",
+        ],
+        "otherProvider": [
+          "1: morrowbot/import-boundaries: Plugins and built-in providers may import only @morrowbot/plugin-sdk, @morrowbot/contracts, and files inside their own folder.",
+        ],
+        "ownFile": [],
+        "registry": [],
+        "sdk": [],
       }
     `);
   });

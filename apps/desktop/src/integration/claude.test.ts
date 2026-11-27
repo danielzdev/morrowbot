@@ -4,8 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Agent, Thread, type AccessLevel } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { DEFAULT_PLUGIN_TIMEOUTS } from '../../../host/src/features/plugins/index.ts';
-import { startTestHost, type TestHost } from '../../../host/src/testing/test-host.ts';
+import { DEFAULT_PLUGIN_TIMEOUTS, startTestHost, type TestHost } from '../../../host/src/testing/test-host.ts';
 import { createChatHub, type ChatHub, type ThreadSession } from '../renderer/features/chat/index.ts';
 import { createPluginsModel, summarize, type PluginsModel } from '../renderer/features/plugins/index.ts';
 import { createApi } from '../renderer/shared/api.ts';
@@ -13,10 +12,7 @@ import { until } from '../renderer/shared/store.ts';
 import { idle, loaded, shown } from './screens.ts';
 import { openTestWindow, type TestWindow } from './test-window.ts';
 
-const PLUGINS = fileURLToPath(new URL('../../../../plugins', import.meta.url));
-const FAKE_CLAUDE = fileURLToPath(new URL('../../../host/src/features/plugins/fixtures/fake-claude.ts', import.meta.url));
-/** Workspace-write (and so approvals) is offered on macOS only. */
-const MAC = process.platform === 'darwin';
+const FAKE_CLAUDE = fileURLToPath(new URL('../../../host/src/features/providers/fixtures/fake-claude.ts', import.meta.url));
 
 let home = '';
 let host: TestHost;
@@ -29,7 +25,8 @@ beforeEach(async () => {
   vi.stubEnv('HOME', home);
   vi.stubEnv('CLAUDE_CONFIG_DIR', path.join(home, '.claude'));
   vi.stubEnv('USER', 'tester');
-  host = await startTestHost({ dataDir: path.join(home, 'data'), pluginsDir: PLUGINS, timeouts: { ...DEFAULT_PLUGIN_TIMEOUTS, turnStopMs: 200 } });
+  /** Workspace-write (and so approvals) is offered on macOS only: these flows run as on macOS everywhere. */
+  host = await startTestHost({ dataDir: path.join(home, 'data'), platform: 'darwin', timeouts: { ...DEFAULT_PLUGIN_TIMEOUTS, turnStopMs: 200 } });
   expect((await host.call('PUT', '/api/plugins/provider-claude/config', { config: { cliPath: FAKE_CLAUDE } })).status).toBe(200);
   window = openTestWindow({ url: host.url, token: host.host.token });
   const api = createApi(window.bridge);
@@ -159,7 +156,7 @@ function approvalId(session: ThreadSession): string {
   return view.kind === 'loaded' ? (view.value.activeTurn?.approvals[0]?.approvalId ?? '') : '';
 }
 
-it.runIf(MAC)('a pending approval card comes back after a reload, and Allow from the reloaded window writes the file', async () => {
+it('a pending approval card comes back after a reload, and Allow from the reloaded window writes the file', async () => {
   const session = await chatWith('workspace-write');
   session.setDraft('write-git');
   await session.send();
@@ -228,7 +225,7 @@ it.runIf(MAC)('a pending approval card comes back after a reload, and Allow from
   `);
 });
 
-it.runIf(MAC)('answering a stale card reloads the chat from the host and leaves the current card to answer', async () => {
+it('answering a stale card reloads the chat from the host and leaves the current card to answer', async () => {
   const session = await chatWith('workspace-write');
   session.setDraft('write-git');
   await session.send();

@@ -64,7 +64,7 @@ export interface ProviderPlugin extends ProviderHooks {
 /** What a plugin implements. `kind` must match the `kind` in its `manifest.json`. */
 export type PluginDefinition = ToolPlugin | ProviderPlugin;
 
-/** Declares a provider plugin; pass the result to `runPlugin`. */
+/** Declares a provider plugin; return it from the `PluginFactory` given to `runPlugin`. */
 export function defineProvider(hooks: ProviderHooks): ProviderPlugin {
   return { kind: 'provider', ...hooks };
 }

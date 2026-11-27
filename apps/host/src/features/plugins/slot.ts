@@ -1,5 +1,5 @@
 import type { PluginStatus, ProviderInfo, TurnChunk, TurnEnd } from '@morrowbot/contracts';
-import type { DiscoveredPlugin } from './discovery.ts';
+import type { PluginSource } from './discovery.ts';
 import type { PluginProcess } from './plugin-process.ts';
 
 /** Where a turn's messages go. Exactly one of `onEnd` or `onLost` is called, once. */
@@ -28,9 +28,9 @@ export interface InfoEntry {
   done: boolean;
 }
 
-/** One discovered plugin and its current worker process. */
+/** One plugin (a folder or a built-in provider) and its current worker. */
 export interface Slot {
-  readonly plugin: DiscoveredPlugin;
+  readonly plugin: PluginSource;
   status: PluginStatus;
   process: PluginProcess | undefined;
   /** Increases with every worker start, so a queued turn can tell its worker was replaced. */
@@ -63,7 +63,7 @@ export interface Slot {
   retired: Promise<void>;
 }
 
-export function newSlot(plugin: DiscoveredPlugin, status: PluginStatus): Slot {
+export function newSlot(plugin: PluginSource, status: PluginStatus): Slot {
   return {
     plugin,
     status,

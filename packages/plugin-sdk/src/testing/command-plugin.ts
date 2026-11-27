@@ -1,4 +1,4 @@
-import { commandFilePath, defineProvider, openCommand, runPlugin, z } from '../index.ts';
+import { commandFilePath, defineProvider, runPlugin, z } from '../index.ts';
 
 /**
  * A plugin process for SDK tests, started by `startPlugin`. `tool` serves a tool plugin; anything
@@ -21,9 +21,9 @@ function fileArgs(args: readonly string[]): string[] {
 }
 
 if (process.argv[2] === 'tool') {
-  runPlugin({ kind: 'tool' });
+  runPlugin(() => ({ kind: 'tool' }));
 } else {
-  runPlugin(
+  runPlugin((runtime) =>
     defineProvider({
       providerInfo: () => {
         throw new Error('provider info is not set up in this fixture');
@@ -46,7 +46,7 @@ if (process.argv[2] === 'tool') {
             finalText: JSON.stringify(answer),
           };
         }
-        const exit = await openCommand(spec.command, {
+        const exit = await runtime.openCommand(spec.command, {
           args: fileArgs(spec.args),
           cwd: request.cwd,
           files: spec.files,

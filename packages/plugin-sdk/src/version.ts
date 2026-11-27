@@ -1,5 +1,5 @@
-import { runCommand } from './command.ts';
-import { statExecutable } from './files.ts';
+import type { CommandRunner } from './command.ts';
+import type { Executable } from './files.ts';
 
 /** A tested CLI version range: at least `atLeast`, and below `below`. */
 export interface VersionRange {
@@ -26,21 +26,26 @@ export type CliVersion =
   | { readonly kind: 'failed'; readonly message: string };
 
 const VERSION_TIMEOUT_MS = 10_000;
-const cache = new Map<string, string>();
+export interface VersionTools {
+  readonly stat: (command: string) => Promise<Executable>;
+  readonly run: CommandRunner['run'];
+  /** One plugin's versions, keyed by the exact executable file; a restarted plugin starts empty. */
+  readonly cache: Map<string, string>;
+}
 
 /**
  * Runs `<command> --version` (a probe, bounded to 10 s) and returns the first MAJOR.MINOR.PATCH in
  * its output. Cached by the executable's path, mtime and size, so an update is seen at once.
  */
-export async function readCliVersion(command: string, options: { readonly cwd: string }): Promise<CliVersion> {
-  const executable = await statExecutable(command);
+export async function readCliVersion(tools: VersionTools, command: string, options: { readonly cwd: string }): Promise<CliVersion> {
+  const executable = await tools.stat(command);
   if (executable.kind === 'missing') return { kind: 'missing' };
   const key = `${executable.path}\0${String(executable.mtimeMs)}\0${String(executable.size)}`;
-  const cached = cache.get(key);
+  const cached = tools.cache.get(key);
   if (cached !== undefined) return { kind: 'version', version: cached };
   let output = '';
   const signal = AbortSignal.timeout(VERSION_TIMEOUT_MS);
-  const exit = await runCommand(executable.path, {
+  const exit = await tools.run(executable.path, {
     args: ['--version'],
     cwd: options.cwd,
     input: '',
@@ -60,9 +65,9 @@ export async function readCliVersion(command: string, options: { readonly cwd: s
     case 'exited':
       break;
   }
-  const version = /\d+\.\d+\.\d+/.exec(output)?.[0];
+  const version = /(?<!\d)\d{1,9}\.\d{1,9}\.\d{1,9}/.exec(output)?.[0];
   if (version === undefined) return { kind: 'failed', message: `"${command} --version" printed no version` };
-  cache.set(key, version);
+  tools.cache.set(key, version);
   return { kind: 'version', version };
 }
 

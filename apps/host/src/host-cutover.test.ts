@@ -9,8 +9,7 @@ import { z } from 'zod';
 import { MIGRATIONS } from './features/storage/index.ts';
 import { startTestHost, type TestHost } from './testing/test-host.ts';
 
-const PLUGINS = fileURLToPath(new URL('../../../plugins', import.meta.url));
-const FAKE_CLAUDE = fileURLToPath(new URL('./features/plugins/fixtures/fake-claude.ts', import.meta.url));
+const FAKE_CLAUDE = fileURLToPath(new URL('./features/providers/fixtures/fake-claude.ts', import.meta.url));
 const AT = '2026-01-01T00:00:00.000Z';
 
 let home = '';
@@ -53,7 +52,7 @@ async function buildV1(dataDir: string, workspace: string): Promise<void> {
 
 const Invocation = z.object({ args: z.array(z.string()), stdin: z.string().nullable() });
 
-it('upgrades a #4 data folder and answers the next two messages through the bundled Claude plugin with the saved model', async () => {
+it('upgrades a #4 data folder and answers the next two messages through the built-in Claude provider with the saved model', async () => {
   home = await realpath(await mkdtemp(path.join(tmpdir(), 'morrowbot-cutover-')));
   vi.stubEnv('HOME', home);
   vi.stubEnv('CLAUDE_CONFIG_DIR', path.join(home, '.claude'));
@@ -62,7 +61,7 @@ it('upgrades a #4 data folder and answers the next two messages through the bund
   await mkdir(workspace);
   const dataDir = path.join(home, 'data');
   await buildV1(dataDir, workspace);
-  host = await startTestHost({ dataDir, pluginsDir: PLUGINS });
+  host = await startTestHost({ dataDir });
   const events = await host.events();
   events.subscribe('t1', null);
   for (const text of ['next step?', 'and then?']) {

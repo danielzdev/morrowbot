@@ -1,16 +1,18 @@
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { PluginManifest } from '@morrowbot/contracts';
+import { PluginManifest, type OpenPluginChannel } from '@morrowbot/contracts';
+import { forkChannel } from './fork-channel.ts';
 import { describeIssues } from './issues.ts';
 
-export interface DiscoveredPlugin {
+/** A plugin the host can start: a plugin folder (in its own worker process), or a provider built into MorrowBot. */
+export interface PluginSource {
   readonly manifest: PluginManifest;
-  readonly dir: string;
-  readonly entryPath: string;
+  /** Starts it with `env` (`PATH` plus the manifest's preset). */
+  readonly launch: (env: Readonly<Record<string, string>>) => OpenPluginChannel;
 }
 
 export interface Discovery {
-  readonly plugins: readonly DiscoveredPlugin[];
+  readonly plugins: readonly PluginSource[];
   readonly problems: readonly string[];
 }
 
@@ -20,7 +22,7 @@ const MANIFEST_FILE = 'manifest.json';
 export async function discoverPlugins(pluginsDir: string): Promise<Discovery> {
   const problems: string[] = [];
   const folders = await listFolders(pluginsDir, problems);
-  const plugins = new Map<string, DiscoveredPlugin>();
+  const plugins = new Map<string, PluginSource>();
   for (const folder of folders) {
     const dir = path.join(pluginsDir, folder);
     const result = await readManifest(dir);
@@ -29,11 +31,8 @@ export async function discoverPlugins(pluginsDir: string): Promise<Discovery> {
     } else if (plugins.has(result.manifest.id)) {
       problems.push(`${folder}: another plugin already uses the id "${result.manifest.id}"`);
     } else {
-      plugins.set(result.manifest.id, {
-        manifest: result.manifest,
-        dir,
-        entryPath: path.join(dir, result.manifest.main),
-      });
+      const entryPath = path.join(dir, result.manifest.main);
+      plugins.set(result.manifest.id, { manifest: result.manifest, launch: (env) => forkChannel(entryPath, dir, env) });
     }
   }
   return { plugins: [...plugins.values()], problems };

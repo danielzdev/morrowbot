@@ -3,7 +3,7 @@ import { runPlugin } from '@morrowbot/plugin-sdk';
 let failure: unknown = 'none';
 let healthChecks = 0;
 
-runPlugin({
+runPlugin(() => ({
   kind: 'tool',
   init: ({ config }) => {
     failure = config.failure;
@@ -18,4 +18,4 @@ runPlugin({
     }
     return { kind: 'ok' };
   },
-});
+}));
