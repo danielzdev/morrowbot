@@ -51,7 +51,7 @@ function exitCode(child: ChildProcess): Promise<number | null> {
   return new Promise((resolve) => child.once('exit', resolve));
 }
 
-it('boots in safe mode with 0 plugins and stops cleanly on SIGTERM', async () => {
+it('boots in safe mode with only the built-in providers running and stops cleanly on SIGTERM', async () => {
   await withDataDir(async (dataDir) => {
     const host = spawn(process.execPath, [MAIN, '--safe-mode'], {
       env: hostEnv(dataDir),
@@ -65,18 +65,18 @@ it('boots in safe mode with 0 plugins and stops cleanly on SIGTERM', async () =>
     });
     host.stderr.on('data', (data: Buffer) => (output += data.toString()));
     const code = await new Promise<number | null>((resolve) => host.once('exit', resolve));
-    expect({ code, output: output.replace(/:\d+\n/, ':PORT\n') }).toMatchInlineSnapshot(`
+    const lines = output.split('\n').filter((line) => /running|safe mode|listening/.test(line));
+    expect({ code, lines: lines.map((line) => line.replace(/:\d+$/, ':PORT')).sort() }).toMatchInlineSnapshot(`
       {
         "code": 0,
-        "output": "MorrowBot host: safe mode, 0 plugins loaded
-      MorrowBot host 0.0.0 listening on http://127.0.0.1:PORT
-      MorrowBot host: plugin provider-claude is stopped
-      MorrowBot host: plugin provider-openai is stopped
-      MorrowBot host: plugin provider-antigravity is stopped
-      MorrowBot host: plugin provider-opencode is stopped
-      MorrowBot host: plugin echo is stopped
-      MorrowBot host: plugin faulty is stopped
-      ",
+        "lines": [
+          "MorrowBot host 0.0.0 listening on http://127.0.0.1:PORT",
+          "MorrowBot host: plugin provider-antigravity is running",
+          "MorrowBot host: plugin provider-claude is running",
+          "MorrowBot host: plugin provider-openai is running",
+          "MorrowBot host: plugin provider-opencode is running",
+          "MorrowBot host: safe mode, only the 4 built-in provider(s) running",
+        ],
       }
     `);
   });

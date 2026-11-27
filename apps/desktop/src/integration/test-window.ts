@@ -72,6 +72,10 @@ export function openTestWindow(target: HostTarget): TestWindow {
     appInfo: () => Promise.resolve({ appVersion: '0.0.0', homeDir: '/Users/tester', userName: 'tester', dataDir: '/Users/tester/.morrowbot' }),
     loginItem: () => Promise.resolve({ kind: 'unsupported' }),
     setOpenAtLogin: () => Promise.resolve({ kind: 'unsupported' }),
+    relaunch: (options) => {
+      seen.push({ relaunch: options });
+      return Promise.resolve();
+    },
     updateStatus: () => Promise.resolve({ kind: 'unsupported' }),
     onUpdateStatus: () => () => undefined,
     checkForUpdates: () => Promise.resolve({ kind: 'unsupported' }),

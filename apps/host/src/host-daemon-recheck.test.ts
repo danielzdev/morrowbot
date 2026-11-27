@@ -216,8 +216,11 @@ it('Recheck supersedes an in-flight route-info and usage request: the send gets 
   `);
 });
 
+/** The fresh start's deadline also covers spawning its daemon, so it must outlast a spawn on a loaded machine and expire only in the hung info call. */
+const FRESH_START_DEADLINE_MS = 5_000;
+
 it('Recheck whose fresh start times out cancels it with its worker, verifies its exit, records an info error and reopens admission', async () => {
-  chat = await startDaemonFixture({ timeouts: { ...DEFAULT_PLUGIN_TIMEOUTS, infoMs: 500 } });
+  chat = await startDaemonFixture({ timeouts: { ...DEFAULT_PLUGIN_TIMEOUTS, infoMs: FRESH_START_DEADLINE_MS } });
   const fixture = chat;
   const thread = await fixture.thread(await fixture.agent());
   await fixture.send(thread, 'hello');

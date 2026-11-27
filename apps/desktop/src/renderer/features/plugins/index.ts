@@ -1,3 +1,3 @@
-export { PluginsPage } from './PluginsPage.tsx';
-export { pluginAlert, shellCommand, summarize, type PluginSummary } from './plugin-summary.ts';
-export { createPluginsModel, type PluginCard, type PluginsModel } from './plugins-model.ts';
+export { ExtensionsView, type ExtensionsViewProps } from './ExtensionsView.tsx';
+export { pluginAlert } from './plugin-health.ts';
+export { createPluginsModel, type PluginsModel } from './plugins-model.ts';

@@ -1,5 +1,5 @@
 import type { ComponentChildren } from 'preact';
-import { useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { useCallback, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { MorrowbotBridge } from '../../bridge.ts';
 import type { AppearanceModel } from '../../shared/appearance.ts';
 import type { ChatPrefsModel } from '../../shared/chat-prefs.ts';
@@ -13,7 +13,8 @@ import { AppearanceSection } from './AppearanceSection.tsx';
 import { ChatSection } from './ChatSection.tsx';
 import { GeneralSection } from './GeneralSection.tsx';
 import { KeyboardSection } from './KeyboardSection.tsx';
-import { isSection, NAV, searchSettings, SECTIONS, targetOf, type SettingEntry, type SettingsLink, type SettingsSection } from './settings-index.ts';
+import { isSection, NAV, ROWS, searchSettings, SECTIONS, targetOf, type SettingEntry, type SettingsLink, type SettingsSection } from './settings-index.ts';
+import { SettingRow } from './SettingRow.tsx';
 import { SettingsSearchField, SettingsSearchResults } from './SettingsNav.tsx';
 
 const FLASH_MS = 1_000;
@@ -29,9 +30,14 @@ export interface SettingsModalProps {
   readonly info: AppInfo | null;
   readonly updates: UpdatesModel;
   readonly bridge: Pick<MorrowbotBridge, 'loginItem' | 'setOpenAtLogin' | 'revealPath'>;
+  /** Settings › Providers, from `features/providers` (wired in by `app/`): opened at `initial`, naming its selection for the breadcrumb. */
+  readonly providers: (slot: { readonly initial: string | null; readonly onTrail: (name: string | null) => void }) => ComponentChildren;
   /** Settings › Usage, composed by the app from the usage feature. */
   readonly usage: ComponentChildren;
 }
+
+/** A section's own header row, so search finds the section. */
+const Intro = ({ entry }: { readonly entry: SettingEntry }) => <SettingRow entry={entry}>{null}</SettingRow>;
 
 /** Scrolls a row into view, moves focus to its control and flashes it; returns what ends the flash early. */
 function reveal(body: HTMLElement, rowId: string, reducedMotion: boolean): (() => void) | undefined {
@@ -61,6 +67,10 @@ export function SettingsModal(props: SettingsModalProps) {
   const [section, setSection] = useState<SettingsSection>(start.section);
   const [query, setQuery] = useState('');
   const [focusRow, setFocusRow] = useState<{ readonly id: string } | null>(start.row === null ? null : { id: start.row });
+  const [trail, setTrail] = useState<string | null>(null);
+  const onTrail = useCallback((name: string | null) => {
+    setTrail(name);
+  }, []);
   const input = useRef<HTMLInputElement>(null);
   const results = useRef<HTMLDivElement>(null);
   const body = useRef<HTMLDivElement>(null);
@@ -82,6 +92,13 @@ export function SettingsModal(props: SettingsModalProps) {
         return <ChatSection prefs={chatPrefs} onChange={props.chatPrefs.set} platform={PLATFORM} />;
       case 'keyboard':
         return <KeyboardSection platform={PLATFORM} sendWith={chatPrefs.sendWith} />;
+      case 'providers':
+        return (
+          <>
+            <Intro entry={ROWS.providers} />
+            {props.providers({ initial: start.section === 'providers' ? start.item : null, onTrail })}
+          </>
+        );
       case 'usage':
         return props.usage;
       case 'about':
@@ -114,7 +131,7 @@ export function SettingsModal(props: SettingsModalProps) {
         setSection(id);
         setFocusRow(null);
       }}
-      breadcrumb={['Settings', searching ? 'Search' : SECTIONS[section].title]}
+      breadcrumb={['Settings', ...(searching ? ['Search'] : [SECTIONS[section].title, ...(section === 'providers' && trail !== null ? [trail] : [])])]}
       onClose={props.onClose}
       search={{
         field: <SettingsSearchField input={input} results={results} query={query} first={groups[0]?.entries[0] ?? null} onQuery={setQuery} onPick={pick} />,

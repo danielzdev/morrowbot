@@ -79,6 +79,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
     const platform = options.platform ?? process.platform;
     const plugins = await startPluginHost({
       pluginsDir: config.pluginsDir,
+      builtinPluginsDir: config.builtinPluginsDir,
       builtins: builtinProviders(platform),
       safeMode: config.safeMode,
       dataDir: path.join(dataDir, 'plugin-data'),
@@ -162,6 +163,11 @@ export async function startHost(options: HostOptions): Promise<Host> {
         usage: { tokens: (range) => storage.tokens.read(range) },
         plugins: {
           list: () => plugins.list(),
+          safeMode: plugins.safeMode,
+          pluginsDir: config.pluginsDir,
+          problems: () => plugins.problems(),
+          rescan: () => plugins.rescan(),
+          restart: (pluginId) => plugins.restart(pluginId),
           blockedGroups: (pluginId) => plugins.groups.blocked(pluginId),
           saved: (pluginId) => storage.plugins.read(pluginId),
           setEnabled: (pluginId, enabled) => plugins.setEnabled(pluginId, enabled),

@@ -1,16 +1,17 @@
 import type { Agent } from '@morrowbot/contracts';
 import type { MorrowbotBridge } from '../bridge.ts';
 import type { AgentSection } from '../features/agents/index.ts';
-import { PluginsPage } from '../features/plugins/index.ts';
+import { ExtensionsView } from '../features/plugins/index.ts';
+import type { SettingsLink } from '../features/settings/index.ts';
 import type { AppInfo } from '../shared/privacy.ts';
 import { useStore } from '../shared/use-store.ts';
 import { ChatPane, type Chrome } from './ChatPane.tsx';
 import type { Models } from './models.ts';
 import { PageFrame } from './PageFrame.tsx';
 
-export type Page = { readonly kind: 'chat' } | { readonly kind: 'plugins' };
+export type Page = { readonly kind: 'chat' } | { readonly kind: 'extensions' };
 
-/** The main pane's page: the selected agent's chat, or Plugins. New Agent and Agent Settings are dialogs. */
+/** The main pane's page: the selected agent's chat, or Extensions. New Agent and Agent Settings are dialogs. */
 export function Pages(props: {
   readonly page: Page;
   readonly onPage: (page: Page) => void;
@@ -29,12 +30,17 @@ export function Pages(props: {
   readonly onNewAgent: () => void;
   readonly onCopy: (threadId: string) => void;
   readonly onNewChat: (agentId: string) => void;
+  readonly onOpenSettings: (link: SettingsLink) => void;
 }) {
   const { models, bridge, agent, chrome, info, page } = props;
   const state = useStore(models.agents.state);
   switch (page.kind) {
-    case 'plugins':
-      return <PageFrame title="Plugins" chrome={chrome}><PluginsPage model={models.plugins} bridge={bridge} /></PageFrame>;
+    case 'extensions':
+      return (
+        <PageFrame title="Extensions" chrome={chrome}>
+          <ExtensionsView model={models.plugins} info={info} bridge={bridge} onOpenProvider={(id) => { props.onOpenSettings(`providers/${id}`); }} onExit={() => { props.onPage({ kind: 'chat' }); }} />
+        </PageFrame>
+      );
     case 'chat':
       if (agent !== undefined) {
         return (
@@ -51,7 +57,7 @@ export function Pages(props: {
             approvalFocus={props.approvalFocus}
             onApprovalFocused={props.onApprovalFocused}
             onAgentSettings={(section) => { props.onAgentSettings(agent.id, section); }}
-            onPlugins={() => { props.onPage({ kind: 'plugins' }); }}
+            onOpenProviders={() => { props.onOpenSettings(agent.provider.kind === 'bound' ? `providers/${agent.provider.pluginId}` : 'providers'); }}
             onCopy={props.onCopy}
             onNewChat={() => { props.onNewChat(agent.id); }}
           />

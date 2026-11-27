@@ -3,7 +3,7 @@ import { sendKeyLabels, shortcutLabel, SHORTCUTS, type Platform, type ShortcutId
 import type { IconName } from '../../shared/ui/Icon.tsx';
 import type { SettingsNavGroup } from '../../shared/ui/SettingsShell.tsx';
 
-export type SettingsSection = 'general' | 'appearance' | 'chat' | 'keyboard' | 'usage' | 'about';
+export type SettingsSection = 'general' | 'appearance' | 'chat' | 'keyboard' | 'providers' | 'usage' | 'about';
 
 /** A place in Settings: a section, or a row inside it (`'appearance/theme'`). Sidebar, palette and banners all open these. */
 export type SettingsLink = SettingsSection | `${SettingsSection}/${string}`;
@@ -12,6 +12,8 @@ export interface SettingsTarget {
   readonly section: SettingsSection;
   /** The row to scroll to, focus and flash; null for the top of the section. */
   readonly row: string | null;
+  /** The rest of a link that names no row: an item the section opens, such as a provider (`providers/provider-openai`). */
+  readonly item: string | null;
 }
 
 /** One settings row as search and the sections both see it: the row renders exactly this label and description. */
@@ -27,6 +29,7 @@ export const SECTIONS: Readonly<Record<SettingsSection, { readonly title: string
   appearance: { title: 'Appearance', icon: 'palette' },
   chat: { title: 'Chat', icon: 'chat' },
   keyboard: { title: 'Keyboard', icon: 'keyboard' },
+  providers: { title: 'Providers', icon: 'provider' },
   usage: { title: 'Usage', icon: 'gauge' },
   about: { title: 'About', icon: 'info' },
 };
@@ -35,7 +38,7 @@ const navItem = (id: SettingsSection) => ({ id, label: SECTIONS[id].title, icon:
 
 export const NAV: readonly SettingsNavGroup[] = [
   { label: 'App', items: [navItem('general'), navItem('appearance'), navItem('chat'), navItem('keyboard')] },
-  { label: 'Connections', items: [navItem('usage')] },
+  { label: 'Connections', items: [navItem('providers'), navItem('usage')] },
   { label: null, items: [navItem('about')] },
 ];
 
@@ -54,6 +57,7 @@ export const ROWS = {
   chatWidth: row('appearance', 'chat-width', 'Chat width', 'How wide the chat column gets: Normal is 720px, Wide is 920px.'),
   reduceMotion: row('appearance', 'reduce-motion', 'Reduce motion', "On stills avatars and slide-ins. Your system's reduce-motion setting always applies."),
   sendWith: row('chat', 'send-with', 'Send with', 'Which key sends your message. Shift+Enter always starts a new line.'),
+  providers: row('providers', 'providers', 'AI providers', 'Claude, Codex, Antigravity, OpenCode and community engines: set up, sign in, check status and change settings.'),
   version: row('about', 'version', 'MorrowBot', 'Apache License 2.0 · Published by Legendary Koi'),
   updates: row('about', 'updates', 'Updates', 'Downloads new versions in the background and installs them when you restart.'),
   dataFolder: row('about', 'data-folder', 'Data folder', 'Where MorrowBot keeps your agents and chats.'),
@@ -72,7 +76,7 @@ const SHORTCUT_COPY: Readonly<Record<ShortcutId, readonly [label: string, descri
   usage: ['Usage', 'See plan limits and the tokens your agents used.'],
   'toggle-sidebar': ['Toggle sidebar', 'Shrink the sidebar to a rail of avatars, or expand it again.'],
   'filter-agents': ['Filter agents', 'Find an agent in the sidebar by name.'],
-  extensions: ['Extensions', 'Open Extensions, where your plugins live.'],
+  extensions: ['Extensions', 'Open Extensions: your plugins, connectors and the Marketplace.'],
   find: ['Find in chat', 'Search the open chat. Enter and Shift+Enter move between matches.'],
   binding: ['Model and access', "Change the current agent's model, effort and access."],
 };
@@ -80,7 +84,7 @@ const SHORTCUT_COPY: Readonly<Record<ShortcutId, readonly [label: string, descri
 const CONTEXT_COPY: Readonly<Record<ContextKey, readonly [label: string, description: string]>> = {
   send: ['Send message', 'In the message box. Change it under Chat › Send with.'],
   'new-line': ['New line', 'In the message box.'],
-  'settings-search': ['Search settings', 'In Settings, outside a text field.'],
+  'settings-search': ['Search', 'In Settings or Extensions, outside a text field: focus search.'],
   escape: ['Close', 'Esc closes the top menu, popover or dialog. While searching settings, it clears the search first.'],
 };
 
@@ -146,14 +150,14 @@ export function searchSettings(query: string, index: readonly SettingEntry[] = I
   return SECTION_ORDER.map((section) => ({ section, entries: found.filter((entry) => entry.section === section) })).filter(({ entries }) => entries.length > 0);
 }
 
-/** Where a link opens. An unknown row opens its section at the top. */
+/** Where a link opens. A rest that names no row of the section is an item inside it, opened at the top. */
 export function targetOf(link: SettingsLink): SettingsTarget {
   const slash = link.indexOf('/');
   const head = slash === -1 ? link : link.slice(0, slash);
   const section = isSection(head) ? head : 'general';
-  const rowId = slash === -1 ? null : link.slice(slash + 1);
-  const known = INDEX.some((entry) => entry.section === section && entry.id === rowId);
-  return { section, row: known ? rowId : null };
+  const rest = slash === -1 ? null : link.slice(slash + 1);
+  const known = INDEX.some((entry) => entry.section === section && entry.id === rest);
+  return { section, row: known ? rest : null, item: known || rest === '' ? null : rest };
 }
 
 /** A place in Settings the command palette can open: a section, or one row. */
