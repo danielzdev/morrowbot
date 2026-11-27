@@ -8,3 +8,4 @@ export type { ChildGroupKind, ChildGroupRecord, ChildGroupRepository } from './c
 export type { GenerationRecord, GenerationRepository, SessionState, TurnUsageRecord, UnsettledGeneration } from './generations-repo.ts';
 export type { SessionKey, SessionRecord, SessionRepository } from './sessions-repo.ts';
 export type { UsageSnapshot, UsageSnapshotRepository } from './usage-repo.ts';
+export type { DeviceRepository } from './devices-repo.ts';
