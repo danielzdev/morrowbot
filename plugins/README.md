@@ -3,7 +3,13 @@
 Each plugin is one folder here (`plugins/<name>/`) and an npm workspace. The host
 starts every enabled plugin in its own Node process, so a crash cannot take down
 the host or other plugins. `--safe-mode` (or `MORROWBOT_SAFE_MODE=1`) starts the
-host with no plugin processes at all.
+host with no plugin processes and no built-in providers at all.
+
+The Claude and Codex providers are not plugin folders: they are built into the host
+(`packages/providers`). They speak the same protocol through the same SDK runtime,
+but run inside the host process with no worker, so they work with no plugins folder.
+A plugin folder that reuses a built-in id (`provider-claude`, `provider-openai`) is
+skipped and reported as a problem.
 
 A plugin may import only `@morrowbot/plugin-sdk` and `@morrowbot/contracts`,
 plus its own files. `npm run lint` enforces this.
@@ -36,12 +42,15 @@ uses `"cli-runtime"`, which adds what such CLIs need (`HOME`, `USER`, `LANG`,
 environment out of plugins by default; it is not a sandbox, since plugins are
 trusted code. Each plugin also gets its own data folder (`init`'s `dataDir`).
 
-A provider's entry file serves it over IPC with `defineProvider` and `runPlugin`:
+A provider's entry file serves it over IPC with `defineProvider` and `runPlugin`.
+`runPlugin` takes a factory that builds the plugin on its `runtime` (a breaking
+change before 1.0: `runPlugin(plugin)` and the SDK's free `openCommand`,
+`runCommand`, `jsonRpcProcess`, `statExecutable` and `readCliVersion` are gone):
 
 ```ts
 import { defineProvider, runPlugin } from '@morrowbot/plugin-sdk';
 
-runPlugin(
+runPlugin((runtime) =>
   defineProvider({
     init: ({ config }) => { /* settings, checked and with defaults */ },
     providerInfo: () => ({ kind: 'ready', /* version, accountKey, capabilities, models */ }),
@@ -62,19 +71,23 @@ and may also emit `status` lines, `tool-start`/`tool-end`, `session-bound` and
 `usage-update`; it ends with one `TurnEnd`. The contract is in
 `packages/contracts/src/provider.ts` and `plugin-rpc.ts`.
 
-The SDK also gives plugins `z` (Zod) to parse outside data, `openCommand` and
+The runtime gives a plugin its environment (`runtime.env`, read `HOME` and the like
+there, never from `process.env`), its OS (`runtime.platform`), `openCommand` and
 `runCommand` to run a program, `jsonRpcProcess` to talk JSON-RPC 2.0 over a
 long-lived program's stdin and stdout (requests, replies, notifications and the
-program's own requests, each request with a timeout), `readOptionalFile`, `listDirectory`,
-`statExecutable`, `readCliVersion`/`checkVersion`, and `confinePath`. Each program
+program's own requests, each request with a timeout), `statExecutable` and
+`readCliVersion`. The SDK also exports `z` (Zod) to parse outside data,
+`readOptionalFile`, `listDirectory`, `checkVersion` and `confinePath`. Each program
 runs under a small guard process that leads its own process group. The host records
 the group before the program starts and treats the thread as busy until the group is
 confirmed gone. Stop ends the whole group (SIGTERM, then SIGKILL a second later);
 anything the program leaves in the group is killed when it exits; and the group is
-killed if the plugin process dies, even by SIGKILL. Processes that move to a group
+killed if the plugin process dies, even by SIGKILL (or, for a built-in provider,
+when the host ends it). Processes that move to a group
 of their own are out of its reach. `openCommand` needs macOS or Linux; provider
 plugins are disabled on Windows for now.
 
-`provider-claude/` runs Claude Code once per turn; `provider-openai/` runs one shared
-Codex `app-server` daemon (`openCommand` with `scope: {kind: 'daemon'}`). Small examples live in
+The built-in `packages/providers/src/claude/` runs Claude Code once per turn;
+`packages/providers/src/openai/` runs one shared Codex `app-server` daemon
+(`openCommand` with `scope: {kind: 'daemon'}`). Small plugin examples live in
 `apps/host/src/features/plugins/fixtures/`.

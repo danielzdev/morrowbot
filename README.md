@@ -12,7 +12,7 @@ node node_modules/electron/install.js   # once: downloads the Electron binary
 npm start -w apps/desktop               # builds the window, then starts Electron and the host
 ```
 
-Data lives in `~/.morrowbot` (`MORROWBOT_DATA_DIR` moves it); plugins load from its `plugins` folder (`MORROWBOT_PLUGINS_DIR`).
+Data lives in `~/.morrowbot` (`MORROWBOT_DATA_DIR` moves it). The Claude and Codex providers are built in; other plugins load from its `plugins` folder (`MORROWBOT_PLUGINS_DIR`).
 
 ## License
 

@@ -45,12 +45,12 @@ export type Executable =
 
 /**
  * Finds an executable file: `command` itself when it contains a path separator, otherwise the first
- * match in the plugin's `PATH`. Its mtime and size identify the installed version for caching.
+ * match in `pathValue` (the plugin's `PATH`). Its mtime and size identify the installed version for caching.
  */
-export async function statExecutable(command: string): Promise<Executable> {
+export async function statExecutable(command: string, pathValue: string): Promise<Executable> {
   const candidates = command.includes('/') || command.includes('\\')
     ? [path.resolve(command)]
-    : (process.env.PATH ?? '').split(path.delimiter).filter((dir) => dir !== '').map((dir) => path.join(dir, command));
+    : pathValue.split(path.delimiter).filter((dir) => dir !== '').map((dir) => path.join(dir, command));
   for (const candidate of candidates) {
     try {
       const info = await stat(candidate);

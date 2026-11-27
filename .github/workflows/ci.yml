@@ -26,4 +26,4 @@ jobs:
       - run: npm ci
       - run: npm run check
       - name: Claude Code on npm is inside the tested range
-        run: node plugins/provider-claude/scripts/check-latest-cli.ts
+        run: node packages/providers/scripts/check-latest-claude.ts

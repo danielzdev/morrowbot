@@ -4,9 +4,9 @@ import { isDeepStrictEqual } from 'node:util';
 import type { PluginManifest, PluginStatus, PluginStatusEvent } from '@morrowbot/contracts';
 import { ChildGroupRegistry, type ChildGroupClock, type ChildGroupStore, type ReleaseResult } from './child-groups.ts';
 import { daemons as daemonControl, type RecheckAnswer } from './daemons.ts';
-import { discoverPlugins, type DiscoveredPlugin } from './discovery.ts';
+import { discoverPlugins, type PluginSource } from './discovery.ts';
 import { pluginEnv } from './plugin-env.ts';
-import { PluginRequestError, spawnPluginProcess, type PluginProcess, type PluginTimeouts } from './plugin-process.ts';
+import { connectPlugin, PluginRequestError, type PluginProcess, type PluginTimeouts } from './plugin-process.ts';
 import type { PluginRecord, PluginStore } from './plugin-store.ts';
 import { providerRequests, type ProviderRequests } from './provider-requests.ts';
 import { systemProbe, type ProcessProbe } from './release-probe.ts';
@@ -28,6 +28,8 @@ const HEALTH_INTERVAL_MS = 5 * 60_000;
 
 export interface PluginHostOptions {
   readonly pluginsDir: string;
+  /** Providers built into MorrowBot, served in this process. Listed first; their ids are reserved. */
+  readonly builtins: readonly PluginSource[];
   readonly store: PluginStore;
   /** Each plugin gets its own folder `<dataDir>/<plugin id>`. */
   readonly dataDir: string;
@@ -90,12 +92,17 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
   });
   await groups.recover();
   const discovery = await discoverPlugins(options.pluginsDir);
+  const problems = [...discovery.problems];
   const slots = new Map<string, Slot>();
   let stopping: Promise<void> | undefined;
   let workers = 0;
-  for (const plugin of discovery.plugins) {
-    const status: PluginStatus = safeMode ? { kind: 'safe-mode' } : { kind: 'stopped' };
-    slots.set(plugin.manifest.id, newSlot(plugin, status));
+  for (const plugin of [...options.builtins, ...discovery.plugins]) {
+    const { id } = plugin.manifest;
+    if (slots.has(id)) {
+      problems.push(`${id}: a plugin folder uses the id of a provider built into MorrowBot, so it was skipped`);
+      continue;
+    }
+    slots.set(id, newSlot(plugin, safeMode ? { kind: 'safe-mode' } : { kind: 'stopped' }));
   }
 
   function slotOf(pluginId: string): Slot {
@@ -166,7 +173,7 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
   });
 
   async function start(slot: Slot, record: PluginRecord | undefined): Promise<void> {
-    const { manifest, entryPath, dir } = slot.plugin;
+    const { manifest, launch } = slot.plugin;
     await slot.retired;
     if (record?.enabled === false) {
       setStatus(slot, { kind: 'disabled' });
@@ -188,10 +195,7 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
     let child: PluginProcess;
     try {
       await mkdir(dataDir, { recursive: true });
-      child = spawnPluginProcess({
-        entryPath,
-        cwd: dir,
-        env: pluginEnv(manifest.envPreset, options.pluginPath),
+      child = connectPlugin(launch(pluginEnv(manifest.envPreset, options.pluginPath)), {
         timeouts,
         log: (message) => {
           log(`plugin ${manifest.id}: ${message}`);
@@ -338,7 +342,7 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
 
   return {
     ...requests,
-    problems: discovery.problems,
+    problems,
     groups,
     list: () => [...slots.values()].map((slot) => ({ manifest: slot.plugin.manifest, status: statusOf(slot) })),
     setEnabled: (pluginId, enabled) => {
@@ -378,8 +382,6 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
     stop: stopAll,
   };
 }
-
-export type { DiscoveredPlugin };
 
 function isServing(status: PluginStatus): boolean {
   return status.kind === 'running' || status.kind === 'unhealthy';

@@ -2,7 +2,10 @@ import { chmod, mkdtemp, readFile, realpath, rm, utimes, writeFile } from 'node:
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, it } from 'vitest';
-import { checkVersion, readCliVersion } from './version.ts';
+import { standaloneRuntime } from './runtime.ts';
+import { checkVersion } from './version.ts';
+
+const { readCliVersion } = standaloneRuntime();
 
 let base: string;
 beforeEach(async () => {
@@ -106,6 +109,21 @@ it('reports a missing CLI and one that prints no version', async () => {
         "kind": "failed",
         "message": ""<base>/fake-cli --version" printed no version",
       },
+    }
+  `);
+});
+
+it('reads a long run of digits in linear time, finding no version in it', async () => {
+  const cli = path.join(base, 'digits-cli');
+  await writeFile(cli, `#!/bin/sh\nhead -c 1000000 /dev/zero | tr '\\0' 7\necho\n`);
+  await chmod(cli, 0o755);
+  const started = performance.now();
+  const result = await readCliVersion(cli, { cwd: base });
+  const ms = performance.now() - started;
+  expect({ result: result.kind === 'failed' ? result.message.replaceAll(base, '<base>') : result, underTwoSeconds: ms < 2_000 }).toMatchInlineSnapshot(`
+    {
+      "result": ""<base>/digits-cli --version" printed no version",
+      "underTwoSeconds": true,
     }
   `);
 });

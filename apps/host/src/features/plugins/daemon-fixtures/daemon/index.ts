@@ -2,7 +2,7 @@ import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
-import { defineProvider, openCommand, runPlugin, z, type AccessProfile, type OpenCommand, type ProviderInfo, type TurnEnd } from '@morrowbot/plugin-sdk';
+import { defineProvider, runPlugin, z, type AccessProfile, type OpenCommand, type PluginRuntime, type ProviderInfo, type TurnEnd } from '@morrowbot/plugin-sdk';
 
 /**
  * A test provider backed by one shared daemon (`fake-daemon.ts`), started from provider-info as a
@@ -54,10 +54,10 @@ function call(target: Daemon, request: Readonly<Record<string, unknown>>, onText
   return done.promise;
 }
 
-async function startDaemon(): Promise<Daemon> {
+async function startDaemon(runtime: PluginRuntime): Promise<Daemon> {
   const name = `d${String(daemonsStarted() + 1)}`;
   const calls = new Map<number, Call>();
-  const command = openCommand(process.execPath, {
+  const command = runtime.openCommand(process.execPath, {
     args: [DAEMON_SCRIPT, name],
     cwd: dataDir,
     files: [],
@@ -107,7 +107,7 @@ function end(outcome: TurnEnd['outcome']): TurnEnd {
   return { outcome, usage: { kind: 'unavailable' }, actualModel: null, accountKey: 'acct-d', sessionTouched: true, finalText: null };
 }
 
-runPlugin(
+runPlugin((runtime) =>
   defineProvider({
     init: (context) => {
       dataDir = context.dataDir;
@@ -115,7 +115,7 @@ runPlugin(
     },
     providerInfo: async ({ refresh }) => {
       if (daemon === undefined) {
-        starting ??= startDaemon().finally(() => {
+        starting ??= startDaemon(runtime).finally(() => {
           starting = undefined;
         });
         daemon = await starting;
