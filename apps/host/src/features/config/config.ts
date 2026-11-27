@@ -2,7 +2,6 @@ import path from 'node:path';
 import { DEV_DATA_DIR } from '@morrowbot/contracts';
 import { z } from 'zod';
 
-const DEFAULT_PORT = 47_800;
 const SAFE_MODE_FLAG = '--safe-mode';
 
 const PortString = z
@@ -22,6 +21,7 @@ const HostEnv = z.object({
 
 export interface HostConfig {
   readonly hostname: '127.0.0.1';
+  /** `MORROWBOT_HOST_PORT`, else a free port. The installed app passes its fixed port itself. */
   readonly port: number;
   /** Start with every plugin turned off. */
   readonly safeMode: boolean;
@@ -54,7 +54,7 @@ export function parseHostConfig({ env, args, homeDir }: HostConfigInput): HostCo
     kind: 'ok',
     config: {
       hostname: '127.0.0.1',
-      port: parsed.data.MORROWBOT_HOST_PORT ?? DEFAULT_PORT,
+      port: parsed.data.MORROWBOT_HOST_PORT ?? 0,
       safeMode: args.includes(SAFE_MODE_FLAG) || safeModeEnv === '1' || safeModeEnv === 'true',
       dataDir,
       pluginsDir: parsed.data.MORROWBOT_PLUGINS_DIR ?? path.join(dataDir, 'plugins'),

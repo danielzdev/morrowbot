@@ -9,7 +9,8 @@
 | Any run with `MORROWBOT_DATA_DIR=/abs/path` | that folder | `<folder>/desktop` | free port |
 
 So a dev run can stay open beside the installed app without sharing its chats, settings, lock or port.
-A host started by hand (`npm start -w apps/host`) also defaults to `~/.morrowbot-dev`.
+A host started by hand (`npm start -w apps/host`) also defaults to `~/.morrowbot-dev` and a free port.
+`MORROWBOT_HOST_PORT` sets the port for any run. Only the installed app checks for updates.
 `src/main/profile.ts` decides this, and `src/main/profile.test.ts` records it.
 
 ## Build the app locally
@@ -22,7 +23,8 @@ open apps/desktop/release/mac-arm64/MorrowBot.app
 
 This writes `release/MorrowBot-<version>-arm64.dmg`, the `.zip` and `latest-mac.yml`.
 `scripts/build-app.ts` bundles Electron main, the host and the renderer into `dist/app/`, so the app
-ships no `node_modules`.
+ships no `node_modules`. It also copies `LICENSE`, `THIRD_PARTY_LICENSES/` and a `THIRD_PARTY_NOTICES.txt`
+with the licence of every bundled package.
 
 With no Developer ID certificate in the login Keychain, the app is left unsigned: it runs on the Mac
 that built it, but it cannot update itself. To sign and notarize locally, set the same values the
@@ -42,8 +44,9 @@ electron-builder signs when it finds the certificate and notarizes when the thre
 
 `.github/workflows/private-release.yml` runs on every push to `main` (and by hand). It versions the build
 `<major>.<minor>.<run number>` from `apps/desktop/package.json`, then builds, signs, notarizes and publishes the
-`.dmg`, `.zip` and `latest-mac.yml` as a GitHub release of the releases repo. It skips itself when any secret
-is missing, so forks never fail.
+`.dmg`, `.zip` and `latest-mac.yml` to a draft GitHub release of the releases repo, and publishes it only once
+every file is uploaded. It runs `npm run check` first, releases only from `main`, and skips itself when any
+secret is missing, so forks never fail.
 
 Repository secrets (Settings › Secrets and variables › Actions):
 
@@ -61,12 +64,16 @@ The releases repo is `danielzdev/morrowbot-releases`. A repository variable `MOR
 
 ## Updates in the installed app
 
+Drag MorrowBot into `/Applications` first: macOS cannot update an app run from the mounted `.dmg` or from
+`~/Downloads`.
+
 The installed app checks 15 seconds after launch and every 4 hours, downloads in the background, shows
-"Update ready" with **Restart to update**, and otherwise installs on the next quit. Settings › About has
-**Check for updates**. Dev runs never update.
+"Update ready" with **Restart to update** once macOS has staged the update, and otherwise installs on the
+next quit. Settings › About has **Check for updates**.
 
 While the releases repo is private, the app needs a token that can read it (a fine-grained token with
-**Contents: Read** on the releases repo). Store it once in the login Keychain:
+**Contents: Read** on the releases repo). Store it in the login Keychain; each check reads it again, so a new
+or rotated token needs no restart:
 
 ```sh
 security add-generic-password -s com.legendarykoi.morrowbot.releases -a releases -w

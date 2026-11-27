@@ -7,12 +7,12 @@ const run = (packaged: boolean, env: NodeJS.ProcessEnv = {}): { profile: Profile
   return { profile, host: profile.kind === 'invalid' ? null : hostEnvOf(profile, env) };
 };
 
-it('opens ~/.morrowbot only for the installed app; every other run gets its own data, Electron profile and port', () => {
+it('opens ~/.morrowbot only for the installed app; every other run gets its own data, Electron profile and port; the host never gets the feed token', () => {
   expect({
     installed: run(true),
     dev: run(false),
     devWithFolder: run(false, { MORROWBOT_DATA_DIR: '/tmp/screens', MORROWBOT_HOST_PORT: '4900' }),
-    installedWithFolder: run(true, { MORROWBOT_DATA_DIR: '/tmp/try' }),
+    installedWithFolder: run(true, { MORROWBOT_DATA_DIR: '/tmp/try', MORROWBOT_RELEASES_TOKEN: 'feed-token' }),
     relative: run(false, { MORROWBOT_DATA_DIR: 'data' }),
   }).toMatchInlineSnapshot(`
     {
@@ -41,6 +41,7 @@ it('opens ~/.morrowbot only for the installed app; every other run gets its own 
       "installed": {
         "host": {
           "MORROWBOT_DATA_DIR": "/Users/tester/.morrowbot",
+          "MORROWBOT_HOST_PORT": "47800",
         },
         "profile": {
           "dataDir": "/Users/tester/.morrowbot",

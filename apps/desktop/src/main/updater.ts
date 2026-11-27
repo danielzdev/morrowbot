@@ -1,3 +1,4 @@
+import { autoUpdater as nativeUpdater } from 'electron';
 import electronUpdater from 'electron-updater';
 import type { UpdateStatus } from '../renderer/bridge.ts';
 import { feedOf, readBuiltRepo, readKeychainToken } from './release-feed.ts';
@@ -9,7 +10,7 @@ export interface Updater {
   status(): UpdateStatus;
   /** Checks now, unless a check, a download or a ready update is already under way. */
   check(): UpdateStatus;
-  /** Quits and installs a downloaded update; does nothing until one is ready. */
+  /** Quits and installs a staged update, once; does nothing until one is ready. Stop the host first. */
   restart(): void;
   stop(): void;
 }
@@ -22,7 +23,7 @@ export interface UpdaterOptions {
   readonly report: (error: unknown) => void;
 }
 
-/** A dev run never updates itself. */
+/** Only the installed app updates itself; every other run reports `unsupported`. */
 export const NO_UPDATER: Updater = {
   status: () => ({ kind: 'unsupported' }),
   check: () => ({ kind: 'unsupported' }),
@@ -30,10 +31,16 @@ export const NO_UPDATER: Updater = {
   stop: () => undefined,
 };
 
-/** Keeps the installed app up to date: checks soon after launch and every 4 hours, downloads in the background, installs on restart or quit. */
+/**
+ * Keeps the installed app up to date: checks soon after launch and every 4 hours, downloads in the
+ * background, and installs on restart or quit. An update is `ready` only once Squirrel has staged it.
+ */
 export function startUpdater({ env, appPath, onStatus, report }: UpdaterOptions): Updater {
   const { autoUpdater } = electronUpdater;
+  const builtRepo = readBuiltRepo(appPath);
   let status: UpdateStatus = { kind: 'idle' };
+  let downloaded: string | null = null;
+  let restarting = false;
   const set = (next: UpdateStatus): void => {
     status = next;
     onStatus(next);
@@ -44,41 +51,46 @@ export function startUpdater({ env, appPath, onStatus, report }: UpdaterOptions)
   autoUpdater.on('update-not-available', () => { set({ kind: 'up-to-date' }); });
   autoUpdater.on('update-available', (info) => { set({ kind: 'downloading', version: info.version, percent: 0 }); });
   autoUpdater.on('download-progress', (progress) => {
-    if (status.kind === 'downloading') set({ ...status, percent: Math.floor(progress.percent) });
+    const percent = Number.isFinite(progress.percent) ? Math.min(100, Math.max(0, Math.floor(progress.percent))) : 0;
+    if (status.kind === 'downloading') set({ ...status, percent });
   });
-  autoUpdater.on('update-downloaded', (info) => { set({ kind: 'ready', version: info.version }); });
+  autoUpdater.on('update-downloaded', (info) => { downloaded = info.version; });
+  nativeUpdater.on('update-downloaded', () => {
+    if (downloaded !== null) set({ kind: 'ready', version: downloaded });
+  });
   autoUpdater.on('error', (error) => {
     report(error);
-    if (status.kind !== 'ready') set({ kind: 'failed' });
+    set({ kind: 'failed' });
   });
 
-  const configured = Promise.all([readBuiltRepo(appPath), readKeychainToken()]).then(([builtRepo, keychainToken]) => {
-    const feed = feedOf({ env, builtRepo, keychainToken });
+  /** Points electron-updater at the feed, reading the Keychain token afresh so a token added later is used. */
+  const useFeed = async (): Promise<boolean> => {
+    const keychainToken = env.MORROWBOT_RELEASES_TOKEN === undefined ? await readKeychainToken() : null;
+    const feed = feedOf({ env, builtRepo: await builtRepo, keychainToken });
     switch (feed.kind) {
       case 'invalid':
         report(new Error(feed.problem));
         return false;
       case 'github': {
         const { owner, repo, token } = feed;
-        autoUpdater.setFeedURL(token === null ? { provider: 'github', owner, repo } : { provider: 'github', owner, repo, private: true, token });
+        autoUpdater.setFeedURL(token === null ? { provider: 'github', owner, repo } : { provider: 'github', owner, repo, token });
         return true;
       }
     }
-  });
+  };
   const check = (): UpdateStatus => {
     if (status.kind === 'checking' || status.kind === 'downloading' || status.kind === 'ready') return status;
     set({ kind: 'checking' });
-    void configured.then(
-      async (ok) => {
-        if (ok) await autoUpdater.checkForUpdates();
-        else set({ kind: 'failed' });
-      },
-      (error: unknown) => {
-        report(error);
+    const run = async (): Promise<void> => {
+      if (!(await useFeed())) {
         set({ kind: 'failed' });
-      },
-    ).catch(() => {
-      if (status.kind !== 'ready') set({ kind: 'failed' });
+        return;
+      }
+      const result = await autoUpdater.checkForUpdates();
+      await result?.downloadPromise;
+    };
+    run().catch(() => {
+      set({ kind: 'failed' });
     });
     return status;
   };
@@ -88,7 +100,9 @@ export function startUpdater({ env, appPath, onStatus, report }: UpdaterOptions)
     status: () => status,
     check,
     restart: () => {
-      if (status.kind === 'ready') autoUpdater.quitAndInstall();
+      if (status.kind !== 'ready' || restarting) return;
+      restarting = true;
+      autoUpdater.quitAndInstall();
     },
     stop: () => {
       clearTimeout(first);

@@ -1,11 +1,12 @@
 import path from 'node:path';
-import { DEV_DATA_DIR, INSTALLED_DATA_DIR } from '@morrowbot/contracts';
+import { DEV_DATA_DIR, INSTALLED_DATA_DIR, INSTALLED_HOST_PORT } from '@morrowbot/contracts';
 
 /**
  * Whose data this run opens. Only the installed app, with no `MORROWBOT_DATA_DIR`, opens the real
  * `~/.morrowbot` under Electron's own profile and single-instance lock. Every other run (dev, tests,
  * screenshots) gets its own data folder, its own Electron profile and lock inside it, and a free port,
- * so it can run beside the installed app without touching its chats or settings.
+ * so it can run beside the installed app without touching its chats, settings or port. Only the
+ * installed app checks for updates.
  */
 export type Profile =
   | { readonly kind: 'installed'; readonly dataDir: string }
@@ -31,8 +32,9 @@ export function profileOf({ packaged, env, homeDir }: ProfileInput): Profile {
   return { kind: 'isolated', dataDir, userDataDir: path.join(dataDir, 'desktop') };
 }
 
-/** The host's environment: always the profile's data folder, and a free port for an isolated run that names none. */
+/** The host's environment: the profile's data folder and port, and never the release feed token. */
 export function hostEnvOf(profile: UsableProfile, env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  const port = profile.kind === 'isolated' && env.MORROWBOT_HOST_PORT === undefined ? { MORROWBOT_HOST_PORT: '0' } : {};
-  return { ...env, MORROWBOT_DATA_DIR: profile.dataDir, ...port };
+  const port = env.MORROWBOT_HOST_PORT ?? (profile.kind === 'installed' ? String(INSTALLED_HOST_PORT) : '0');
+  const passed = Object.entries(env).filter(([name]) => name !== 'MORROWBOT_RELEASES_TOKEN');
+  return { ...Object.fromEntries(passed), MORROWBOT_DATA_DIR: profile.dataDir, MORROWBOT_HOST_PORT: port };
 }

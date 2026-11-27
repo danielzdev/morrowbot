@@ -199,8 +199,20 @@ function runApp(profile: UsableProfile): void {
     checkSender(senderOf(event), RENDERER_URL);
     return updater.check();
   });
-  ipcMain.handle(CHANNELS.restartToUpdate, (event) => {
+  /** Stops the host once; both quitting and restarting to update wait for it. */
+  function stopHost(): Promise<void> {
+    lifetime = 'stopping-host';
+    updater.stop();
+    events?.close();
+    return host.stop().finally(() => {
+      lifetime = 'host-stopped';
+    });
+  }
+
+  ipcMain.handle(CHANNELS.restartToUpdate, async (event) => {
     checkSender(senderOf(event), RENDERER_URL);
+    if (updater.status().kind !== 'ready' || lifetime !== 'running') return;
+    await stopHost();
     updater.restart();
   });
 
@@ -218,11 +230,7 @@ function runApp(profile: UsableProfile): void {
         return;
       case 'running':
         event.preventDefault();
-        lifetime = 'stopping-host';
-        updater.stop();
-        events?.close();
-        void host.stop().finally(() => {
-          lifetime = 'host-stopped';
+        void stopHost().finally(() => {
           app.quit();
         });
         return;
@@ -231,7 +239,7 @@ function runApp(profile: UsableProfile): void {
 
   void app.whenReady().then(() => {
     openWindow();
-    if (app.isPackaged) {
+    if (profile.kind === 'installed') {
       updater = startUpdater({ env: process.env, appPath: app.getAppPath(), onStatus: (status) => window?.webContents.send(CHANNELS.updateChanged, status), report });
     }
   });
