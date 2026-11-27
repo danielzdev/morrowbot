@@ -1,0 +1,15 @@
+{
+  "name": "@morrowbot/plugin-sdk",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@morrowbot/contracts": "^0.0.0"
+  }
+}
