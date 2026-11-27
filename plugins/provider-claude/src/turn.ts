@@ -105,6 +105,8 @@ async function preflight({ request, signal }: TurnContext, cliPath: string): Pro
   }
   const held = platformReason(access, process.platform);
   if (held !== null) return refuse({ kind: 'access-not-supported', reason: held });
+  const atLaunch = await checkManagedPolicy();
+  if (atLaunch.kind === 'withheld') return refuse({ kind: 'access-not-supported', reason: atLaunch.reason });
   if (signal.aborted) return refuse({ kind: 'other', message: 'cancelled' });
   return { kind: 'ok', accountKey: auth.accountKey, access };
 }

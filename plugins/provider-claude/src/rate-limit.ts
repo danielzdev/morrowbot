@@ -21,7 +21,6 @@ const RateLimitLine = z.looseObject({
   rate_limit_info: z.looseObject({
     status: z.string().nullish(),
     rateLimitType: z.string().nullish(),
-    utilization: Utilization,
     resetsAt: EpochSeconds,
     overageStatus: z.string().nullish(),
     isUsingOverage: z.boolean().nullish(),
@@ -36,7 +35,6 @@ export function parseRateLimit(json: unknown): RateLimit | null {
   const info = parsed.data.rate_limit_info;
   const byId = new Map<string, UsageWindow>();
   const type = info.rateLimitType ?? null;
-  if (type !== null) addWindow(byId, type, info.utilization, info.resetsAt);
   for (const [id, raw] of Object.entries(info.unifiedWindows ?? {})) {
     const unified = UnifiedWindow.safeParse(raw);
     if (unified.success) addWindow(byId, id, unified.data.utilization, unified.data.resetsAt);

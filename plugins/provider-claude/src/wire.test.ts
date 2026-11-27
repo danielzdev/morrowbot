@@ -321,6 +321,7 @@ it('denies a permission request without a card when the turn may not ask, and re
   const input = { file_path: `${HOME}/work/.git/x`, content: 'hi' };
   wire.read(JSON.stringify({ type: 'control_request', request_id: 'r1', request: { subtype: 'can_use_tool', tool_name: 'Write', input, description: '' } }));
   wire.read(JSON.stringify({ type: 'control_request', request_id: 'r2', request: { subtype: 'elicitation', message: 'Pick one' } }));
+  wire.read(JSON.stringify({ type: 'control_request', request_id: 'r3', request: {} }));
   await Promise.resolve();
   expect({ asked, written }).toMatchInlineSnapshot(`
     {
@@ -341,6 +342,14 @@ it('denies a permission request without a card when the turn may not ask, and re
           "response": {
             "error": "MorrowBot does not answer "elicitation" control requests",
             "request_id": "r2",
+            "subtype": "error",
+          },
+          "type": "control_response",
+        },
+        {
+          "response": {
+            "error": "MorrowBot does not answer control requests without a subtype",
+            "request_id": "r3",
             "subtype": "error",
           },
           "type": "control_response",

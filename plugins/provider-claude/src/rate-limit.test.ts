@@ -59,30 +59,9 @@ it('reads every known window from a refusing event, and the window that refused'
   `);
 });
 
-it('is not a refusal while overage covers the turn, and reads the older single-window form', () => {
+it('is not a refusal while overage covers the turn', () => {
   const overage = { ...rejected, rate_limit_info: { ...rejected.rate_limit_info, overageStatus: 'allowed' } };
-  const single = { type: 'rate_limit_event', rate_limit_info: { status: 'allowed', rateLimitType: 'seven_day', utilization: 0.5, resetsAt: 0 } };
-  expect({ overage: parseRateLimit(overage)?.rejected, single: parseRateLimit(single) }).toMatchInlineSnapshot(`
-    {
-      "overage": null,
-      "single": {
-        "rejected": null,
-        "windows": [
-          {
-            "id": "seven_day",
-            "kind": "weekly",
-            "label": "Weekly",
-            "resetsAt": null,
-            "scope": {
-              "kind": "account",
-            },
-            "usedPercent": 50,
-            "windowMinutes": 10080,
-          },
-        ],
-      },
-    }
-  `);
+  expect(parseRateLimit(overage)?.rejected).toBeNull();
 });
 
 it('fails the turn as rate-limited with the reset time when the result reports the refusal', () => {

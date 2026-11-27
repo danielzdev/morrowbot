@@ -9,17 +9,16 @@ export type ControlRequest =
       readonly input: ToolInput;
       readonly summary: string;
     }
-  | { readonly kind: 'unsupported'; readonly requestId: string; readonly subtype: string };
+  | { readonly kind: 'unsupported'; readonly requestId: string; readonly subtype: string | null };
 
 const Text = z.string().min(1);
 
 const ToolInput = z.record(z.string(), z.json());
 type ToolInput = z.infer<typeof ToolInput>;
 
-const ControlLine = z.looseObject({
-  request_id: Text,
-  request: z.looseObject({ subtype: Text }),
-});
+const ControlLine = z.looseObject({ request_id: Text, request: z.unknown() });
+
+const Subtyped = z.looseObject({ subtype: Text });
 
 /** Shown on the card only: an empty or missing one is left out, never a reason to drop the card. */
 const Shown = z
@@ -51,9 +50,12 @@ export function parseControlRequest(json: unknown, home: string | null): Control
   const line = ControlLine.safeParse(json);
   if (!line.success) return null;
   const { request_id: requestId, request } = line.data;
-  if (request.subtype !== 'can_use_tool') return { kind: 'unsupported', requestId, subtype: request.subtype };
+  const subtyped = Subtyped.safeParse(request);
+  if (!subtyped.success) return { kind: 'unsupported', requestId, subtype: null };
+  const { subtype } = subtyped.data;
+  if (subtype !== 'can_use_tool') return { kind: 'unsupported', requestId, subtype };
   const tool = CanUseTool.safeParse(request);
-  if (!tool.success) return { kind: 'unsupported', requestId, subtype: request.subtype };
+  if (!tool.success) return { kind: 'unsupported', requestId, subtype };
   const { input } = tool.data;
   return { kind: 'can-use-tool', requestId, input, summary: summaryOf(tool.data, home) };
 }
@@ -79,7 +81,7 @@ export function controlResponse(request: ControlRequest, answer: ApprovalAnswer 
       return line({
         subtype: 'error',
         request_id: request.requestId,
-        error: `MorrowBot does not answer "${request.subtype}" control requests`,
+        error: request.subtype === null ? 'MorrowBot does not answer control requests without a subtype' : `MorrowBot does not answer "${request.subtype}" control requests`,
       });
     case 'can-use-tool': {
       const allowed = answer?.kind === 'chosen' && answer.choiceId === 'allow';

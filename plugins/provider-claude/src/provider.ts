@@ -42,22 +42,29 @@ export function createClaudeProvider(): ProviderPlugin {
     return started;
   };
 
-  const displayAuth = async (refresh: boolean): Promise<Auth> => {
+  /** Numbers `provider-info` calls: only the newest one may change what was seen, so a slow older probe cannot bring back an old account. */
+  let calls = 0;
+
+  const displayAuth = async (refresh: boolean, newest: () => boolean): Promise<Auth> => {
     const { settings, probeCwd } = current();
     const now = Date.now();
     if (!refresh && authCache?.cliPath === settings.cliPath && now - authCache.at <= AUTH_DISPLAY_MS) return authCache.auth;
     const auth = await readAuth(settings.cliPath, probeCwd);
-    authCache = { at: now, cliPath: settings.cliPath, auth };
+    if (newest()) authCache = { at: now, cliPath: settings.cliPath, auth };
     return auth;
   };
 
-  /** An answer with no validated account: usage seen before it is no longer shown. */
-  const notReady = (info: ProviderInfo): ProviderInfo => {
-    see({ kind: 'nothing' });
-    return info;
-  };
-
   const providerInfo = async (refresh: boolean): Promise<ProviderInfo> => {
+    const call = ++calls;
+    const newest = () => call === calls;
+    const seeIfNewest = (next: Seen): void => {
+      if (newest()) see(next);
+    };
+    /** An answer with no validated account: usage seen before it is no longer shown. */
+    const notReady = (info: ProviderInfo): ProviderInfo => {
+      seeIfNewest({ kind: 'nothing' });
+      return info;
+    };
     const { settings, probeCwd } = current();
     const { cliPath } = settings;
     if ((await statExecutable(cliPath)).kind === 'missing') return notReady(missingRuntime());
@@ -75,13 +82,13 @@ export function createClaudeProvider(): ProviderPlugin {
     }
     const policy = await checkManagedPolicy();
     if (policy.kind === 'withheld') {
-      see({ kind: 'nothing' });
+      seeIfNewest({ kind: 'nothing' });
       return readyInfo(version, policy, null, process.platform);
     }
-    const auth = await displayAuth(refresh);
+    const auth = await displayAuth(refresh, newest);
     switch (auth.kind) {
       case 'signed-out':
-        see({ kind: 'signed-out' });
+        seeIfNewest({ kind: 'signed-out' });
         return { kind: 'signed-out', signIn: { kind: 'run-in-terminal', argv: [cliPath, 'auth', 'login'] } };
       case 'not-installed':
         return notReady(missingRuntime());
@@ -89,7 +96,7 @@ export function createClaudeProvider(): ProviderPlugin {
         return notReady({ kind: 'error', message: auth.message });
       case 'personal':
       case 'withheld':
-        see({ kind: 'account', accountKey: auth.accountKey });
+        seeIfNewest({ kind: 'account', accountKey: auth.accountKey });
         return readyInfo(version, policy, auth, process.platform);
     }
   };
