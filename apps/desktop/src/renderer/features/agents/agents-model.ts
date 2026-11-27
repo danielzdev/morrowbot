@@ -47,8 +47,17 @@ export function titleFrom(text: string): string {
   return line.length <= 48 ? line : `${line.slice(0, 47)}…`;
 }
 
-export function createAgentsModel(options: { readonly api: Api; readonly bridge: Pick<MorrowbotBridge, 'onHostReady'> }): AgentsModel {
+export interface AgentsModelOptions {
+  readonly api: Api;
+  readonly bridge: Pick<MorrowbotBridge, 'onHostReady'>;
+  /** Chats that no longer exist, so their open sessions can stop following them. */
+  readonly onThreadsDeleted?: (threadIds: readonly string[]) => void;
+}
+
+export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
   const { api } = options;
+  let loads = 0;
+  const threadLoads = new Map<string, number>();
   const state = new Store<AgentsState>({ agents: { kind: 'loading' }, selectedAgentId: null, threads: {}, openThread: {}, problem: null });
   const patch = (change: Partial<AgentsState>): void => {
     state.update((current) => ({ ...current, ...change }));
@@ -68,7 +77,10 @@ export function createAgentsModel(options: { readonly api: Api; readonly bridge:
   };
 
   async function loadThreads(agentId: string): Promise<void> {
+    const mine = (threadLoads.get(agentId) ?? 0) + 1;
+    threadLoads.set(agentId, mine);
     const result = await api.listThreads(agentId);
+    if (threadLoads.get(agentId) !== mine) return;
     if (result.kind === 'failed') {
       setThreads(agentId, { kind: 'failed', message: result.error.message });
       return;
@@ -85,7 +97,9 @@ export function createAgentsModel(options: { readonly api: Api; readonly bridge:
   }
 
   async function load(): Promise<void> {
+    const mine = ++loads;
     const result = await api.listAgents();
+    if (mine !== loads) return;
     if (result.kind === 'failed') {
       patch({ agents: { kind: 'failed', message: result.error.message } });
       return;
@@ -135,9 +149,14 @@ export function createAgentsModel(options: { readonly api: Api; readonly bridge:
       return saved(result, (agent) => agent);
     },
     deleteAgent: async (id) => {
+      const threadIds = threadsOf(id).map((thread) => thread.id);
       const result = await api.deleteAgent(id);
-      if (result.kind === 'failed') patch({ problem: result.error.message });
-      else await load();
+      if (result.kind === 'failed') {
+        patch({ problem: result.error.message });
+        return;
+      }
+      options.onThreadsDeleted?.(threadIds);
+      await load();
     },
     newThread,
     openThread: setOpen,
@@ -148,8 +167,12 @@ export function createAgentsModel(options: { readonly api: Api; readonly bridge:
     },
     deleteThread: async (agentId, threadId) => {
       const result = await api.deleteThread(threadId);
-      if (result.kind === 'failed') patch({ problem: result.error.message });
-      else await loadThreads(agentId);
+      if (result.kind === 'failed') {
+        patch({ problem: result.error.message });
+        return;
+      }
+      options.onThreadsDeleted?.([threadId]);
+      await loadThreads(agentId);
     },
     touchThread: async (agentId, threadId, firstText) => {
       const thread = threadsOf(agentId).find(({ id }) => id === threadId);

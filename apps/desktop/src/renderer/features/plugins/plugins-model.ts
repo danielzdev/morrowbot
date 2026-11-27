@@ -28,6 +28,8 @@ export interface PluginsModelOptions {
   readonly api: Api;
   readonly bridge: Pick<MorrowbotBridge, 'onEvent' | 'onHostReady'>;
   readonly blockedRefreshMs?: number;
+  /** After a Release, which can free chats that other screens show. */
+  readonly onReleased?: () => void;
 }
 
 const isProvider = (entry: PluginEntry): boolean => entry.manifest.kind === 'provider';
@@ -37,6 +39,8 @@ export function createPluginsModel(options: PluginsModelOptions): PluginsModel {
   const { api } = options;
   const cards = new Store<Loadable<readonly PluginCard[]>>({ kind: 'loading' });
   let blockedTimer: ReturnType<typeof setTimeout> | undefined;
+  let loads = 0;
+  let closed = false;
 
   const card = (id: string): PluginCard | undefined => {
     const current = cards.get();
@@ -60,35 +64,42 @@ export function createPluginsModel(options: PluginsModelOptions): PluginsModel {
     return result.kind === 'ok' ? result.value : null;
   }
 
-  async function cardFor(entry: PluginEntry, previous: PluginCard | undefined): Promise<PluginCard> {
-    const base = { entry, busy: previous?.busy ?? null, problem: previous?.problem ?? null };
-    if (!isProvider(entry)) return { ...base, info: null, usage: null };
-    if (!isRunning(entry)) return { ...base, info: { kind: 'failed', message: 'The plugin is not running.' }, usage: null };
+  /** A card's entry, info and usage as the host has them now; `busy` and `problem` belong to the caller. */
+  async function fetchCard(entry: PluginEntry): Promise<Omit<PluginCard, 'busy' | 'problem'>> {
+    if (!isProvider(entry)) return { entry, info: null, usage: null };
+    if (!isRunning(entry)) return { entry, info: { kind: 'failed', message: 'The plugin is not running.' }, usage: null };
     const [info, usage] = await Promise.all([fetchInfo(entry.manifest.id, false), fetchUsage(entry.manifest.id)]);
-    return { ...base, info, usage };
+    return { entry, info, usage };
   }
 
   function watchBlocked(list: readonly PluginCard[]): void {
     clearTimeout(blockedTimer);
-    if (list.some(({ entry }) => entry.blockedGroups.some(({ releasable }) => !releasable))) {
+    if (list.some(({ entry }) => entry.blockedGroups.length > 0)) {
       blockedTimer = setTimeout(() => void load(), options.blockedRefreshMs ?? 5_000);
     }
   }
 
   async function load(): Promise<void> {
+    const mine = ++loads;
     const result = await api.listPlugins();
+    const fetched = result.kind === 'ok' ? await Promise.all(result.value.plugins.map(fetchCard)) : [];
+    if (mine !== loads || closed) return;
     if (result.kind === 'failed') {
       cards.set({ kind: 'failed', message: result.error.message });
       return;
     }
-    const list = await Promise.all(result.value.plugins.map((entry) => cardFor(entry, card(entry.manifest.id))));
+    const list = fetched.map((next) => {
+      const live = card(next.entry.manifest.id);
+      return { ...next, busy: live?.busy ?? null, problem: live?.problem ?? null };
+    });
     cards.set({ kind: 'loaded', value: list });
     watchBlocked(list);
   }
 
   /** Replaces one plugin's entry after a change, and fetches its info again. */
   async function reloadOne(entry: PluginEntry, problem: string | null): Promise<void> {
-    const next = await cardFor(entry, card(entry.manifest.id));
+    const next = await fetchCard(entry);
+    loads++;
     patch(entry.manifest.id, { ...next, busy: null, problem });
   }
 
@@ -112,9 +123,12 @@ export function createPluginsModel(options: PluginsModelOptions): PluginsModel {
       const result = await api.recheck(id);
       if (result.kind === 'failed') {
         patch(id, { busy: null, problem: result.error.message });
+        await load();
         return;
       }
-      patch(id, { busy: null, info: { kind: 'loaded', value: result.value.info }, usage: await fetchUsage(id) });
+      const usage = await fetchUsage(id);
+      loads++;
+      patch(id, { busy: null, info: { kind: 'loaded', value: result.value.info }, usage });
     },
     setConfig: async (id, config) => {
       patch(id, { busy: 'saving', problem: null });
@@ -133,8 +147,10 @@ export function createPluginsModel(options: PluginsModelOptions): PluginsModel {
       const result = await api.releaseGroup(regId);
       patch(id, { busy: null, problem: result.kind === 'failed' ? result.error.message : null });
       await load();
+      options.onReleased?.();
     },
     close: () => {
+      closed = true;
       clearTimeout(blockedTimer);
       stopEvents();
       stopRestarts();

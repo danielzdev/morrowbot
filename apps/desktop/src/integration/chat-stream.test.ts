@@ -2,6 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, expect, it } from 'vitest';
+import { DEFAULT_PLUGIN_TIMEOUTS } from '../../../host/src/features/plugins/index.ts';
 import { startChatFixture, type ChatFixture } from '../../../host/src/testing/chat-fixture.ts';
 import { sequence } from '../../../host/src/testing/test-host.ts';
 import { createChatHub, type ChatHub } from '../renderer/features/chat/index.ts';
@@ -14,8 +15,10 @@ afterEach(async () => {
   for (const step of cleanup.splice(0).reverse()) await step();
 });
 
+const FAST_STOP = { ...DEFAULT_PLUGIN_TIMEOUTS, turnStopMs: 200 };
+
 async function host(options: Parameters<typeof startChatFixture>[0] = {}): Promise<ChatFixture> {
-  const chat = await startChatFixture(options);
+  const chat = await startChatFixture({ timeouts: FAST_STOP, ...options });
   cleanup.push(() => chat.close());
   return chat;
 }
@@ -117,7 +120,7 @@ it('resyncs after the host restarts mid-turn: the cut-off reply shows as interru
   const dataDir = await mkdtemp(path.join(tmpdir(), 'morrowbot-desktop-'));
   cleanup.push(() => rm(dataDir, { recursive: true, force: true }));
   const ids = sequence();
-  const before = await startChatFixture({ dataDir, sequence: ids });
+  const before = await startChatFixture({ dataDir, sequence: ids, timeouts: FAST_STOP });
   const thread = await before.thread(await before.agent());
   const { window, hub } = windowOn(before);
   const session = hub.session(thread.id);

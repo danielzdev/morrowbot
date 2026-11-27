@@ -25,12 +25,25 @@ function infoOf(card: PluginCard | undefined): ProviderInfo | undefined {
 
 function createModels(bridge: MorrowbotBridge): Models {
   const api = createApi(bridge);
-  const agents = createAgentsModel({ api, bridge });
-  const plugins = createPluginsModel({ api, bridge });
+  const agents = createAgentsModel({
+    api,
+    bridge,
+    onThreadsDeleted: (threadIds) => {
+      for (const threadId of threadIds) chats.forget(threadId);
+    },
+  });
+  const plugins = createPluginsModel({
+    api,
+    bridge,
+    onReleased: () => {
+      chats.reloadAll();
+    },
+  });
   const chats = createChatHub({
     api,
     bridge,
-    onFinished: (threadId) => {
+    onGroupsChanged: () => void plugins.load(),
+    onFinished: (threadId, message) => {
       const state = agents.state.get();
       const agentId = Object.entries(state.threads).find(([, threads]) => threads.kind === 'loaded' && threads.value.some(({ id }) => id === threadId))?.[0];
       if (agentId === undefined) return;
@@ -38,7 +51,8 @@ function createModels(bridge: MorrowbotBridge): Models {
       const first = view.kind === 'loaded' ? view.value.messages.find(({ kind }) => kind === 'user')?.text ?? null : null;
       void agents.touchThread(agentId, threadId, first);
       const agent = state.agents.kind === 'loaded' ? state.agents.value.find(({ id }) => id === agentId) : undefined;
-      if (agent?.provider.kind === 'bound' && infoOf(cardOf(plugins, agent.provider.pluginId))?.kind !== 'ready') {
+      if (message.outcome.kind === 'failed' || message.outcome.kind === 'interrupted') void plugins.load();
+      else if (agent?.provider.kind === 'bound' && infoOf(cardOf(plugins, agent.provider.pluginId))?.kind !== 'ready') {
         void plugins.refreshInfo(agent.provider.pluginId);
       }
     },
@@ -65,7 +79,16 @@ function ChatPane(props: { readonly models: Models; readonly agent: Agent; reado
   const binding = agent.provider.kind === 'bound' ? agent.provider : null;
   const card = binding === null || cards.kind !== 'loaded' ? undefined : cards.value.find(({ entry }) => entry.manifest.id === binding.pluginId);
   const info = infoOf(card);
-  const rebind = (next: BoundProvider): void => void models.agents.updateAgent(agent.id, { provider: next });
+  const [saving, setSaving] = useState(false);
+  const [bindingProblem, setBindingProblem] = useState<string | null>(null);
+  const rebind = (next: BoundProvider): void => {
+    setSaving(true);
+    setBindingProblem(null);
+    void models.agents.updateAgent(agent.id, { provider: next }).then((result) => {
+      setSaving(false);
+      if (result.kind === 'refused') setBindingProblem(`The change was not saved: ${result.message}`);
+    });
+  };
   const session = threadId === undefined ? undefined : models.chats.session(threadId);
   return (
     <div class="main">
@@ -93,7 +116,7 @@ function ChatPane(props: { readonly models: Models; readonly agent: Agent; reado
           <Composer
             key={`composer-${session.threadId}`}
             session={session}
-            disabledReason={binding === null ? "Choose a provider in this agent's settings." : null}
+            disabledReason={binding === null ? "Choose a provider in this agent's settings." : saving ? 'Saving the new settings…' : null}
             toolbar={
               binding === null ? (
                 <button class="chip warning" onClick={() => { props.onPage({ kind: 'agent-settings' }); }}>
@@ -101,13 +124,14 @@ function ChatPane(props: { readonly models: Models; readonly agent: Agent; reado
                 </button>
               ) : (
                 <>
-                  <ModelPicker info={info} binding={binding} onChange={(selection) => { rebind({ ...binding, selection }); }} />
-                  <AccessPicker info={info} binding={binding} onChange={(access, vendorSettings) => { rebind({ ...binding, access, vendorSettings }); }} />
+                  <ModelPicker info={info} binding={binding} disabled={saving} onChange={(selection) => { rebind({ ...binding, selection }); }} />
+                  <AccessPicker info={info} binding={binding} disabled={saving} onChange={(access, vendorSettings) => { rebind({ ...binding, access, vendorSettings }); }} />
                   <ProviderChip card={card} onPlugins={() => { props.onPage({ kind: 'plugins' }); }} />
                 </>
               )
             }
           />
+          {bindingProblem !== null && <div class="access-notes note error">{bindingProblem}</div>}
           {binding !== null && <AccessNotes info={info} binding={binding} />}
         </>
       )}

@@ -1,5 +1,5 @@
 import type { PluginConfig, ProviderInfo, SettingField, SettingValue, UsageResponse } from '@morrowbot/contracts';
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import type { MorrowbotBridge } from '../../bridge.ts';
 import { BlockedBanner } from '../../shared/BlockedBanner.tsx';
 import { formatTime } from '../../shared/format.ts';
@@ -192,6 +192,9 @@ function Card(props: { readonly card: PluginCard; readonly model: PluginsModel; 
 
 export function PluginsPage(props: { readonly model: PluginsModel; readonly bridge: Pick<MorrowbotBridge, 'copyText'> }) {
   const cards = useStore(props.model.cards);
+  useEffect(() => {
+    void props.model.load();
+  }, [props.model]);
   return (
     <div class="page">
       <h2>Plugins</h2>

@@ -4,7 +4,7 @@ import type { BridgeChannels } from '../renderer/bridge.ts';
 import { APP_ID, PRODUCT_NAME } from './app-identity.ts';
 import { openEventStream, type EventStream } from './event-stream.ts';
 import { superviseHost } from './host-supervisor.ts';
-import { checkSender, IpcRefusedError, parseCopyText, parseSubscription, proxyRequest, type IpcSender } from './ipc-proxy.ts';
+import { checkSender, IpcRefusedError, parseCopyText, parseSubscription, proxyRequest, type HostTarget, type IpcSender } from './ipc-proxy.ts';
 
 const RENDERER_URL = pathToFileURL(fileURLToPath(new URL('../../dist/renderer/index.html', import.meta.url))).href;
 const PRELOAD = fileURLToPath(new URL('../preload/preload.cjs', import.meta.url));
@@ -20,6 +20,9 @@ const CHANNELS: BridgeChannels = {
 };
 
 type Lifetime = 'running' | 'stopping-host' | 'host-stopped';
+
+const RECONNECT_MS = 1_000;
+const RECONNECT_MAX_MS = 30_000;
 
 function report(error: unknown): void {
   console.error('MorrowBot:', error);
@@ -65,11 +68,27 @@ function runApp(): void {
     return { kind: 'frame', url: frame.url, isMainFrame: ours && frame.parent === null };
   }
 
+  /** Follows the host's events; if the socket drops while the host lives, reconnects and has the window reload. */
+  function connect(target: HostTarget, delayMs: number): void {
+    events?.close();
+    events = openEventStream(target, {
+      onEvent: (event) => window?.webContents.send(CHANNELS.event, event),
+      report,
+      onOpen: () => {
+        delayMs = RECONNECT_MS;
+        window?.webContents.send(CHANNELS.hostReady);
+      },
+      onLost: () => {
+        setTimeout(() => {
+          if (lifetime === 'running' && host.target() === target) connect(target, Math.min(delayMs * 2, RECONNECT_MAX_MS));
+        }, delayMs);
+      },
+    });
+  }
+
   const host = superviseHost(HOST_MAIN, {
     ready: (target) => {
-      events?.close();
-      events = openEventStream(target, (event) => window?.webContents.send(CHANNELS.event, event), report);
-      window?.webContents.send(CHANNELS.hostReady);
+      connect(target, RECONNECT_MS);
     },
     alreadyRunning: () => {
       void dialog
@@ -103,10 +122,15 @@ function runApp(): void {
     }
   });
 
+  let picking = false;
   ipcMain.handle(CHANNELS.pickFolder, async (event) => {
     checkSender(senderOf(event), RENDERER_URL);
+    if (picking || window === undefined) return null;
+    picking = true;
     const options: OpenDialogOptions = { properties: ['openDirectory', 'createDirectory'] };
-    const picked = window === undefined ? await dialog.showOpenDialog(options) : await dialog.showOpenDialog(window, options);
+    const picked = await dialog.showOpenDialog(window, options).finally(() => {
+      picking = false;
+    });
     return picked.canceled ? null : (picked.filePaths[0] ?? null);
   });
 

@@ -40,10 +40,10 @@ export function openTestWindow(target: HostTarget): TestWindow {
   const connect = (next: HostTarget): void => {
     host = next;
     events?.close();
-    events = openEventStream(next, deliver, report);
+    events = openEventStream(next, { onEvent: deliver, report });
     for (const listener of ready) listener();
   };
-  events = openEventStream(host, deliver, report);
+  events = openEventStream(host, { onEvent: deliver, report });
   const bridge: MorrowbotBridge = {
     request: async (method, path, body) => {
       const reply = await proxyRequest({ sender: PAGE, rendererUrl: RENDERER_URL, input: { method, path, body }, host });

@@ -125,7 +125,7 @@ export function ChatView({ session }: { readonly session: ThreadSession }) {
   }
   const loaded = screen.view.value;
   const last = loaded.messages.at(-1);
-  const idle = loaded.activeTurn === null && screen.busy === null;
+  const idle = loaded.activeTurn === null && loaded.blockedGroups.length === 0 && screen.busy === null;
   return (
     <div class="chat">
       <BlockedBanner groups={loaded.blockedGroups} onRelease={(regId) => void session.release(regId)} />

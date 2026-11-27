@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Agent, Thread, type AccessLevel } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { DEFAULT_PLUGIN_TIMEOUTS } from '../../../host/src/features/plugins/index.ts';
 import { startTestHost, type TestHost } from '../../../host/src/testing/test-host.ts';
 import { createChatHub, type ChatHub, type ThreadSession } from '../renderer/features/chat/index.ts';
 import { createPluginsModel, summarize, type PluginsModel } from '../renderer/features/plugins/index.ts';
@@ -28,7 +29,7 @@ beforeEach(async () => {
   vi.stubEnv('HOME', home);
   vi.stubEnv('CLAUDE_CONFIG_DIR', path.join(home, '.claude'));
   vi.stubEnv('USER', 'tester');
-  host = await startTestHost({ dataDir: path.join(home, 'data'), pluginsDir: PLUGINS });
+  host = await startTestHost({ dataDir: path.join(home, 'data'), pluginsDir: PLUGINS, timeouts: { ...DEFAULT_PLUGIN_TIMEOUTS, turnStopMs: 200 } });
   expect((await host.call('PUT', '/api/plugins/provider-claude/config', { config: { cliPath: FAKE_CLAUDE } })).status).toBe(200);
   window = openTestWindow({ url: host.url, token: host.host.token });
   const api = createApi(window.bridge);

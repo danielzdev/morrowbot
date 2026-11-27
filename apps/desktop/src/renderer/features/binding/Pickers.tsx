@@ -6,6 +6,7 @@ const DEFAULT_MODEL = '';
 export function ModelPicker(props: {
   readonly info: ProviderInfo | undefined;
   readonly binding: BoundProvider;
+  readonly disabled: boolean;
   readonly onChange: (selection: ModelSelection) => void;
 }) {
   const choices = modelChoices(props.info, props.binding.selection);
@@ -18,18 +19,26 @@ export function ModelPicker(props: {
       break;
   }
   const { selected } = choices;
+  const { selection } = props.binding;
+  const missing = selection.kind === 'model' && selected === null ? selection.id : null;
   return (
     <>
       <label class="chip">
         <span class="chip-label">Model</span>
         <select
           aria-label="Model"
-          value={selected?.id ?? DEFAULT_MODEL}
+          disabled={props.disabled}
+          value={missing ?? selected?.id ?? DEFAULT_MODEL}
           onChange={(event) => {
             const id = event.currentTarget.value;
             props.onChange(selectModel(choices.models.find((model) => model.id === id) ?? null));
           }}
         >
+          {missing !== null && (
+            <option value={missing} disabled>
+              {`${missing} (not offered)`}
+            </option>
+          )}
           <option value={DEFAULT_MODEL}>Default</option>
           {choices.models.map((model) => (
             <option key={model.id} value={model.id}>
@@ -43,6 +52,7 @@ export function ModelPicker(props: {
           <span class="chip-label">{option.label}</span>
           <select
             aria-label={option.label}
+            disabled={props.disabled}
             value={choices.choices[option.id] ?? option.defaultChoiceId}
             onChange={(event) => {
               props.onChange(selectChoice(props.binding.selection, option.id, event.currentTarget.value));
@@ -66,6 +76,7 @@ const keyOf = (access: AccessLevel, vendorSettings: VendorSettings): string => `
 export function AccessPicker(props: {
   readonly info: ProviderInfo | undefined;
   readonly binding: BoundProvider;
+  readonly disabled: boolean;
   readonly onChange: (access: AccessLevel, vendorSettings: VendorSettings) => void;
 }) {
   const choices = accessChoices(props.info, props.binding);
@@ -79,6 +90,7 @@ export function AccessPicker(props: {
       <span class="chip-label">Access</span>
       <select
         aria-label="Access"
+        disabled={props.disabled}
         value={current}
         onChange={(event) => {
           const picked = choices.options.find((option) => keyOf(option.access, option.vendorSettings) === event.currentTarget.value);

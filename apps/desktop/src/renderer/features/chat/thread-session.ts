@@ -24,7 +24,7 @@ export type ComposerProblem =
       readonly options: readonly SessionChoiceOption[];
       readonly action: PendingAction;
     }
-  | { readonly kind: 'retry'; readonly message: string; readonly action: PendingAction }
+  | { readonly kind: 'retry'; readonly message: string; readonly action: PendingAction; readonly sessionChoice: SessionChoice }
   | { readonly kind: 'error'; readonly message: string };
 
 export interface ThreadScreen {
@@ -64,6 +64,8 @@ export interface ThreadSessionOptions {
   readonly onFinished?: (message: AssistantMessage) => void;
   /** How often a thread blocked by an old process group checks again; Release anyway appears after 60 s. */
   readonly blockedRefreshMs?: number;
+  /** After a Stop or Release, which can block or free process groups that other screens show too. */
+  readonly onGroupsChanged?: () => void;
 }
 
 const SEEDED: SessionChoiceOption = { choice: { kind: 'new-seeded' }, label: 'Start new seeded session', warning: null };
@@ -85,13 +87,13 @@ function sessionChoice(reason: SessionChoiceReason): Pick<Extract<ComposerProble
   }
 }
 
-export function problemOf(error: ApiError['error'], action: PendingAction): ComposerProblem {
+export function problemOf(error: ApiError['error'], action: PendingAction, choice: SessionChoice): ComposerProblem {
   switch (error.kind) {
     case 'session-choice-required':
       return { kind: 'session-choice', reason: error.reason, action, ...sessionChoice(error.reason) };
     case 'provider-unavailable':
     case 'binding-changed':
-      return { kind: 'retry', message: error.message, action };
+      return { kind: 'retry', message: error.message, action, sessionChoice: choice };
     case 'invalid_request':
     case 'not_found':
     case 'conflict':
@@ -128,7 +130,7 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
     const view = viewOf(result.value);
     patch({ view: { kind: 'loaded', value: view } });
     bridge.subscribe(threadId, result.value.cursor);
-    if (view.blockedGroups.some(({ releasable }) => !releasable)) {
+    if (view.blockedGroups.length > 0) {
       blockedTimer = setTimeout(() => void load(), options.blockedRefreshMs ?? 5_000);
     }
   }
@@ -170,12 +172,20 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
       patch({ busy: null, draft: action.kind === 'send' && draft.trim() === action.text ? '' : draft });
       return;
     }
-    patch({ busy: null, problem: problemOf(result.error, action) });
+    patch({ busy: null, problem: problemOf(result.error, action, sessionChoice) });
+    if (result.error.kind === 'conflict') await load();
   }
 
-  function pendingAction(): PendingAction | undefined {
+  /** The refused action, with a send taking the draft as it is now so an edit is never lost. */
+  function pendingAction(action: PendingAction): PendingAction | undefined {
+    if (action.kind === 'continue') return action;
+    const text = screen.get().draft.trim();
+    return text === '' ? undefined : { kind: 'send', text };
+  }
+
+  function problemAction(): PendingAction | undefined {
     const { problem } = screen.get();
-    return problem === null || problem.kind === 'error' ? undefined : problem.action;
+    return problem === null || problem.kind === 'error' ? undefined : pendingAction(problem.action);
   }
 
   return {
@@ -192,12 +202,13 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
       await run({ kind: 'send', text }, { kind: 'auto' });
     },
     choose: async (choice) => {
-      const action = pendingAction();
+      const action = problemAction();
       if (action !== undefined) await run(action, choice);
     },
     retry: async () => {
-      const action = pendingAction();
-      if (action !== undefined) await run(action, { kind: 'auto' });
+      const { problem } = screen.get();
+      const action = problemAction();
+      if (action !== undefined && problem?.kind === 'retry') await run(action, problem.sessionChoice);
     },
     dismissProblem: () => {
       patch({ problem: null });
@@ -208,6 +219,8 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
       patch({ busy: 'stopping', problem: null });
       const result = await api.stop(threadId);
       patch({ busy: null, problem: result.kind === 'ok' ? null : { kind: 'error', message: result.error.message } });
+      await load();
+      options.onGroupsChanged?.();
     },
     answer: async (approvalId, choiceId) => {
       const current = screen.get().view;
@@ -224,6 +237,7 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
       const result = await api.releaseGroup(regId);
       if (result.kind === 'failed') patch({ problem: { kind: 'error', message: result.error.message } });
       await load();
+      options.onGroupsChanged?.();
     },
     close: () => {
       closed = true;

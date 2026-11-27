@@ -87,7 +87,7 @@ it('asks for a session choice on a diverged session, keeps the draft, and sends 
   `);
 });
 
-it('keeps the draft when the provider cannot take a send, and Retry sends it once the provider is back', async () => {
+it('keeps the draft when the provider cannot take a send, and Retry sends the draft as edited once the provider is back', async () => {
   await chat.configure({ sessions: true, routeInfo: 'fail' });
   const thread = await chat.thread(await chat.agent());
   const session = hub.session(thread.id);
@@ -95,6 +95,7 @@ it('keeps the draft when the provider cannot take a send, and Retry sends it onc
   const refused = await typeAndSend(session, 'hi');
   const written = await chat.history(thread);
   await chat.configure({ sessions: true, routeInfo: 'ok' });
+  session.setDraft('hi again');
   await session.retry();
   await idle(session, 2);
   expect({ refused, written, retried: shown(session.screen.get()) }).toMatchInlineSnapshot(`
@@ -108,6 +109,9 @@ it('keeps the draft when the provider cannot take a send, and Retry sends it onc
           },
           "kind": "retry",
           "message": "The provider could not say which account it uses. Try again.",
+          "sessionChoice": {
+            "kind": "auto",
+          },
         },
         "view": {
           "activeTurn": null,
@@ -122,8 +126,8 @@ it('keeps the draft when the provider cannot take a send, and Retry sends it onc
           "activeTurn": null,
           "expiredApprovals": [],
           "messages": [
-            "user: hi",
-            "assistant: hello from pid <pid>: hi",
+            "user: hi again",
+            "assistant: hello from pid <pid>: hi again",
           ],
         },
       },

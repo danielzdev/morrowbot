@@ -41,11 +41,11 @@ function describeFinish(reason: FinishReason): OutcomeNote {
     case 'stop':
       return note('normal', null);
     case 'length':
-      return note('warning', 'The reply hit its length limit.', CONTINUE);
+      return note('warning', 'The reply hit its length limit.');
     case 'refused':
       return note('warning', 'The model declined to answer.');
     case 'turn-limit':
-      return note('warning', 'The reply hit its turn limit.', CONTINUE);
+      return note('warning', 'The reply hit its turn limit.');
   }
 }
 
