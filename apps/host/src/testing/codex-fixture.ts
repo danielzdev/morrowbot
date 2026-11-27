@@ -3,9 +3,13 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { ChatEvent, ProviderBinding } from '@morrowbot/contracts';
+import { it } from 'vitest';
 import { z } from 'zod';
 import { startChatFixture, type ChatFixture } from './chat-fixture.ts';
 import type { Reply, TestHostOptions } from './test-host.ts';
+
+/** provider-openai runs turns only on macOS (`platformReason`), so its fake-Codex tests run there. */
+export const onMacOS = it.skipIf(process.platform !== 'darwin');
 
 const PLUGINS = fileURLToPath(new URL('../../../../plugins', import.meta.url));
 const FAKE_CODEX = fileURLToPath(new URL('../features/plugins/fixtures/fake-codex.ts', import.meta.url));

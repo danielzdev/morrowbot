@@ -1,8 +1,8 @@
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { SendMessageResponse } from '@morrowbot/contracts';
-import { afterEach, beforeEach, expect, it } from 'vitest';
-import { startCodexFixture, turnMethods, type CodexFixture } from '../../testing/codex-fixture.ts';
+import { afterEach, beforeEach, expect } from 'vitest';
+import { type CodexFixture, onMacOS, startCodexFixture, turnMethods } from '../../testing/codex-fixture.ts';
 
 let codex: CodexFixture;
 
@@ -39,7 +39,7 @@ async function sendAndWait(thread: { readonly id: string }, text: string): Promi
   return generationId;
 }
 
-it('reports Codex ready with its read-only profile and why the others are held back, starting the daemon through provider-info', async () => {
+onMacOS('reports Codex ready with its read-only profile and why the others are held back, starting the daemon through provider-info', async () => {
   const before = codex.daemonPgids().length;
   const info = await codex.host.call('GET', '/api/plugins/provider-openai/info');
   expect({ before, after: codex.daemonPgids().length, info: redact(info.body) }).toMatchInlineSnapshot(`
@@ -116,7 +116,7 @@ it('reports Codex ready with its read-only profile and why the others are held b
   `);
 });
 
-it('streams a new thread, binds it to the account, counts its tokens, then reuses the loaded thread for the next turn', async () => {
+onMacOS('streams a new thread, binds it to the account, counts its tokens, then reuses the loaded thread for the next turn', async () => {
   const thread = await codex.thread(await codex.agent());
   const first = await sendAndWait(thread, 'hello');
   const second = await sendAndWait(thread, 'tool please');

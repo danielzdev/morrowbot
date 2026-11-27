@@ -2,8 +2,8 @@ import { rm } from 'node:fs/promises';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { SendMessageResponse } from '@morrowbot/contracts';
-import { afterEach, beforeEach, expect, it } from 'vitest';
-import { NATIVE, startCodexFixture, turnMethods, type CodexFixture } from '../../testing/codex-fixture.ts';
+import { afterEach, beforeEach, expect } from 'vitest';
+import { type CodexFixture, NATIVE, onMacOS, startCodexFixture, turnMethods } from '../../testing/codex-fixture.ts';
 
 let codex: CodexFixture;
 
@@ -39,7 +39,7 @@ async function methodsSince(from: number): Promise<string[]> {
   return turnMethods((await codex.log()).slice(from));
 }
 
-it('after Recheck, cold-resumes the thread with its overrides and counts a replayed total as the baseline only', async () => {
+onMacOS('after Recheck, cold-resumes the thread with its overrides and counts a replayed total as the baseline only', async () => {
   const thread = await codex.thread(await codex.agent());
   await sendAndWait(thread, 'hello');
   expect((await codex.host.call('POST', '/api/plugins/provider-openai/recheck')).status).toBe(200);
@@ -93,7 +93,7 @@ it('after Recheck, cold-resumes the thread with its overrides and counts a repla
   `);
 });
 
-it('cold-loads a loaded thread whose policy changed, and refuses before the prompt when Codex keeps it loaded', async () => {
+onMacOS('cold-loads a loaded thread whose policy changed, and refuses before the prompt when Codex keeps it loaded', async () => {
   const thread = await codex.thread(await codex.agent());
   await sendAndWait(thread, 'hello');
   await codex.setState({ config: { ...NATIVE.config, mcp_servers: { node_repl: {}, other: {} } } });
@@ -125,7 +125,7 @@ it('cold-loads a loaded thread whose policy changed, and refuses before the prom
   `);
 });
 
-it('refuses before the prompt when the daemon reports a hook it could not turn off', async () => {
+onMacOS('refuses before the prompt when the daemon reports a hook it could not turn off', async () => {
   await codex.setState({ hooks: [{ event: 'PreToolUse', command: 'echo hi' }] });
   const thread = await codex.thread(await codex.agent());
   await sendAndWait(thread, 'hello');
@@ -143,7 +143,7 @@ it('refuses before the prompt when the daemon reports a hook it could not turn o
   `);
 });
 
-it('declines an approval request without a card', async () => {
+onMacOS('declines an approval request without a card', async () => {
   const thread = await codex.thread(await codex.agent());
   const generationId = await sendAndWait(thread, 'ask');
   expect({
@@ -171,7 +171,7 @@ it('declines an approval request without a card', async () => {
   `);
 });
 
-it('ends session-lost, sending nothing, when the saved thread is gone', async () => {
+onMacOS('ends session-lost, sending nothing, when the saved thread is gone', async () => {
   const thread = await codex.thread(await codex.agent());
   await sendAndWait(thread, 'hello');
   await rm(path.join(codex.home, 'fake-codex', 'threads.json'));
@@ -202,7 +202,7 @@ it('ends session-lost, sending nothing, when the saved thread is gone', async ()
   `);
 });
 
-it('a seeded new thread gets the earlier conversation before the prompt', async () => {
+onMacOS('a seeded new thread gets the earlier conversation before the prompt', async () => {
   const thread = await codex.thread(await codex.agent());
   await sendAndWait(thread, 'hello');
   const from = (await codex.log()).length;

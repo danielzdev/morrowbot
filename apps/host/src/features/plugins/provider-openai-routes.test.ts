@@ -1,6 +1,6 @@
 import { SendMessageResponse } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it } from 'vitest';
-import { NATIVE, startCodexFixture, turnMethods, type CodexFixture } from '../../testing/codex-fixture.ts';
+import { type CodexFixture, NATIVE, onMacOS, startCodexFixture, turnMethods } from '../../testing/codex-fixture.ts';
 import { until } from '../../testing/daemon-fixture.ts';
 
 let codex: CodexFixture;
@@ -30,7 +30,7 @@ async function methodsSince(from: number): Promise<string[]> {
 
 const logLength = async (): Promise<number> => (await codex.log()).length;
 
-it('native → custom runs stateless ephemeral turns with no prompt; custom → native asks for a seeded session, which works', async () => {
+onMacOS('native → custom runs stateless ephemeral turns with no prompt; custom → native asks for a seeded session, which works', async () => {
   const thread = await codex.thread(await codex.agent());
   await sendAndWait(thread, 'native one');
   await codex.setState(CUSTOM);
@@ -85,7 +85,7 @@ it('native → custom runs stateless ephemeral turns with no prompt; custom → 
     `);
 });
 
-it('a route change between route-info and the turn ends route-changed with nothing sent, and leaves another turn running', async () => {
+onMacOS('a route change between route-info and the turn ends route-changed with nothing sent, and leaves another turn running', async () => {
   const agent = await codex.agent();
   const [stalled, changed] = [await codex.thread(agent, 'A'), await codex.thread(agent, 'B')];
   const running = SendMessageResponse.parse((await codex.post(stalled, 'stall')).body).generationId;
@@ -109,7 +109,7 @@ it('a route change between route-info and the turn ends route-changed with nothi
   `);
 });
 
-it('a workspace switch with unchanged config ends account-changed; a new backend origin ends route-changed; a logout ends signed-out', async () => {
+onMacOS('a workspace switch with unchanged config ends account-changed; a new backend origin ends route-changed; a logout ends signed-out', async () => {
   const agent = await codex.agent();
   const otherWorkspace = { ...NATIVE.account, workspaceRouting: { ...NATIVE.account.workspaceRouting, chatgptAccountId: 'ws-2' } };
   const movedOrigin = { ...NATIVE.account, workspaceRouting: { ...NATIVE.account.workspaceRouting, backendOrigin: 'https://us.chatgpt.com' } };
@@ -161,7 +161,7 @@ it('a workspace switch with unchanged config ends account-changed; a new backend
   `);
 });
 
-it('a failed discovery rejects the send with nothing written; a null workspace runs stateless with no session prompt', async () => {
+onMacOS('a failed discovery rejects the send with nothing written; a null workspace runs stateless with no session prompt', async () => {
   const thread = await codex.thread(await codex.agent());
   await codex.host.call('GET', '/api/plugins/provider-openai/info');
   await codex.setState({ accountError: 'network unreachable' });
@@ -294,7 +294,7 @@ it('publishes plan usage only on the native route, and refuses a quota answer fo
   `);
 });
 
-it('a rate-limit notification during a native turn reads usage again and sends it with the turn; a usage-limit failure is rate-limited', async () => {
+onMacOS('a rate-limit notification during a native turn reads usage again and sends it with the turn; a usage-limit failure is rate-limited', async () => {
   const thread = await codex.thread(await codex.agent());
   const reply = await codex.post(thread, 'hint');
   const { generationId } = SendMessageResponse.parse(reply.body);

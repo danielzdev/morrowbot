@@ -1,6 +1,6 @@
 import { SendMessageResponse } from '@morrowbot/contracts';
-import { afterEach, expect, it } from 'vitest';
-import { startCodexFixture, turnMethods, type CodexFixture } from '../../testing/codex-fixture.ts';
+import { afterEach, expect } from 'vitest';
+import { type CodexFixture, onMacOS, startCodexFixture, turnMethods } from '../../testing/codex-fixture.ts';
 import { until } from '../../testing/daemon-fixture.ts';
 import { DEFAULT_PLUGIN_TIMEOUTS } from './index.ts';
 
@@ -22,7 +22,7 @@ const turnsStarted = async (fixture: CodexFixture): Promise<number> => (await fi
 const finishedCount = (fixture: CodexFixture, generationId: string): number =>
   fixture.turnEvents(generationId).filter((event) => event.kind === 'generation.finished').length;
 
-it('Stop sends turn/interrupt for that turn only, and the other turn keeps running on the same daemon', async () => {
+onMacOS('Stop sends turn/interrupt for that turn only, and the other turn keeps running on the same daemon', async () => {
   const fixture = (codex = await startCodexFixture());
   const agent = await fixture.agent();
   const [stopped, running] = [await fixture.thread(agent, 'A'), await fixture.thread(agent, 'B')];
@@ -61,7 +61,7 @@ it('Stop sends turn/interrupt for that turn only, and the other turn keeps runni
     `);
 });
 
-it('a daemon that ignores interrupt is killed after turnStopMs, both its turns settle once as interrupted, and a new daemon serves the next turn', async () => {
+onMacOS('a daemon that ignores interrupt is killed after turnStopMs, both its turns settle once as interrupted, and a new daemon serves the next turn', async () => {
   const fixture = (codex = await startCodexFixture({ timeouts: { ...DEFAULT_PLUGIN_TIMEOUTS, turnStopMs: 300 } }));
   const agent = await fixture.agent();
   const [ignoring, sharing] = [await fixture.thread(agent, 'A'), await fixture.thread(agent, 'B')];

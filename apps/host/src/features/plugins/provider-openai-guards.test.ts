@@ -1,6 +1,6 @@
 import { SendMessageResponse } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it } from 'vitest';
-import { NATIVE, startCodexFixture, turnMethods, type CodexFixture } from '../../testing/codex-fixture.ts';
+import { type CodexFixture, NATIVE, onMacOS, startCodexFixture, turnMethods } from '../../testing/codex-fixture.ts';
 
 let codex: CodexFixture;
 
@@ -28,7 +28,7 @@ it('holds read-only back, with the reason, when an administrator manages Codex',
   expect({ profiles: body.includes('"profiles":[]'), managed: body.includes('An administrator manages Codex') }).toEqual({ profiles: true, managed: true });
 });
 
-it('refuses before the prompt when Codex opens the thread on another model provider than the route it checked', async () => {
+onMacOS('refuses before the prompt when Codex opens the thread on another model provider than the route it checked', async () => {
   await codex.setState({ openedProvider: 'elsewhere' });
   const thread = await codex.thread(await codex.agent());
   await sendAndWait(thread, 'hello');
@@ -46,7 +46,7 @@ it('refuses before the prompt when Codex opens the thread on another model provi
   `);
 });
 
-it('rechecks the route once the thread is open, and sends nothing when it changed in between', async () => {
+onMacOS('rechecks the route once the thread is open, and sends nothing when it changed in between', async () => {
   const thread = await codex.thread(await codex.agent());
   await sendAndWait(thread, 'warm up');
   const other = await codex.thread(await codex.agent(), 'B');
@@ -67,7 +67,7 @@ it('rechecks the route once the thread is open, and sends nothing when it change
   `);
 });
 
-it('resumes a thread Codex closed on its own instead of sending to it as loaded', async () => {
+onMacOS('resumes a thread Codex closed on its own instead of sending to it as loaded', async () => {
   const thread = await codex.thread(await codex.agent());
   await sendAndWait(thread, 'close-thread');
   const from = await logLength();
@@ -151,7 +151,7 @@ it('after a workspace switch, a usage refresh does not serve the earlier workspa
   `);
 });
 
-it('adopts the turn a turn/started named when Codex garbles the turn/start reply, and ends the daemon when nothing named it', async () => {
+onMacOS('adopts the turn a turn/started named when Codex garbles the turn/start reply, and ends the daemon when nothing named it', async () => {
   const agent = await codex.agent();
   const [named, unnamed] = [await codex.thread(agent, 'A'), await codex.thread(agent, 'B')];
   await sendAndWait(named, 'garbled');
