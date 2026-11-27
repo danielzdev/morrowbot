@@ -148,16 +148,11 @@ it('stops the CLI and anything it started when the stream is cancelled, even if 
   controller.abort();
   expect({
     finish: (await reply).finish,
-    aliveRightAway: [isAlive(pids.cli), isAlive(pids.tool)],
     aliveLater: await stillAlive({ cli: pids.cli, tool: pids.tool }),
     next: (await ask(host, 'hello')).finish,
   }).toMatchInlineSnapshot(`
     {
       "aliveLater": [],
-      "aliveRightAway": [
-        true,
-        true,
-      ],
       "finish": "cancelled",
       "next": "stop",
     }

@@ -20,7 +20,9 @@ export type ProviderStreamRequest = z.infer<typeof ProviderStreamRequest>;
 
 /**
  * One piece of a streamed reply: a text delta, a status line, a tool call starting or
- * ending, or `final`, the whole reply text, which replaces the text deltas shown so far.
+ * ending, or `final`, the answer text as the provider reports it at the end. The text
+ * deltas are the whole reply; `final` can be shorter (for example, only the last turn
+ * after tool calls).
  */
 export const StreamChunk = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('text'), text: z.string() }),

@@ -16,8 +16,10 @@ export interface CommandOptions {
   /** Written to the command's stdin, which is then closed. */
   readonly input: string;
   /**
-   * Extra inputs the command reads as files, without them touching the disk or the
-   * process list. Put `commandFilePath(index)` in `args` where the command expects a path.
+   * Extra inputs the command reads as files, kept out of the process list. Each is written
+   * to a private (0600) temporary file whose name is removed before the command starts, so
+   * only the command's file descriptor reaches it. Put `commandFilePath(index)` in `args`
+   * where the command expects a path.
    */
   readonly files: readonly string[];
   /** Aborting stops the command (or keeps it from starting): SIGTERM to all its processes, then SIGKILL if any are left a second later. */
@@ -51,10 +53,10 @@ const running = new Set<() => Promise<CommandExit>>();
  */
 export function runCommand(command: string, options: CommandOptions): Promise<CommandExit> {
   if (options.signal.aborted) return Promise.resolve({ kind: 'exited', code: null, signal: null, stderr: '' });
-  let fileFds: number[] = [];
+  const fileFds: number[] = [];
   let guard;
   try {
-    fileFds = options.files.map(unlinkedFile);
+    for (const contents of options.files) fileFds.push(unlinkedFile(contents));
     const stdio: StdioOptions = ['pipe', 'pipe', 'pipe', 'ipc', ...fileFds];
     guard = fork(GUARD_PATH, [String(options.files.length), command, ...options.args], {
       cwd: options.cwd,
@@ -177,8 +179,18 @@ function unlinkedFile(contents: string): number {
   const file = path.join(dir, 'input');
   try {
     const fd = openSync(file, 'wx+', 0o600);
-    writeSync(fd, Buffer.from(contents), 0, Buffer.byteLength(contents), 0);
-    return fd;
+    try {
+      const bytes = Buffer.from(contents);
+      for (let written = 0; written < bytes.length; ) {
+        const count = writeSync(fd, bytes, written, bytes.length - written, written);
+        if (count === 0) throw new Error('Could not write a command input file');
+        written += count;
+      }
+      return fd;
+    } catch (error) {
+      closeSync(fd);
+      throw error;
+    }
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

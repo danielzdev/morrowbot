@@ -11,7 +11,7 @@ Do not preserve complexity just because it already exists. YAGNI: do not build w
 ## Layout
 - One feature, one folder (`features/<name>/`) holding its UI, logic, types, tests, and recorded outputs. Each plugin is one folder in `plugins/<name>/`.
 - Separate the always-on host/main process from the Electron renderer window.
-- A feature imports only from itself and shared contract packages—never from another feature. Renderer/window code never imports host/main code. Plugins import only `@morrowbot/plugin-sdk` and `@morrowbot/contracts`.
+- A feature imports only from itself and shared contract packages—never from another feature. Renderer/window code never imports host/main code. Plugins import only `@morrowbot/plugin-sdk` and `@morrowbot/contracts` (their `*.test.ts` files may also import `vitest`).
 - No file over **400 lines**. Do not append to a large file; split into focused files inside the feature folder.
 - Each piece of state has one owner; each task has one supported way. Delete the old way in the same change.
 
