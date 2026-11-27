@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Agent } from './agents.ts';
+import { Agent, Folder, LastMessage } from './agents.ts';
 import { EntityId, PluginId, Timestamp } from './ids.ts';
 import { AssistantMessage, Message, UserMessage } from './messages.ts';
 import { PluginManifest } from './plugin-manifest.ts';
@@ -30,7 +30,7 @@ export const ApiError = z.strictObject({
 });
 export type ApiError = z.infer<typeof ApiError>;
 
-export const AgentList = z.strictObject({ agents: z.array(Agent) });
+export const AgentList = z.strictObject({ agents: z.array(Agent), folders: z.array(Folder), lastMessages: z.array(LastMessage) });
 export type AgentList = z.infer<typeof AgentList>;
 
 export const ThreadList = z.strictObject({ threads: z.array(Thread) });

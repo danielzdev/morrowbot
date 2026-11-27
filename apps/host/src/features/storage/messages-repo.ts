@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
-import { GenerationOutcome, Message } from '@morrowbot/contracts';
+import { GenerationOutcome, LastMessage, Message } from '@morrowbot/contracts';
 import { z } from 'zod';
 import { jsonColumn } from './columns.ts';
 
@@ -22,10 +22,26 @@ const MessageRow = z
   })
   .pipe(Message);
 
+const PREVIEW_LENGTH = 160;
+
+const LastMessageRow = z
+  .object({ agent_id: z.string(), thread_id: z.string(), kind: z.string(), text: z.string(), created_at: z.string() })
+  .transform((row) => ({ agentId: row.agent_id, threadId: row.thread_id, kind: row.kind, preview: preview(row.text), at: row.created_at }))
+  .pipe(LastMessage);
+
+function preview(text: string): string {
+  const collapsed = text.replaceAll(/\s+/g, ' ').trim();
+  if (collapsed.length <= PREVIEW_LENGTH) return collapsed;
+  const cut = collapsed.slice(0, PREVIEW_LENGTH);
+  return `${/[\uD800-\uDBFF]$/.test(cut) ? cut.slice(0, -1) : cut}…`;
+}
+
 export interface MessageRepository {
   insert(message: Message): void;
   get(id: string): Message | undefined;
   listByThread(threadId: string): Message[];
+  /** Each agent's newest message with text, across all its threads, newest first. */
+  lastByAgent(): LastMessage[];
 }
 
 export function messageRepository(db: DatabaseSync): MessageRepository {
@@ -35,6 +51,14 @@ export function messageRepository(db: DatabaseSync): MessageRepository {
   );
   const get = db.prepare('SELECT * FROM messages WHERE id = ?');
   const listByThread = db.prepare('SELECT * FROM messages WHERE thread_id = ? ORDER BY seq');
+  const lastByAgent = db.prepare(
+    `SELECT agent_id, thread_id, kind, text, created_at FROM (
+       SELECT t.agent_id, m.thread_id, m.kind, substr(m.text, 1, 400) AS text, m.created_at, m.seq,
+         row_number() OVER (PARTITION BY t.agent_id ORDER BY m.seq DESC) AS rank
+       FROM messages m JOIN threads t ON t.id = m.thread_id
+       WHERE m.text <> ''
+     ) WHERE rank = 1 ORDER BY seq DESC`,
+  );
   return {
     insert: (message) => {
       const base = { id: message.id, threadId: message.threadId, text: message.text, createdAt: message.createdAt };
@@ -57,5 +81,6 @@ export function messageRepository(db: DatabaseSync): MessageRepository {
       return row === undefined ? undefined : MessageRow.parse(row);
     },
     listByThread: (threadId) => listByThread.all(threadId).map((row) => MessageRow.parse(row)),
+    lastByAgent: () => lastByAgent.all().map((row) => LastMessageRow.parse(row)),
   };
 }
