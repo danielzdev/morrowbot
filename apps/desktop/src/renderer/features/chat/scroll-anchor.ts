@@ -24,7 +24,7 @@ export const earlierStart = (start: number, needed: number = start - PAGE): numb
 export function growthOf(view: ThreadView): string {
   const turn = view.activeTurn;
   const steps = turn?.steps.map((step) => (step.kind === 'tool' ? step.outcome : (step.ending?.kind ?? 'pending'))).join(',') ?? '';
-  return `${String(view.messages.length)}:${view.messages.at(-1)?.id ?? ''}:${turn?.generationId ?? ''}:${String(turn?.text.length ?? 0)}:${steps}`;
+  return `${String(view.messages.length)}:${view.messages.at(-1)?.id ?? ''}:${String(view.agentMessages.length)}:${turn?.generationId ?? ''}:${String(turn?.text.length ?? 0)}:${steps}`;
 }
 
 /**

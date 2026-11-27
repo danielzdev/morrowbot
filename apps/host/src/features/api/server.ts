@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net';
 import type { Duplex } from 'node:stream';
 import { EventClientFrame, type EventServerFrame } from '@morrowbot/contracts';
 import { WebSocketServer, type RawData, type WebSocket } from 'ws';
+import { agentMessageRoutes } from './agent-message-routes.ts';
 import { agentRoutes } from './agent-routes.ts';
 import { folderRoutes } from './folder-routes.ts';
 import { admit, authority, identify, isLoopback, isWildcard, screen, type Caller, type Listener } from './guard.ts';
@@ -52,6 +53,7 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
   let listener: Listener = options.address;
   const routes = [
     ...agentRoutes(options.services),
+    ...agentMessageRoutes(options.services),
     ...folderRoutes(options.services),
     ...threadRoutes(options.services),
     ...pluginRoutes(options.services),
@@ -174,6 +176,9 @@ function serveEvents(ws: WebSocket, options: ApiServerOptions): void {
   const unsubscribe = chat.subscribe((event) => {
     if (event.kind === 'usage.updated' || threads.has(event.threadId)) sendFrame(event);
   });
+  const unsubscribeMessages = options.services.agentMessages.subscribe((message) => {
+    sendFrame({ kind: 'agent-message.posted', message });
+  });
   ws.on('message', (data, isBinary) => {
     if (ws.readyState !== ws.OPEN) return;
     const frame = isBinary ? undefined : EventClientFrame.safeParse(parseJson(textOf(data)));
@@ -205,7 +210,10 @@ function serveEvents(ws: WebSocket, options: ApiServerOptions): void {
       }
     }
   });
-  ws.on('close', unsubscribe);
+  ws.on('close', () => {
+    unsubscribe();
+    unsubscribeMessages();
+  });
   ws.on('error', options.report);
 }
 

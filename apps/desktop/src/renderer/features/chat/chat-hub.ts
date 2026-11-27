@@ -97,6 +97,11 @@ export function createChatHub(options: ChatHubOptions): ChatHub {
   };
   const stopEvents = options.bridge.onEvent((frame) => {
     if (frame.kind === 'usage.updated') return;
+    if (frame.kind === 'agent-message.posted') {
+      sessions.get(frame.message.from.threadId)?.handle(frame);
+      sessions.get(frame.message.to.threadId)?.handle(frame);
+      return;
+    }
     sessions.get(frame.threadId)?.handle(frame);
   });
   const reloadAll = (): void => {

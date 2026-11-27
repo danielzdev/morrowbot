@@ -1,5 +1,6 @@
 import type {
   Agent,
+  AgentMessage,
   AgentInstructionsView,
   ClaimPairingRequest,
   BlockedGroup,
@@ -15,6 +16,7 @@ import type {
   PluginConfig,
   PluginManifest,
   PluginStatus,
+  SendAgentMessageRequest,
   ProviderInfo,
   ProviderUnavailableReason,
   SessionChoice,
@@ -152,6 +154,20 @@ export interface ApiPairing {
   revoke(deviceId: string): boolean;
 }
 
+/** Agent-to-agent messages. `send` refuses with a reason before writing anything. */
+export interface ApiAgentMessages {
+  send(
+    senderId: string,
+    request: SendAgentMessageRequest,
+  ):
+    | { readonly kind: 'sent'; readonly message: AgentMessage }
+    | { readonly kind: 'not-found'; readonly what: string }
+    | { readonly kind: 'invalid' | 'forbidden' | 'conflict' | 'rate-limited'; readonly reason: string };
+  /** Undefined for an unknown agent, or a thread that is not the agent's. */
+  list(agentId: string, threadId: string | null): AgentMessage[] | undefined;
+  subscribe(listener: (message: AgentMessage) => void): () => void;
+}
+
 export interface ApiServices {
   readonly agents: ApiAgents;
   readonly folders: ApiFolders;
@@ -159,4 +175,5 @@ export interface ApiServices {
   readonly plugins: ApiPlugins;
   readonly usage: ApiUsage;
   readonly pairing: ApiPairing;
+  readonly agentMessages: ApiAgentMessages;
 }

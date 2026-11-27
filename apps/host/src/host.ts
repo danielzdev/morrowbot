@@ -3,6 +3,7 @@ import { mkdir, realpath } from 'node:fs/promises';
 import { hostname } from 'node:os';
 import path from 'node:path';
 import type { PluginStatusEvent } from '@morrowbot/contracts';
+import { createAgentMessageService } from './features/agent-messages/index.ts';
 import { createAgentService, createFolderService } from './features/agents/index.ts';
 import { startApiServer } from './features/api/index.ts';
 import { createChatService, type ProviderPlugins } from './features/chat/index.ts';
@@ -158,6 +159,13 @@ export async function startHost(options: HostOptions): Promise<Host> {
           releaseGroup: (regId) => plugins.releaseGroup(regId),
         },
         pairing: createPairingService({ records: storage.devices, newId, now }),
+        agentMessages: createAgentMessageService({
+          records: storage.agentMessages,
+          agentExists: (id) => agents.get(id) !== undefined,
+          threads: storage.threads,
+          newId,
+          now,
+        }),
       },
       fallback: healthListener(options.version),
       report,
