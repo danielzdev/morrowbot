@@ -29,6 +29,8 @@ import type {
   StopGenerationResponse,
   Thread,
   ThreadState,
+  TokenRange,
+  TokenUsageResponse,
   UpdateAgentRequest,
   UpdateFolderRequest,
   UsageResponse,
@@ -87,6 +89,7 @@ export type ApiReplay = { readonly kind: 'events'; readonly events: readonly Cha
 
 export interface ApiChat {
   listThreads(agentId: string): Thread[] | undefined;
+  listAllThreads(): Thread[];
   createThread(agentId: string, request: CreateThreadRequest): Thread | undefined;
   getThread(id: string): Thread | undefined;
   renameThread(id: string, title: string): Thread | undefined;
@@ -136,6 +139,11 @@ export interface ApiPlugins {
   releaseGroup(regId: string): 'released' | 'not-found' | 'not-blocked' | 'too-early';
 }
 
+/** Local token counts from `turn_usage`. */
+export interface ApiUsage {
+  tokens(range: TokenRange): TokenUsageResponse;
+}
+
 export interface ApiPairing {
   createCode(): { readonly code: string; readonly expiresAt: string };
   /** `source` is the peer's address: wrong codes are throttled per source. */
@@ -181,5 +189,6 @@ export interface ApiServices {
   readonly folders: ApiFolders;
   readonly chat: ApiChat;
   readonly plugins: ApiPlugins;
+  readonly usage: ApiUsage;
   readonly pairing: ApiPairing;
 }

@@ -163,6 +163,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
             return agent === undefined ? undefined : skillList(await findSkills(skillsDir, agent.workspace.dir));
           },
         },
+        usage: { tokens: (range) => storage.tokens.read(range) },
         plugins: {
           list: () => plugins.list(),
           blockedGroups: (pluginId) => plugins.groups.blocked(pluginId),
