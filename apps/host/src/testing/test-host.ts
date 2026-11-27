@@ -1,6 +1,12 @@
-import type { ChatProvider, PluginManifest } from '@morrowbot/contracts';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import type { ChatProvider } from '@morrowbot/contracts';
 import { ChatEvent } from '@morrowbot/contracts';
+import { pluginProviders } from '../features/chat/index.ts';
 import { startHost, type Host } from '../host.ts';
+
+/** The plugin host's own fixture plugins (`echo` is a provider that can stall). */
+export const PLUGIN_FIXTURES = fileURLToPath(new URL('../features/plugins/fixtures', import.meta.url));
 
 export interface Sequence {
   readonly newId: () => string;
@@ -19,8 +25,10 @@ export function sequence(): Sequence {
 
 export interface TestHostOptions {
   readonly dataDir: string;
-  readonly providers?: Readonly<Record<string, ChatProvider>>;
-  readonly plugins?: readonly PluginManifest[];
+  /** Stub providers by plugin id, or 'plugins' to chat through the real plugin host. Defaults to none. */
+  readonly providers?: Readonly<Record<string, ChatProvider>> | 'plugins';
+  /** Defaults to an empty folder in `dataDir`. */
+  readonly pluginsDir?: string;
   readonly sequence?: Sequence;
 }
 
@@ -40,14 +48,20 @@ export interface TestHost {
 
 export async function startTestHost(options: TestHostOptions): Promise<TestHost> {
   const providers = options.providers ?? {};
-  const plugins = options.plugins ?? [];
   const errors: unknown[] = [];
   const sockets: WebSocket[] = [];
   const host = await startHost({
-    config: { hostname: '127.0.0.1', port: 0, dataDir: options.dataDir },
+    config: {
+      hostname: '127.0.0.1',
+      port: 0,
+      safeMode: false,
+      dataDir: options.dataDir,
+      pluginsDir: options.pluginsDir ?? path.join(options.dataDir, 'plugins'),
+    },
     version: '0.0.0-test',
-    providers: { provider: (pluginId) => providers[pluginId] },
-    catalog: { list: () => plugins },
+    providers: (plugins) =>
+      providers === 'plugins' ? pluginProviders(plugins) : { provider: (pluginId) => providers[pluginId] },
+    onPluginStatus: () => undefined,
     ...(options.sequence ?? sequence()),
     report: (error) => errors.push(error),
   });

@@ -3,6 +3,8 @@ import { Agent } from './agents.ts';
 import { EntityId } from './ids.ts';
 import { AssistantMessage, Message, UserMessage } from './messages.ts';
 import { PluginManifest } from './plugin-manifest.ts';
+import { PluginStatus } from './plugin-runtime.ts';
+import { PluginConfig } from './plugin-settings.ts';
 import { Thread } from './threads.ts';
 import { ToolCall, ToolResult } from './tools.ts';
 
@@ -35,10 +37,13 @@ export const StopGenerationResponse = z.discriminatedUnion('kind', [
 ]);
 export type StopGenerationResponse = z.infer<typeof StopGenerationResponse>;
 
-export const PluginConfig = z.record(z.string(), z.json());
-export type PluginConfig = z.infer<typeof PluginConfig>;
-
-export const PluginEntry = z.strictObject({ manifest: PluginManifest, enabled: z.boolean(), config: PluginConfig });
+/** A plugin as the settings page shows it: what it is, whether it runs, and its saved settings. */
+export const PluginEntry = z.strictObject({
+  manifest: PluginManifest,
+  status: PluginStatus,
+  enabled: z.boolean(),
+  config: PluginConfig,
+});
 export type PluginEntry = z.infer<typeof PluginEntry>;
 
 export const PluginList = z.strictObject({ plugins: z.array(PluginEntry) });

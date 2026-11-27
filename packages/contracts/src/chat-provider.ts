@@ -1,4 +1,3 @@
-import type { PluginManifest } from './plugin-manifest.ts';
 import type { Message } from './messages.ts';
 import type { AgentTools } from './tools.ts';
 
@@ -23,9 +22,4 @@ export interface ChatProvider {
 /** Looks up the chat provider an agent is bound to. Returns undefined when the plugin is missing or disabled. */
 export interface ProviderRegistry {
   provider(pluginId: string): ChatProvider | undefined;
-}
-
-/** The plugins the host knows about. */
-export interface PluginCatalog {
-  list(): readonly PluginManifest[];
 }

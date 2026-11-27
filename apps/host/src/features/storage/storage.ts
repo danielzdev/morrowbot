@@ -15,8 +15,8 @@ export interface Storage {
   close(): void;
 }
 
-/** Opens (and creates or upgrades) the host's SQLite database file. */
-export function openStorage(file: string): Storage {
+/** Opens (and creates or upgrades) the host's SQLite database file. `now` stamps plugin setting changes. */
+export function openStorage(file: string, now: () => string): Storage {
   mkdirSync(path.dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
   try {
@@ -28,7 +28,7 @@ export function openStorage(file: string): Storage {
       agents: agentRepository(db),
       threads: threadRepository(db),
       messages: messageRepository(db),
-      plugins: pluginSettingsRepository(db),
+      plugins: pluginSettingsRepository(db, now),
       close: () => {
         db.close();
       },

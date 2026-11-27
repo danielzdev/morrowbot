@@ -42,7 +42,6 @@ beforeEach(async () => {
   host = await startTestHost({
     dataDir,
     providers: { echo, stuck, 'tool-user': toolUser },
-    plugins: [{ id: 'echo', name: 'Echo', version: '1.0.0' }],
   });
 });
 afterEach(async () => {
@@ -308,10 +307,8 @@ it('keeps each thread of an agent to its own history', async () => {
 it('refuses to chat without a provider', async () => {
   const unbound = Agent.parse((await host.call('POST', '/api/agents', { name: 'Unbound' })).body);
   const missing = await agentWith('not-installed');
-  const disabled = await agentWith('echo');
-  await host.call('PUT', '/api/plugins/echo/enabled', { enabled: false });
   const replies = [];
-  for (const agent of [unbound, missing, disabled]) {
+  for (const agent of [unbound, missing]) {
     const thread = await threadOf(agent, 'Chat');
     replies.push(await host.call('POST', `/api/threads/${thread.id}/messages`, { text: 'hi' }));
   }
@@ -332,15 +329,6 @@ it('refuses to chat without a provider', async () => {
           "error": {
             "kind": "conflict",
             "message": "Provider plugin not-installed is not available.",
-          },
-        },
-        "status": 409,
-      },
-      {
-        "body": {
-          "error": {
-            "kind": "conflict",
-            "message": "Provider plugin echo is not available.",
           },
         },
         "status": 409,

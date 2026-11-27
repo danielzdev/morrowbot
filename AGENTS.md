@@ -44,7 +44,8 @@ Do not preserve complexity just because it already exists. YAGNI: do not build w
 
 ## Git, PRs & Reviews
 - Never push directly to `main`; always open a PR.
-- Prefer merge commits or squash merging; do **not** rebase unless explicitly asked.
+- Merge PRs with merge commits (`gh pr merge --merge`), not squash, so GitHub Contributors credits the coding AI. Do **not** rebase unless explicitly asked.
+- **Commit authorship:** commits written by an AI MUST set its author and a matching trailer. Claude: `--author="Claude <noreply@anthropic.com>"` plus `Co-Authored-By: Claude <noreply@anthropic.com>`. Gemini: `--author="Gemini <176961590+gemini-code-assist[bot]@users.noreply.github.com>"` plus `Co-Authored-By: Gemini <176961590+gemini-code-assist[bot]@users.noreply.github.com>`.
 - PR titles use conventional commits: `type(scope): subject` (e.g. `feat(plugins): isolate worker crashes`).
 - PR body under 40 lines using `.github/pull_request_template.md` (`## Why`, `## What changed`, `## Verification`, `## Risk`, `## AI`). Lead with the problem, not a file inventory.
 - **AI attribution is allowed in this repository:** include model and harness in `## AI` and use `leaving-pr-comments` for agent-authored PR comments.

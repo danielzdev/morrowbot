@@ -4,8 +4,9 @@ import type {
   CreateAgentRequest,
   CreateThreadRequest,
   Message,
-  PluginCatalog,
   PluginConfig,
+  PluginManifest,
+  PluginStatus,
   StopGenerationResponse,
   Thread,
   UpdateAgentRequest,
@@ -44,16 +45,19 @@ export interface ApiChat {
   subscribe(listener: (event: ChatEvent) => void): () => void;
 }
 
-export interface ApiPluginSettings {
-  enabledStates(): ReadonlyMap<string, boolean>;
-  configs(): ReadonlyMap<string, PluginConfig>;
-  setEnabled(pluginId: string, enabled: boolean, at: string): void;
-  setConfig(pluginId: string, config: PluginConfig, at: string): void;
+/** The plugin host, plus the settings it saved. */
+export interface ApiPlugins {
+  list(): readonly { readonly manifest: PluginManifest; readonly status: PluginStatus }[];
+  saved(pluginId: string): Promise<{ readonly enabled: boolean; readonly config: PluginConfig } | undefined>;
+  setEnabled(pluginId: string, enabled: boolean): Promise<void>;
+  setConfig(
+    pluginId: string,
+    config: PluginConfig,
+  ): Promise<{ readonly kind: 'ok' } | { readonly kind: 'invalid'; readonly problems: readonly string[] }>;
 }
 
 export interface ApiServices {
   readonly agents: ApiAgents;
   readonly chat: ApiChat;
-  readonly plugins: { readonly catalog: PluginCatalog; readonly settings: ApiPluginSettings };
-  readonly now: () => string;
+  readonly plugins: ApiPlugins;
 }

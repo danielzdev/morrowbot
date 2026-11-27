@@ -25,7 +25,7 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-function seed(storage: Storage): void {
+async function seed(storage: Storage): Promise<void> {
   storage.agents.insert(agent);
   storage.threads.insert({ id: 'thread-1', agentId: agent.id, title: 'Plans', createdAt: AT, updatedAt: AT });
   storage.messages.insert({ kind: 'user', id: 'm1', threadId: 'thread-1', text: 'hi', createdAt: AT });
@@ -37,28 +37,26 @@ function seed(storage: Storage): void {
     outcome: { kind: 'stopped' },
     createdAt: AT,
   });
-  storage.plugins.setEnabled('local-llm', false, AT);
-  storage.plugins.setConfig('local-llm', { temperature: 0.2, tags: ['a'] }, AT);
+  await storage.plugins.write('local-llm', { enabled: false, config: { temperature: 0.2, model: 'small' } });
 }
 
-function snapshot(storage: Storage) {
+async function snapshot(storage: Storage) {
   return {
     agents: storage.agents.list(),
     threads: storage.threads.listByAgent(agent.id),
     messages: storage.messages.listByThread('thread-1'),
-    enabled: Object.fromEntries(storage.plugins.enabledStates()),
-    configs: Object.fromEntries(storage.plugins.configs()),
+    plugins: { 'local-llm': await storage.plugins.read('local-llm'), unknown: await storage.plugins.read('unknown') },
   };
 }
 
-it('keeps every table across a restart', () => {
+it('keeps every table across a restart', async () => {
   const file = path.join(dir, 'nested', 'morrowbot.sqlite');
-  const first = openStorage(file);
-  seed(first);
+  const first = openStorage(file, () => AT);
+  await seed(first);
   first.close();
 
-  const second = openStorage(file);
-  expect(snapshot(second)).toMatchInlineSnapshot(`
+  const second = openStorage(file, () => AT);
+  expect(await snapshot(second)).toMatchInlineSnapshot(`
     {
       "agents": [
         {
@@ -82,17 +80,6 @@ it('keeps every table across a restart', () => {
           },
         },
       ],
-      "configs": {
-        "local-llm": {
-          "tags": [
-            "a",
-          ],
-          "temperature": 0.2,
-        },
-      },
-      "enabled": {
-        "local-llm": false,
-      },
       "messages": [
         {
           "createdAt": "2026-01-01T00:00:00.000Z",
@@ -112,6 +99,16 @@ it('keeps every table across a restart', () => {
           "threadId": "thread-1",
         },
       ],
+      "plugins": {
+        "local-llm": {
+          "config": {
+            "model": "small",
+            "temperature": 0.2,
+          },
+          "enabled": false,
+        },
+        "unknown": undefined,
+      },
       "threads": [
         {
           "agentId": "agent-1",
@@ -126,25 +123,24 @@ it('keeps every table across a restart', () => {
   second.close();
 });
 
-it('deletes an agent together with its threads and messages', () => {
-  const storage = openStorage(path.join(dir, 'morrowbot.sqlite'));
-  seed(storage);
+it('deletes an agent together with its threads and messages', async () => {
+  const storage = openStorage(path.join(dir, 'morrowbot.sqlite'), () => AT);
+  await seed(storage);
   expect(storage.agents.delete(agent.id)).toBe(true);
-  expect(snapshot(storage)).toMatchInlineSnapshot(`
+  expect(await snapshot(storage)).toMatchInlineSnapshot(`
     {
       "agents": [],
-      "configs": {
-        "local-llm": {
-          "tags": [
-            "a",
-          ],
-          "temperature": 0.2,
-        },
-      },
-      "enabled": {
-        "local-llm": false,
-      },
       "messages": [],
+      "plugins": {
+        "local-llm": {
+          "config": {
+            "model": "small",
+            "temperature": 0.2,
+          },
+          "enabled": false,
+        },
+        "unknown": undefined,
+      },
       "threads": [],
     }
   `);
