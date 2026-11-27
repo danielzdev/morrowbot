@@ -26,7 +26,7 @@ async function echoThread(running: TestHost): Promise<Thread> {
     (await running.call('POST', '/api/agents', { name: 'E', provider: ECHO }))
       .body,
   );
-  await running.call('PUT', `/api/agents/${agent.id}/instructions`, { content: 'Be kind.' });
+  await running.call('PUT', `/api/agents/${agent.id}/instructions`, { content: 'Be kind.', expectedRevision: null });
   return Thread.parse((await running.call('POST', `/api/agents/${agent.id}/threads`, {})).body);
 }
 

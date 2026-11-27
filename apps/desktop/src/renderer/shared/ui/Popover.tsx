@@ -49,6 +49,8 @@ export function Popover(props: PopoverProps) {
     };
     place();
     window.addEventListener('resize', place);
+    const resized = new ResizeObserver(place);
+    resized.observe(element);
     const removeLayer = escapeStack.push({
       close: () => {
         onClose.current();
@@ -59,6 +61,7 @@ export function Popover(props: PopoverProps) {
     (firstFocusable(element) ?? element).focus();
     return () => {
       window.removeEventListener('resize', place);
+      resized.disconnect();
       removeLayer();
     };
   }, []);

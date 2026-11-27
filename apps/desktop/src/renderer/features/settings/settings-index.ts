@@ -69,6 +69,7 @@ const SHORTCUT_COPY: Readonly<Record<ShortcutId, readonly [label: string, descri
   'filter-agents': ['Filter agents', 'Find an agent in the sidebar by name.'],
   extensions: ['Extensions', 'Open Extensions, where your plugins live.'],
   find: ['Find in chat', 'Search the open chat. Enter and Shift+Enter move between matches.'],
+  binding: ['Model and access', "Change the current agent's model, effort and access."],
 };
 
 const CONTEXT_COPY: Readonly<Record<ContextKey, readonly [label: string, description: string]>> = {
@@ -112,6 +113,7 @@ export function keysOf(id: KeyRowId, platform: Platform, sendWith: SendWith): st
     case 'filter-agents':
     case 'extensions':
     case 'find':
+    case 'binding':
       return shortcutLabel(id, platform);
   }
 }

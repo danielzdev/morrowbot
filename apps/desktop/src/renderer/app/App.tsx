@@ -10,6 +10,7 @@ import { AppInfo, redact } from '../shared/privacy.ts';
 import { useStore } from '../shared/use-store.ts';
 import { entriesOf, liveFactsOf } from './derive.ts';
 import { createModels } from './models.ts';
+import { AgentDialogs, type AgentDialog } from './AgentDialogs.tsx';
 import { Pages, type Page } from './Pages.tsx';
 import { Shell } from './Shell.tsx';
 
@@ -22,6 +23,8 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
   const [filterRequest, setFilterRequest] = useState(0);
   const [findRequest, setFindRequest] = useState(0);
   const [approvalFocus, setApprovalFocus] = useState<string | null>(null);
+  const [bindingRequest, setBindingRequest] = useState(0);
+  const [dialog, setDialog] = useState<AgentDialog | null>(null);
   const [info, setInfo] = useState<AppInfo | null>(null);
   const copies = useRef(0);
   const state = useStore(models.agents.state);
@@ -82,7 +85,8 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
       <Shell
         onShortcut={(id) => {
           if (id === 'new-chat' && agent !== undefined) newChat(agent.id);
-          if (id === 'new-agent') setPage({ kind: 'new-agent' });
+          if (id === 'new-agent') setDialog({ kind: 'new-agent' });
+          if (id === 'binding') setBindingRequest((count) => count + 1);
           if (id === 'settings') openSettings('general');
           if (id === 'filter-agents') setFilterRequest((count) => count + 1);
           if (id === 'extensions') setPage({ kind: 'plugins' });
@@ -106,8 +110,8 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
               controls.dismiss();
             }}
             onNewChat={(agentId) => { newChat(agentId); controls.dismiss(); }}
-            onAgentSettings={(agentId) => { models.agents.selectAgent(agentId); setPage({ kind: 'agent-settings' }); controls.dismiss(); }}
-            onNewAgent={() => { setPage({ kind: 'new-agent' }); controls.dismiss(); }}
+            onAgentSettings={(agentId) => { setDialog({ kind: 'agent-settings', agentId, section: 'general' }); controls.dismiss(); }}
+            onNewAgent={() => { setDialog({ kind: 'new-agent' }); controls.dismiss(); }}
             onSettings={() => { openSettings('general'); }}
             onExtensions={() => { setPage({ kind: 'plugins' }); controls.dismiss(); }}
           />
@@ -120,9 +124,36 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
                 <button class="btn ghost" onClick={() => { models.agents.dismissProblem(); }}>Dismiss</button>
               </div>
             )}
-            <Pages page={page} onPage={setPage} models={models} bridge={bridge} agent={agent} chrome={chrome} info={info} reducedMotion={appearance.reducedMotion} findRequest={findRequest} approvalFocus={approvalFocus} onApprovalFocused={() => { setApprovalFocus(null); }} onCopy={copyChat} onNewChat={newChat} />
+            <Pages
+              page={page}
+              onPage={setPage}
+              models={models}
+              bridge={bridge}
+              agent={agent}
+              chrome={chrome}
+              info={info}
+              reducedMotion={appearance.reducedMotion}
+              findRequest={findRequest}
+              bindingRequest={bindingRequest}
+              approvalFocus={approvalFocus}
+              onApprovalFocused={() => { setApprovalFocus(null); }}
+              onAgentSettings={(agentId, section) => { setDialog({ kind: 'agent-settings', agentId, section }); }}
+              onNewAgent={() => { setDialog({ kind: 'new-agent' }); }}
+              onCopy={copyChat}
+              onNewChat={newChat}
+            />
           </>
         )}
+      />
+      <AgentDialogs
+        dialog={dialog}
+        onDialog={setDialog}
+        models={models}
+        bridge={bridge}
+        info={info}
+        reducedMotion={appearance.reducedMotion}
+        onOpenProviders={() => { setPage({ kind: 'plugins' }); }}
+        onCreated={(created) => { newChat(created.id); }}
       />
       {settings !== null && (
         <SettingsModal
