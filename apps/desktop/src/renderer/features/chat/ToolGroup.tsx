@@ -7,7 +7,7 @@ import { describeTool, elapsed, groupSteps, groupSummary, type ToolDisplay } fro
 /** Tool input in details: at most 4 KB, after redaction. The wire carries no tool output. */
 const MAX_INPUT_CHARS = 4_096;
 
-const STATUS: Readonly<Record<ToolStep['outcome'], string>> = { running: 'Running', ok: 'Done', error: 'Failed', unfinished: "Didn't finish" };
+const STATUS: Readonly<Record<ToolStep['outcome'], string>> = { running: 'Running', ok: 'Done', error: 'Failed', unfinished: "Didn't finish", unknown: 'Result unknown' };
 
 function Glyph({ outcome }: { readonly outcome: ToolStep['outcome'] }) {
   switch (outcome) {
@@ -18,15 +18,28 @@ function Glyph({ outcome }: { readonly outcome: ToolStep['outcome'] }) {
     case 'error':
       return <span class="tool-glyph error"><Icon name="warning" size={12} /></span>;
     case 'unfinished':
+    case 'unknown':
       return <span class="tool-glyph unfinished" aria-hidden="true" />;
   }
+}
+
+/** Fields whose strings are paths: they follow the §9.1 path rule, like the row's summary. */
+const PATH_FIELDS = new Set(['file_path', 'notebook_path', 'path', 'files', 'cwd']);
+const MAX_INPUT_DEPTH = 8;
+
+/** The input made safe value by value, before it is serialized, so escaping can't hide a home path from redaction. */
+function safeInput(value: unknown, display: ToolDisplay, isPath: boolean, depth: number): unknown {
+  if (typeof value === 'string') return isPath ? display.path(value) : display.redact(value);
+  if (value === null || typeof value !== 'object') return value;
+  if (depth >= MAX_INPUT_DEPTH) return '…';
+  if (Array.isArray(value)) return value.map((each) => safeInput(each, display, isPath, depth + 1));
+  return Object.fromEntries(Object.entries(value).map(([key, each]) => [display.redact(key), safeInput(each, display, PATH_FIELDS.has(key), depth + 1)]));
 }
 
 function inputText(input: unknown, display: ToolDisplay): string | null {
   if (input === null || input === undefined) return null;
   if (typeof input === 'object' && Object.keys(input).length === 0) return null;
-  const json = JSON.stringify(input, null, 2);
-  const shown = display.redact(json);
+  const shown = JSON.stringify(safeInput(input, display, false, 0), null, 2);
   return shown.length > MAX_INPUT_CHARS ? `${shown.slice(0, MAX_INPUT_CHARS - 1)}…` : shown;
 }
 

@@ -57,7 +57,10 @@ export function ChatView(props: ChatViewProps) {
       copy: { provider: props.providerName, safe: props.display.safe },
       actions: {
         openLink: (href) => void latest.current.bridge.openExternal(href),
-        copy: (text) => void latest.current.bridge.copyText(latest.current.display.redact(text)),
+        copy: (text) => {
+          const safe = latest.current.display.safe(text);
+          if (safe !== null) void latest.current.bridge.copyText(safe);
+        },
       },
       onAction: (messageId, action) => {
         if (action.kind === 'continue') void session.continueTurn(messageId, action.sessionChoice);
@@ -87,8 +90,11 @@ export function ChatView(props: ChatViewProps) {
     if (!props.focusApproval || view === null) return;
     const first = view.activeTurn === null ? undefined : pendingApprovals(view.activeTurn)[0];
     const heading = first === undefined ? null : document.getElementById(approvalHeadingId(first.approvalId));
-    heading?.scrollIntoView({ block: 'center' });
-    heading?.focus({ preventScroll: true });
+    if (heading !== null) {
+      heading.scrollIntoView({ block: 'center' });
+      heading.focus({ preventScroll: true });
+      following.current = false;
+    }
     props.onApprovalFocused();
   }, [props.focusApproval, view]);
   const seenFind = useRef(props.findRequest);

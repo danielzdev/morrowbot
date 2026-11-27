@@ -128,7 +128,7 @@ export function Timeline(props: {
           message={message}
           finished={finished[message.id]}
           latest={message === last}
-          busy={!props.idle || props.locked || props.offline}
+          busy={message === last && (!props.idle || props.locked || props.offline)}
           ctx={ctx}
         />
       ))}

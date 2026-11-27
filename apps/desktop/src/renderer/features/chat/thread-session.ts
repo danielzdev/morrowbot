@@ -127,7 +127,7 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
         blockedTimer = setTimeout(() => void load(), options.reconnectMs ?? 2_000);
         return;
       }
-      patch({ connection: 'live', view: { kind: 'failed', message: result.status === 404 ? 'This chat no longer exists.' : result.error.message } });
+      patch({ connection: streamUp ? 'live' : 'reconnecting', view: { kind: 'failed', message: result.status === 404 ? 'This chat no longer exists.' : result.error.message } });
       return;
     }
     const view = viewOf(result.value, before.kind === 'loaded' ? before.value : null);
@@ -138,10 +138,16 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
     }
   }
 
+  /** Events were missed: the chat says it is reconnecting, and holds Send, until the snapshot is in. */
+  function resync(): void {
+    if (screen.get().view.kind === 'loaded') patch({ connection: 'reconnecting' });
+    void load();
+  }
+
   function handle(frame: EventServerFrame): void {
     if (closed || frame.kind === 'usage.updated' || frame.threadId !== threadId) return;
     if (frame.kind === 'resync') {
-      void load();
+      resync();
       return;
     }
     const current = screen.get().view;
@@ -151,7 +157,7 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
       case 'ignored':
         return;
       case 'resync':
-        void load();
+        resync();
         return;
       case 'applied':
         patch({ view: { kind: 'loaded', value: applied.view } });

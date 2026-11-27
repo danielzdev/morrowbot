@@ -10,13 +10,16 @@ import type {
   TurnState,
 } from '@morrowbot/contracts';
 
-/** A tool call seen live. Times are this window's own clock, in ms. `unfinished`: its turn ended with no end event for it. */
+/**
+ * A tool call seen live. Times are this window's own clock, in ms. `unfinished`: its turn ended with no
+ * end event for it. `unknown`: its turn ended while this window was resyncing, so its result was never seen.
+ */
 export interface ToolStep {
   readonly kind: 'tool';
   readonly toolUseId: string;
   readonly name: string;
   readonly input: unknown;
-  readonly outcome: 'running' | 'ok' | 'error' | 'unfinished';
+  readonly outcome: 'running' | 'ok' | 'error' | 'unfinished' | 'unknown';
   readonly startedAt: number;
   readonly endedAt: number | null;
 }
@@ -95,9 +98,9 @@ function endPending(steps: readonly TurnStep[], ending: ApprovalEnding, only?: (
   );
 }
 
-/** A turn's steps once it has ended: pending requests end as cleared, running tools as unfinished. */
-const settled = (steps: readonly TurnStep[]): TurnStep[] =>
-  endPending(steps, CLEARED).map((step) => (step.kind === 'tool' && step.outcome === 'running' ? { ...step, outcome: 'unfinished' } : step));
+/** A turn's steps once it has ended: pending requests end as cleared, running tools as `left`. */
+const settled = (steps: readonly TurnStep[], left: 'unfinished' | 'unknown'): TurnStep[] =>
+  endPending(steps, CLEARED).map((step) => (step.kind === 'tool' && step.outcome === 'running' ? { ...step, outcome: left } : step));
 
 /**
  * The view of a `/state` snapshot. Given the view it replaces (a resync), it keeps what only this
@@ -139,7 +142,7 @@ export function viewOf(state: ThreadState, previous: ThreadView | null = null): 
   }
   const seen = new Set(previous.messages.map(({ id }) => id));
   const reply = state.messages.find(({ id, kind }) => kind === 'assistant' && !seen.has(id));
-  const finished = reply === undefined ? kept : { ...kept, [reply.id]: { steps: settled(before.steps), durationMs: null } };
+  const finished = reply === undefined ? kept : { ...kept, [reply.id]: { steps: settled(before.steps, 'unknown'), durationMs: null } };
   return { ...base, activeTurn: fresh, finished };
 }
 
@@ -227,7 +230,7 @@ function change(view: ThreadView, event: ThreadEvent, now: number): ThreadView |
       });
     case 'generation.finished': {
       if (view.messages.some(({ id }) => id === event.message.id)) return { ...view, activeTurn: null };
-      const record: FinishedTurn = { steps: settled(active.steps), durationMs: active.startedAt === null ? null : now - active.startedAt };
+      const record: FinishedTurn = { steps: settled(active.steps, 'unfinished'), durationMs: active.startedAt === null ? null : now - active.startedAt };
       return { ...view, messages: [...view.messages, event.message], activeTurn: null, finished: { ...view.finished, [event.message.id]: record } };
     }
   }

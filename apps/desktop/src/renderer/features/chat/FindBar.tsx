@@ -2,7 +2,10 @@ import type { RefObject } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { escapeStack } from '../../shared/escape-stack.ts';
 import { Icon } from '../../shared/ui/Icon.tsx';
-import { findMatches, occurrences, searchableOf, stepMatch, type FindMatch } from './find.ts';
+import { findMatches, MAX_MATCHES, occurrences, searchableOf, stepMatch, type FindMatch } from './find.ts';
+
+/** At most this many matches are painted at once; the current one always is. */
+const MAX_PAINTED = 1_000;
 import type { ThreadView } from './thread-model.ts';
 
 /** Text nodes under `root` in reading order, leaving out labels and buttons marked `data-find-skip`. */
@@ -38,7 +41,7 @@ function rangeAt(nodes: readonly Text[], offset: number, length: number): Range 
 /** Paints every rendered match and the current one; returns the current match's range. */
 function paint(root: HTMLElement, query: string, current: FindMatch | null): Range | null {
   if (typeof CSS === 'undefined' || !('highlights' in CSS)) return null;
-  const all: Range[] = [];
+  const all = new Highlight();
   let found: Range | null = null;
   if (query !== '') {
     for (const element of root.querySelectorAll<HTMLElement>('[data-find-id]')) {
@@ -47,12 +50,12 @@ function paint(root: HTMLElement, query: string, current: FindMatch | null): Ran
       for (const [nth, span] of occurrences(text, query).entries()) {
         const range = rangeAt(nodes, span.at, span.length);
         if (range === null) continue;
-        all.push(range);
+        if (all.size < MAX_PAINTED) all.add(range);
         if (current !== null && current.id === element.dataset.findId && current.nth === nth) found = range;
       }
     }
   }
-  CSS.highlights.set('find', new Highlight(...all));
+  CSS.highlights.set('find', all);
   CSS.highlights.set('find-current', found === null ? new Highlight() : new Highlight(found));
   return found;
 }
@@ -82,8 +85,9 @@ export function FindBar(props: {
   const input = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
   const [index, setIndex] = useState<number | null>(null);
+  const [from, setFrom] = useState(props.firstRendered);
   const matches = useMemo(() => findMatches(searchableOf(props.view), query), [props.view.messages, props.view.activeTurn?.text, query]);
-  const shownFirst = matches.findIndex(({ item }) => item >= props.firstRendered);
+  const shownFirst = matches.findIndex(({ item }) => item >= from);
   const at = index === null ? (shownFirst === -1 ? matches.length - 1 : shownFirst) : Math.min(index, matches.length - 1);
   const current = matches[at] ?? null;
   const close = useRef(props.onClose);
@@ -118,7 +122,7 @@ export function FindBar(props: {
     if (rect.top < box.top + 48 || rect.bottom > box.bottom - 48) root.scrollTop += rect.top - box.top - box.height / 2;
   }, [query, current?.id, current?.nth, props.rendered]);
   const step = (by: 1 | -1): void => { setIndex(stepMatch(matches.length, at, by)); };
-  const count = query === '' ? '' : matches.length === 0 ? 'No results' : `${String(at + 1)} of ${String(matches.length)}`;
+  const count = query === '' ? '' : matches.length === 0 ? 'No results' : `${String(at + 1)} of ${String(matches.length)}${matches.length >= MAX_MATCHES ? '+' : ''}`;
   return (
     <div class="find-bar" role="search" aria-label="Find in chat">
       <input
@@ -130,6 +134,7 @@ export function FindBar(props: {
         onInput={(event) => {
           setQuery(event.currentTarget.value);
           setIndex(null);
+          setFrom(props.firstRendered);
         }}
         onKeyDown={(event) => {
           if (event.key !== 'Enter') return;

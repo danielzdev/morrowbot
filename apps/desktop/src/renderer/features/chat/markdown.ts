@@ -119,11 +119,12 @@ function listAt(lines: readonly string[], start: number, depth: number): { reado
     const current = items.at(-1);
     if (current === undefined) break;
     if (isBlank(line)) {
-      const after = lines.slice(i + 1).find((next) => !isBlank(next));
+      let next = i + 1;
+      while (next < lines.length && isBlank(lines[next] ?? '')) next += 1;
+      const after = lines[next];
       const sameList = after !== undefined && ITEM.test(after) && /\d/.test(ITEM.exec(after)?.[2] ?? '') === ordered && leading(after) < indent;
       if (after === undefined || (!sameList && leading(after) < indent)) break;
-      current.push('');
-      i += 1;
+      for (; i < next; i += 1) current.push('');
       continue;
     }
     if (leading(line) >= indent) current.push(line.slice(indent));

@@ -93,6 +93,17 @@ it('collapses consecutive successful calls into one summary row; failures, runni
   `);
 });
 
+it('applies the path rule inside Show details too, and redacts each value before it is serialized', () => {
+  const read = tool('1', 'Read', { file_path: '/Users/sam/confidential/client/2026/file.txt', note: 'from sam@example.com in /Users/sam/x' });
+  const shown = renderToString(h(ToolDetails, { tool: read, display, showInput: true, onToggleInput: () => undefined }));
+  expect(/<pre[^>]*>([\s\S]*?)<\/pre>/.exec(shown)?.[1]).toMatchInlineSnapshot(`
+    "{
+      &quot;file_path&quot;: &quot;…/2026/file.txt&quot;,
+      &quot;note&quot;: &quot;from &lt;email> in ~/x&quot;
+    }"
+  `);
+});
+
 it('renders a group collapsed and a row closed; details hold status, duration and redacted input only', () => {
   const shown = (html: string): string => html.replaceAll(/<svg.*?<\/svg>/g, '').replaceAll(/<[^>]+>/g, ' ').replaceAll(/\s+/g, ' ').trim();
   const row = tool('1', 'Bash', { command: 'cat /Users/sam/secrets.txt' });

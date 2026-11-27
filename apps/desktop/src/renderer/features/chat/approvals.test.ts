@@ -134,7 +134,7 @@ it('lets the host have the last word: its resolution replaces a local "already e
   }).toMatchInlineSnapshot(`
     {
       "endedDuringResync": [
-        "Write unfinished",
+        "Write unknown",
       ],
       "resolvedAfterLate": {
         "a1": "{"kind":"chosen","label":"Deny"}",

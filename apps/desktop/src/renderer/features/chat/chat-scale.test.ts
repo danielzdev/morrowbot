@@ -3,7 +3,7 @@ import { h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
 import { expect, it } from 'vitest';
 import { chatDisplay } from './display.ts';
-import { findMatches, occurrences, searchableOf, stepMatch } from './find.ts';
+import { findMatches, MAX_MATCHES, occurrences, searchableOf, stepMatch } from './find.ts';
 import { earlierStart, firstShown, growthOf, nearBottom, onGrowth } from './scroll-anchor.ts';
 import { viewOf, type ThreadView } from './thread-model.ts';
 import { Timeline, type TimelineContext } from './Timeline.tsx';
@@ -49,6 +49,16 @@ it('renders only the latest 200 of 5,000 messages, and each Show earlier adds 20
     toMatch: 1_234,
   });
   expect(ms).toBeLessThan(500);
+});
+
+it('keeps the newest matches when a common query passes the cap, so recent messages stay reachable', () => {
+  const items = Array.from({ length: 5_000 }, (_, index) => ({ id: `m${String(index)}`, text: 'a a a' }));
+  const matches = findMatches(items, 'a');
+  expect({ total: matches.length, oldest: matches[0], newest: matches.at(-1) }).toEqual({
+    total: MAX_MATCHES,
+    oldest: { id: 'm1666', item: 1_666, nth: 0 },
+    newest: { id: 'm4999', item: 4_999, nth: 2 },
+  });
 });
 
 it('finds spans in the text as shown, even where lower-casing changes its length', () => {

@@ -116,10 +116,10 @@ it('makes no link inside a link, and no link in an approval title', () => {
 
 it('parses a long, hostile reply in linear time', () => {
   expect(parseMarkdown(`*${'`x` '.repeat(70_000)}`)).toHaveLength(1);
-  const hostile = ['*a '.repeat(40_000), `a ${'_'.repeat(40_000)}`, `a ${'`a'.repeat(20_000)}`, '[a]('.repeat(20_000), '** '.repeat(40_000)].join('\n\n');
+  const hostile = ['*a '.repeat(40_000), `a ${'_'.repeat(40_000)}`, `a ${'`a'.repeat(20_000)}`, '[a]('.repeat(20_000), '** '.repeat(40_000), `- a${'\n'.repeat(40_000)}- b`].join('\n\n');
   const started = performance.now();
   const blocks = parseMarkdown(hostile);
   const ms = performance.now() - started;
-  expect(blocks.length).toBe(5);
+  expect(blocks.length).toBe(6);
   expect(ms).toBeLessThan(1_500);
 });

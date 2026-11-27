@@ -24,7 +24,8 @@ export interface Span {
 /** The id the streaming reply's text carries. */
 export const ACTIVE_ID = 'active-turn';
 
-const MAX_MATCHES = 10_000;
+/** Past this many matches, find keeps the newest. */
+export const MAX_MATCHES = 10_000;
 const shownText = new WeakMap<Message, string>();
 
 function textOf(message: Message): string {
@@ -61,14 +62,19 @@ export function occurrences(text: string, query: string): Span[] {
   return found;
 }
 
-/** Every match of `query`, in reading order. */
+/** Every match of `query` in reading order, or the newest `MAX_MATCHES` of them. */
 export function findMatches(items: readonly Searchable[], query: string): FindMatch[] {
-  const matches: FindMatch[] = [];
-  for (const [index, item] of items.entries()) {
-    const count = occurrences(item.text, query).length;
-    for (let nth = 0; nth < count && matches.length < MAX_MATCHES; nth += 1) matches.push({ id: item.id, item: index, nth });
+  const newestFirst: FindMatch[][] = [];
+  let total = 0;
+  for (let index = items.length - 1; index >= 0 && total < MAX_MATCHES; index -= 1) {
+    const item = items[index];
+    if (item === undefined) continue;
+    const count = Math.min(occurrences(item.text, query).length, MAX_MATCHES - total);
+    if (count === 0) continue;
+    newestFirst.push(Array.from({ length: count }, (_, nth) => ({ id: item.id, item: index, nth })));
+    total += count;
   }
-  return matches;
+  return newestFirst.reverse().flat();
 }
 
 /** The match after (`step` 1) or before (-1) `current`, wrapping around. */
