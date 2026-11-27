@@ -1,6 +1,6 @@
 import type { Agent, AgentAvatar, AgentWorkspaceRequest, ProviderBinding } from '@morrowbot/contracts';
 import type { ComponentChildren } from 'preact';
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import type { MorrowbotBridge } from '../../bridge.ts';
 import type { AgentsModel } from './agents-model.ts';
 
@@ -167,23 +167,10 @@ export function AgentSettings(props: {
   const { agent, model } = props;
   const [name, setName] = useState(agent.name);
   const [description, setDescription] = useState(agent.description);
-  const [avatar, setAvatar] = useState(agent.avatar);
   const [problem, setProblem] = useState<string | null>(null);
   const update = (request: Parameters<AgentsModel['updateAgent']>[1]): void => {
     void model.updateAgent(agent.id, request).then((result) => {
       setProblem(result.kind === 'refused' ? result.message : null);
-    });
-  };
-  /** The avatar the host has; a refused pick goes back to it, unless a newer pick followed. */
-  const kept = useRef(agent.avatar);
-  kept.current = agent.avatar;
-  const picks = useRef(0);
-  const pickAvatar = (next: AgentAvatar): void => {
-    const mine = ++picks.current;
-    setAvatar(next);
-    void model.updateAgent(agent.id, { avatar: next }).then((result) => {
-      setProblem(result.kind === 'refused' ? result.message : null);
-      if (result.kind === 'refused' && mine === picks.current) setAvatar(kept.current);
     });
   };
   return (
@@ -191,7 +178,7 @@ export function AgentSettings(props: {
       <h2>{agent.name}</h2>
       <div class="field">
         <span>Avatar</span>
-        {props.avatarEditor(avatar, pickAvatar)}
+        {props.avatarEditor(agent.avatar, (avatar) => { update({ avatar }); })}
       </div>
       <label class="field">
         <span>Name</span>

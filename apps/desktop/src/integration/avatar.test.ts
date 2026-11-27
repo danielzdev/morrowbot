@@ -91,7 +91,7 @@ it("moves the avatar with its chat: working while it streams, a celebration when
   `);
 });
 
-it('keeps each agent its own avatar: picks sent at once are saved in order and read back from the host', async () => {
+it('keeps each agent its own avatar: picks show at once, are saved in order, and read back from the host', async () => {
   const chat = await host();
   const window = windowOn(chat);
   const api = createApi(window.bridge);
@@ -114,10 +114,14 @@ it('keeps each agent its own avatar: picks sent at once are saved in order and r
     avatar = choose(avatar, pick);
     return model.updateAgent(planner.id, { avatar });
   });
+  const loadedAgents = model.state.get().agents;
+  const shownAtOnce = loadedAgents.kind === 'loaded' ? loadedAgents.value.find(({ id }) => id === planner.id)?.avatar : undefined;
   for (const result of await Promise.all(sent)) {
     saved.push(result.kind === 'saved' ? `${result.value.avatar.shape} ${result.value.avatar.color} ${result.value.avatar.finish}` : result.message);
   }
 
+  const afterReplies = model.state.get().agents;
+  const shownAfterReplies = afterReplies.kind === 'loaded' ? afterReplies.value.find(({ id }) => id === planner.id)?.avatar : undefined;
   const freshWindow = windowOn(chat);
   const fresh = createAgentsModel({ api: createApi(freshWindow.bridge), bridge: freshWindow.bridge });
   cleanup.push(() => {
@@ -126,7 +130,7 @@ it('keeps each agent its own avatar: picks sent at once are saved in order and r
   await fresh.load();
   const agents = await until(fresh.state, (state) => state.agents.kind === 'loaded');
   const byId = (agent: Agent) => (agents.agents.kind === 'loaded' ? agents.agents.value.find(({ id }) => id === agent.id)?.avatar : undefined);
-  expect({ saved, readBack: { planner: byId(planner), writer: byId(writer) } }).toMatchInlineSnapshot(`
+  expect({ shownAtOnce, shownAfterReplies, saved, readBack: { planner: byId(planner), writer: byId(writer) } }).toMatchInlineSnapshot(`
     {
       "readBack": {
         "planner": {
@@ -149,6 +153,18 @@ it('keeps each agent its own avatar: picks sent at once are saved in order and r
         "lightbulb #ec4899 matte",
         "lightbulb #ec4899 metallic",
       ],
+      "shownAfterReplies": {
+        "color": "#ec4899",
+        "finish": "metallic",
+        "kind": "bot",
+        "shape": "lightbulb",
+      },
+      "shownAtOnce": {
+        "color": "#ec4899",
+        "finish": "metallic",
+        "kind": "bot",
+        "shape": "lightbulb",
+      },
     }
   `);
 });
