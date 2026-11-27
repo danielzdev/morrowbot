@@ -6,7 +6,7 @@ Plain-English terms used across MorrowBot (used by the `wait-what` skill and con
 - **Renderer (Window):** The Electron desktop UI that connects to the Host as a client. Never imports Host code directly.
 - **Agent:** A persistent AI assistant with its own workspace folder, `AGENTS.md` instructions, skills, memories, and multi-chat tabs.
 - **Plugin:** A free, open-source add-on that runs in its own isolated worker process and keeps all its settings on its own plugin page.
-- **Built-in Provider:** A provider that ships inside MorrowBot (Claude and Codex, in `packages/providers`). It runs inside the host with no worker process and needs no plugins folder, but speaks the same protocol as a provider plugin, keeps its settings and on/off switch on its own page, and still starts each CLI in its own guarded process group.
+- **Built-in Provider:** A provider that ships inside MorrowBot (Claude, Codex and Antigravity, in `packages/providers`). It runs inside the host with no worker process and needs no plugins folder, but speaks the same protocol as a provider plugin, keeps its settings and on/off switch on its own page, and still starts each CLI in its own guarded process group.
 - **Safe Mode:** Starting MorrowBot with all plugins and built-in providers temporarily turned off so a broken one can never stop the app from opening.
 - **Routine:** A scheduled or one-time background run for an agent, with a "stay quiet if nothing new" option.
 - **Vault:** Encrypted storage for API keys, website logins, and secrets injected outside the agent so raw secrets never enter prompts.

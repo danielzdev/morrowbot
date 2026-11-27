@@ -202,6 +202,7 @@ function onChunk(core: ChatCore, turn: Turn, chunk: TurnChunk): void {
       core.events.publish({ kind: 'generation.approval-resolved', ...ref, approvalId: chunk.approvalId, resolution: { kind: 'expired' } });
       return;
     case 'model-options-changed':
+      void core.options.plugins.info(turn.pluginId, true);
       return;
   }
 }
@@ -229,7 +230,7 @@ function onEnd(core: ChatCore, turn: Turn, end: TurnEnd): void {
   if (end.outcome.kind !== 'failed') return;
   const { kind } = end.outcome.error;
   if (kind === 'account-changed') accountChanged(core, turn.pluginId, turn.accountKey);
-  else if (kind === 'route-changed' || kind === 'signed-out') void core.options.plugins.info(turn.pluginId, true);
+  else if (kind === 'route-changed' || kind === 'signed-out' || kind === 'access-not-supported') void core.options.plugins.info(turn.pluginId, true);
 }
 
 /**

@@ -5,10 +5,10 @@ starts every enabled plugin in its own Node process, so a crash cannot take down
 the host or other plugins. `--safe-mode` (or `MORROWBOT_SAFE_MODE=1`) starts the
 host with no plugin processes and no built-in providers at all.
 
-The Claude and Codex providers are not plugin folders: they are built into the host
+The Claude, Codex and Antigravity providers are not plugin folders: they are built into the host
 (`packages/providers`). They speak the same protocol through the same SDK runtime,
 but run inside the host process with no worker, so they work with no plugins folder.
-A plugin folder that reuses a built-in id (`provider-claude`, `provider-openai`) is
+A plugin folder that reuses a built-in id (`provider-claude`, `provider-openai`, `provider-antigravity`) is
 skipped and reported as a problem.
 
 A plugin may import only `@morrowbot/plugin-sdk` and `@morrowbot/contracts`,
@@ -89,5 +89,6 @@ plugins are disabled on Windows for now.
 
 The built-in `packages/providers/src/claude/` runs Claude Code once per turn;
 `packages/providers/src/openai/` runs one shared Codex `app-server` daemon
-(`openCommand` with `scope: {kind: 'daemon'}`). Small plugin examples live in
+(`openCommand` with `scope: {kind: 'daemon'}`), and `packages/providers/src/antigravity/`
+one shared `agy acp` daemon. Small plugin examples live in
 `apps/host/src/features/plugins/fixtures/`.

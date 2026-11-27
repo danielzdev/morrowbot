@@ -1,4 +1,5 @@
 import type { PluginManifest, PluginRuntime, ProviderPlugin } from '@morrowbot/plugin-sdk';
+import * as antigravity from './antigravity/index.ts';
 import * as claude from './claude/index.ts';
 import * as openai from './openai/index.ts';
 
@@ -20,4 +21,5 @@ export interface ProviderAdapter {
 export const BUILTIN_PROVIDERS: readonly ProviderAdapter[] = [
   { manifest: claude.manifest, create: claude.createClaudeProvider },
   { manifest: openai.manifest, create: openai.createCodexProvider },
+  { manifest: antigravity.manifest, create: antigravity.createAntigravityProvider },
 ];
