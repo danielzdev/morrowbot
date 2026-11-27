@@ -1,40 +1,23 @@
 /**
- * Migration 6 (attachments and memories). An attachment is uploaded to a thread and joins a user
- * message when it is sent; its bytes live in the data folder's `attachments/`, named by id. A
- * memory belongs to one agent; `memories_fts` indexes its text for keyword search.
+ * Migration 6 (agent-to-agent messages). A message goes when the chat on either end goes, and a reply goes
+ * with the message it answers. A message has at most one reply.
  */
 export const MIGRATION_6 = `
-  CREATE TABLE attachments (
+  CREATE TABLE agent_messages (
     id TEXT PRIMARY KEY,
-    thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
-    message_id TEXT REFERENCES messages(id) ON DELETE CASCADE,
-    position INTEGER NOT NULL DEFAULT 0,
-    kind TEXT NOT NULL CHECK (kind IN ('image', 'text')),
-    name TEXT NOT NULL,
-    mime_type TEXT,
-    size INTEGER NOT NULL,
-    created_at TEXT NOT NULL
-  ) STRICT;
-  CREATE INDEX attachments_by_thread ON attachments(thread_id, message_id, position);
-  CREATE TABLE memories (
-    seq INTEGER PRIMARY KEY,
-    id TEXT NOT NULL UNIQUE,
-    agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
-    inclusion TEXT NOT NULL CHECK (inclusion IN ('essential', 'searchable')),
+    from_agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+    from_thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+    to_agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+    to_thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
     text TEXT NOT NULL,
+    expects_reply INTEGER NOT NULL CHECK (expects_reply IN (0, 1)),
+    reply_to_message_id TEXT UNIQUE REFERENCES agent_messages(id) ON DELETE CASCADE,
+    depth INTEGER NOT NULL CHECK (depth >= 0),
     created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    CHECK (from_agent_id <> to_agent_id)
   ) STRICT;
-  CREATE INDEX memories_by_agent ON memories(agent_id, created_at);
-  CREATE VIRTUAL TABLE memories_fts USING fts5(text, content='memories', content_rowid='seq', tokenize='unicode61 remove_diacritics 2');
-  CREATE TRIGGER memories_fts_insert AFTER INSERT ON memories BEGIN
-    INSERT INTO memories_fts(rowid, text) VALUES (new.seq, new.text);
-  END;
-  CREATE TRIGGER memories_fts_delete AFTER DELETE ON memories BEGIN
-    INSERT INTO memories_fts(memories_fts, rowid, text) VALUES ('delete', old.seq, old.text);
-  END;
-  CREATE TRIGGER memories_fts_update AFTER UPDATE OF text ON memories BEGIN
-    INSERT INTO memories_fts(memories_fts, rowid, text) VALUES ('delete', old.seq, old.text);
-    INSERT INTO memories_fts(rowid, text) VALUES (new.seq, new.text);
-  END;
+  CREATE INDEX agent_messages_from ON agent_messages(from_agent_id, created_at);
+  CREATE INDEX agent_messages_to ON agent_messages(to_agent_id, created_at);
+  CREATE INDEX agent_messages_from_thread ON agent_messages(from_thread_id);
+  CREATE INDEX agent_messages_to_thread ON agent_messages(to_thread_id);
 `;

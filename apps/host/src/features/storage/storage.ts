@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { agentMessageRepository, type AgentMessageRepository } from './agent-messages-repo.ts';
 import { agentRepository, type AgentRepository } from './agents-repo.ts';
 import { attachmentRepository, type AttachmentRepository } from './attachments-repo.ts';
 import { childGroupRepository, type ChildGroupRepository } from './child-groups-repo.ts';
@@ -30,6 +31,7 @@ export interface Storage {
   readonly devices: DeviceRepository;
   readonly attachments: AttachmentRepository;
   readonly memories: MemoryRepository;
+  readonly agentMessages: AgentMessageRepository;
   /** Runs `work` in one write transaction (`BEGIN IMMEDIATE`), rolled back if it throws. Not reentrant. */
   transaction<T>(work: () => T): T;
   close(): void;
@@ -58,6 +60,7 @@ export function openStorage(file: string, now: () => string): Storage {
       devices: deviceRepository(db),
       attachments: attachmentRepository(db),
       memories: memoryRepository(db),
+      agentMessages: agentMessageRepository(db),
       transaction: (work) => {
         db.exec('BEGIN IMMEDIATE');
         try {

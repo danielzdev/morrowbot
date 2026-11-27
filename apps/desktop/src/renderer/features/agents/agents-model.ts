@@ -1,9 +1,8 @@
-import type { Agent, AgentList, CreateAgentRequest, Folder, LastMessage, SkillList, Thread, UpdateAgentRequest } from '@morrowbot/contracts';
+import { mainThread, type Agent, type AgentList, type CreateAgentRequest, type Folder, type LastMessage, type SkillList, type Thread, type UpdateAgentRequest } from '@morrowbot/contracts';
 import type { z } from 'zod';
 import type { MorrowbotBridge } from '../../bridge.ts';
 import type { Api, ApiResult } from '../../shared/api.ts';
 import { Store, type Loadable } from '../../shared/store.ts';
-import { mainThread } from '../../shared/main-thread.ts';
 import { createInstructionsEditor, type InstructionsEditor } from './instructions-editor.ts';
 import { createMemoriesEditor, loadSkills, type MemoriesEditor } from './memories-editor.ts';
 

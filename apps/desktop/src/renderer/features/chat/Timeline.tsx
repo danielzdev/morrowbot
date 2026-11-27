@@ -1,6 +1,8 @@
 import type { Message } from '@morrowbot/contracts';
 import { memo } from 'preact/compat';
 import { useEffect, useMemo, useState } from 'preact/hooks';
+import { timelineItems } from './agent-exchange.ts';
+import { AgentExchange, type PeerDirectory } from './AgentExchange.tsx';
 import { ApprovalCard } from './ApprovalCard.tsx';
 import type { ChatDisplay } from './display.ts';
 import { ACTIVE_ID } from './find.ts';
@@ -21,6 +23,7 @@ export interface TimelineContext {
   readonly onAnswer: (approvalId: string, choiceId: string) => void;
   /** A sent image as a data URL; null when it can't be loaded. */
   readonly image: (id: string) => Promise<string | null>;
+  readonly peers: PeerDirectory;
 }
 
 export const TOOLS_NOT_KEPT = "Tool steps from before this session aren't shown.";
@@ -118,6 +121,7 @@ export function Timeline(props: {
   const { messages, finished } = view;
   const unwatched = useMemo(() => messages.some((message) => message.kind === 'assistant' && !(message.id in finished)), [messages, finished]);
   const last = messages.at(-1);
+  const items = useMemo(() => timelineItems(messages, view.agentMessages, start), [messages, view.agentMessages, start]);
   return (
     <div class="messages" aria-label="Messages">
       {start > 0 && (
@@ -126,16 +130,20 @@ export function Timeline(props: {
         </button>
       )}
       {unwatched && <div class="note muted reload-note">{TOOLS_NOT_KEPT}</div>}
-      {messages.slice(start).map((message) => (
-        <MessageItem
-          key={message.id}
-          message={message}
-          finished={finished[message.id]}
-          latest={message === last}
-          busy={message === last && (!props.idle || props.locked || props.offline)}
-          ctx={ctx}
-        />
-      ))}
+      {items.map((item) =>
+        item.kind === 'exchange' ? (
+          <AgentExchange key={`exchange-${item.messages[0]?.id ?? ''}`} messages={item.messages} threadId={view.thread.id} peers={ctx.peers} actions={ctx.actions} />
+        ) : (
+          <MessageItem
+            key={item.message.id}
+            message={item.message}
+            finished={finished[item.message.id]}
+            latest={item.message === last}
+            busy={item.message === last && (!props.idle || props.locked || props.offline)}
+            ctx={ctx}
+          />
+        ),
+      )}
       {view.activeTurn !== null && <ActiveTurn turn={view.activeTurn} answering={props.answering} offline={props.offline} ctx={ctx} />}
     </div>
   );

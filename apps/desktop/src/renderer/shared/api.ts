@@ -8,6 +8,7 @@ import {
   CreateMemoryRequest as CreateMemoryRequestSchema,
   type UpdateMemoryRequest,
   type UploadAttachmentRequest,
+  AgentMessageList,
   AgentInstructionsView,
   InstructionsCopyReply,
   PutInstructionsReply,
@@ -75,6 +76,8 @@ export interface Api {
   createMemory(agentId: string, request: z.input<typeof CreateMemoryRequestSchema>): Promise<ApiResult<Memory>>;
   updateMemory(agentId: string, id: string, request: UpdateMemoryRequest): Promise<ApiResult<Memory>>;
   deleteMemory(agentId: string, id: string): Promise<ApiResult<null>>;
+  /** The agent messages shown in one of the agent's chats, oldest first. */
+  agentMessages(agentId: string, threadId: string): Promise<ApiResult<AgentMessageList>>;
   continueTurn(threadId: string, failedMessageId: string, sessionChoice: SessionChoice): Promise<ApiResult<ContinueResponse>>;
   stop(threadId: string): Promise<ApiResult<StopGenerationResponse>>;
   answerApproval(threadId: string, approvalId: string, generationId: string, choiceId: string): Promise<ApiResult<null>>;
@@ -135,6 +138,8 @@ export function createApi(bridge: MorrowbotBridge): Api {
     createMemory: (agentId, request) => call(Memory, 'POST', at('agents', agentId, 'memories'), request),
     updateMemory: (agentId, id, request) => call(Memory, 'PATCH', at('agents', agentId, 'memories', id), request),
     deleteMemory: (agentId, id) => call(NoContent, 'DELETE', at('agents', agentId, 'memories', id)),
+    agentMessages: (agentId, threadId) =>
+      call(AgentMessageList, 'GET', `${at('agents', agentId, 'messages')}?${new URLSearchParams({ threadId }).toString()}`),
     continueTurn: (threadId, failedMessageId, sessionChoice) =>
       call(ContinueResponse, 'POST', at('threads', threadId, 'continue'), { failedMessageId, sessionChoice }),
     stop: (threadId) => call(StopGenerationResponse, 'POST', at('threads', threadId, 'stop')),

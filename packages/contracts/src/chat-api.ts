@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { AgentMessagePosted } from './agent-messages.ts';
 import { Agent, AgentInstructionsView, Folder, LastMessage } from './agents.ts';
 import { MAX_ATTACHMENTS } from './attachments.ts';
 import { EntityId, PluginId, Timestamp } from './ids.ts';
@@ -231,6 +232,7 @@ export type EventClientFrame = z.infer<typeof EventClientFrame>;
 /** What the host sends on `/api/events`: events, or `resync` (refetch `/state`, then subscribe at its cursor). */
 export const EventServerFrame = z.union([
   ChatEvent,
+  AgentMessagePosted,
   z.strictObject({ kind: z.literal('resync'), threadId: EntityId }),
 ]);
 export type EventServerFrame = z.infer<typeof EventServerFrame>;

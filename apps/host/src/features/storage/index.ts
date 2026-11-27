@@ -12,3 +12,4 @@ export type { TokenTotalsRepository } from './token-totals-repo.ts';
 export type { DeviceRepository } from './devices-repo.ts';
 export type { AttachmentRepository } from './attachments-repo.ts';
 export type { MemoryRepository } from './memories-repo.ts';
+export type { AgentMessageRepository } from './agent-messages-repo.ts';
