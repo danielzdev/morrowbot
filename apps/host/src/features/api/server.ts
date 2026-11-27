@@ -12,6 +12,7 @@ import type { ApiServices } from './ports.ts';
 import { failure, readJson, send, type Reply } from './reply.ts';
 import { matchPath, type Params, type Route } from './route.ts';
 import { threadRoutes } from './thread-routes.ts';
+import { usageRoutes } from './usage-routes.ts';
 
 export const EVENTS_PATH = '/api/events';
 /** How long an unpaired device's socket gets to finish the close handshake before it is cut. */
@@ -54,6 +55,7 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
     ...folderRoutes(options.services),
     ...threadRoutes(options.services),
     ...pluginRoutes(options.services),
+    ...usageRoutes(options.services),
     ...pairingRoutes({
       pairing: options.services.pairing,
       hostName: options.hostName,
