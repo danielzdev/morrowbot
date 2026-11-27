@@ -2,7 +2,7 @@ import { tmpdir } from 'node:os';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { PluginMessage, type PluginChannelEvents } from '@morrowbot/contracts';
 import { defineProvider, type PluginFactory } from '@morrowbot/plugin-sdk';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { inHostChannel } from './in-host-channel.ts';
 
 function alive(pid: number): boolean {
@@ -18,38 +18,31 @@ async function untilGone(pid: number): Promise<void> {
   for (let tries = 0; tries < 100 && alive(pid); tries += 1) await sleep(50);
 }
 
-const unused = (): never => {
-  throw new Error('not used here');
-};
+/** A command whose shell prints the pid of a `sleep` it leaves running in its group. */
+function sleeperOptions(onPid: (pid: number) => void) {
+  return {
+    args: ['-c', 'sleep 60 & echo $!; wait'],
+    cwd: tmpdir(),
+    files: [],
+    scope: { kind: 'probe' } as const,
+    signal: new AbortController().signal,
+    onLine: (line: string) => {
+      onPid(Number(line));
+    },
+  };
+}
 
-it('kill ends a built-in provider as SIGKILL ends a worker: its command groups are swept and nothing more arrives', async () => {
-  const sleeper = Promise.withResolvers<number>();
-  const factory: PluginFactory = (runtime) =>
-    defineProvider({
-      providerInfo: () => {
-        runtime.openCommand('sh', {
-          args: ['-c', 'sleep 60 & echo $!; wait'],
-          cwd: tmpdir(),
-          files: [],
-          scope: { kind: 'probe' },
-          signal: new AbortController().signal,
-          onLine: (line) => {
-            sleeper.resolve(Number(line));
-          },
-        });
-        return new Promise(() => undefined);
-      },
-      usage: unused,
-      routeInfo: unused,
-      turn: unused,
-    });
+/** Opens `factory` in the host, answering every group registration as the host does. */
+function connect(factory: PluginFactory) {
   const received: string[] = [];
+  const groups: number[] = [];
   const exited = Promise.withResolvers<{ code: number | null; signal: string | null }>();
   const events: PluginChannelEvents = {
     message: (raw) => {
       const message = PluginMessage.parse(raw);
       received.push(message.kind);
       if (message.kind === 'child-group-started') {
+        groups.push(message.pgid);
         channel.send({ kind: 'child-group-ack', pgid: message.pgid }, () => undefined);
       }
     },
@@ -61,25 +54,119 @@ it('kill ends a built-in provider as SIGKILL ends a worker: its command groups a
     },
   };
   const channel = inHostChannel(factory, { PATH: process.env.PATH }, process.platform)(events);
+  return { channel, received, groups, exited: exited.promise };
+}
+
+const unused = (): never => {
+  throw new Error('not used here');
+};
+
+it('kill ends a built-in provider as SIGKILL ends a worker: its command groups are swept and nothing more arrives', async () => {
+  const sleeper = Promise.withResolvers<number>();
+  const { channel, received, groups, exited } = connect((runtime) =>
+    defineProvider({
+      providerInfo: () => {
+        runtime.openCommand('sh', sleeperOptions(sleeper.resolve));
+        return new Promise(() => undefined);
+      },
+      usage: unused,
+      routeInfo: unused,
+      turn: unused,
+    }),
+  );
   channel.send({ kind: 'provider-info', id: 1, refresh: false }, () => undefined);
   const pid = await sleeper.promise;
   channel.kill();
-  const exit = await exited.promise;
+  const exit = await exited;
   await untilGone(pid);
   await sleep(300);
-  expect({ exit, connected: channel.connected, sleeperAlive: alive(pid), received }).toMatchInlineSnapshot(`
+  expect({ exit, connected: channel.connected, sleeperAlive: alive(pid), groupAlive: alive(-(groups[0] ?? 0)), received }).toMatchInlineSnapshot(`
     {
       "connected": false,
       "exit": {
         "code": null,
         "signal": "SIGKILL",
       },
+      "groupAlive": false,
       "received": [
         "child-group-started",
       ],
       "sleeperAlive": false,
     }
   `);
+});
+
+it('after a graceful shutdown no command of the provider survives, and none starts again', async () => {
+  const sleeper = Promise.withResolvers<number>();
+  const late = Promise.withResolvers<string>();
+  const shutDown = Promise.withResolvers<undefined>();
+  const { channel, received, exited } = connect((runtime) =>
+    defineProvider({
+      providerInfo: async () => {
+        await shutDown.promise;
+        const exit = await runtime.runCommand('sh', { ...sleeperOptions(() => undefined), input: '' });
+        late.resolve(exit.kind === 'failed' ? exit.message : exit.kind);
+        return new Promise(() => undefined);
+      },
+      usage: unused,
+      routeInfo: unused,
+      turn: unused,
+      shutdown: async () => {
+        runtime.openCommand('sh', sleeperOptions(sleeper.resolve));
+        await sleeper.promise;
+      },
+    }),
+  );
+  channel.send({ kind: 'provider-info', id: 1, refresh: false }, () => undefined);
+  channel.send({ kind: 'shutdown', id: 2 }, () => undefined);
+  const exit = await exited;
+  shutDown.resolve(undefined);
+  const pid = await sleeper.promise;
+  await untilGone(pid);
+  expect({ exit, sleeperAlive: alive(pid), lateCommand: await late.promise, received }).toMatchInlineSnapshot(`
+    {
+      "exit": {
+        "code": 0,
+        "signal": null,
+      },
+      "lateCommand": "The plugin has stopped",
+      "received": [
+        "child-group-started",
+        "shutdown-result",
+      ],
+      "sleeperAlive": false,
+    }
+  `);
+});
+
+it('runs a built-in provider\'s commands with only its own environment, not the host\'s', async () => {
+  vi.stubEnv('MORROWBOT_HOST_ONLY', 'host secret');
+  const printed = Promise.withResolvers<string>();
+  const { channel } = connect((runtime) =>
+    defineProvider({
+      providerInfo: async () => {
+        let output = '';
+        await runtime.runCommand('sh', {
+          ...sleeperOptions(() => undefined),
+          args: ['-c', 'echo "host=[$MORROWBOT_HOST_ONLY] path=[${PATH:+set}]"'],
+          input: '',
+          onLine: (line) => {
+            output += line;
+          },
+        });
+        printed.resolve(output);
+        return new Promise(() => undefined);
+      },
+      usage: unused,
+      routeInfo: unused,
+      turn: unused,
+    }),
+  );
+  channel.send({ kind: 'provider-info', id: 1, refresh: false }, () => undefined);
+  const output = await printed.promise;
+  vi.unstubAllEnvs();
+  channel.kill();
+  expect(output).toMatchInlineSnapshot(`"host=[] path=[set]"`);
 });
 
 it('a built-in provider that throws while it is built fails to start instead of taking the host down', async () => {

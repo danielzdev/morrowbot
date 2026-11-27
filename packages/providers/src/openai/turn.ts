@@ -52,9 +52,13 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
   const opening = openThread(daemon, { cwd: request.cwd, session: request.session, ephemeral, routeKey, policy: checked.policy });
   const opened = await unlessStopped(opening);
   if (opened === 'stopped') {
-    void opening.then((late) => {
-      if (late.kind === 'opened' && (ephemeral || late.isNew)) releaseThread(daemon, late.threadId);
-    });
+    opening
+      .then((late) => {
+        if (late.kind === 'opened' && (ephemeral || late.isNew)) releaseThread(daemon, late.threadId);
+      })
+      .catch((error: unknown) => {
+        console.error('provider-openai: could not release a thread opened after Stop', error);
+      });
     return cancelled();
   }
   if (opened.kind === 'refused') return refuse(opened.error);
@@ -93,6 +97,9 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
             if (read.kind !== 'available' || read.accountKey !== accountKey) return;
             deps.onUsage(read.accountKey, read.observedAt, read.windows);
             if (!ended) context.emit({ kind: 'usage-update', observedAt: read.observedAt, accountKey, windows: [...read.windows] });
+          })
+          .catch((error: unknown) => {
+            console.error('provider-openai: could not read plan usage', error);
           })
           .finally(() => {
             quota.pending = null;

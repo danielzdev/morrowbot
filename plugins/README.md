@@ -43,7 +43,9 @@ environment out of plugins by default; it is not a sandbox, since plugins are
 trusted code. Each plugin also gets its own data folder (`init`'s `dataDir`).
 
 A provider's entry file serves it over IPC with `defineProvider` and `runPlugin`.
-`runPlugin` takes a factory that builds the plugin on its `runtime`:
+`runPlugin` takes a factory that builds the plugin on its `runtime` (a breaking
+change before 1.0: `runPlugin(plugin)` and the SDK's free `openCommand`,
+`runCommand`, `jsonRpcProcess`, `statExecutable` and `readCliVersion` are gone):
 
 ```ts
 import { defineProvider, runPlugin } from '@morrowbot/plugin-sdk';

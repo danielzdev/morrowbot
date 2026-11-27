@@ -257,6 +257,34 @@ it('sends the whole thread so far with every turn, without asking for a session 
   `);
 });
 
+it('passes the chosen effort to Claude Code, and launches no turn for an effort the model does not offer', async () => {
+  const chosen = await thread(binding({ kind: 'model', id: 'opus', choices: { effort: 'xhigh' } }));
+  const sent = await send(chosen, 'think hard');
+  const unsupported = await thread(binding({ kind: 'model', id: 'opus', choices: { effort: 'ultra' } }));
+  const refused = await send(unsupported, 'think harder');
+  const flags = (await turns()).map(({ args }) => args.slice(args.indexOf('--model'), args.indexOf('--model') + 4));
+  expect({ sent: sent.status, refused: { status: refused.status, history: await history(unsupported) }, flags }).toMatchInlineSnapshot(`
+    {
+      "flags": [
+        [
+          "--model",
+          "opus",
+          "--effort",
+          "xhigh",
+        ],
+      ],
+      "refused": {
+        "history": [
+          "user: think harder",
+          "assistant(failed other): ",
+        ],
+        "status": 202,
+      },
+      "sent": 202,
+    }
+  `);
+});
+
 it('sends no prompt when the signed-in account changed after the provider was checked', async () => {
   expect((await host.call('GET', '/api/plugins/provider-claude/info')).status).toBe(200);
   await mkdir(path.join(home, 'fake-claude'), { recursive: true });

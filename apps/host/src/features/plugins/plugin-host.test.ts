@@ -1,4 +1,6 @@
+import { fileURLToPath } from 'node:url';
 import { afterEach, expect, it } from 'vitest';
+import { discoverPlugins } from './discovery.ts';
 import type { PluginRecord } from './plugin-store.ts';
 import { bootHost, collect, startTurn, statuses, stopHosts, turnRequest } from './plugin-test-kit.ts';
 
@@ -26,6 +28,27 @@ it('boots in safe mode with 0 plugin processes', async () => {
         "turn": "no worker",
       }
     `);
+});
+
+it('lists a built-in provider first and skips a plugin folder that reuses its id', async () => {
+  const { plugins } = await discoverPlugins(fileURLToPath(new URL('./fixtures', import.meta.url)));
+  const echo = plugins.find(({ manifest }) => manifest.id === 'echo');
+  if (echo === undefined) throw new Error('the echo fixture is missing');
+  const h = await bootHost({ builtins: [{ manifest: { ...echo.manifest, name: 'Built-in Echo' }, launch: echo.launch }] });
+  expect({
+    plugins: h.host.list().map(({ manifest, status }) => `${manifest.id} (${manifest.name}): ${status.kind}`),
+    problems: h.host.problems,
+  }).toMatchInlineSnapshot(`
+    {
+      "plugins": [
+        "echo (Built-in Echo): running",
+        "faulty (Faulty): invalid-config",
+      ],
+      "problems": [
+        "echo: a plugin folder uses the id of a provider built into MorrowBot, so it was skipped",
+      ],
+    }
+  `);
 });
 
 it('runs a provider turn in its own process and refuses turns for a tool plugin', async () => {

@@ -48,6 +48,7 @@ export interface OwnedRuntime {
 export function createRuntime(options: RuntimeOptions, link: GroupLink): OwnedRuntime {
   const commands = createCommandRunner(link, options.env);
   const stat = (command: string): Promise<Executable> => statExecutable(command, options.env.PATH ?? '');
+  const versions = { stat, run: commands.run, cache: new Map<string, string>() };
   const runtime: PluginRuntime = {
     env: options.env,
     platform: options.platform,
@@ -55,7 +56,7 @@ export function createRuntime(options: RuntimeOptions, link: GroupLink): OwnedRu
     runCommand: (command, commandOptions) => commands.run(command, commandOptions),
     jsonRpcProcess: jsonRpcProcessOver((command, commandOptions) => commands.open(command, commandOptions)),
     statExecutable: stat,
-    readCliVersion: (command, versionOptions) => readCliVersion({ stat, run: commands.run }, command, versionOptions),
+    readCliVersion: (command, versionOptions) => readCliVersion(versions, command, versionOptions),
   };
   return { runtime, commands };
 }

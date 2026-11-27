@@ -22,14 +22,25 @@ export function inHostChannel(factory: PluginFactory, env: RuntimeEnv, platform:
         events.exit(code, signal);
       });
     };
-    let served: ServedPlugin;
+    let served: ServedPlugin | undefined;
+    const crash = (what: string, error: unknown): void => {
+      console.error(`MorrowBot host: a built-in provider ${what}`, error);
+      served?.abandon();
+      close(1, null);
+    };
     try {
       served = servePlugin(factory, {
         env,
         platform,
         transport: {
           send: (message, done) => {
-            const copy = copyOf(message);
+            let copy: unknown;
+            try {
+              copy = copyOf(message);
+            } catch (error) {
+              crash('sent a message that is not JSON', error);
+              return;
+            }
             setImmediate(() => {
               if (!open) return;
               events.message(copy);
@@ -46,11 +57,15 @@ export function inHostChannel(factory: PluginFactory, env: RuntimeEnv, platform:
       setImmediate(() => {
         events.error(error instanceof Error ? error : new Error(String(error)), false);
       });
-      return { connected: false, send: (_message, done) => {
+      return {
+        connected: false,
+        send: (_message, done) => {
           setImmediate(done, null);
         },
-        kill: () => undefined };
+        kill: () => undefined,
+      };
     }
+    const live = served;
     return {
       get connected() {
         return open;
@@ -63,18 +78,16 @@ export function inHostChannel(factory: PluginFactory, env: RuntimeEnv, platform:
             return;
           }
           try {
-            served.receive(copy);
+            live.receive(copy);
           } catch (error) {
-            console.error('MorrowBot host: a built-in provider threw while handling a message', error);
-            served.abandon();
-            close(1, null);
+            crash('threw while handling a message', error);
           }
           done(null);
         });
       },
       kill: () => {
         if (!open) return;
-        served.abandon();
+        live.abandon();
         close(null, 'SIGKILL');
       },
     };

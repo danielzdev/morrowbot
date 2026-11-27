@@ -72,7 +72,7 @@ export interface CommandRunner {
   /** Stops the commands a turn started and waits until they have exited, so no turn group outlives its turn. */
   readonly stopTurn: (turnId: string) => Promise<void>;
   /**
-   * The owner is gone (a built-in provider the host ended at once): every guard's owner pipe is
+   * The owner is gone or has shut down (a worker would now exit): every guard's owner pipe is
    * closed, so each sweeps its group as it would on a worker's SIGKILL, and no command starts again.
    */
   readonly abandon: () => void;

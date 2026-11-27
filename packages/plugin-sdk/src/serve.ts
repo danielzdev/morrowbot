@@ -48,7 +48,14 @@ export function servePlugin(factory: PluginFactory, options: RuntimeOptions & { 
   const exit = (): void => {
     options.transport.exit();
   };
-  const served: Served = { plugin: factory(runtime), send, exit, turns: new Map(), commands, link };
+  let plugin: PluginDefinition;
+  try {
+    plugin = factory(runtime);
+  } catch (error) {
+    commands.abandon();
+    throw error;
+  }
+  const served: Served = { plugin, send, exit, turns: new Map(), commands, link };
   return {
     receive: (raw) => {
       if (abandoned) return;
@@ -122,6 +129,7 @@ async function answer(served: Served, message: Request): Promise<void> {
       } catch (error) {
         reply = failure(id, error);
       }
+      served.commands.abandon();
       send(reply, served.exit);
       return;
     }

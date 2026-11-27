@@ -26,12 +26,11 @@ export type CliVersion =
   | { readonly kind: 'failed'; readonly message: string };
 
 const VERSION_TIMEOUT_MS = 10_000;
-/** Shared by every plugin in a process: the key names the exact executable file. */
-const cache = new Map<string, string>();
-
 export interface VersionTools {
   readonly stat: (command: string) => Promise<Executable>;
   readonly run: CommandRunner['run'];
+  /** One plugin's versions, keyed by the exact executable file; a restarted plugin starts empty. */
+  readonly cache: Map<string, string>;
 }
 
 /**
@@ -42,7 +41,7 @@ export async function readCliVersion(tools: VersionTools, command: string, optio
   const executable = await tools.stat(command);
   if (executable.kind === 'missing') return { kind: 'missing' };
   const key = `${executable.path}\0${String(executable.mtimeMs)}\0${String(executable.size)}`;
-  const cached = cache.get(key);
+  const cached = tools.cache.get(key);
   if (cached !== undefined) return { kind: 'version', version: cached };
   let output = '';
   const signal = AbortSignal.timeout(VERSION_TIMEOUT_MS);
@@ -68,7 +67,7 @@ export async function readCliVersion(tools: VersionTools, command: string, optio
   }
   const version = /\d+\.\d+\.\d+/.exec(output)?.[0];
   if (version === undefined) return { kind: 'failed', message: `"${command} --version" printed no version` };
-  cache.set(key, version);
+  tools.cache.set(key, version);
   return { kind: 'version', version };
 }
 

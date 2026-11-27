@@ -14,7 +14,7 @@ type Boundary =
   | { readonly kind: 'none' };
 
 function boundaryOf(file: string): Boundary {
-  const plugin = /^(?:plugins|packages\/providers\/src)\/[^/.]+(?=\/)/.exec(file);
+  const plugin = /^(?:plugins|packages\/providers\/src)\/[^/]+(?=\/)/.exec(file);
   if (plugin) return { kind: 'plugin', root: plugin[0] };
   if (isInside(file, RENDERER_ROOT)) return { kind: 'renderer', root: RENDERER_ROOT };
   return { kind: 'none' };

@@ -41,7 +41,9 @@ export function createTurnWire(options: WireOptions): TurnReader {
         options.emit({ kind: 'usage-update', observedAt, accountKey: options.accountKey, windows: [...windows] });
       },
       control: (control) => {
-        void answer(control);
+        answer(control).catch((error: unknown) => {
+          console.error('provider-claude: could not answer a control request', error);
+        });
       },
       done: options.end,
     },

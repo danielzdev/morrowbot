@@ -128,12 +128,16 @@ describe('import boundaries', () => {
       computedImport: lintBoundaries(plugin, "export const c = import('@morrowbot/' + 'host');"),
       vitestInTest: lintBoundaries('plugins/demo/src/index.test.ts', "export * from 'vitest';"),
       vitestOutsideTests: lintBoundaries(plugin, "export * from 'vitest';"),
+      dottedFolder: lintBoundaries('plugins/acme.provider/index.ts', "export * from 'node:fs';"),
     }).toMatchInlineSnapshot(`
       {
         "computedImport": [
           "1: morrowbot/import-boundaries: Plugins and built-in providers may import only @morrowbot/plugin-sdk, @morrowbot/contracts, and files inside their own folder.",
         ],
         "contracts": [],
+        "dottedFolder": [
+          "1: morrowbot/import-boundaries: Plugins and built-in providers may import only @morrowbot/plugin-sdk, @morrowbot/contracts, and files inside their own folder.",
+        ],
         "dynamicImport": [
           "1: morrowbot/import-boundaries: Plugins and built-in providers may import only @morrowbot/plugin-sdk, @morrowbot/contracts, and files inside their own folder.",
         ],

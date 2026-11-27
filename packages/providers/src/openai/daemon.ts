@@ -64,7 +64,13 @@ export async function startDaemon(jsonRpcProcess: StartJsonRpcProcess, cliPath: 
   const loaded = new Map<string, LoadedThread>();
   let alive = true;
   const tell = (event: DaemonEvent): void => {
-    for (const listener of [...listeners]) listener(event);
+    for (const listener of [...listeners]) {
+      try {
+        listener(event);
+      } catch (error) {
+        console.error(`provider-openai: a daemon listener threw on ${event.kind}`, error);
+      }
+    }
   };
   const rpc: JsonRpcProcess = jsonRpcProcess(cliPath, {
     args: LAUNCH_ARGS,
