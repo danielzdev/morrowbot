@@ -270,6 +270,43 @@ it('records child groups with their generation links; turn groups hold their thr
     `);
 });
 
+it('links turns to a daemon group, which holds their threads until each link or the row is deleted', () => {
+  storage.generations.insert(generation('g1', 't1'));
+  storage.generations.insert(generation('g2', 't2'));
+  storage.childGroups.insert({ pgid: 300, regId: 'r300', pluginId: 'echo', kind: 'daemon', bootId: 'boot-1', leaderStart: 'x', startedAt: AT, generationIds: [] });
+  const unlinked = [...storage.childGroups.heldThreads()];
+  storage.childGroups.link(300, 'g1');
+  storage.childGroups.link(300, 'g2');
+  const linked = { held: [...storage.childGroups.heldThreads()].sort(), links: storage.childGroups.get(300)?.generationIds };
+  storage.childGroups.unlink(300, 'g1');
+  const afterUnlink = { held: [...storage.childGroups.heldThreads()], links: storage.childGroups.get(300)?.generationIds };
+  storage.childGroups.delete(300);
+  expect({ unlinked, linked, afterUnlink, afterDelete: [...storage.childGroups.heldThreads()] }).toMatchInlineSnapshot(`
+    {
+      "afterDelete": [],
+      "afterUnlink": {
+        "held": [
+          "t2",
+        ],
+        "links": [
+          "g2",
+        ],
+      },
+      "linked": {
+        "held": [
+          "t1",
+          "t2",
+        ],
+        "links": [
+          "g1",
+          "g2",
+        ],
+      },
+      "unlinked": [],
+    }
+  `);
+});
+
 it('round-trips a seed-truncated assistant message', () => {
   storage.messages.insert({
     kind: 'assistant',

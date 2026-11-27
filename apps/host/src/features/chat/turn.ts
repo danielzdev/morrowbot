@@ -40,6 +40,8 @@ export interface Turn {
   readonly workspaceDir: string;
   readonly configRevision: number;
   readonly worker: number;
+  /** The plugin's daemon revision at admission: a daemon retired or exited since refuses the turn at dispatch. */
+  readonly daemonRevision: number;
   readonly maxSeedBytes: number | undefined;
   readonly plan: SessionPlan;
   readonly sourceInput: UserMessage;
@@ -166,6 +168,7 @@ function persistSettlement(core: ChatCore, turn: Turn, message: AssistantMessage
       store.threads.touch(turn.threadId, createdAt);
       store.generations.settle(turn.generationId, message.id);
       if (!turn.dispatched) return;
+      core.options.plugins.unlinkDaemon(turn.generationId);
       store.generations.insertUsage({
         generationId: turn.generationId,
         agentId: turn.agentId,

@@ -4,7 +4,6 @@ import type {
   CreateThreadRequest,
   Cursor,
   Message,
-  ProviderInfo,
   SessionChoice,
   StopGenerationResponse,
   Thread,
@@ -13,7 +12,7 @@ import type {
 import { admit, type AdmitResult } from './admission.ts';
 import { dispatch } from './dispatch.ts';
 import { EventLog, type Replay } from './event-log.ts';
-import type { ChatListener, ChatServiceOptions } from './ports.ts';
+import type { ChatListener, ChatServiceOptions, RecheckAnswer } from './ports.ts';
 import { laneOf, localSettlement, queueNote, settle, type ChatCore, type StoredReply, type Turn } from './turn.ts';
 import { readUsage, type UsageAnswer } from './usage.ts';
 
@@ -22,10 +21,7 @@ export type ApprovalResult = { readonly kind: 'replied' } | { readonly kind: 'no
 /** Stop's answer; `not_stored` when the reply could not be saved (the thread stays busy until restart). */
 export type StopResult = StopGenerationResponse | { readonly kind: 'not_stored' };
 
-export type RecheckResult =
-  | { readonly kind: 'ok'; readonly info: ProviderInfo }
-  | { readonly kind: 'busy' }
-  | { readonly kind: 'unavailable'; readonly reason: string };
+export type RecheckResult = RecheckAnswer;
 
 export interface ChatService {
   listThreads(agentId: string): Thread[] | undefined;
@@ -44,7 +40,10 @@ export interface ChatService {
   /** Stops the thread's turn and resolves once its reply is stored and its processes are gone. */
   stop(threadId: string): Promise<StopResult>;
   replyApproval(threadId: string, generationId: string, approvalId: string, choiceId: string): ApprovalResult;
-  /** Refreshes a provider's info with no new sends admitted meanwhile. Refused while it has turns. */
+  /**
+   * Recheck: refused while the plugin has a queued or running turn. Closes admission (a send gets
+   * `rechecking`), retires the plugin's daemon, starts a fresh one and reopens admission however that ends.
+   */
   recheck(pluginId: string): Promise<RecheckResult>;
   usage(pluginId: string, refresh: boolean): Promise<UsageAnswer>;
   /** The events a client missed since `since`, or `resync`. Synchronous with `subscribe`. */
@@ -173,11 +172,12 @@ export function createChatService(options: ChatServiceOptions): ChatService {
       return { kind: 'replied' };
     },
     recheck: async (pluginId) => {
-      if (core.rechecking.has(pluginId) || [...core.active.values()].some((turn) => turn.pluginId === pluginId)) return { kind: 'busy' };
+      if (core.rechecking.has(pluginId)) return { kind: 'unavailable', reason: 'This provider is already being rechecked.' };
+      if ([...core.active.values()].some((turn) => turn.pluginId === pluginId)) return { kind: 'busy' };
       core.rechecking.add(pluginId);
+      core.liveUsage.delete(pluginId);
       try {
-        const info = await options.plugins.info(pluginId, true);
-        return info.kind === 'ok' ? { kind: 'ok', info: info.info } : info;
+        return await options.plugins.recheck(pluginId);
       } finally {
         core.rechecking.delete(pluginId);
       }

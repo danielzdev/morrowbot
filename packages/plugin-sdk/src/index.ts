@@ -11,6 +11,7 @@ export type {
 export { defineProvider } from './plugin.ts';
 export { commandFilePath, openCommand, runCommand } from './command.ts';
 export type { CommandExit, CommandOptions, OpenCommand, RunCommandOptions } from './command.ts';
+export type { JsonRpcProcess, JsonRpcProcessOptions, JsonRpcReply, StartJsonRpcProcess } from './json-rpc-process.ts';
 export { confinePath } from './confine.ts';
 export type { Confined } from './confine.ts';
 export { listDirectory, readOptionalFile, statExecutable } from './files.ts';

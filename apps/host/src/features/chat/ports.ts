@@ -108,8 +108,16 @@ export interface AgentDirectory {
   readInstructions(id: string): Promise<string | undefined>;
 }
 
+/** `superseded`: Recheck or a daemon exit moved the daemon revision while it was asked. */
 export type InfoAnswer =
-  | { readonly kind: 'ok'; readonly info: ProviderInfo; readonly worker: number }
+  | { readonly kind: 'ok'; readonly info: ProviderInfo; readonly worker: number; readonly daemonRevision: number }
+  | { readonly kind: 'superseded' }
+  | { readonly kind: 'unavailable'; readonly reason: string };
+
+export type RecheckAnswer =
+  | { readonly kind: 'ok'; readonly info: ProviderInfo }
+  | { readonly kind: 'busy' }
+  | { readonly kind: 'blocked'; readonly detail: string }
   | { readonly kind: 'unavailable'; readonly reason: string };
 
 export type RouteAnswer =
@@ -128,7 +136,7 @@ export interface TurnSink {
 /** The provider plugins as the chat feature sees them (the plugins feature provides them). */
 export interface ProviderPlugins {
   isProvider(pluginId: string): boolean;
-  revision(pluginId: string): { readonly configRevision: number; readonly worker: number | null };
+  revision(pluginId: string): { readonly configRevision: number; readonly worker: number | null; readonly daemonRevision: number };
   info(pluginId: string, refresh: boolean): Promise<InfoAnswer>;
   cachedInfo(pluginId: string): { readonly info: ProviderInfo; readonly worker: number } | undefined;
   usage(
@@ -142,6 +150,12 @@ export interface ProviderPlugins {
   startTurn(pluginId: string, worker: number, request: TurnRequest, sink: TurnSink): 'started' | 'binding-changed';
   /** Whether `startTurn` on `worker` would be accepted now: checked before the dispatch writes anything. */
   canStart(pluginId: string, worker: number): boolean;
+  /** Links the turn to the daemon serving `worker`, if any. Called inside the dispatch transaction. */
+  linkDaemon(pluginId: string, worker: number, generationId: string): void;
+  /** Drops the turn's daemon link while that daemon still serves. Called inside the settlement transaction. */
+  unlinkDaemon(generationId: string): void;
+  /** Retires the plugin's daemon (if any) and asks a fresh provider-info; the caller has closed admission. */
+  recheck(pluginId: string): Promise<RecheckAnswer>;
   cancelTurn(pluginId: string, turnId: string): void;
   replyApproval(pluginId: string, turnId: string, approvalId: string, choiceId: string): void;
   /** Whether any process group (live or blocked) still belongs to the generation. */

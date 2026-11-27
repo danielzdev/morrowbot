@@ -21,7 +21,11 @@ export interface CommandOptions {
    * where the command expects a path.
    */
   readonly files: readonly string[];
-  /** What the command's process group belongs to: a turn (by its `turnId`) or a short probe. */
+  /**
+   * What the command's process group belongs to: a turn (by its `turnId`), a short probe, or the
+   * plugin's shared daemon (started from `providerInfo`, kept across turns, stopped by the host's
+   * `kill-child-group` or when the plugin shuts down).
+   */
   readonly scope: ChildGroupScope;
   /** Aborting stops the command (or keeps it from starting): its guard sends SIGTERM to the group, then SIGKILL a second later. */
   readonly signal: AbortSignal;

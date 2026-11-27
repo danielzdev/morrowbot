@@ -18,6 +18,9 @@ export interface ChildGroupRow {
 export interface ChildGroupStore {
   insert(row: ChildGroupRow): void;
   delete(pgid: number): void;
+  /** Plain writes, run inside the caller's transaction (a turn's dispatch or settlement). */
+  link(pgid: number, generationId: string): void;
+  unlink(pgid: number, generationId: string): void;
   list(): ChildGroupRow[];
   transaction<T>(work: () => T): T;
 }
@@ -29,11 +32,14 @@ export interface ChildGroupClock {
 }
 
 interface Tracked {
-  readonly row: ChildGroupRow;
+  /** Replaced when a daemon gains or loses a turn link. */
+  row: ChildGroupRow;
   /** The worker that reported the group; null for a group recorded by an earlier host process. */
   readonly worker: number | null;
   /** Monotonic time the host first saw this group blocked, or null while it may still be running normally. */
   blockedSince: number | null;
+  /** A daemon the host is stopping, or saw exit: it serves no new turn, and its links stay until it is confirmed gone. */
+  ending: boolean;
 }
 
 export const RELEASE_AFTER_MS = 60_000;
@@ -74,7 +80,7 @@ export class ChildGroupRegistry {
   async recover(): Promise<void> {
     this.bootId = await this.options.probe.bootId();
     const rows = this.options.store.list();
-    for (const row of rows) this.groups.set(row.pgid, { row, worker: null, blockedSince: this.options.clock.monotonic() });
+    for (const row of rows) this.groups.set(row.pgid, { row, worker: null, blockedSince: this.options.clock.monotonic(), ending: true });
     await Promise.all(rows.map((row) => this.check(row.pgid, row.regId)));
     this.timer = setInterval(() => {
       void this.reprobe();
@@ -122,7 +128,7 @@ export class ChildGroupRegistry {
       }
       this.options.store.insert(row);
     });
-    this.groups.set(pgid, { row, worker, blockedSince: null });
+    this.groups.set(pgid, { row, worker, blockedSince: null, ending: false });
     if (stale !== undefined) this.notify(stale.row);
     return row;
   }
@@ -135,20 +141,68 @@ export class ChildGroupRegistry {
   async verify(pgid: number): Promise<boolean> {
     const tracked = this.groups.get(pgid);
     if (tracked === undefined) return true;
-    const deadline = this.options.clock.monotonic() + VERIFY_MS;
-    for (;;) {
-      if ((await this.check(pgid, tracked.row.regId)) === 'gone') return true;
-      if (this.closed) return false;
-      if (this.options.clock.monotonic() >= deadline) {
-        const current = this.groups.get(pgid);
-        if (current?.row.regId !== tracked.row.regId) return true;
-        if (current.blockedSince === null) {
-          current.blockedSince = this.options.clock.monotonic();
-          this.notifyBlocked(current.row);
-        }
-        return false;
-      }
-      await new Promise((resolve) => setTimeout(resolve, RETRY_MS));
+    if (await this.poll(pgid, tracked.row.regId, VERIFY_MS)) return true;
+    if (this.closed) return false;
+    const current = this.groups.get(pgid);
+    if (current?.row.regId !== tracked.row.regId) return true;
+    if (current.blockedSince === null) {
+      current.blockedSince = this.options.clock.monotonic();
+      this.notifyBlocked(current.row);
+    }
+    return false;
+  }
+
+  /** Like `verify`, for up to `ms`, but a group still there is left as it is (not blocked). */
+  async awaitGone(pgid: number, ms: number): Promise<boolean> {
+    const tracked = this.groups.get(pgid);
+    return tracked === undefined || (await this.poll(pgid, tracked.row.regId, ms));
+  }
+
+  /** Marks a daemon as stopping or exited: it gets no new turn and keeps its links until it is gone. */
+  markEnding(pgid: number): void {
+    const tracked = this.groups.get(pgid);
+    if (tracked !== undefined) tracked.ending = true;
+  }
+
+  /** The daemon a worker started that still serves (newest first): not stopping, exited or blocked. */
+  servingDaemon(pluginId: string, worker: number): ChildGroupRow | undefined {
+    return [...this.groups.values()]
+      .filter((group) => group.row.kind === 'daemon' && group.row.pluginId === pluginId && group.worker === worker && serving(group))
+      .at(-1)?.row;
+  }
+
+  /** Every daemon of the plugin that is not blocked (blocked ones are only re-probed). */
+  daemons(pluginId: string): ChildGroupRow[] {
+    return [...this.groups.values()]
+      .filter((group) => group.row.kind === 'daemon' && group.row.pluginId === pluginId && group.blockedSince === null)
+      .map(({ row }) => row);
+  }
+
+  /** The serving daemon a dispatched turn runs on, if any. */
+  daemonOf(generationId: string): ChildGroupRow | undefined {
+    return [...this.groups.values()].find((group) => group.row.kind === 'daemon' && serving(group) && group.row.generationIds.includes(generationId))
+      ?.row;
+  }
+
+  /** Records that a dispatched turn runs on daemon `pgid`. Call inside the dispatch transaction. */
+  link(pgid: number, generationId: string): void {
+    const tracked = this.groups.get(pgid);
+    if (tracked === undefined) throw new Error(`no process group ${String(pgid)} to link`);
+    this.options.store.link(pgid, generationId);
+    tracked.row = { ...tracked.row, generationIds: [...tracked.row.generationIds, generationId] };
+  }
+
+  /**
+   * After a turn ended: drops its daemon link while that daemon still serves. A daemon that is
+   * stopping, exited or blocked keeps the link, so the thread stays held until the daemon is gone.
+   * Call inside the settlement transaction.
+   */
+  unlinkIfServing(generationId: string): void {
+    for (const tracked of this.groups.values()) {
+      const { row } = tracked;
+      if (row.kind !== 'daemon' || !serving(tracked) || !row.generationIds.includes(generationId)) continue;
+      this.options.store.unlink(row.pgid, generationId);
+      tracked.row = { ...row, generationIds: row.generationIds.filter((id) => id !== generationId) };
     }
   }
 
@@ -208,6 +262,16 @@ export class ChildGroupRegistry {
     clearInterval(this.timer);
   }
 
+  /** Probes until the row is gone or `ms` passed. */
+  private async poll(pgid: number, regId: string, ms: number): Promise<boolean> {
+    const deadline = this.options.clock.monotonic() + ms;
+    for (;;) {
+      if ((await this.check(pgid, regId)) === 'gone') return true;
+      if (this.closed || this.options.clock.monotonic() >= deadline) return false;
+      await new Promise((resolve) => setTimeout(resolve, RETRY_MS));
+    }
+  }
+
   private async reprobe(): Promise<void> {
     if (this.probing) return;
     this.probing = true;
@@ -265,6 +329,10 @@ export class ChildGroupRegistry {
       }
     }
   }
+}
+
+function serving(group: Tracked): boolean {
+  return !group.ending && group.blockedSince === null;
 }
 
 function holds(group: Tracked): boolean {

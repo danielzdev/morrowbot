@@ -16,6 +16,18 @@ export interface OpenTurn {
   stopTimer: NodeJS.Timeout | undefined;
 }
 
+/** A provider-info request of one worker, and its answer once it settled. `askedAt` is on the monotonic clock. */
+export interface InfoEntry {
+  readonly worker: number;
+  /** The daemon revision it was asked under: an answer from an older revision is never published. */
+  readonly revision: number;
+  readonly askedAt: number;
+  readonly refresh: boolean;
+  readonly value: Promise<ProviderInfo>;
+  settled: ProviderInfo | undefined;
+  done: boolean;
+}
+
 /** One discovered plugin and its current worker process. */
 export interface Slot {
   readonly plugin: DiscoveredPlugin;
@@ -29,11 +41,46 @@ export interface Slot {
   health: Promise<PluginStatus> | undefined;
   /** Set while a process group of this plugin cannot be confirmed gone: no new work runs. */
   quarantine: string | undefined;
-  /** The current worker's last provider-info, and a fetch in flight; `askedAt` is on the monotonic clock. */
-  info: { readonly worker: number; readonly askedAt: number; readonly value: Promise<ProviderInfo>; settled: ProviderInfo | undefined } | undefined;
+  /** The current worker's last provider-info, or a fetch in flight. */
+  info: InfoEntry | undefined;
+  /**
+   * Increases whenever the plugin's daemon is retired or exits, and when Recheck starts. Work
+   * admitted under an older revision is refused, and answers asked under one are discarded.
+   */
+  daemonRevision: number;
+  /** The plugin's daemon went away: the next provider-info asks `refresh: true`, which starts a new one. */
+  daemonLost: boolean;
+  /** Set while an exited daemon is checked: provider-info waits, so no replacement starts before it is gone. */
+  daemonExit: Promise<void> | undefined;
+  /** During Recheck only Recheck asks provider-info (and so starts a daemon). */
+  rechecking: boolean;
+  /** Daemon groups being retired, each resolved when the plugin reports the group's guard gone. */
+  readonly retiring: Map<number, PromiseWithResolvers<undefined>>;
   readonly turns: Map<string, OpenTurn>;
   /** Set when the host kills the worker itself (Stop on a hung turn): restart it once its groups are gone. */
   restartAfterExit: boolean;
   /** Settles once the last worker has exited and its groups were checked (a worker never starts before). */
   retired: Promise<void>;
+}
+
+export function newSlot(plugin: DiscoveredPlugin, status: PluginStatus): Slot {
+  return {
+    plugin,
+    status,
+    process: undefined,
+    worker: null,
+    configRevision: 0,
+    queue: Promise.resolve(),
+    health: undefined,
+    quarantine: undefined,
+    info: undefined,
+    daemonRevision: 0,
+    daemonLost: false,
+    daemonExit: undefined,
+    rechecking: false,
+    retiring: new Map(),
+    turns: new Map(),
+    restartAfterExit: false,
+    retired: Promise.resolve(),
+  };
 }

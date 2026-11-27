@@ -96,6 +96,8 @@ export function pluginRoutes({ plugins, chat }: ApiServices): Route[] {
           }
           case 'busy':
             return failure('conflict', 'Stop the turns using this provider before rechecking it.');
+          case 'blocked':
+            return failure('conflict', result.detail);
           case 'unavailable':
             return failure('conflict', result.reason);
         }
