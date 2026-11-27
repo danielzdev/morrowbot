@@ -23,7 +23,7 @@ export interface SettingsSearch {
 const TYPED_INPUTS = new Set(['checkbox', 'radio', 'button', 'submit', 'reset', 'range', 'color', 'file', 'image']);
 
 /** True for a field where `/` is text: a text input, a textarea, a select or editable content. */
-function isTextField(target: EventTarget | null): boolean {
+export function isTextField(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   if (target instanceof HTMLInputElement) return !TYPED_INPUTS.has(target.type);
   return target.isContentEditable || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;

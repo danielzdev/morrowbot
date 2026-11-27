@@ -1,7 +1,10 @@
+import { mkdtemp, stat } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { startChatFixture, type ChatFixture } from '../../../host/src/testing/chat-fixture.ts';
 import type { IpcSender } from '../main/ipc-proxy.ts';
-import { loginItemOf, parseExternalUrl, parseOpenAtLogin, parseRevealTarget, resolveReveal } from '../main/shell-actions.ts';
+import { loginItemOf, parseExternalUrl, parseOpenAtLogin, parseRelaunch, parseRevealTarget, resolveReveal } from '../main/shell-actions.ts';
 
 const RENDERER_URL = 'file:///Applications/MorrowBot.app/Contents/Resources/app/dist/renderer/index.html';
 const PAGE: IpcSender = { kind: 'frame', url: RENDERER_URL, isMainFrame: true };
@@ -41,16 +44,28 @@ it('opens only http and https links externally', () => {
 it('reveals folders by opaque id only, resolving an agent workspace from the host', async () => {
   const agent = await chat.agent();
   const host = { url: chat.host.url, token: chat.host.host.token };
-  const context = { dataDir: '/data/morrowbot', host, rendererUrl: RENDERER_URL };
+  const pluginsDir = path.join(await mkdtemp(path.join(tmpdir(), 'morrowbot-reveal-')), 'plugins');
+  const context = { dataDir: '/data/morrowbot', pluginsDir, host, rendererUrl: RENDERER_URL };
   const pathRefused = outcome(() => parseRevealTarget(page({ kind: 'path', path: '/etc' })));
   const resolved = await resolveReveal(parseRevealTarget(page({ kind: 'agent-workspace', agentId: agent.id })), context);
   const missing = await resolveReveal({ kind: 'agent-workspace', agentId: 'no-such-agent' }, context).catch((error: unknown) => (error instanceof Error ? error.message : ''));
   expect({
     pathRefused,
     dataDir: await resolveReveal(parseRevealTarget(page({ kind: 'data-dir' })), context),
+    pluginsDirCreated: (await resolveReveal(parseRevealTarget(page({ kind: 'plugins-dir' })), context)) === pluginsDir && (await stat(pluginsDir)).isDirectory(),
     workspaceMatches: resolved === agent.workspace.dir,
     missing,
-  }).toEqual({ pathRefused: 'refused: Malformed reveal request', dataDir: '/data/morrowbot', workspaceMatches: true, missing: 'No such agent to reveal' });
+  }).toEqual({ pathRefused: 'refused: Malformed reveal request', dataDir: '/data/morrowbot', pluginsDirCreated: true, workspaceMatches: true, missing: 'No such agent to reveal' });
+});
+
+it('takes only a safe-mode boolean to relaunch', () => {
+  expect([{ safeMode: true }, { safeMode: false }, { safeMode: 'yes' }, true, { safeMode: true, extra: 1 }].map((input) => outcome(() => parseRelaunch(page(input))))).toEqual([
+    true,
+    false,
+    'refused: Malformed relaunch request',
+    'refused: Malformed relaunch request',
+    'refused: Malformed relaunch request',
+  ]);
 });
 
 it('takes only a boolean to set open at login, and reports it unsupported where the build cannot register one', () => {

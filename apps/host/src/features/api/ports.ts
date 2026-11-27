@@ -11,6 +11,8 @@ import type {
   Message,
   PluginConfig,
   PluginManifest,
+  PluginOrigin,
+  PluginProblem,
   PluginStatus,
   ProviderInfo,
   ProviderUnavailableReason,
@@ -101,7 +103,13 @@ export interface ApiChat {
 
 /** The plugin host, plus the settings it saved. */
 export interface ApiPlugins {
-  list(): readonly { readonly manifest: PluginManifest; readonly status: PluginStatus }[];
+  list(): readonly { readonly manifest: PluginManifest; readonly source: PluginOrigin; readonly status: PluginStatus }[];
+  readonly safeMode: boolean;
+  /** The user's plugins folder. */
+  readonly pluginsDir: string;
+  problems(): readonly PluginProblem[];
+  rescan(): Promise<void>;
+  restart(pluginId: string): Promise<'restarted' | 'safe-mode' | 'disabled' | 'quarantined' | 'busy'>;
   blockedGroups(pluginId: string): BlockedGroup[];
   saved(pluginId: string): Promise<{ readonly enabled: boolean; readonly config: PluginConfig } | undefined>;
   setEnabled(pluginId: string, enabled: boolean): Promise<void>;

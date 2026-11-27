@@ -1,3 +1,4 @@
+import { mkdir } from 'node:fs/promises';
 import { homedir, userInfo } from 'node:os';
 import path from 'node:path';
 import { AgentList } from '@morrowbot/contracts';
@@ -22,6 +23,7 @@ export function parseExternalUrl(options: FromRenderer): string {
 
 const RevealInput = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('data-dir') }),
+  z.strictObject({ kind: z.literal('plugins-dir') }),
   z.strictObject({ kind: z.literal('agent-workspace'), agentId: z.string().min(1).max(200) }),
 ]);
 
@@ -39,11 +41,23 @@ export function dataDirOf(env: NodeJS.ProcessEnv): string {
   return configured !== undefined && path.isAbsolute(configured) ? configured : path.join(homedir(), '.morrowbot');
 }
 
+/** The user's plugins folder: the same rule as the host's own config. */
+export function pluginsDirOf(env: NodeJS.ProcessEnv, dataDir: string): string {
+  const configured = env.MORROWBOT_PLUGINS_DIR;
+  return configured !== undefined && path.isAbsolute(configured) ? configured : path.join(dataDir, 'plugins');
+}
+
 /** The folder a reveal id names, resolved in main; the agent's workspace comes from the host's own agent list. */
-export async function resolveReveal(target: RevealTarget, context: { readonly dataDir: string; readonly host: HostTarget | undefined; readonly rendererUrl: string }): Promise<string> {
+export async function resolveReveal(
+  target: RevealTarget,
+  context: { readonly dataDir: string; readonly pluginsDir: string; readonly host: HostTarget | undefined; readonly rendererUrl: string },
+): Promise<string> {
   switch (target.kind) {
     case 'data-dir':
       return context.dataDir;
+    case 'plugins-dir':
+      await mkdir(context.pluginsDir, { recursive: true });
+      return context.pluginsDir;
     case 'agent-workspace': {
       const reply = await proxyRequest({
         sender: { kind: 'frame', url: context.rendererUrl, isMainFrame: true },
@@ -62,6 +76,14 @@ export async function resolveReveal(target: RevealTarget, context: { readonly da
 /** H6 `appInfo()`: read by the renderer's privacy rules and About, never shown raw. */
 export function appInfoOf(appVersion: string, dataDir: string): { appVersion: string; homeDir: string; userName: string; dataDir: string } {
   return { appVersion, homeDir: homedir(), userName: userInfo().username, dataDir };
+}
+
+/** Checks an IPC `relaunch` message: whether the next launch is in safe mode. */
+export function parseRelaunch(options: FromRenderer): boolean {
+  checkSender(options.sender, options.rendererUrl);
+  const parsed = z.strictObject({ safeMode: z.boolean() }).safeParse(options.input);
+  if (!parsed.success) throw new IpcRefusedError('Malformed relaunch request');
+  return parsed.data.safeMode;
 }
 
 /** Checks an IPC `set-open-at-login` message: a boolean. */

@@ -6,7 +6,7 @@ import { Agent, Thread, type AccessLevel } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { DEFAULT_PLUGIN_TIMEOUTS, startTestHost, type TestHost } from '../../../host/src/testing/test-host.ts';
 import { createChatHub, type ChatHub, type ThreadSession } from '../renderer/features/chat/index.ts';
-import { createPluginsModel, summarize, type PluginsModel } from '../renderer/features/plugins/index.ts';
+import { createProvidersModel, providerStatus, type ProvidersModel } from '../renderer/features/providers/index.ts';
 import { createApi } from '../renderer/shared/api.ts';
 import { until } from '../renderer/shared/store.ts';
 import { idle, loaded, shown } from './screens.ts';
@@ -18,7 +18,7 @@ let home = '';
 let host: TestHost;
 let window: TestWindow;
 let hub: ChatHub;
-let plugins: PluginsModel;
+let plugins: ProvidersModel;
 
 beforeEach(async () => {
   home = await realpath(await mkdtemp(path.join(tmpdir(), 'morrowbot-desktop-claude-')));
@@ -31,7 +31,7 @@ beforeEach(async () => {
   window = openTestWindow({ url: host.url, token: host.host.token });
   const api = createApi(window.bridge);
   hub = createChatHub({ api, bridge: window.bridge });
-  plugins = createPluginsModel({ api, bridge: window.bridge });
+  plugins = createProvidersModel({ api, bridge: window.bridge });
 });
 
 afterEach(async () => {
@@ -54,16 +54,17 @@ async function chatWith(access: AccessLevel): Promise<ThreadSession> {
   return session;
 }
 
-/** The Plugins page card for Claude: its summary line, sign-in command, and last problem. */
+/** Claude's card in Settings › Providers: its status line, sign-in command, and last problem. */
 function claudeCard(): unknown {
   const cards = plugins.cards.get();
   const card = cards.kind === 'loaded' ? cards.value.find(({ entry }) => entry.manifest.id === 'provider-claude') : undefined;
   if (card === undefined) return cards;
-  const { state, title, command } = summarize(card.entry, card.info);
-  return { state, title, command: command?.replace(FAKE_CLAUDE, '<fake-claude>') ?? null, problem: card.problem, busy: card.busy };
+  const { state, title, setup } = providerStatus(card.entry, card.info);
+  const command = setup?.kind === 'sign-in' ? setup.argv.join(' ').replace(FAKE_CLAUDE, '<fake-claude>') : null;
+  return { state, title, command, problem: card.problem, busy: card.busy };
 }
 
-it('Plugins page: Recheck shows a terminal sign-out with its command, then the sign-in, and is refused while a turn runs', async () => {
+it('Settings › Providers: Recheck shows a terminal sign-out with its command, then the sign-in, and is refused while a turn runs', async () => {
   await plugins.load();
   const ready = claudeCard();
   await mkdir(path.join(home, 'fake-claude'), { recursive: true });
@@ -89,28 +90,28 @@ it('Plugins page: Recheck shows a terminal sign-out with its command, then the s
         "command": null,
         "problem": null,
         "state": "ready",
-        "title": "Ready · 2.1.332 · Claude Max 5x",
+        "title": "Ready · Claude Max 5x",
       },
       "signedIn": {
         "busy": null,
         "command": null,
         "problem": null,
         "state": "ready",
-        "title": "Ready · 2.1.332 · Claude Max 5x",
+        "title": "Ready · Claude Max 5x",
       },
       "signedOut": {
         "busy": null,
         "command": "<fake-claude> auth login",
         "problem": null,
         "state": "signed-out",
-        "title": "Signed out",
+        "title": "Sign-in needed",
       },
       "whileRunning": {
         "busy": null,
         "command": null,
         "problem": "Stop the turns using this provider before rechecking it.",
         "state": "ready",
-        "title": "Ready · 2.1.332 · Claude Max 5x",
+        "title": "Ready · Claude Max 5x",
       },
     }
   `);

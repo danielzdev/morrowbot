@@ -208,7 +208,7 @@ it('kills a worker whose stopped turn is stuck in a hung --version check after t
   `);
 });
 
-it('does not start the plugin when it is disabled or the host is in safe mode', async () => {
+it('does not start the provider when it is disabled, and keeps it off in safe mode by its own switch', async () => {
   const on = await boot();
   const chat = await thread(on);
   await on.call('PUT', '/api/plugins/provider-claude/enabled', { enabled: false });
@@ -219,7 +219,7 @@ it('does not start the plugin when it is disabled or the host is in safe mode', 
   host = undefined;
   const safeErrors: unknown[] = [];
   const safe = await startHost({
-    config: { hostname: '127.0.0.1', port: 0, safeMode: true, dataDir: path.join(home, 'data'), pluginsDir: path.join(home, 'data', 'plugins') },
+    config: { hostname: '127.0.0.1', port: 0, safeMode: true, dataDir: path.join(home, 'data'), pluginsDir: path.join(home, 'data', 'plugins'), builtinPluginsDir: null },
     version: '0.0.0-test',
     onPluginStatus: () => undefined,
     ...sequence(),
@@ -245,7 +245,7 @@ it('does not start the plugin when it is disabled or the host is in safe mode', 
       },
       "safeErrors": [],
       "safeMode": {
-        "kind": "safe-mode",
+        "kind": "disabled",
       },
     }
   `);

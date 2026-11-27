@@ -3,7 +3,7 @@ import { useRef, useState } from 'preact/hooks';
 import { BotAvatar, combineActivity, motionOf } from '../features/avatar/index.ts';
 import { AccessNotes, AccessPicker, ModelPicker, type BoundProvider } from '../features/binding/index.ts';
 import { ChatView, Composer } from '../features/chat/index.ts';
-import { summarize, type PluginCard } from '../features/plugins/index.ts';
+import { providerStatus, type ProviderCard } from '../features/providers/index.ts';
 import { ThreadHeader } from '../features/thread/index.ts';
 import { useStore } from '../shared/use-store.ts';
 import { threadStatusOf } from './derive.ts';
@@ -14,12 +14,12 @@ export interface Chrome {
   readonly showSidebar: () => void;
 }
 
-function ProviderChip(props: { readonly card: PluginCard | undefined; readonly redact: (text: string) => string; readonly onPlugins: () => void }) {
+function ProviderChip(props: { readonly card: ProviderCard | undefined; readonly redact: (text: string) => string; readonly onProvider: () => void }) {
   if (props.card === undefined) return <span class="chip warning">Provider not installed</span>;
-  const summary = summarize(props.card.entry, props.card.info);
-  if (summary.state === 'ready' && summary.tone === 'ok') return null;
+  const summary = providerStatus(props.card.entry, props.card.info);
+  if (summary.runnable && summary.tone === 'ok') return null;
   return (
-    <button class={`chip ${summary.tone}`} onClick={props.onPlugins} title={props.redact(summary.detail ?? '')}>
+    <button class={`chip ${summary.tone}`} onClick={props.onProvider} title={props.redact(summary.detail ?? '')}>
       {props.card.entry.manifest.name}: {summary.title}
     </button>
   );
@@ -34,13 +34,14 @@ export function ChatPane(props: {
   /** Makes host error text safe to show (spec §9.1). */
   readonly redact: (text: string) => string;
   readonly onAgentSettings: () => void;
-  readonly onPlugins: () => void;
+  /** Opens Settings › Providers at the agent's provider. */
+  readonly onProvider: (providerId: string) => void;
   readonly onCopy: (threadId: string) => void;
   readonly onNewChat: () => void;
 }) {
   const { models, agent } = props;
   const state = useStore(models.agents.state);
-  const cards = useStore(models.plugins.cards);
+  const cards = useStore(models.providers.cards);
   const activity = useStore(models.chats.activity);
   const { sendWith } = useStore(models.chatPrefs.state);
   const threadId = state.openThread[agent.id] ?? null;
@@ -110,7 +111,7 @@ export function ChatPane(props: {
                 <>
                   <ModelPicker info={info} binding={binding} disabled={saving} onChange={(selection) => { rebind({ ...binding, selection }); }} />
                   <AccessPicker info={info} binding={binding} disabled={saving} onChange={(access, vendorSettings) => { rebind({ ...binding, access, vendorSettings }); }} />
-                  <ProviderChip card={card} redact={props.redact} onPlugins={props.onPlugins} />
+                  <ProviderChip card={card} redact={props.redact} onProvider={() => { props.onProvider(binding.pluginId); }} />
                 </>
               )
             }

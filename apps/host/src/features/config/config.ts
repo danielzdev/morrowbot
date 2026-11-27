@@ -17,6 +17,7 @@ const HostEnv = z.object({
   MORROWBOT_SAFE_MODE: z.enum(['0', '1', 'true', 'false']).optional(),
   MORROWBOT_DATA_DIR: AbsolutePath.optional(),
   MORROWBOT_PLUGINS_DIR: AbsolutePath.optional(),
+  MORROWBOT_BUILTIN_PLUGINS_DIR: AbsolutePath.optional(),
 });
 
 export interface HostConfig {
@@ -26,6 +27,8 @@ export interface HostConfig {
   readonly safeMode: boolean;
   readonly dataDir: string;
   readonly pluginsDir: string;
+  /** The plugins folder that ships inside the app; null when none is given. */
+  readonly builtinPluginsDir: string | null;
 }
 
 export type HostConfigResult =
@@ -56,6 +59,7 @@ export function parseHostConfig({ env, args, homeDir }: HostConfigInput): HostCo
       safeMode: args.includes(SAFE_MODE_FLAG) || safeModeEnv === '1' || safeModeEnv === 'true',
       dataDir,
       pluginsDir: parsed.data.MORROWBOT_PLUGINS_DIR ?? path.join(dataDir, 'plugins'),
+      builtinPluginsDir: parsed.data.MORROWBOT_BUILTIN_PLUGINS_DIR ?? null,
     },
   };
 }

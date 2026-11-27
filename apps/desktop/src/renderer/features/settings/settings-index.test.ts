@@ -49,19 +49,21 @@ it('matches every word anywhere in a row, groups matches by section in nav order
   `);
 });
 
-it('opens a deep link at its section, and at its row when the row is in that section', () => {
+it('opens a deep link at its section, at its row when the row is in that section, or at an item inside it', () => {
   expect({
     section: targetOf('chat'),
     row: targetOf('appearance/theme'),
     keyRow: targetOf('keyboard/key-escape'),
     wrongSection: targetOf('about/theme'),
     unknownRow: targetOf('appearance/density'),
+    provider: targetOf('providers/provider-openai'),
   }).toEqual({
-    section: { section: 'chat', row: null },
-    row: { section: 'appearance', row: 'theme' },
-    keyRow: { section: 'keyboard', row: 'key-escape' },
-    wrongSection: { section: 'about', row: null },
-    unknownRow: { section: 'appearance', row: null },
+    section: { section: 'chat', row: null, item: null },
+    row: { section: 'appearance', row: 'theme', item: null },
+    keyRow: { section: 'keyboard', row: 'key-escape', item: null },
+    wrongSection: { section: 'about', row: null, item: 'theme' },
+    unknownRow: { section: 'appearance', row: null, item: 'density' },
+    provider: { section: 'providers', row: null, item: 'provider-openai' },
   });
 });
 
@@ -78,7 +80,7 @@ it('writes each key row for macOS and elsewhere, following Send with', () => {
         "Extensions: ⇧⌘X",
         "Send message: Enter",
         "New line: ⇧Enter",
-        "Search settings: /",
+        "Search: /",
         "Close: Esc",
       ],
       "macModEnter": [
@@ -94,7 +96,7 @@ it('writes each key row for macOS and elsewhere, following Send with', () => {
         "Extensions: Ctrl+Shift+X",
         "Send message: Enter",
         "New line: Shift+Enter",
-        "Search settings: /",
+        "Search: /",
         "Close: Esc",
       ],
     }

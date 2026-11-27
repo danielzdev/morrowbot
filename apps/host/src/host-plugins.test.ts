@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Agent, PluginList, Thread } from '@morrowbot/contracts';
@@ -82,6 +82,60 @@ it('switches plugins and saves their settings through the plugin host', async ()
         },
       },
       "unknown": 404,
+    }
+  `);
+});
+
+it('lists where each plugin came from, safe mode, the plugins folder and discovery problems', async () => {
+  const bundled = path.join(dataDir, 'bundled');
+  await mkdir(path.join(bundled, 'echo'), { recursive: true });
+  await cp(path.join(PLUGIN_FIXTURES, 'echo', 'manifest.json'), path.join(bundled, 'echo', 'manifest.json'));
+  await mkdir(path.join(bundled, 'no-manifest'));
+  host = await startTestHost({ dataDir, pluginsDir: PLUGIN_FIXTURES, builtinPluginsDir: bundled, safeMode: true });
+  const list = PluginList.parse((await host.call('GET', '/api/plugins')).body);
+  const rescanned = PluginList.parse((await host.call('POST', '/api/plugins/rescan')).body);
+  expect({
+    plugins: list.plugins.map(({ manifest, source, status }) => `${manifest.id}: ${source}, ${status.kind}`),
+    safeMode: list.safeMode,
+    pluginsDir: list.pluginsDir === PLUGIN_FIXTURES,
+    problems: list.problems,
+    rescanSame: JSON.stringify(rescanned) === JSON.stringify(list),
+    restart: (await host.call('POST', '/api/plugins/echo/restart')).body,
+    restartUnknown: (await host.call('POST', '/api/plugins/missing/restart')).status,
+  }).toMatchInlineSnapshot(`
+    {
+      "plugins": [
+        "provider-claude: built-in, running",
+        "provider-openai: built-in, running",
+        "provider-antigravity: built-in, running",
+        "echo: built-in, safe-mode",
+        "faulty: user, safe-mode",
+      ],
+      "pluginsDir": true,
+      "problems": [
+        {
+          "folder": "no-manifest",
+          "kind": "invalid-manifest",
+          "problem": "no manifest.json",
+          "source": "built-in",
+        },
+        {
+          "folder": "echo",
+          "id": "echo",
+          "kind": "duplicate",
+          "source": "user",
+          "takenBy": "built-in",
+        },
+      ],
+      "rescanSame": true,
+      "restart": {
+        "error": {
+          "kind": "conflict",
+          "message": "Plugins stay off in safe mode. Restart MorrowBot normally first.",
+        },
+      },
+      "restartUnknown": 404,
+      "safeMode": true,
     }
   `);
 });

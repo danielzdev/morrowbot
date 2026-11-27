@@ -46,6 +46,7 @@ it('turns on safe mode from the flag or the env, and places data under the home 
     [
       {
         "config": {
+          "builtinPluginsDir": null,
           "dataDir": "/home/user/.morrowbot",
           "hostname": "127.0.0.1",
           "pluginsDir": "/home/user/.morrowbot/plugins",
@@ -56,6 +57,7 @@ it('turns on safe mode from the flag or the env, and places data under the home 
       },
       {
         "config": {
+          "builtinPluginsDir": null,
           "dataDir": "/home/user/.morrowbot",
           "hostname": "127.0.0.1",
           "pluginsDir": "/home/user/.morrowbot/plugins",
@@ -66,6 +68,7 @@ it('turns on safe mode from the flag or the env, and places data under the home 
       },
       {
         "config": {
+          "builtinPluginsDir": null,
           "dataDir": "/data",
           "hostname": "127.0.0.1",
           "pluginsDir": "/data/plugins",

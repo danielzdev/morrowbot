@@ -5,11 +5,14 @@ import { APP_ID, PRODUCT_NAME } from './app-identity.ts';
 import { openEventStream, type EventStream } from './event-stream.ts';
 import { superviseHost } from './host-supervisor.ts';
 import { checkSender, IpcRefusedError, parseCopyText, parseSubscription, proxyRequest, type HostTarget, type IpcSender } from './ipc-proxy.ts';
-import { appInfoOf, dataDirOf, loginItemOf, parseExternalUrl, parseOpenAtLogin, parseRevealTarget, resolveReveal } from './shell-actions.ts';
+import { readSafeMode, writeSafeMode } from './launch-prefs.ts';
+import { appInfoOf, dataDirOf, loginItemOf, parseExternalUrl, parseOpenAtLogin, parseRelaunch, parseRevealTarget, pluginsDirOf, resolveReveal } from './shell-actions.ts';
 
 const RENDERER_URL = pathToFileURL(fileURLToPath(new URL('../../dist/renderer/index.html', import.meta.url))).href;
 const PRELOAD = fileURLToPath(new URL('../preload/preload.cjs', import.meta.url));
 const HOST_MAIN = fileURLToPath(new URL('../../../host/src/main.ts', import.meta.url));
+/** The plugins that ship with the app: the repository's `plugins/` folder. */
+const BUILTIN_PLUGINS_DIR = fileURLToPath(new URL('../../../../plugins', import.meta.url));
 
 const CHANNELS: BridgeChannels = {
   request: 'morrowbot:request',
@@ -23,6 +26,7 @@ const CHANNELS: BridgeChannels = {
   appInfo: 'morrowbot:app-info',
   loginItem: 'morrowbot:login-item',
   setOpenAtLogin: 'morrowbot:set-open-at-login',
+  relaunch: 'morrowbot:relaunch',
 };
 
 /** macOS keeps its traffic lights, inset into the window's own 48px top bar; elsewhere the system frame stays. */
@@ -101,7 +105,9 @@ function runApp(): void {
     });
   }
 
-  const host = superviseHost(HOST_MAIN, {
+  const dataDir = dataDirOf(process.env);
+  const hostEnv: Record<string, string> = { MORROWBOT_BUILTIN_PLUGINS_DIR: BUILTIN_PLUGINS_DIR, ...(readSafeMode(dataDir) ? { MORROWBOT_SAFE_MODE: '1' } : {}) };
+  const host = superviseHost(HOST_MAIN, hostEnv, {
     ready: (target) => {
       connect(target, RECONNECT_MS);
     },
@@ -155,14 +161,19 @@ function runApp(): void {
     clipboard.writeText(parseCopyText({ sender: senderOf(event), rendererUrl: RENDERER_URL, input })),
   );
 
-  const dataDir = dataDirOf(process.env);
   const fromRenderer = (event: IpcMainInvokeEvent, input: unknown) => ({ sender: senderOf(event), rendererUrl: RENDERER_URL, input });
 
   ipcMain.handle(CHANNELS.openExternal, (event, input: unknown) => shell.openExternal(parseExternalUrl(fromRenderer(event, input))));
 
   ipcMain.handle(CHANNELS.revealPath, async (event, input: unknown) => {
     const target = parseRevealTarget(fromRenderer(event, input));
-    shell.showItemInFolder(await resolveReveal(target, { dataDir, host: host.target(), rendererUrl: RENDERER_URL }));
+    shell.showItemInFolder(await resolveReveal(target, { dataDir, pluginsDir: pluginsDirOf(process.env, dataDir), host: host.target(), rendererUrl: RENDERER_URL }));
+  });
+
+  ipcMain.handle(CHANNELS.relaunch, (event, input: unknown) => {
+    writeSafeMode(dataDir, parseRelaunch(fromRenderer(event, input)));
+    app.relaunch();
+    app.quit();
   });
 
   ipcMain.handle(CHANNELS.appInfo, (event) => {

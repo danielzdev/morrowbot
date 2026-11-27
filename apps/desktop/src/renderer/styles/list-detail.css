@@ -1,0 +1,264 @@
+/* List/detail (spec §6.2): Settings › Providers and Extensions › Plugins. */
+.list-detail {
+  display: grid;
+  grid-template-columns: minmax(200px, 260px) minmax(0, 1fr);
+  gap: var(--s-5);
+  flex: 1;
+  min-height: 0;
+}
+.list-pane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
+  min-height: 0;
+}
+.list-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  overflow-y: auto;
+}
+.list-footer {
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--hairline);
+}
+.list-group {
+  padding: var(--s-3) var(--s-2) var(--s-1);
+}
+.list-group:first-child {
+  padding-top: 0;
+}
+.list-empty {
+  margin: 0;
+  padding: var(--s-1) var(--s-2);
+  font: var(--t-small);
+}
+.empty-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border: 1px dashed var(--hairline-strong);
+  border-radius: var(--r-md);
+  color: var(--text-2);
+}
+.empty-card p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.list-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding-right: var(--s-2);
+  border-radius: var(--r-md);
+}
+.list-row:hover {
+  background: var(--hover);
+}
+.list-row.selected {
+  background: var(--selected);
+}
+.list-row-main {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: var(--s-1) var(--s-2);
+  color: var(--text-1);
+  text-align: left;
+}
+.item-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font: var(--t-ui-strong);
+}
+.item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.item-name {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  font: var(--t-ui-strong);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.item-name > :is(.tag, .item-version) {
+  margin-left: var(--s-1);
+}
+.item-text > .pill {
+  align-self: flex-start;
+}
+.item-version {
+  color: var(--text-3);
+}
+.tag {
+  padding: 0 var(--s-1);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-xs);
+  color: var(--text-2);
+  font: var(--t-meta);
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  padding: 1px var(--s-2);
+  border-radius: var(--r-pill);
+  font: var(--t-meta);
+  white-space: nowrap;
+}
+.pill.ok {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+.pill.muted {
+  background: var(--selected);
+  color: var(--text-2);
+}
+.pill.warning {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+.pill.error {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+/* The detail pane */
+.detail-pane {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+.detail-empty {
+  padding: var(--s-4) 0;
+}
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding-bottom: var(--s-4);
+}
+.detail-header {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.detail-header .item-mark {
+  width: 40px;
+  height: 40px;
+  font: var(--t-title);
+}
+.detail-title {
+  flex: 1;
+  min-width: 0;
+}
+.detail-title h2 {
+  margin: 0;
+  font: var(--t-title);
+}
+.detail-title .muted {
+  font: var(--t-small);
+}
+.detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--hairline);
+  font: var(--t-ui);
+}
+.detail-section h3 {
+  margin: 0;
+}
+.detail p,
+.detail-section p {
+  margin: 0;
+}
+.status-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  font: var(--t-ui);
+}
+.status-card-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+.status-card-line .muted {
+  font: var(--t-small);
+}
+.status-detail {
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.status-problem {
+  color: var(--danger);
+  overflow-wrap: anywhere;
+}
+.fact-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.fact-list > li.withheld {
+  color: var(--text-3);
+}
+.fact-list .muted {
+  font: var(--t-small);
+}
+
+/* A plugin's or provider's own settings */
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.form-row input[type='checkbox'] {
+  align-self: flex-start;
+}
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s-2);
+}
+
+@media (max-width: 720px) {
+  .list-detail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
