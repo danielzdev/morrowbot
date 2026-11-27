@@ -1,0 +1,16 @@
+/** One open-source component that ships inside MorrowBot; `npm` is its package name, or null for adapted source. */
+export interface Licence {
+  readonly name: string;
+  readonly npm: string | null;
+  readonly licence: string;
+}
+
+/** Settings › About › Third-party licences. `checks/licences.test.ts` keeps it in step with the runtime dependencies. */
+export const LICENCES: readonly Licence[] = [
+  { name: 'Electron', npm: 'electron', licence: 'MIT' },
+  { name: 'open-bot-avatar', npm: 'open-bot-avatar', licence: 'MIT' },
+  { name: 'Preact', npm: 'preact', licence: 'MIT' },
+  { name: 'T3 Code (adapted source)', npm: null, licence: 'MIT' },
+  { name: 'ws', npm: 'ws', licence: 'MIT' },
+  { name: 'Zod', npm: 'zod', licence: 'MIT' },
+];

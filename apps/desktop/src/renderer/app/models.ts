@@ -5,12 +5,14 @@ import { createChatHub, localDrafts, type ChatHub } from '../features/chat/index
 import { createPluginsModel, type PluginCard, type PluginsModel } from '../features/plugins/index.ts';
 import { createApi } from '../shared/api.ts';
 import { createAppearance, type AppearanceModel } from '../shared/appearance.ts';
+import { createChatPrefs, type ChatPrefsModel } from '../shared/chat-prefs.ts';
 
 export interface Models {
   readonly agents: AgentsModel;
   readonly plugins: PluginsModel;
   readonly chats: ChatHub;
   readonly appearance: AppearanceModel;
+  readonly chatPrefs: ChatPrefsModel;
 }
 
 export function cardOf(plugins: PluginsModel, pluginId: string): PluginCard | undefined {
@@ -60,5 +62,5 @@ export function createModels(bridge: MorrowbotBridge): Models {
       }
     },
   });
-  return { agents, plugins, chats, appearance: createAppearance(document.documentElement) };
+  return { agents, plugins, chats, appearance: createAppearance(document.documentElement), chatPrefs: createChatPrefs() };
 }

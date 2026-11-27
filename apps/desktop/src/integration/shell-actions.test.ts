@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { startChatFixture, type ChatFixture } from '../../../host/src/testing/chat-fixture.ts';
 import type { IpcSender } from '../main/ipc-proxy.ts';
-import { parseExternalUrl, parseRevealTarget, resolveReveal } from '../main/shell-actions.ts';
+import { loginItemOf, parseExternalUrl, parseOpenAtLogin, parseRevealTarget, resolveReveal } from '../main/shell-actions.ts';
 
 const RENDERER_URL = 'file:///Applications/MorrowBot.app/Contents/Resources/app/dist/renderer/index.html';
 const PAGE: IpcSender = { kind: 'frame', url: RENDERER_URL, isMainFrame: true };
@@ -51,4 +51,16 @@ it('reveals folders by opaque id only, resolving an agent workspace from the hos
     workspaceMatches: resolved === agent.workspace.dir,
     missing,
   }).toEqual({ pathRefused: 'refused: Malformed reveal request', dataDir: '/data/morrowbot', workspaceMatches: true, missing: 'No such agent to reveal' });
+});
+
+it('takes only a boolean to set open at login, and reports it unsupported where the build cannot register one', () => {
+  expect({
+    inputs: [true, false, 'true', 1, null, { open: true }].map((input) => outcome(() => parseOpenAtLogin(page(input)))),
+    foreign: outcome(() => parseOpenAtLogin({ ...page(true), sender: { kind: 'frame', url: 'https://evil.test/', isMainFrame: true } })),
+    states: [loginItemOf(null), loginItemOf(true), loginItemOf(false)],
+  }).toEqual({
+    inputs: [true, false, 'refused: Malformed login item request', 'refused: Malformed login item request', 'refused: Malformed login item request', 'refused: Malformed login item request'],
+    foreign: 'refused: IPC sender is not the app page: https://evil.test/',
+    states: [{ kind: 'unsupported' }, { kind: 'supported', openAtLogin: true }, { kind: 'supported', openAtLogin: false }],
+  });
 });

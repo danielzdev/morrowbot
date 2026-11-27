@@ -94,6 +94,10 @@
   color-scheme: light dark;
 }
 
+:root[data-width='wide'] {
+  --reading-w: 920px;
+}
+
 :root[data-motion='reduced'] {
   --pop-shift: 0px;
   --modal-scale: 1;

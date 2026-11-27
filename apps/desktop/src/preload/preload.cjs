@@ -19,6 +19,8 @@ const CHANNELS = {
   openExternal: 'morrowbot:open-external',
   revealPath: 'morrowbot:reveal-path',
   appInfo: 'morrowbot:app-info',
+  loginItem: 'morrowbot:login-item',
+  setOpenAtLogin: 'morrowbot:set-open-at-login',
 };
 
 /**
@@ -48,6 +50,8 @@ const bridge = {
   openExternal: (url) => ipcRenderer.invoke(CHANNELS.openExternal, url),
   revealPath: (target) => ipcRenderer.invoke(CHANNELS.revealPath, target),
   appInfo: () => ipcRenderer.invoke(CHANNELS.appInfo),
+  loginItem: () => ipcRenderer.invoke(CHANNELS.loginItem),
+  setOpenAtLogin: (open) => ipcRenderer.invoke(CHANNELS.setOpenAtLogin, open),
 };
 
 contextBridge.exposeInMainWorld('morrowbot', bridge);

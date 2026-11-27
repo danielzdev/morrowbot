@@ -21,7 +21,9 @@ export type IconName =
   | 'warning'
   | 'sun'
   | 'moon'
-  | 'monitor';
+  | 'monitor'
+  | 'keyboard'
+  | 'palette';
 
 const dot = (cx: number, cy: number, r = 1.1) => <circle cx={cx} cy={cy} r={r} fill="currentColor" stroke="none" />;
 
@@ -103,6 +105,24 @@ const SHAPES: Readonly<Record<IconName, ComponentChildren>> = {
     <>
       <rect x="2" y="2.5" width="12" height="8.5" rx="1.5" />
       <path d="M5.5 14h5M8 11v3" />
+    </>
+  ),
+  keyboard: (
+    <>
+      <rect x="1.75" y="3.75" width="12.5" height="8.5" rx="1.5" />
+      {dot(4.5, 6.5, 0.7)}
+      {dot(6.85, 6.5, 0.7)}
+      {dot(9.15, 6.5, 0.7)}
+      {dot(11.5, 6.5, 0.7)}
+      <path d="M5 9.5h6" />
+    </>
+  ),
+  palette: (
+    <>
+      <path d="M8 2a6 6 0 1 0 0 12c.9 0 1.4-.6 1.4-1.3 0-.8-.6-1.1-.6-1.8 0-.7.5-1.2 1.3-1.2H11.5A2.5 2.5 0 0 0 14 7.2C14 4.3 11.3 2 8 2z" />
+      {dot(5, 7.5, 0.9)}
+      {dot(7, 5, 0.9)}
+      {dot(10.2, 5.4, 0.9)}
     </>
   ),
 };

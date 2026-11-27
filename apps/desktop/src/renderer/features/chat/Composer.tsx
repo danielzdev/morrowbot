@@ -1,4 +1,6 @@
 import type { ComponentChildren } from 'preact';
+import type { SendWith } from '../../shared/chat-prefs.ts';
+import { isSendPress, PLATFORM } from '../../shared/keys.ts';
 import { useStore } from '../../shared/use-store.ts';
 import { ComposerBanners } from './ComposerBanners.tsx';
 import type { ThreadSession } from './thread-session.ts';
@@ -6,11 +8,12 @@ import type { ThreadSession } from './thread-session.ts';
 /** Why Send waits while the host can't be reached; the draft stays. */
 const RECONNECTING = 'Reconnecting to MorrowBot… your message is kept.';
 
-/** The message box. `toolbar` holds the agent's model and access pickers. */
+/** The message box. `toolbar` holds the agent's model and access pickers; `sendWith` is Settings › Chat › Send with. */
 export function Composer(props: {
   readonly session: ThreadSession;
   readonly toolbar: ComponentChildren;
   readonly disabledReason: string | null;
+  readonly sendWith: SendWith;
   /** Host text made safe to show (spec §9.1), or null when it can't be. */
   readonly safe: (text: string) => string | null;
   readonly onOpenProviders: () => void;
@@ -42,7 +45,7 @@ export function Composer(props: {
             session.setDraft(event.currentTarget.value);
           }}
           onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+            if (isSendPress(event, props.sendWith, PLATFORM)) {
               event.preventDefault();
               if (canSend) void session.send();
             }
