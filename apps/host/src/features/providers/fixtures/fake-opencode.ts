@@ -28,7 +28,7 @@ if (process.argv[2] === '--version') {
   process.stdout.write('opencode v2.4.1\n');
   process.exit(0);
 }
-const variables = Object.fromEntries(Object.entries(process.env).filter(([name]) => name === 'HOME' || name.startsWith('OPENCODE_') || name.startsWith('XDG_')));
+const variables = Object.fromEntries(Object.entries(process.env).filter(([name]) => name === 'HOME' || name.startsWith('OPENCODE_') || /^XDG_[A-Z]+_HOME$/.test(name)));
 appendFileSync(file('launches.jsonl'), `${JSON.stringify({ pid: process.pid, args: process.argv.slice(2), env: variables })}\n`);
 
 const State = z.object({ startMode: z.string().default('build'), protocolVersion: z.number().default(1) });
