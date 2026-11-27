@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { z } from 'zod';
-import { AgentAvatar, CreateAgentRequest, HealthResponse, PluginManifest } from './index.ts';
+import { AgentAvatar, CreateAgentRequest, HealthResponse, HostUrl, pairingUri, PluginManifest } from './index.ts';
 
 function issues(result: z.ZodSafeParseResult<unknown>) {
   return result.success
@@ -151,6 +151,32 @@ describe('AgentAvatar', () => {
           "kind: Invalid discriminator value. Expected 'bot'",
         ],
       ]
+    `);
+  });
+});
+
+describe('pairing', () => {
+  it('builds the QR payload a device scans and accepts only a bare host URL', () => {
+    expect({
+      uri: pairingUri('http://100.64.0.1:47800', '042137'),
+      ipv6: issues(HostUrl.safeParse('http://[fd7a:115c:a1e0::1]:47800')),
+      withPath: issues(HostUrl.safeParse('http://100.64.0.1:47800/api')),
+      withSlash: issues(HostUrl.safeParse('http://100.64.0.1:47800/')),
+      websocket: issues(HostUrl.safeParse('ws://100.64.0.1:47800')),
+    }).toMatchInlineSnapshot(`
+      {
+        "ipv6": "valid",
+        "uri": "morrowbot://pair?url=http%3A%2F%2F100.64.0.1%3A47800&code=042137",
+        "websocket": [
+          "(root): Invalid URL",
+        ],
+        "withPath": [
+          "(root): Use only the scheme, host and port",
+        ],
+        "withSlash": [
+          "(root): Use only the scheme, host and port",
+        ],
+      }
     `);
   });
 });

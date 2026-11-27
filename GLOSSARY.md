@@ -15,3 +15,4 @@ Plain-English terms used across MorrowBot (used by the `wait-what` skill and con
 - **Worktree:** A separate linked folder checked out on a feature branch so agents can work without changing `main`.
 - **Shared Daemon:** One long-running provider process (such as Codex `app-server`) that a provider starts when the host first asks for its info, and that serves every turn of that provider until it is stopped or exits.
 - **Recheck:** The Plugins page action that, with no turns running, stops a provider's daemon and starts a fresh one, so a sign-in, sign-out or account switch made in a terminal takes effect.
+- **Paired Device:** A phone or other computer that claimed a one-time, 5-minute pairing code from the desktop and now holds its own long-lived token for the host. The host keeps only the token's hash; unpairing (revoking) the device stops the token and closes its connections at once.

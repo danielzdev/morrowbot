@@ -1,5 +1,6 @@
 import type {
   Agent,
+  ClaimPairingRequest,
   BlockedGroup,
   ChatEvent,
   CreateAgentRequest,
@@ -9,6 +10,7 @@ import type {
   Folder,
   LastMessage,
   Message,
+  PairedDevice,
   PluginConfig,
   PluginManifest,
   PluginStatus,
@@ -116,9 +118,24 @@ export interface ApiPlugins {
   releaseGroup(regId: string): 'released' | 'not-found' | 'not-blocked' | 'too-early';
 }
 
+export interface ApiPairing {
+  createCode(): { readonly code: string; readonly expiresAt: string };
+  claim(
+    request: ClaimPairingRequest,
+  ):
+    | { readonly kind: 'claimed'; readonly deviceId: string; readonly token: string }
+    | { readonly kind: 'wrong-code' }
+    | { readonly kind: 'rate-limited' };
+  /** The active paired device holding `token`. */
+  authenticate(token: string): string | undefined;
+  list(): PairedDevice[];
+  revoke(deviceId: string): boolean;
+}
+
 export interface ApiServices {
   readonly agents: ApiAgents;
   readonly folders: ApiFolders;
   readonly chat: ApiChat;
   readonly plugins: ApiPlugins;
+  readonly pairing: ApiPairing;
 }

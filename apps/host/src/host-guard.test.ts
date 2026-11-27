@@ -132,6 +132,7 @@ it('serves only loopback clients that are not browser pages and hold this launch
     healthWithoutToken: await raw({ authorization: '' }, '/health'),
     socket: await socket({}),
     browserSocket: await socket({ origin: 'https://evil.example' }),
+    sameOriginSocket: await socket({ origin: `http://127.0.0.1:${port}` }),
     socketWithoutToken: await socket({ authorization: '' }),
   }).toMatchInlineSnapshot(`
     {
@@ -143,6 +144,7 @@ it('serves only loopback clients that are not browser pages and hold this launch
       "malformedTarget": 404,
       "noToken": 401,
       "rebindingHost": 403,
+      "sameOriginSocket": "open",
       "socket": "open",
       "socketWithoutToken": "refused 401",
       "stillServing": 200,
