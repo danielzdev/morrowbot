@@ -110,7 +110,9 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
     const interrupt = (turnId: string): void => {
       if (interrupted.has(turnId)) return;
       interrupted.add(turnId);
-      void daemon.call('turn/interrupt', { threadId, turnId }, Ignored, INTERRUPT_MS);
+      daemon.call('turn/interrupt', { threadId, turnId }, Ignored, INTERRUPT_MS).catch((error: unknown) => {
+        console.error('provider-openai: could not interrupt a turn', error);
+      });
     };
     const onStop = (): void => {
       const turnId = vendorTurn ?? stream.startedTurn();

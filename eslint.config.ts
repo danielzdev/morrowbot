@@ -22,5 +22,12 @@ export default defineConfig(
       ],
     },
   },
+  {
+    files: ['packages/plugin-sdk/src/**/*.ts', 'packages/providers/src/**/*.ts'],
+    ignores: ['**/*.test.ts', 'packages/plugin-sdk/src/testing/**'],
+    rules: {
+      '@typescript-eslint/no-floating-promises': ['error', { ignoreVoid: false }],
+    },
+  },
   importBoundariesConfig,
 );

@@ -67,7 +67,9 @@ export async function openThread(daemon: CodexDaemon, request: OpenRequest): Pro
 /** Lets a thread go: an unloaded thread costs the daemon nothing. */
 export function releaseThread(daemon: CodexDaemon, threadId: string): void {
   daemon.loaded.delete(threadId);
-  void daemon.call('thread/unsubscribe', { threadId }, ThreadUnsubscribed, LIST_MS);
+  daemon.call('thread/unsubscribe', { threadId }, ThreadUnsubscribed, LIST_MS).catch((error: unknown) => {
+    console.error('provider-openai: could not unsubscribe a thread', error);
+  });
 }
 
 async function admit(

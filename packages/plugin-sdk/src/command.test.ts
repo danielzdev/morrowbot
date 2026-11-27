@@ -2,7 +2,7 @@ import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { commandFilePath, createCommandRunner, LINE_LIMIT, type CommandExit, type CommandOptions } from './command.ts';
+import { commandFilePath, createCommandRunner, LINE_LIMIT, PROBE_OUTPUT_LIMIT, type CommandExit, type CommandOptions } from './command.ts';
 import { createGroupLink } from './host-link.ts';
 import { waitUntilGone } from './testing/processes.ts';
 
@@ -50,18 +50,59 @@ it('returns a short command at once, with its output and exit', async () => {
   `);
 });
 
-it('stops a command whose stdout line runs past the limit, keeping the lines before it', async () => {
-  const { lines, exit, ms } = await run('/bin/sh', ['-c', `printf 'first\\n'; head -c ${String(LINE_LIMIT + 1)} /dev/zero | tr '\\0' x; sleep 30`]);
-  expect({ lines, exit, beforeTheSleepEnds: ms < 20_000 }).toMatchInlineSnapshot(`
+it('stops a command whose stdout line runs past the limit, ended by a newline or not, keeping the lines before it', async () => {
+  const xs = `head -c ${String(LINE_LIMIT)} /dev/zero | tr '\\0' x`;
+  const turn = async (script: string) => {
+    const lines: string[] = [];
+    const started = performance.now();
+    const exit = await commands.run('/bin/sh', {
+      ...options({ args: ['-c', `printf 'first\\n'; ${xs}; ${script}; sleep 30`], scope: { kind: 'turn', turnId: 'turn-1' } }),
+      onLine: (line) => lines.push(line.slice(0, 10)),
+      input: '',
+    });
+    return { lines, exit, beforeTheSleepEnds: performance.now() - started < 20_000 };
+  };
+  expect({ unterminated: await turn("printf 'y'"), terminated: await turn("printf 'y\\nafter\\n'") }).toMatchInlineSnapshot(`
     {
-      "beforeTheSleepEnds": true,
-      "exit": {
-        "kind": "failed",
-        "message": "The command printed a line longer than 67108864 characters",
+      "terminated": {
+        "beforeTheSleepEnds": true,
+        "exit": {
+          "kind": "failed",
+          "message": "The command printed a line longer than 67108864 characters",
+        },
+        "lines": [
+          "first",
+        ],
       },
-      "lines": [
-        "first",
-      ],
+      "unterminated": {
+        "beforeTheSleepEnds": true,
+        "exit": {
+          "kind": "failed",
+          "message": "The command printed a line longer than 67108864 characters",
+        },
+        "lines": [
+          "first",
+        ],
+      },
+    }
+  `);
+});
+
+it('stops a probe that prints more than its budget in all, but not a turn command printing as much', async () => {
+  const exitOf = (scope: CommandOptions['scope']) =>
+    commands.run('/bin/sh', { ...options({ args: ['-c', `yes | head -c ${String(PROBE_OUTPUT_LIMIT + 2)}; sleep 2`], scope }), input: '' });
+  expect({ probe: await exitOf({ kind: 'probe' }), turn: await exitOf({ kind: 'turn', turnId: 'turn-1' }) }).toMatchInlineSnapshot(`
+    {
+      "probe": {
+        "kind": "failed",
+        "message": "The probe printed more than 16777216 characters",
+      },
+      "turn": {
+        "code": 0,
+        "kind": "exited",
+        "signal": null,
+        "stderr": "",
+      },
     }
   `);
 });

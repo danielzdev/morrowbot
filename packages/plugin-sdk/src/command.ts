@@ -12,6 +12,8 @@ const DRAIN_MS = 250;
 const STDERR_LIMIT = 4_000;
 /** The longest stdout line a command may print; a longer one stops it, so one runaway line cannot exhaust the process that reads it. */
 export const LINE_LIMIT = 64 * 1024 * 1024;
+/** The most a probe (scope `probe`) may print to stdout in all; past it the probe is stopped and fails. */
+export const PROBE_OUTPUT_LIMIT = 16 * 1024 * 1024;
 
 export interface CommandOptions {
   readonly args: readonly string[];
@@ -159,6 +161,7 @@ function openCommand(command: string, options: CommandOptions, owner: Owner): Op
   let errorOutput = '';
   let partial: string[] = [];
   let partialLength = 0;
+  let printed = 0;
 
   const tell = (message: OwnerMessage): void => {
     if (!guard.connected) return;
@@ -194,13 +197,16 @@ function openCommand(command: string, options: CommandOptions, owner: Owner): Op
     if (pgid !== undefined) owner.link.exited(pgid);
     exit.resolve(result);
   };
-  const emit = (line: string): void => {
-    if (lineError !== undefined) return;
+  /** Hands one line to `onLine`; false once reading has stopped. */
+  const emit = (line: string): boolean => {
+    if (lineError !== undefined) return false;
     try {
       options.onLine(line.endsWith('\r') ? line.slice(0, -1) : line);
+      return true;
     } catch (error) {
       lineError = `onLine threw: ${describe(error)}`;
       terminate();
+      return false;
     }
   };
 
@@ -218,9 +224,15 @@ function openCommand(command: string, options: CommandOptions, owner: Owner): Op
     }
     if (pgid !== undefined) return;
     pgid = message.pgid;
-    void owner.link.register(message.pgid, message.leaderStart, options.scope, terminate).then(() => {
-      if (!killed) tell({ kind: 'spawn' });
-    });
+    owner.link
+      .register(message.pgid, message.leaderStart, options.scope, terminate)
+      .then(() => {
+        if (!killed) tell({ kind: 'spawn' });
+      })
+      .catch((error: unknown) => {
+        console.error(`MorrowBot plugin: could not register a command's process group: ${describe(error)}`);
+        terminate();
+      });
   });
   const complete = (code: number | null, signal: string | null): void => {
     if (partialLength > 0) emit(partial.join(''));
@@ -237,24 +249,36 @@ function openCommand(command: string, options: CommandOptions, owner: Owner): Op
     }, DRAIN_MS).unref();
   });
   stdout?.setEncoding('utf8');
+  const overflow = (reason: string): void => {
+    partial = [];
+    partialLength = 0;
+    lineError = reason;
+    terminate();
+  };
   stdout?.on('data', (text: string) => {
     if (lineError !== undefined) return;
+    printed += text.length;
+    if (options.scope.kind === 'probe' && printed > PROBE_OUTPUT_LIMIT) {
+      overflow(`The probe printed more than ${String(PROBE_OUTPUT_LIMIT)} characters`);
+      return;
+    }
     const lines = text.split('\n');
     const rest = lines.pop() ?? '';
+    const tooLong = `The command printed a line longer than ${String(LINE_LIMIT)} characters`;
     for (const line of lines) {
+      if (partialLength + line.length > LINE_LIMIT) {
+        overflow(tooLong);
+        return;
+      }
       partial.push(line);
-      emit(partial.join(''));
+      const read = emit(partial.join(''));
       partial = [];
       partialLength = 0;
+      if (!read) return;
     }
     partial.push(rest);
     partialLength += rest.length;
-    if (partialLength > LINE_LIMIT) {
-      partial = [];
-      partialLength = 0;
-      lineError = `The command printed a line longer than ${String(LINE_LIMIT)} characters`;
-      terminate();
-    }
+    if (partialLength > LINE_LIMIT) overflow(tooLong);
   });
   stderr?.setEncoding('utf8');
   stderr?.on('data', (text: string) => {

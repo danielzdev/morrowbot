@@ -90,7 +90,9 @@ export const jsonRpcProcessOver = (open: CommandRunner['open']): StartJsonRpcPro
         });
       },
       (error: unknown) => {
-        write({ id, error: { code: INTERNAL_ERROR, message: describe(error) } });
+        guarded(`${method} error reply`, () => {
+          write({ id, error: { code: INTERNAL_ERROR, message: describe(error) } });
+        });
       },
     );
   };

@@ -66,9 +66,13 @@ export function createCodexProvider(runtime: PluginRuntime): ProviderPlugin {
         if (result.kind === 'failed') return result.reason;
         const fresh = result.daemon;
         daemon = fresh;
-        void fresh.exited.then(() => {
-          if (daemon === fresh) daemon = undefined;
-        });
+        fresh.exited
+          .then(() => {
+            if (daemon === fresh) daemon = undefined;
+          })
+          .catch((error: unknown) => {
+            console.error('provider-openai: the daemon exit could not be recorded', error);
+          });
         return fresh;
       })
       .finally(() => {

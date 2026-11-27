@@ -78,7 +78,9 @@ export function servePlugin(factory: PluginFactory, options: RuntimeOptions & { 
 function handle(served: Served, message: HostMessage): void {
   switch (message.kind) {
     case 'turn':
-      void runTurn(served, message);
+      runTurn(served, message).catch((error: unknown) => {
+        console.error(`MorrowBot plugin: turn ${message.turnId} could not be finished: ${describe(error)}`);
+      });
       return;
     case 'cancel':
       served.turns.get(message.turnId)?.controller.abort();
