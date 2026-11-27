@@ -21,6 +21,10 @@ const CHANNELS = {
   appInfo: 'morrowbot:app-info',
   loginItem: 'morrowbot:login-item',
   setOpenAtLogin: 'morrowbot:set-open-at-login',
+  updateStatus: 'morrowbot:update-status',
+  updateChanged: 'morrowbot:update-changed',
+  checkForUpdates: 'morrowbot:check-for-updates',
+  restartToUpdate: 'morrowbot:restart-to-update',
 };
 
 /**
@@ -52,6 +56,10 @@ const bridge = {
   appInfo: () => ipcRenderer.invoke(CHANNELS.appInfo),
   loginItem: () => ipcRenderer.invoke(CHANNELS.loginItem),
   setOpenAtLogin: (open) => ipcRenderer.invoke(CHANNELS.setOpenAtLogin, open),
+  updateStatus: () => ipcRenderer.invoke(CHANNELS.updateStatus),
+  onUpdateStatus: (listener) => listen(CHANNELS.updateChanged, (_event, status) => { listener(status); }),
+  checkForUpdates: () => ipcRenderer.invoke(CHANNELS.checkForUpdates),
+  restartToUpdate: () => ipcRenderer.invoke(CHANNELS.restartToUpdate),
 };
 
 contextBridge.exposeInMainWorld('morrowbot', bridge);

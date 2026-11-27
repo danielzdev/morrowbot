@@ -31,10 +31,16 @@ interface Launched {
   readonly exited: Promise<void>;
 }
 
+export interface HostLaunch {
+  /** The host's entry script. */
+  readonly main: string;
+  readonly env: NodeJS.ProcessEnv;
+}
+
 /** Forks the host under Electron-as-Node with an IPC channel and waits for its first message. */
-function launch(hostMain: string): Launched {
-  const child = fork(hostMain, [], {
-    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+function launch(host: HostLaunch): Launched {
+  const child = fork(host.main, [], {
+    env: { ...host.env, ELECTRON_RUN_AS_NODE: '1' },
     stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
     execArgv: [],
   });
@@ -68,14 +74,14 @@ function launch(hostMain: string): Launched {
 }
 
 /** Starts the host and restarts it once, with a new token, if it exits unexpectedly. */
-export function superviseHost(hostMain: string, events: HostSupervisorEvents): HostSupervisor {
+export function superviseHost(host: HostLaunch, events: HostSupervisorEvents): HostSupervisor {
   let current: Launched | undefined;
   let target: HostTarget | undefined;
   let restarted = false;
   let stopping = false;
 
   async function start(): Promise<void> {
-    const launched = launch(hostMain);
+    const launched = launch(host);
     current = launched;
     const result = await launched.first;
     if (stopping) return;

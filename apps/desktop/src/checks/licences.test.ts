@@ -11,7 +11,7 @@ const workspaces = ['apps/desktop', 'apps/host', ...readdirSync(`${repo}packages
 
 it('lists every third-party runtime dependency in Settings › About, with the licence its package declares', () => {
   const shipped = new Set(['electron', ...workspaces.flatMap((dir) => Object.keys(manifest(`${dir}/package.json`).dependencies ?? {}))]);
-  const wanted = [...shipped].filter((name) => !name.startsWith('@morrowbot/')).sort().map((name) => `${name}: ${manifest(`node_modules/${name}/package.json`).license ?? 'none'}`);
+  const wanted = [...shipped].filter((name) => !name.startsWith('@morrowbot/')).map((name) => `${name}: ${manifest(`node_modules/${name}/package.json`).license ?? 'none'}`).sort();
   const listed = LICENCES.flatMap(({ npm, licence }) => (npm === null ? [] : [`${npm}: ${licence}`])).sort();
   expect(listed).toEqual(wanted);
 });

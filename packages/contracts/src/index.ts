@@ -24,3 +24,4 @@ export * from './pairing.ts';
 export * from './attachments.ts';
 export * from './memories.ts';
 export * from './skills.ts';
+export * from './profiles.ts';
