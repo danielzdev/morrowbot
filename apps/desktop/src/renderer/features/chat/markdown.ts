@@ -25,7 +25,7 @@ const HEADING = /^ {0,3}(#{1,6})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$/;
 const ITEM = /^( {0,3})([-*+]|\d{1,9}[.)])(?:[ \t]+(.*))?$/;
 const LANG = /^[\w+#.-]{1,24}$/;
 const PUNCTUATION = /[!-/:-@[-`{-~]/;
-const AUTOLINK = /https?:\/\/[^\s<>]+/y;
+const AUTOLINK = /https?:\/\/[^\s<>]+/iy;
 
 /** Only an absolute http(s) URL becomes a link; anything else stays text. */
 export function safeHref(raw: string): string | null {
@@ -150,7 +150,8 @@ interface Frame {
 const isSpace = (char: string | undefined): boolean => char === undefined || /\s/.test(char);
 const isWord = (char: string | undefined): boolean => char !== undefined && /[\p{L}\p{N}]/u.test(char);
 
-export function parseInline(source: string): Inline[] {
+/** Inline nodes of `source`. Inside a link's label (`inLink`), nothing becomes another link. */
+export function parseInline(source: string, inLink = false): Inline[] {
   const root: Frame = { char: '', count: 0, children: [] };
   const stack: Frame[] = [root];
   const noCloser = new Map<number, number>();
@@ -170,7 +171,8 @@ export function parseInline(source: string): Inline[] {
     const frame = stack.pop();
     if (frame === undefined) return;
     const below = top().children;
-    below.push({ kind: 'text', text: frame.char.repeat(frame.count) }, ...frame.children);
+    below.push({ kind: 'text', text: frame.char.repeat(frame.count) });
+    for (const child of frame.children) below.push(child);
   };
   let i = 0;
   while (i < source.length) {
@@ -193,7 +195,7 @@ export function parseInline(source: string): Inline[] {
         push({ kind: 'code', text: inner.length > 2 && inner.startsWith(' ') && inner.endsWith(' ') ? inner.slice(1, -1) : inner });
         i = close + run;
       }
-    } else if (char === '[') {
+    } else if (char === '[' && !inLink) {
       const link = linkAt(source, i);
       if (link === null) {
         buffer += char;
@@ -202,10 +204,10 @@ export function parseInline(source: string): Inline[] {
         buffer += link.label;
         i = link.end;
       } else {
-        push({ kind: 'link', href: link.href, children: parseInline(link.label) });
+        push({ kind: 'link', href: link.href, children: parseInline(link.label, true) });
         i = link.end;
       }
-    } else if ((char === 'h' || char === 'H' || char === '<') && autolinkAt(source, i) !== null) {
+    } else if (!inLink && (char === 'h' || char === 'H' || char === '<') && autolinkAt(source, i) !== null) {
       const auto = autolinkAt(source, i);
       if (auto !== null) {
         push({ kind: 'link', href: auto.href, children: [{ kind: 'text', text: auto.text }] });

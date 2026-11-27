@@ -4,7 +4,7 @@ import type { Api } from '../../shared/api.ts';
 import { Store, type Loadable } from '../../shared/store.ts';
 import { memoryDrafts, type DraftStore } from './drafts.ts';
 import type { BannerReason } from './outcome-copy.ts';
-import { applyEvent, endApproval, viewOf, type ThreadView } from './thread-model.ts';
+import { applyEvent, endApproval, pendingApprovals, viewOf, type ThreadView } from './thread-model.ts';
 
 /** Something the composer asked the host to start. Kept so it can be retried exactly. */
 export type PendingAction =
@@ -36,6 +36,8 @@ export interface ThreadSession {
   load(): Promise<void>;
   /** A frame from the host's event stream. */
   handle(frame: EventServerFrame): void;
+  /** The event stream dropped (false) or is back (true, which reloads): while it is down the chat says it is reconnecting. */
+  setStream(up: boolean): void;
   setDraft(text: string): void;
   send(): Promise<void>;
   /** Runs the refused action again with the user's session choice. */
@@ -86,7 +88,11 @@ export function problemOf(error: ApiError['error'], action: PendingAction, choic
 }
 
 /** A failed load that means the host is down or restarting, rather than a refusal. */
-const unreachable = (status: number): boolean => status === 0 || status >= 500;
+/** The host itself is away (no answer, or the proxy's 502–504), as opposed to an error it reported. */
+const unreachable = (status: number): boolean => status === 0 || (status >= 502 && status <= 504);
+
+const stillPending = (view: ThreadScreen['view'], approvalId: string): boolean =>
+  view.kind === 'loaded' && view.value.activeTurn !== null && pendingApprovals(view.value.activeTurn).some((approval) => approval.approvalId === approvalId);
 
 export function openThreadSession(options: ThreadSessionOptions): ThreadSession {
   const { api, bridge, threadId } = options;
@@ -95,8 +101,12 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
   const screen = new Store<ThreadScreen>({ view: { kind: 'loading' }, draft: drafts.read(threadId), busy: null, problem: null, answering: [], connection: 'live' });
   const patch = (change: Partial<ThreadScreen>): void => {
     if (change.draft !== undefined && change.draft !== screen.get().draft) drafts.write(threadId, change.draft);
-    screen.update((current) => ({ ...current, ...change }));
+    screen.update((current) => {
+      const next = { ...current, ...change };
+      return change.view === undefined ? next : { ...next, answering: next.answering.filter((id) => stillPending(next.view, id)) };
+    });
   };
+  let streamUp = true;
   let loads = 0;
   let loading = false;
   let closed = false;
@@ -121,7 +131,7 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
       return;
     }
     const view = viewOf(result.value, before.kind === 'loaded' ? before.value : null);
-    patch({ connection: 'live', view: { kind: 'loaded', value: view } });
+    patch({ connection: streamUp ? 'live' : 'reconnecting', view: { kind: 'loaded', value: view } });
     bridge.subscribe(threadId, result.value.cursor);
     if (view.blockedGroups.length > 0) {
       blockedTimer = setTimeout(() => void load(), options.blockedRefreshMs ?? 5_000);
@@ -186,6 +196,11 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
     screen,
     load,
     handle,
+    setStream: (up) => {
+      streamUp = up;
+      if (up) void load();
+      else patch({ connection: 'reconnecting' });
+    },
     setDraft: (draft) => {
       patch({ draft });
     },
@@ -221,8 +236,8 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
       if (generationId === undefined || screen.get().answering.includes(approvalId)) return;
       patch({ answering: [...screen.get().answering, approvalId] });
       const result = await api.answerApproval(threadId, approvalId, generationId, choiceId);
-      patch({ answering: screen.get().answering.filter((id) => id !== approvalId) });
       if (result.kind === 'ok') return;
+      patch({ answering: screen.get().answering.filter((id) => id !== approvalId) });
       if (result.status === 404) {
         const view = screen.get().view;
         if (view.kind === 'loaded') patch({ view: { kind: 'loaded', value: endApproval(view.value, approvalId, { kind: 'late' }) } });

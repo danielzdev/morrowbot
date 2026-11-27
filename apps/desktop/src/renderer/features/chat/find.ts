@@ -8,10 +8,17 @@ export interface Searchable {
   readonly text: string;
 }
 
-/** The `nth` match (from 0) inside the message with `id`. */
+/** The `nth` match (from 0) inside the message with `id`, which is the `item`th searchable. */
 export interface FindMatch {
   readonly id: string;
+  readonly item: number;
   readonly nth: number;
+}
+
+/** Where a match sits in its text. Case folding can change a string's length, so this is the original text's own span. */
+export interface Span {
+  readonly at: number;
+  readonly length: number;
 }
 
 /** The id the streaming reply's text carries. */
@@ -36,22 +43,30 @@ export function searchableOf(view: ThreadView): Searchable[] {
   return active === '' ? items : [...items, { id: ACTIVE_ID, text: plainText(parseMarkdown(active)) }];
 }
 
-/** Offsets of each case-insensitive occurrence of `query` in `text`, without overlaps. */
-export function occurrences(text: string, query: string): number[] {
-  const needle = query.toLowerCase();
-  if (needle === '') return [];
-  const hay = text.toLowerCase();
-  const found: number[] = [];
-  for (let at = hay.indexOf(needle); at !== -1 && found.length < MAX_MATCHES; at = hay.indexOf(needle, at + needle.length)) found.push(at);
+let compiled: { readonly query: string; readonly pattern: RegExp } | null = null;
+
+function patternOf(query: string): RegExp {
+  if (compiled?.query !== query) compiled = { query, pattern: new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'giu') };
+  return compiled.pattern;
+}
+
+/** Each case-insensitive occurrence of `query` in `text`, without overlaps. */
+export function occurrences(text: string, query: string): Span[] {
+  if (query === '') return [];
+  const found: Span[] = [];
+  for (const match of text.matchAll(patternOf(query))) {
+    found.push({ at: match.index, length: match[0].length });
+    if (found.length >= MAX_MATCHES) break;
+  }
   return found;
 }
 
 /** Every match of `query`, in reading order. */
 export function findMatches(items: readonly Searchable[], query: string): FindMatch[] {
   const matches: FindMatch[] = [];
-  for (const item of items) {
+  for (const [index, item] of items.entries()) {
     const count = occurrences(item.text, query).length;
-    for (let nth = 0; nth < count && matches.length < MAX_MATCHES; nth += 1) matches.push({ id: item.id, nth });
+    for (let nth = 0; nth < count && matches.length < MAX_MATCHES; nth += 1) matches.push({ id: item.id, item: index, nth });
   }
   return matches;
 }

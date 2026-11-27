@@ -7,7 +7,7 @@ import { describeTool, elapsed, groupSteps, groupSummary, type ToolDisplay } fro
 /** Tool input in details: at most 4 KB, after redaction. The wire carries no tool output. */
 const MAX_INPUT_CHARS = 4_096;
 
-const STATUS: Readonly<Record<ToolStep['outcome'], string>> = { running: 'Running', ok: 'Done', error: 'Failed' };
+const STATUS: Readonly<Record<ToolStep['outcome'], string>> = { running: 'Running', ok: 'Done', error: 'Failed', unfinished: "Didn't finish" };
 
 function Glyph({ outcome }: { readonly outcome: ToolStep['outcome'] }) {
   switch (outcome) {
@@ -17,6 +17,8 @@ function Glyph({ outcome }: { readonly outcome: ToolStep['outcome'] }) {
       return <span class="tool-glyph ok"><Icon name="check" size={12} /></span>;
     case 'error':
       return <span class="tool-glyph error"><Icon name="warning" size={12} /></span>;
+    case 'unfinished':
+      return <span class="tool-glyph unfinished" aria-hidden="true" />;
   }
 }
 

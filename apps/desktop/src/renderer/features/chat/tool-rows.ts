@@ -61,7 +61,7 @@ export function describeTool(name: string, input: unknown, display: ToolDisplay)
       return line('move', `Moved ${target}`);
     case 'Bash':
     case 'Shell': {
-      const command = fields.command === undefined ? title : display.redact(firstLine(fields.command));
+      const command = fields.command === undefined ? title : firstLine(display.redact(fields.command));
       return line('run', command === null || command === '' ? 'Ran a command' : `Ran ${command}`);
     }
     case 'Grep':
@@ -75,7 +75,7 @@ export function describeTool(name: string, input: unknown, display: ToolDisplay)
     case 'WebFetch':
     case 'Fetch': {
       const host = fields.url === undefined ? null : (URL.parse(fields.url)?.host ?? null);
-      return line('fetch', host === null ? (title === null ? 'Fetched a page' : `Fetched ${title}`) : `Fetched ${host}`);
+      return line('fetch', host === null ? (title === null ? 'Fetched a page' : `Fetched ${title}`) : `Fetched ${display.redact(host)}`);
     }
     case 'Think':
       return line('think', 'Thought it through');

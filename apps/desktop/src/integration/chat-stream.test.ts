@@ -253,3 +253,22 @@ it('keeps the history readable while the host is down, says it is reconnecting, 
     }
   `);
 });
+
+it('says it is reconnecting while only the event socket is down, even when /state still answers, and goes live when the socket is back', async () => {
+  const chat = await host();
+  const thread = await chat.thread(await chat.agent());
+  const { window, hub } = windowOn(chat);
+  const session = hub.session(thread.id);
+  await loaded(session);
+  window.dropStream();
+  const lost = session.screen.get().connection;
+  await session.load();
+  const afterLoad = session.screen.get();
+  window.connect({ url: chat.host.url, token: chat.host.host.token });
+  const back = await until(session.screen, (screen) => screen.connection === 'live');
+  expect({ lost, afterLoad: [afterLoad.connection, afterLoad.view.kind], back: back.connection }).toEqual({
+    lost: 'reconnecting',
+    afterLoad: ['reconnecting', 'loaded'],
+    back: 'live',
+  });
+});

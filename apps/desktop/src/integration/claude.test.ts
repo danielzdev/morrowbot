@@ -324,7 +324,7 @@ function stepsOf(session: ThreadSession): string[] {
   return steps.map((step) => (step.kind === 'tool' ? `tool ${step.name}: ${step.outcome}` : `approval: ${step.ending === null ? 'pending' : JSON.stringify(step.ending)}`));
 }
 
-it('keeps an approval card through a resync while pending, then ends it as the user chose, beside its tool row', async () => {
+it('keeps an approval card through a resync while pending, then ends it as the user chose (a second click changes nothing), beside its tool row', async () => {
   const session = await chatWith('workspace-write');
   session.setDraft('write-git');
   await session.send();
@@ -332,7 +332,9 @@ it('keeps an approval card through a resync while pending, then ends it as the u
   const pending = stepsOf(session);
   await session.load();
   const afterResync = stepsOf(session);
-  await session.answer(approvalId(session), 'deny');
+  const id = approvalId(session);
+  await session.answer(id, 'deny');
+  await session.answer(id, 'allow');
   await idle(session, 2);
   expect({ pending, afterResync, denied: stepsOf(session) }).toMatchInlineSnapshot(`
     {

@@ -44,8 +44,8 @@ function paint(root: HTMLElement, query: string, current: FindMatch | null): Ran
     for (const element of root.querySelectorAll<HTMLElement>('[data-find-id]')) {
       const nodes = textNodes(element);
       const text = nodes.map(({ data }) => data).join('');
-      for (const [nth, offset] of occurrences(text, query).entries()) {
-        const range = rangeAt(nodes, offset, query.length);
+      for (const [nth, span] of occurrences(text, query).entries()) {
+        const range = rangeAt(nodes, span.at, span.length);
         if (range === null) continue;
         all.push(range);
         if (current !== null && current.id === element.dataset.findId && current.nth === nth) found = range;
@@ -74,14 +74,18 @@ export function FindBar(props: {
   readonly rendered: string;
   /** Bumped by every ⌘F, to focus the field again. */
   readonly focusRequest: number;
+  /** The first rendered message's position: a new search starts at the first match from there, so it does not render older ones. */
+  readonly firstRendered: number;
   readonly onReveal: (messageId: string) => void;
   readonly onClose: () => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useState<number | null>(null);
   const matches = useMemo(() => findMatches(searchableOf(props.view), query), [props.view.messages, props.view.activeTurn?.text, query]);
-  const current = matches[Math.min(index, matches.length - 1)] ?? null;
+  const shownFirst = matches.findIndex(({ item }) => item >= props.firstRendered);
+  const at = index === null ? (shownFirst === -1 ? matches.length - 1 : shownFirst) : Math.min(index, matches.length - 1);
+  const current = matches[at] ?? null;
   const close = useRef(props.onClose);
   close.current = props.onClose;
   useEffect(() => {
@@ -113,8 +117,8 @@ export function FindBar(props: {
     const box = root.getBoundingClientRect();
     if (rect.top < box.top + 48 || rect.bottom > box.bottom - 48) root.scrollTop += rect.top - box.top - box.height / 2;
   }, [query, current?.id, current?.nth, props.rendered]);
-  const step = (by: 1 | -1): void => { setIndex(stepMatch(matches.length, Math.min(index, matches.length - 1), by)); };
-  const count = query === '' ? '' : matches.length === 0 ? 'No results' : `${String(Math.min(index, matches.length - 1) + 1)} of ${String(matches.length)}`;
+  const step = (by: 1 | -1): void => { setIndex(stepMatch(matches.length, at, by)); };
+  const count = query === '' ? '' : matches.length === 0 ? 'No results' : `${String(at + 1)} of ${String(matches.length)}`;
   return (
     <div class="find-bar" role="search" aria-label="Find in chat">
       <input
@@ -125,7 +129,7 @@ export function FindBar(props: {
         value={query}
         onInput={(event) => {
           setQuery(event.currentTarget.value);
-          setIndex(0);
+          setIndex(null);
         }}
         onKeyDown={(event) => {
           if (event.key !== 'Enter') return;

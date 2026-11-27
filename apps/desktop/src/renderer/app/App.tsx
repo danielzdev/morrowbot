@@ -21,6 +21,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
   const [settings, setSettings] = useState<SettingsSection | null>(null);
   const [filterRequest, setFilterRequest] = useState(0);
   const [findRequest, setFindRequest] = useState(0);
+  const [approvalFocus, setApprovalFocus] = useState<string | null>(null);
   const [info, setInfo] = useState<AppInfo | null>(null);
   const copies = useRef(0);
   const state = useStore(models.agents.state);
@@ -96,6 +97,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
             onOpenAgent={(agentId, threadId) => {
               models.agents.selectAgent(agentId);
               if (threadId !== null) models.agents.openThread(agentId, threadId);
+              setApprovalFocus(threadId);
               setPage({ kind: 'chat' });
               controls.dismiss();
             }}
@@ -114,7 +116,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
                 <button class="btn ghost" onClick={() => { models.agents.dismissProblem(); }}>Dismiss</button>
               </div>
             )}
-            <Pages page={page} onPage={setPage} models={models} bridge={bridge} agent={agent} chrome={chrome} info={info} reducedMotion={appearance.reducedMotion} findRequest={findRequest} onCopy={copyChat} onNewChat={newChat} />
+            <Pages page={page} onPage={setPage} models={models} bridge={bridge} agent={agent} chrome={chrome} info={info} reducedMotion={appearance.reducedMotion} findRequest={findRequest} approvalFocus={approvalFocus} onApprovalFocused={() => { setApprovalFocus(null); }} onCopy={copyChat} onNewChat={newChat} />
           </>
         )}
       />

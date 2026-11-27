@@ -14,8 +14,8 @@ const MAX_REPLY_CHARS = 600;
  */
 export function viewAnnouncement(before: ThreadView | null, after: ThreadView, agent: string, context: CopyContext, mode: AnnounceMode): string | null {
   if (before === null) return null;
-  const seen = new Set(before.messages.map(({ id }) => id));
-  const reply = after.messages.findLast((message) => message.kind === 'assistant' && !seen.has(message.id));
+  const seen = before.messages === after.messages ? null : new Set(before.messages.map(({ id }) => id));
+  const reply = seen === null ? undefined : after.messages.findLast((message) => message.kind === 'assistant' && !seen.has(message.id));
   if (reply?.kind === 'assistant') {
     const { outcome } = reply;
     if (outcome.kind === 'completed' && outcome.finishReason === 'stop') {

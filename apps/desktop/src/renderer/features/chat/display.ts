@@ -7,16 +7,18 @@ export interface ChatDisplay extends ToolDisplay {
   readonly safe: (text: string) => string | null;
 }
 
-const NO_INFO: AppInfo = { appVersion: '', homeDir: '', userName: '', dataDir: '' };
+/** Shown in place of a value until this window knows the machine's home and user name (§9.1: left out). */
+const WITHHELD = '…';
 
 /**
  * Paths inside the agent's workspace show relative to it ("notes/plan.md"); other paths follow
  * `displayPath`. Tool input arrives with home already shown as `~`.
  */
 export function chatDisplay(info: AppInfo | null, workspaceDir: string | null): ChatDisplay {
-  const known = info ?? NO_INFO;
+  if (info === null) return { safe: () => null, redact: () => WITHHELD, path: () => WITHHELD };
+  const known = info;
   return {
-    safe: (text) => (info === null ? null : redact(text, info)),
+    safe: (text) => redact(text, known),
     redact: (text) => redact(text, known),
     path: (path) => {
       const absolute = known.homeDir !== '' && (path === '~' || path.startsWith('~/')) ? `${known.homeDir}${path.slice(1)}` : path;

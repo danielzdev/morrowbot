@@ -26,6 +26,9 @@ export function Pages(props: {
   readonly info: AppInfo | null;
   readonly reducedMotion: boolean;
   readonly findRequest: number;
+  /** The chat whose pending approval the sidebar asked to show. */
+  readonly approvalFocus: string | null;
+  readonly onApprovalFocused: () => void;
   readonly onCopy: (threadId: string) => void;
   readonly onNewChat: (agentId: string) => void;
 }) {
@@ -64,7 +67,7 @@ export function Pages(props: {
     case 'chat':
       if (agent !== undefined) {
         return (
-          <ChatPane key={agent.id} models={models} bridge={bridge} agent={agent} chrome={chrome} reducedMotion={props.reducedMotion} info={info} findRequest={props.findRequest} onAgentSettings={() => { setPage({ kind: 'agent-settings' }); }} onPlugins={() => { setPage({ kind: 'plugins' }); }} onCopy={props.onCopy} onNewChat={() => { props.onNewChat(agent.id); }} />
+          <ChatPane key={agent.id} models={models} bridge={bridge} agent={agent} chrome={chrome} reducedMotion={props.reducedMotion} info={info} findRequest={props.findRequest} approvalFocus={props.approvalFocus} onApprovalFocused={props.onApprovalFocused} onAgentSettings={() => { setPage({ kind: 'agent-settings' }); }} onPlugins={() => { setPage({ kind: 'plugins' }); }} onCopy={props.onCopy} onNewChat={() => { props.onNewChat(agent.id); }} />
         );
       }
       return (

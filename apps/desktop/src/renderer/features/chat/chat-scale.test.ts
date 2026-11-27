@@ -3,7 +3,7 @@ import { h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
 import { expect, it } from 'vitest';
 import { chatDisplay } from './display.ts';
-import { findMatches, searchableOf, stepMatch } from './find.ts';
+import { findMatches, occurrences, searchableOf, stepMatch } from './find.ts';
 import { earlierStart, firstShown, growthOf, nearBottom, onGrowth } from './scroll-anchor.ts';
 import { viewOf, type ThreadView } from './thread-model.ts';
 import { Timeline, type TimelineContext } from './Timeline.tsx';
@@ -30,7 +30,7 @@ const CTX: TimelineContext = {
 };
 
 const render = (view: ThreadView, start: number): string =>
-  renderToString(h(Timeline, { view, start, answering: [], idle: true, locked: false, ctx: CTX, onShowEarlier: () => undefined }));
+  renderToString(h(Timeline, { view, start, answering: [], idle: true, locked: false, offline: false, ctx: CTX, onShowEarlier: () => undefined }));
 
 it('renders only the latest 200 of 5,000 messages, and each Show earlier adds 200 more', () => {
   const view = chatOf(5_000);
@@ -51,6 +51,14 @@ it('renders only the latest 200 of 5,000 messages, and each Show earlier adds 20
   expect(ms).toBeLessThan(500);
 });
 
+it('finds spans in the text as shown, even where lower-casing changes its length', () => {
+  expect([occurrences('İx and İX', 'x'), occurrences('a.b a-b', '.'), occurrences('Milk, milk', 'MILK')]).toEqual([
+    [{ at: 1, length: 1 }, { at: 8, length: 1 }],
+    [{ at: 1, length: 1 }],
+    [{ at: 0, length: 4 }, { at: 6, length: 4 }],
+  ]);
+});
+
 it('finds across all 5,000 loaded messages, rendered or not, fast enough to run on every keystroke', () => {
   const view = chatOf(5_000);
   const items = searchableOf(view);
@@ -60,7 +68,7 @@ it('finds across all 5,000 loaded messages, rendered or not, fast enough to run 
   const ms = performance.now() - started;
   expect({ milk: milk.length, first: milk[0], again, wraps: [stepMatch(3, 2, 1), stepMatch(3, 0, -1), stepMatch(0, 0, 1)] }).toEqual({
     milk: 2_500,
-    first: { id: 'm1', nth: 0 },
+    first: { id: 'm1', item: 1, nth: 0 },
     again: [],
     wraps: [0, 2, 0],
   });

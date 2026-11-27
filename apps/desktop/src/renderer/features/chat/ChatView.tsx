@@ -3,12 +3,13 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/ho
 import type { MorrowbotBridge } from '../../bridge.ts';
 import { BlockedBanner } from '../../shared/BlockedBanner.tsx';
 import { useStore } from '../../shared/use-store.ts';
+import { approvalHeadingId } from './ApprovalCard.tsx';
 import type { ChatDisplay } from './display.ts';
 import { FindBar } from './FindBar.tsx';
 import { problemText, viewAnnouncement, type AnnounceMode } from './live-region.ts';
 import { readingSpot, restoreSpot, type ReadingSpot } from './reading-spot.ts';
 import { earlierStart, firstShown, growthOf, nearBottom, onGrowth } from './scroll-anchor.ts';
-import type { ThreadView } from './thread-model.ts';
+import { pendingApprovals, type ThreadView } from './thread-model.ts';
 import type { ThreadSession } from './thread-session.ts';
 import { Timeline, type TimelineContext } from './Timeline.tsx';
 
@@ -22,6 +23,9 @@ export interface ChatViewProps {
   readonly bridge: Pick<MorrowbotBridge, 'openExternal' | 'copyText'>;
   /** Bumped by every ⌘F. */
   readonly findRequest: number;
+  /** Opened from the sidebar's "Needs you" row: focus the pending approval's heading once (spec §4.3), never its Allow button. */
+  readonly focusApproval: boolean;
+  readonly onApprovalFocused: () => void;
   /** The empty chat's avatar and question (spec §4.1). */
   readonly hero: ComponentChildren;
   readonly announce: AnnounceMode;
@@ -80,7 +84,18 @@ export function ChatView(props: ChatViewProps) {
     if (screen.connection === 'reconnecting') announce('Reconnecting…');
   }, [screen.connection]);
   useEffect(() => {
-    if (props.findRequest > 0) setFinding(true);
+    if (!props.focusApproval || view === null) return;
+    const first = view.activeTurn === null ? undefined : pendingApprovals(view.activeTurn)[0];
+    const heading = first === undefined ? null : document.getElementById(approvalHeadingId(first.approvalId));
+    heading?.scrollIntoView({ block: 'center' });
+    heading?.focus({ preventScroll: true });
+    props.onApprovalFocused();
+  }, [props.focusApproval, view]);
+  const seenFind = useRef(props.findRequest);
+  useEffect(() => {
+    if (props.findRequest === seenFind.current) return;
+    seenFind.current = props.findRequest;
+    setFinding(true);
   }, [props.findRequest]);
 
   const toBottom = (): void => {
@@ -152,6 +167,7 @@ export function ChatView(props: ChatViewProps) {
           scroller={scroller}
           rendered={`${String(begin)}:${growth}`}
           focusRequest={props.findRequest}
+          firstRendered={begin}
           onReveal={(id) => {
             const index = loaded.messages.findIndex((message) => message.id === id);
             if (index !== -1 && index < begin) setStart(earlierStart(begin, index));
@@ -170,7 +186,7 @@ export function ChatView(props: ChatViewProps) {
         {fresh ? (
           <div class="hero">{props.hero}</div>
         ) : (
-          <Timeline view={loaded} start={begin} answering={screen.answering} idle={idle} locked={props.locked} ctx={ctx} onShowEarlier={showEarlier} />
+          <Timeline view={loaded} start={begin} answering={screen.answering} idle={idle} locked={props.locked} offline={screen.connection !== 'live'} ctx={ctx} onShowEarlier={showEarlier} />
         )}
       </div>
       {pill && (

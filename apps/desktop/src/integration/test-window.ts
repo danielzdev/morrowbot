@@ -15,6 +15,8 @@ export interface TestWindow {
   readonly bridge: MorrowbotBridge;
   /** What main does when a host becomes ready: a new event stream, then `host-ready` to the renderer. Like main, a dropped stream sends `host-lost`. */
   connect(target: HostTarget): void;
+  /** The event socket drops while the host lives: main sends `host-lost`, then reconnects with `connect`. */
+  dropStream(): void;
   /** Everything the renderer received, as JSON. */
   received(): string;
   close(): void;
@@ -72,6 +74,10 @@ export function openTestWindow(target: HostTarget): TestWindow {
   return {
     bridge,
     connect,
+    dropStream: () => {
+      events?.close();
+      onLost();
+    },
     received: () => JSON.stringify(seen),
     close: () => {
       events?.close();

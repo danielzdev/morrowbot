@@ -102,8 +102,17 @@ export function createChatHub(options: ChatHubOptions): ChatHub {
   const reloadAll = (): void => {
     for (const session of sessions.values()) void session.load();
   };
-  const stopRestarts = options.bridge.onHostReady(reloadAll);
-  const stopLost = options.bridge.onHostLost(reloadAll);
+  let streamUp = true;
+  const setStream = (up: boolean): void => {
+    streamUp = up;
+    for (const session of sessions.values()) session.setStream(up);
+  };
+  const stopRestarts = options.bridge.onHostReady(() => {
+    setStream(true);
+  });
+  const stopLost = options.bridge.onHostLost(() => {
+    setStream(false);
+  });
   return {
     activity,
     session: (threadId) => {
@@ -124,6 +133,7 @@ export function createChatHub(options: ChatHubOptions): ChatHub {
       });
       sessions.set(threadId, session);
       watch(session);
+      if (!streamUp) session.setStream(false);
       void session.load();
       return session;
     },

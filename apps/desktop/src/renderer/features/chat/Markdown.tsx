@@ -101,7 +101,7 @@ export const Markdown = memo(function Markdown(props: { readonly text: string; r
   return <div class="md" data-find-text=""><Blocks blocks={blocks} actions={props.actions} /></div>;
 });
 
-/** One line of inline Markdown, such as an approval title with `code`. */
+/** One line of inline Markdown with no links, such as an approval title with `code` beside its buttons. */
 export function InlineMarkdown(props: { readonly text: string; readonly actions: MarkdownActions }) {
-  return <InlineNodes nodes={parseInline(props.text)} actions={props.actions} />;
+  return <InlineNodes nodes={parseInline(props.text, true)} actions={props.actions} />;
 }

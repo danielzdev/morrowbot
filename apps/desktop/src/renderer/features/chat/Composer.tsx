@@ -51,7 +51,7 @@ export function Composer(props: {
         <div class="composer-bar">
           <div class="toolbar">{props.toolbar}</div>
           {running ? (
-            <button class="danger" disabled={screen.busy !== null} onClick={() => void session.stop()}>
+            <button class="danger" disabled={screen.busy !== null || screen.connection !== 'live'} onClick={() => void session.stop()}>
               {screen.busy === 'stopping' ? 'Stopping…' : 'Stop'}
             </button>
           ) : (

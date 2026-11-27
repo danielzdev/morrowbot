@@ -14,13 +14,14 @@ const ordered = (choices: readonly ApprovalChoice[]): ApprovalChoice[] =>
   [...choices].sort((a, b) => Number(a.id === 'allow') - Number(b.id === 'allow'));
 
 /**
- * An approval request inline in its turn: pending, then submitting ("Sending…", buttons disabled),
+ * An approval request inline in its turn: pending, then sending ("Sending…", buttons disabled),
  * then its ending as final text with the buttons removed. A countdown would need the host's
  * `expiresAt`, which the wire does not carry yet, so none is shown.
  */
 export function ApprovalCard(props: {
   readonly step: ApprovalStep;
-  readonly submitting: boolean;
+  /** `held`: the buttons wait, e.g. while the host is reconnecting. */
+  readonly answer: 'open' | 'sending' | 'held';
   /** The approval summary made safe to show (spec §9.1), or null when it can't be. */
   readonly title: string | null;
   readonly actions: MarkdownActions;
@@ -40,13 +41,13 @@ export function ApprovalCard(props: {
               <button
                 key={choice.id}
                 class={choice.id === 'allow' ? 'primary' : 'secondary'}
-                disabled={props.submitting}
+                disabled={props.answer !== 'open'}
                 onClick={() => { props.onAnswer(choice.id); }}
               >
                 {choice.label}
               </button>
             ))}
-            {props.submitting && <span class="card-status" role="status">Sending…</span>}
+            {props.answer === 'sending' && <span class="card-status" role="status">Sending…</span>}
           </div>
           <div class="card-foot">{APPROVAL_FOOTNOTE}</div>
         </>

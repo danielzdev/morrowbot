@@ -31,11 +31,11 @@ function Since({ startedAt }: { readonly startedAt: number }) {
   return <>{elapsed(now - startedAt)}</>;
 }
 
-function approvalFor(ctx: TimelineContext, answering: readonly string[]) {
+function approvalFor(ctx: TimelineContext, answering: readonly string[], offline: boolean) {
   return (step: ApprovalStep) => (
     <ApprovalCard
       step={step}
-      submitting={answering.includes(step.approval.approvalId)}
+      answer={answering.includes(step.approval.approvalId) ? 'sending' : offline ? 'held' : 'open'}
       title={ctx.display.safe(step.approval.summary)}
       actions={ctx.actions}
       onAnswer={(choiceId) => { ctx.onAnswer(step.approval.approvalId, choiceId); }}
@@ -64,7 +64,7 @@ const MessageItem = memo(function MessageItem(props: {
   return (
     <div class={`message assistant tone-${copy.tone}`} data-message-id={message.id}>
       {finished?.durationMs != null && <div class="turn-time">Worked for {elapsed(finished.durationMs)}</div>}
-      {finished !== undefined && <TurnSteps steps={finished.steps} display={ctx.display} approval={approvalFor(ctx, NO_ANSWERS)} />}
+      {finished !== undefined && <TurnSteps steps={finished.steps} display={ctx.display} approval={approvalFor(ctx, NO_ANSWERS, false)} />}
       {message.text !== '' && <div data-find-id={message.id}><Markdown text={message.text} actions={ctx.actions} /></div>}
       <OutcomeNote
         copy={copy}
@@ -77,7 +77,7 @@ const MessageItem = memo(function MessageItem(props: {
   );
 });
 
-function ActiveTurn(props: { readonly turn: ActiveTurnView; readonly answering: readonly string[]; readonly ctx: TimelineContext }) {
+function ActiveTurn(props: { readonly turn: ActiveTurnView; readonly answering: readonly string[]; readonly offline: boolean; readonly ctx: TimelineContext }) {
   const { turn, ctx } = props;
   const queued = turn.state === 'queued';
   const detail = queued ? (turn.queueNote ?? 'Queued: waiting for a free slot') : turn.detail;
@@ -88,7 +88,7 @@ function ActiveTurn(props: { readonly turn: ActiveTurnView; readonly answering: 
         {queued ? 'Queued' : turn.startedAt === null ? 'Working…' : <>Working for <Since startedAt={turn.startedAt} /></>}
         {detail !== null && <span class="turn-detail"> · {ctx.display.safe(detail) ?? ''}</span>}
       </div>
-      <TurnSteps steps={turn.steps} display={ctx.display} approval={approvalFor(ctx, props.answering)} />
+      <TurnSteps steps={turn.steps} display={ctx.display} approval={approvalFor(ctx, props.answering, props.offline)} />
       {turn.text !== '' && <div data-find-id={ACTIVE_ID}><Markdown text={turn.text} actions={ctx.actions} /></div>}
     </div>
   );
@@ -102,9 +102,11 @@ export function Timeline(props: {
   readonly view: ThreadView;
   readonly start: number;
   readonly answering: readonly string[];
-  /** Nothing runs or sends, so the latest reply's action may be offered. */
+  /** Nothing runs or sends, so the latest reply's Continue may run. */
   readonly idle: boolean;
   readonly locked: boolean;
+  /** The host is reconnecting: actions that reach it wait. */
+  readonly offline: boolean;
   readonly ctx: TimelineContext;
   readonly onShowEarlier: () => void;
 }) {
@@ -125,12 +127,12 @@ export function Timeline(props: {
           key={message.id}
           message={message}
           finished={finished[message.id]}
-          latest={message === last && props.idle}
-          busy={!props.idle || props.locked}
+          latest={message === last}
+          busy={!props.idle || props.locked || props.offline}
           ctx={ctx}
         />
       ))}
-      {view.activeTurn !== null && <ActiveTurn turn={view.activeTurn} answering={props.answering} ctx={ctx} />}
+      {view.activeTurn !== null && <ActiveTurn turn={view.activeTurn} answering={props.answering} offline={props.offline} ctx={ctx} />}
     </div>
   );
 }

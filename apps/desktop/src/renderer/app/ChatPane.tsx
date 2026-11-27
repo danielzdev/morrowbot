@@ -38,6 +38,8 @@ export function ChatPane(props: {
   /** The machine facts that make host text and paths safe to show (spec §9.1); null until main reports them. */
   readonly info: AppInfo | null;
   readonly findRequest: number;
+  readonly approvalFocus: string | null;
+  readonly onApprovalFocused: () => void;
   readonly onAgentSettings: () => void;
   readonly onPlugins: () => void;
   readonly onCopy: (threadId: string) => void;
@@ -109,6 +111,8 @@ export function ChatPane(props: {
             display={display}
             bridge={props.bridge}
             findRequest={props.findRequest}
+            focusApproval={props.approvalFocus === session.threadId}
+            onApprovalFocused={props.onApprovalFocused}
             announce="status"
             onOpenProviders={props.onPlugins}
             hero={

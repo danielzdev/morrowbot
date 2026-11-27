@@ -2,7 +2,7 @@ import { h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
 import { expect, it } from 'vitest';
 import { parseMarkdown, plainText, safeHref } from './markdown.ts';
-import { Markdown } from './Markdown.tsx';
+import { InlineMarkdown, Markdown } from './Markdown.tsx';
 
 const NO_ACTIONS = { openLink: () => undefined, copy: () => undefined };
 const html = (text: string): string => renderToString(h(Markdown, { text, actions: NO_ACTIONS }));
@@ -101,7 +101,21 @@ it('keeps intraword underscores, unclosed markers and an unclosed fence (mid-str
   expect(plainText(parseMarkdown('snake_case_name and 2 * 3 * 4 and **open and `tick\n```py\nprint(1)'))).toMatchInlineSnapshot(`"snake_case_name and 2 * 3 * 4 and **open and \`tickprint(1)"`);
 });
 
+it('makes no link inside a link, and no link in an approval title', () => {
+  const nested = html('[see https://a.example](https://b.example)');
+  const title = renderToString(h(InlineMarkdown, { text: 'Allow `x`? [Allow](https://evil.example)', actions: NO_ACTIONS }));
+  expect({ nested: elementsOf(nested).flatMap(({ href }) => (href === null ? [] : [href])), title }).toMatchInlineSnapshot(`
+    {
+      "nested": [
+        "https://b.example/",
+      ],
+      "title": "Allow <code>x</code>? [Allow](https://evil.example)",
+    }
+  `);
+});
+
 it('parses a long, hostile reply in linear time', () => {
+  expect(parseMarkdown(`*${'`x` '.repeat(70_000)}`)).toHaveLength(1);
   const hostile = ['*a '.repeat(40_000), `a ${'_'.repeat(40_000)}`, `a ${'`a'.repeat(20_000)}`, '[a]('.repeat(20_000), '** '.repeat(40_000)].join('\n\n');
   const started = performance.now();
   const blocks = parseMarkdown(hostile);

@@ -10,13 +10,13 @@ import type {
   TurnState,
 } from '@morrowbot/contracts';
 
-/** A tool call seen live. Times are this window's own clock, in ms. */
+/** A tool call seen live. Times are this window's own clock, in ms. `unfinished`: its turn ended with no end event for it. */
 export interface ToolStep {
   readonly kind: 'tool';
   readonly toolUseId: string;
   readonly name: string;
   readonly input: unknown;
-  readonly outcome: 'running' | 'ok' | 'error';
+  readonly outcome: 'running' | 'ok' | 'error' | 'unfinished';
   readonly startedAt: number;
   readonly endedAt: number | null;
 }
@@ -95,6 +95,10 @@ function endPending(steps: readonly TurnStep[], ending: ApprovalEnding, only?: (
   );
 }
 
+/** A turn's steps once it has ended: pending requests end as cleared, running tools as unfinished. */
+const settled = (steps: readonly TurnStep[]): TurnStep[] =>
+  endPending(steps, CLEARED).map((step) => (step.kind === 'tool' && step.outcome === 'running' ? { ...step, outcome: 'unfinished' } : step));
+
 /**
  * The view of a `/state` snapshot. Given the view it replaces (a resync), it keeps what only this
  * window saw: tool steps, timings and approval endings. A request that vanished without a known
@@ -120,17 +124,22 @@ export function viewOf(state: ThreadState, previous: ThreadView | null = null): 
   const before = previous?.activeTurn ?? null;
   if (before === null || previous === null) return { ...base, activeTurn: fresh, finished: kept };
   if (fresh !== null && active !== null && fresh.generationId === before.generationId) {
-    const pendingIds = new Set(active.pendingApprovals.map(({ approvalId }) => approvalId));
+    const pending = new Map(active.pendingApprovals.map((approval) => [approval.approvalId, approval]));
     const known = new Set(before.steps.flatMap((step) => (step.kind === 'approval' ? [step.approval.approvalId] : [])));
     const steps = [
-      ...endPending(before.steps, CLEARED, (id) => !pendingIds.has(id)),
+      ...before.steps.map((step): TurnStep => {
+        if (step.kind !== 'approval') return step;
+        const current = pending.get(step.approval.approvalId);
+        if (current !== undefined) return pendingStep(current);
+        return step.ending === null ? { ...step, ending: CLEARED } : step;
+      }),
       ...active.pendingApprovals.filter(({ approvalId }) => !known.has(approvalId)).map(pendingStep),
     ];
-    return { ...base, activeTurn: { ...fresh, steps, startedAt: before.startedAt }, finished: kept };
+    return { ...base, activeTurn: { ...fresh, detail: before.detail, steps, startedAt: before.startedAt }, finished: kept };
   }
   const seen = new Set(previous.messages.map(({ id }) => id));
   const reply = state.messages.find(({ id, kind }) => kind === 'assistant' && !seen.has(id));
-  const finished = reply === undefined ? kept : { ...kept, [reply.id]: { steps: endPending(before.steps, CLEARED), durationMs: null } };
+  const finished = reply === undefined ? kept : { ...kept, [reply.id]: { steps: settled(before.steps), durationMs: null } };
   return { ...base, activeTurn: fresh, finished };
 }
 
@@ -211,14 +220,14 @@ function change(view: ThreadView, event: ThreadEvent, now: number): ThreadView |
     case 'generation.approval-resolved':
       return turn({
         steps: active.steps.map((step) =>
-          step.kind === 'approval' && step.ending === null && step.approval.approvalId === event.approvalId
+          step.kind === 'approval' && (step.ending === null || step.ending.kind === 'late') && step.approval.approvalId === event.approvalId
             ? { ...step, ending: endingOf(event.resolution, step.approval) }
             : step,
         ),
       });
     case 'generation.finished': {
       if (view.messages.some(({ id }) => id === event.message.id)) return { ...view, activeTurn: null };
-      const record: FinishedTurn = { steps: endPending(active.steps, CLEARED), durationMs: active.startedAt === null ? null : now - active.startedAt };
+      const record: FinishedTurn = { steps: settled(active.steps), durationMs: active.startedAt === null ? null : now - active.startedAt };
       return { ...view, messages: [...view.messages, event.message], activeTurn: null, finished: { ...view.finished, [event.message.id]: record } };
     }
   }

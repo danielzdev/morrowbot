@@ -116,8 +116,43 @@ it('keeps a watched turn’s steps on its reply when the turn ended during a res
   `);
 });
 
-const card = (step: ApprovalStep, submitting = false): string =>
-  renderToString(h(ApprovalCard, { step, submitting, title: step.approval.summary, actions: { openLink: () => undefined, copy: () => undefined }, onAnswer: () => undefined }))
+it('lets the host have the last word: its resolution replaces a local "already ended", a snapshot that still lists the request reopens it, and tools left running end as unfinished', () => {
+  const asked = apply(viewOf(state([], 1)), [
+    { kind: 'generation.tool-start', toolUseId: 'u1', name: 'Write', input: { file_path: '.git/config' } },
+    { kind: 'generation.approval-requested', approval: EDIT },
+  ]);
+  const late = endApproval(asked, 'a1', { kind: 'late' });
+  const resolved = apply(late, [{ kind: 'generation.approval-resolved', approvalId: 'a1', resolution: { kind: 'chosen', choiceId: 'deny' } }]);
+  const stopped = apply(asked, [{ kind: 'generation.finished', message: REPLY }]);
+  const endedInGap = viewOf({ ...state([], 12, null), messages: [REPLY] }, asked);
+  const tools = (view: ThreadView): string[] => (view.finished.m2?.steps ?? []).flatMap((step) => (step.kind === 'tool' ? [`${step.name} ${step.outcome}`] : []));
+  expect({
+    resolvedAfterLate: endings(resolved),
+    snapshotStillPending: endings(viewOf(state([EDIT], 9), late)),
+    stoppedMidTool: tools(stopped),
+    endedDuringResync: tools(endedInGap),
+  }).toMatchInlineSnapshot(`
+    {
+      "endedDuringResync": [
+        "Write unfinished",
+      ],
+      "resolvedAfterLate": {
+        "a1": "{"kind":"chosen","label":"Deny"}",
+      },
+      "snapshotStillPending": {
+        "a1": "pending",
+      },
+      "stoppedMidTool": [
+        "Write unfinished",
+      ],
+    }
+  `);
+});
+
+const HELD: ('sending' | 'held')[] = ['sending', 'held'];
+
+const card = (step: ApprovalStep, answer: 'open' | 'sending' | 'held' = 'open'): string =>
+  renderToString(h(ApprovalCard, { step, answer, title: step.approval.summary, actions: { openLink: () => undefined, copy: () => undefined }, onAnswer: () => undefined }))
     .replaceAll(/<[^>]+>/g, (tag) => (tag.startsWith('<button') ? '[' : tag.startsWith('</button') ? ']' : /^<\/?code/.test(tag) ? '`' : ' '))
     .replaceAll(/\s+/g, ' ')
     .trim();
@@ -126,21 +161,24 @@ it('shows every card state, with Deny before Allow and no countdown without the 
   const pending: ApprovalStep = { kind: 'approval', approval: EDIT, ending: null };
   expect({
     pending: card(pending),
-    submitting: card(pending, true),
+    sending: card(pending, 'sending'),
     chosen: card({ ...pending, ending: { kind: 'chosen', label: 'Allow' } }),
     expired: card({ ...pending, ending: { kind: 'expired' } }),
     cleared: card({ ...pending, ending: { kind: 'cleared' } }),
     late: card({ ...pending, ending: { kind: 'late' } }),
-    submittingDisablesButtons: renderToString(h(ApprovalCard, { step: pending, submitting: true, title: null, actions: { openLink: () => undefined, copy: () => undefined }, onAnswer: () => undefined })).match(/<button[^>]*disabled/g)?.length,
+    disabledWhileSendingOrHeld: HELD.map((answer) => renderToString(h(ApprovalCard, { step: pending, answer, title: null, actions: { openLink: () => undefined, copy: () => undefined }, onAnswer: () => undefined })).match(/<button[^>]*disabled/g)?.length),
   }).toMatchInlineSnapshot(`
     {
       "chosen": "Allow edit to \`.git/config\`? You chose Allow",
       "cleared": "Allow edit to \`.git/config\`? Request ended",
+      "disabledWhileSendingOrHeld": [
+        2,
+        2,
+      ],
       "expired": "Allow edit to \`.git/config\`? Expired: denied automatically",
       "late": "Allow edit to \`.git/config\`? This request already ended.",
       "pending": "Allow edit to \`.git/config\`? [Deny][Allow] Unanswered requests are denied after 30 minutes.",
-      "submitting": "Allow edit to \`.git/config\`? [Deny][Allow] Sending… Unanswered requests are denied after 30 minutes.",
-      "submittingDisablesButtons": 2,
+      "sending": "Allow edit to \`.git/config\`? [Deny][Allow] Sending… Unanswered requests are denied after 30 minutes.",
     }
   `);
 });
