@@ -18,6 +18,8 @@ export interface PluginsModel {
   load(): Promise<void>;
   refreshInfo(id: string): Promise<void>;
   recheck(id: string): Promise<void>;
+  /** Asks the provider for its plan limits again, past the host's cache. */
+  refreshUsage(id: string): Promise<void>;
   setConfig(id: string, config: PluginConfig): Promise<void>;
   setEnabled(id: string, enabled: boolean): Promise<void>;
   release(id: string, regId: string): Promise<void>;
@@ -64,8 +66,8 @@ export function createPluginsModel(options: PluginsModelOptions): PluginsModel {
     return result.kind === 'ok' ? { kind: 'loaded', value: result.value.info } : { kind: 'failed', message: result.error.message };
   }
 
-  async function fetchUsage(id: string): Promise<UsageResponse | null> {
-    const result = await api.usage(id, false);
+  async function fetchUsage(id: string, refresh = false): Promise<UsageResponse | null> {
+    const result = await api.usage(id, refresh);
     return result.kind === 'ok' ? result.value : null;
   }
 
@@ -137,6 +139,10 @@ export function createPluginsModel(options: PluginsModelOptions): PluginsModel {
       const usage = await fetchUsage(id);
       bump(id);
       patch(id, { busy: null, info: { kind: 'loaded', value: result.value.info }, usage });
+    },
+    refreshUsage: async (id) => {
+      const usage = await fetchUsage(id, true);
+      patch(id, { usage });
     },
     setConfig: async (id, config) => {
       patch(id, { busy: 'saving', problem: null });

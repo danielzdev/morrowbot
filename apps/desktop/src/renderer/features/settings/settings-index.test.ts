@@ -23,8 +23,10 @@ it('matches every word anywhere in a row, groups matches by section in nav order
   }).toMatchInlineSnapshot(`
     {
       "acrossSections": [
+        "key-palette",
         "key-new-chat",
         "key-new-agent",
+        "key-usage",
         "key-filter-agents",
         "key-binding",
         "data-folder",
@@ -71,9 +73,11 @@ it('writes each key row for macOS and elsewhere, following Send with', () => {
   expect({ mac: table('mac', 'enter'), other: table('other', 'enter'), macModEnter: table('mac', 'mod-enter').slice(-4, -2) }).toMatchInlineSnapshot(`
     {
       "mac": [
+        "Command palette: ⌘K",
         "New chat: ⌘N",
         "New agent: ⇧⌘N",
         "Settings: ⌘,",
+        "Usage: ⌘U",
         "Toggle sidebar: ⌘B",
         "Filter agents: ⇧⌘F",
         "Extensions: ⇧⌘X",
@@ -89,9 +93,11 @@ it('writes each key row for macOS and elsewhere, following Send with', () => {
         "New line: Enter",
       ],
       "other": [
+        "Command palette: Ctrl+K",
         "New chat: Ctrl+N",
         "New agent: Ctrl+Shift+N",
         "Settings: Ctrl+,",
+        "Usage: Ctrl+U",
         "Toggle sidebar: Ctrl+B",
         "Filter agents: Ctrl+Shift+F",
         "Extensions: Ctrl+Shift+X",

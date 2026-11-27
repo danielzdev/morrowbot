@@ -18,6 +18,14 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
   return [
     {
       method: 'GET',
+      path: '/api/threads',
+      handle: () => {
+        const body: ThreadList = { threads: chat.listAllThreads() };
+        return json(200, body);
+      },
+    },
+    {
+      method: 'GET',
       path: '/api/agents/:id/threads',
       handle: ({ params }) => {
         const threads = chat.listThreads(params.get('id'));

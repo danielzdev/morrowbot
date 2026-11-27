@@ -69,6 +69,7 @@ export function SidebarBottom(props: {
   readonly rail: boolean;
   readonly alert: { readonly tone: 'warn' | 'danger'; readonly label: string } | null;
   readonly onSettings: () => void;
+  readonly onUsage: () => void;
   readonly onExtensions: () => void;
 }) {
   return (
@@ -78,6 +79,7 @@ export function SidebarBottom(props: {
       </div>
       <div class="sidebar-bottom">
         <BottomButton rail={props.rail} icon="settings" label="Settings" shortcut="settings" onClick={props.onSettings} />
+        <BottomButton rail={props.rail} icon="gauge" label="Usage" shortcut="usage" onClick={props.onUsage} />
       </div>
     </>
   );
@@ -85,7 +87,7 @@ export function SidebarBottom(props: {
 
 function BottomButton(props: {
   readonly rail: boolean;
-  readonly icon: 'settings' | 'plugins';
+  readonly icon: 'settings' | 'gauge' | 'plugins';
   readonly label: string;
   readonly text?: string;
   readonly shortcut: ShortcutId;
