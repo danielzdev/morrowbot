@@ -1,6 +1,6 @@
 import type { ThreadState } from '@morrowbot/contracts';
 import { expect, it } from 'vitest';
-import { applyEvent, viewOf, type ThreadEvent, type ThreadView } from './thread-model.ts';
+import { applyEvent, pendingApprovals, viewOf, type ThreadEvent, type ThreadView } from './thread-model.ts';
 
 const AT = '2026-01-01T00:00:00.000Z';
 const STATE: ThreadState = {
@@ -23,7 +23,7 @@ const at = (seq: number, hostEpoch = 'e1') => ({ threadId: 't', generationId: 'g
 function run(events: readonly ThreadEvent[]): { readonly steps: string[]; readonly view: ThreadView } {
   let view = viewOf(STATE);
   const steps = events.map((event) => {
-    const applied = applyEvent(view, event);
+    const applied = applyEvent(view, event, 0);
     if (applied.kind === 'applied') view = applied.view;
     return `${event.kind}@${event.cursor.hostEpoch}/${String(event.cursor.seq)}: ${applied.kind}`;
   });
@@ -40,17 +40,19 @@ it('applies only the next event: replays are ignored, a gap or another host run 
     { kind: 'generation.approval-resolved', ...at(6), approvalId: 'p', resolution: { kind: 'expired' } },
     { kind: 'generation.status', ...at(7), state: 'running', queueNote: null, detail: 'Thinking' },
   ]);
-  expect({ steps, text: view.activeTurn?.text, detail: view.activeTurn?.detail, approvals: view.activeTurn?.approvals, expired: view.expiredApprovals, cursor: view.cursor }).toMatchInlineSnapshot(`
+  const turn = view.activeTurn;
+  const endings = turn?.steps.map((step) => (step.kind === 'approval' ? `${step.approval.summary}: ${step.ending?.kind ?? 'pending'}` : step.name));
+  expect({ steps, text: turn?.text, detail: turn?.detail, pending: turn === null ? null : pendingApprovals(turn), endings, cursor: view.cursor }).toMatchInlineSnapshot(`
     {
-      "approvals": [],
       "cursor": {
         "hostEpoch": "e1",
         "seq": 7,
       },
       "detail": "Thinking",
-      "expired": [
-        "Write .git/x",
+      "endings": [
+        "Write .git/x: expired",
       ],
+      "pending": [],
       "steps": [
         "generation.delta@e1/4: ignored",
         "generation.delta@e1/5: applied",
@@ -66,7 +68,7 @@ it('applies only the next event: replays are ignored, a gap or another host run 
 });
 
 it('asks for a resync when an event belongs to a turn the view does not know', () => {
-  expect(applyEvent(viewOf({ ...STATE, activeTurn: null }), { kind: 'generation.delta', ...at(5), text: 'x' })).toMatchInlineSnapshot(`
+  expect(applyEvent(viewOf({ ...STATE, activeTurn: null }), { kind: 'generation.delta', ...at(5), text: 'x' }, 0)).toMatchInlineSnapshot(`
     {
       "kind": "resync",
     }

@@ -1,15 +1,22 @@
 import type { Message } from '@morrowbot/contracts';
-import { describeOutcome, type ThreadScreen, type ThreadSession } from '../renderer/features/chat/index.ts';
+import { outcomeCopy, pendingApprovals, sessionChoiceCopy, bannerCopy, type ThreadScreen, type ThreadSession, type ThreadView } from '../renderer/features/chat/index.ts';
 import { until } from '../renderer/shared/store.ts';
 
 const hidePid = (text: string): string => text.replaceAll(/from pid \d+/g, 'from pid <pid>');
+const COPY = { provider: null, safe: (text: string) => text };
 
 function line(message: Message): string {
   if (message.kind === 'user') return `user: ${message.text}`;
-  const note = describeOutcome(message.outcome);
-  const label = note.label === null ? '' : ` [${note.label}]`;
-  const offer = note.continueOffer === null ? '' : ` [${note.continueOffer.label}]`;
+  const note = outcomeCopy(message.outcome, COPY);
+  const label = note.text === null ? '' : ` [${note.text}]`;
+  const offer = note.action === null ? '' : ` [${note.action.label}]`;
   return `assistant: ${hidePid(message.text)}${label}${offer}`;
+}
+
+/** Summaries of approvals that expired, in the live turn or a turn this window watched end. */
+function expired(view: ThreadView): string[] {
+  const steps = [...(view.activeTurn?.steps ?? []), ...Object.values(view.finished).flatMap(({ steps: each }) => each)];
+  return steps.flatMap((step) => (step.kind === 'approval' && step.ending?.kind === 'expired' ? [step.approval.summary] : []));
 }
 
 /** What the user sees in a chat, as plain data. */
@@ -26,9 +33,9 @@ export function shown(screen: ThreadScreen): unknown {
                 : {
                     state: view.value.activeTurn.state,
                     text: hidePid(view.value.activeTurn.text),
-                    approvals: view.value.activeTurn.approvals.map(({ summary, choices }) => ({ summary, choices: choices.map(({ label }) => label) })),
+                    approvals: pendingApprovals(view.value.activeTurn).map(({ summary, choices }) => ({ summary, choices: choices.map(({ label }) => label) })),
                   },
-            expiredApprovals: view.value.expiredApprovals,
+            expiredApprovals: expired(view.value),
           }
         : view,
     draft: screen.draft,
@@ -36,8 +43,14 @@ export function shown(screen: ThreadScreen): unknown {
       problem === null
         ? null
         : problem.kind === 'session-choice'
-          ? { kind: problem.kind, prompt: problem.prompt, options: problem.options.map(({ label, warning }) => (warning === null ? label : `${label} (${warning})`)) }
-          : problem,
+          ? {
+              kind: problem.kind,
+              prompt: sessionChoiceCopy(problem.reason).prompt,
+              options: sessionChoiceCopy(problem.reason).options.map(({ label, warning }) => (warning === null ? label : `${label} (${warning})`)),
+            }
+          : problem.kind === 'retry'
+            ? { kind: problem.kind, reason: problem.reason, banner: bannerCopy(problem.reason).text, action: problem.action, sessionChoice: problem.sessionChoice }
+            : problem,
   };
 }
 

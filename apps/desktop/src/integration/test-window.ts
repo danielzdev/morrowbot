@@ -13,7 +13,7 @@ const PAGE: IpcSender = { kind: 'frame', url: RENDERER_URL, isMainFrame: true };
  */
 export interface TestWindow {
   readonly bridge: MorrowbotBridge;
-  /** What main does when a host becomes ready: a new event stream, then `host-ready` to the renderer. */
+  /** What main does when a host becomes ready: a new event stream, then `host-ready` to the renderer. Like main, a dropped stream sends `host-lost`. */
   connect(target: HostTarget): void;
   /** Everything the renderer received, as JSON. */
   received(): string;
@@ -25,6 +25,7 @@ export function openTestWindow(target: HostTarget): TestWindow {
   let events: EventStream | undefined;
   const frames = new Set<(frame: EventServerFrame) => void>();
   const ready = new Set<() => void>();
+  const lost = new Set<() => void>();
   const seen: unknown[] = [];
   const deliver = (frame: EventServerFrame): void => {
     seen.push(frame);
@@ -37,13 +38,16 @@ export function openTestWindow(target: HostTarget): TestWindow {
     set.add(listener);
     return () => set.delete(listener);
   };
+  const onLost = (): void => {
+    for (const listener of lost) listener();
+  };
   const connect = (next: HostTarget): void => {
     host = next;
     events?.close();
-    events = openEventStream(next, { onEvent: deliver, report });
+    events = openEventStream(next, { onEvent: deliver, report, onLost });
     for (const listener of ready) listener();
   };
-  events = openEventStream(host, { onEvent: deliver, report });
+  events = openEventStream(host, { onEvent: deliver, report, onLost });
   const bridge: MorrowbotBridge = {
     request: async (method, path, body) => {
       const reply = await proxyRequest({ sender: PAGE, rendererUrl: RENDERER_URL, input: { method, path, body }, host });
@@ -58,6 +62,7 @@ export function openTestWindow(target: HostTarget): TestWindow {
       events?.send(parseSubscription({ sender: PAGE, rendererUrl: RENDERER_URL, input: { kind: 'unsubscribe', threadId } }));
     },
     onHostReady: (listener) => listen(ready, listener),
+    onHostLost: (listener) => listen(lost, listener),
     pickFolder: () => Promise.resolve(null),
     copyText: () => Promise.resolve(),
     openExternal: () => Promise.resolve(),

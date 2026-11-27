@@ -1,7 +1,7 @@
 import type { ProviderInfo } from '@morrowbot/contracts';
 import type { MorrowbotBridge } from '../bridge.ts';
 import { createAgentsModel, type AgentsModel } from '../features/agents/index.ts';
-import { createChatHub, type ChatHub } from '../features/chat/index.ts';
+import { createChatHub, localDrafts, type ChatHub } from '../features/chat/index.ts';
 import { createPluginsModel, type PluginCard, type PluginsModel } from '../features/plugins/index.ts';
 import { createApi } from '../shared/api.ts';
 import { createAppearance, type AppearanceModel } from '../shared/appearance.ts';
@@ -42,6 +42,7 @@ export function createModels(bridge: MorrowbotBridge): Models {
   const chats = createChatHub({
     api,
     bridge,
+    drafts: localDrafts,
     onGroupsChanged: () => void plugins.load(),
     onFinished: (threadId, message) => {
       const state = agents.state.get();
