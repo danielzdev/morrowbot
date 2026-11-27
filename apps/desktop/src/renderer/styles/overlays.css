@@ -130,7 +130,7 @@
 .modal-panel:focus-visible {
   outline: none;
 }
-.confirm .modal-panel {
+.confirm > .modal-panel {
   width: 440px;
   padding: var(--s-6);
 }

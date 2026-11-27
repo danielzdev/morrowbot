@@ -15,8 +15,12 @@ export interface BridgeChannels {
   readonly setOpenAtLogin: 'morrowbot:set-open-at-login';
 }
 
-/** A folder to show in Finder, named by an opaque id; desktop main resolves the path itself. */
-export type RevealTarget = { readonly kind: 'data-dir' } | { readonly kind: 'agent-workspace'; readonly agentId: string };
+/** A folder or file to show in Finder, named by an opaque id; desktop main resolves the path itself. */
+export type RevealTarget =
+  | { readonly kind: 'data-dir' }
+  | { readonly kind: 'agent-workspace'; readonly agentId: string }
+  /** An AGENTS.md copy kept by Save a copy; `revealId` is the file name the host returned. */
+  | { readonly kind: 'instructions-copy'; readonly agentId: string; readonly revealId: string };
 
 /** Open at login: only the installed app on macOS and Windows can register a login item. */
 export type LoginItem = { readonly kind: 'unsupported' } | { readonly kind: 'supported'; readonly openAtLogin: boolean };

@@ -1,8 +1,7 @@
-import { mkdir, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { Agent, AgentWorkspace, AgentWorkspaceRequest, CreateAgentRequest, UpdateAgentRequest } from '@morrowbot/contracts';
-
-export const INSTRUCTIONS_FILE = 'AGENTS.md';
+import type { Agent, AgentInstructionsView, AgentWorkspace, AgentWorkspaceRequest, CreateAgentRequest, UpdateAgentRequest } from '@morrowbot/contracts';
+import { createInstructions, guarded, INSTRUCTIONS_FILE, readInstructionsView, saveInstructionsCopy, type CreateInstructionsResult, type SaveCopyResult, type WriteFailure } from './instructions-file.ts';
 
 /** Where agent records are kept (the storage feature provides one). */
 export interface AgentRecords {
@@ -19,13 +18,19 @@ export interface AgentServiceOptions {
   readonly folderExists: (id: string) => boolean;
   /** Parent folder for dedicated workspaces: each agent gets `<workspacesDir>/<agentId>`. */
   readonly workspacesDir: string;
+  /** Where Save a copy keeps drafts: `<draftsDir>/<agentId>/<time>-<n>.md`, never in a workspace. */
+  readonly draftsDir: string;
   readonly newId: () => string;
   readonly now: () => string;
 }
 
 export type CreateAgentResult =
   | { readonly kind: 'created'; readonly agent: Agent }
-  | { readonly kind: 'invalid'; readonly reason: string };
+  | { readonly kind: 'invalid'; readonly reason: string }
+  /** The workspace has an `AGENTS.md` already, so `initialInstructions` was not written and no agent was made. */
+  | { readonly kind: 'instructions-occupied'; readonly current: AgentInstructionsView }
+  | WriteFailure;
+
 
 export type UpdateAgentResult =
   | { readonly kind: 'updated'; readonly agent: Agent }
@@ -40,10 +45,14 @@ export interface AgentService {
   create(request: CreateAgentRequest): Promise<CreateAgentResult>;
   update(id: string, request: UpdateAgentRequest): UpdateAgentResult;
   delete(id: string): boolean;
-  /** Returns the agent's `AGENTS.md` ('' when the file does not exist), or undefined for an unknown agent. */
+  /** Returns the agent's `AGENTS.md` for a turn ('' when it can't be found), or undefined for an unknown agent. */
   readInstructions(id: string): Promise<string | undefined>;
-  /** Returns false for an unknown agent. */
-  writeInstructions(id: string, content: string): Promise<boolean>;
+  /** What the editor shows: the text, its revision, and whether it can be read. Undefined for an unknown agent. */
+  instructionsView(id: string): Promise<AgentInstructionsView | undefined>;
+  /** Creates a missing `AGENTS.md`; never replaces an entry that is there. Undefined for an unknown agent. */
+  createInstructions(id: string, content: string): Promise<CreateInstructionsResult | undefined>;
+  /** Saves `content` as a copy in the data folder and returns its file name. Undefined for an unknown agent. */
+  saveInstructionsCopy(id: string, content: string): Promise<SaveCopyResult | undefined>;
 }
 
 export function createAgentService(options: AgentServiceOptions): AgentService {
@@ -81,7 +90,23 @@ export function createAgentService(options: AgentServiceOptions): AgentService {
         createdAt: at,
         updatedAt: at,
       };
-      await mkdir(agent.workspace.dir, { recursive: true });
+      const made = await guarded(async () => {
+        await mkdir(agent.workspace.dir, { recursive: true });
+        return null;
+      });
+      if (made !== null) return { kind: 'failed', message: `The workspace folder could not be made. ${made.message}` };
+      if (unknownFolder(agent.folderId)) return { kind: 'invalid', reason: NO_SUCH_FOLDER };
+      if (request.initialInstructions !== null) {
+        const written = await createInstructions(agent.workspace.dir, request.initialInstructions);
+        switch (written.kind) {
+          case 'created':
+            break;
+          case 'occupied':
+            return { kind: 'instructions-occupied', current: await readInstructionsView(agent.workspace.dir) };
+          case 'failed':
+            return { kind: 'failed', message: `AGENTS.md was not written. ${written.message}` };
+        }
+      }
       if (unknownFolder(agent.folderId)) return { kind: 'invalid', reason: NO_SUCH_FOLDER };
       records.insert(agent);
       return { kind: 'created', agent };
@@ -113,31 +138,19 @@ export function createAgentService(options: AgentServiceOptions): AgentService {
         throw error;
       }
     },
-    writeInstructions: async (id, content) => {
+    instructionsView: async (id) => {
       const agent = records.get(id);
-      if (agent === undefined) return false;
-      await mkdir(agent.workspace.dir, { recursive: true });
-      const file = await followLink(path.join(agent.workspace.dir, INSTRUCTIONS_FILE));
-      const temporary = `${file}.${options.newId()}.tmp`;
-      try {
-        await writeFile(temporary, content, 'utf8');
-        await rename(temporary, file);
-      } finally {
-        await rm(temporary, { force: true });
-      }
-      return true;
+      return agent === undefined ? undefined : readInstructionsView(agent.workspace.dir);
+    },
+    createInstructions: async (id, content) => {
+      const agent = records.get(id);
+      return agent === undefined ? undefined : createInstructions(agent.workspace.dir, content);
+    },
+    saveInstructionsCopy: async (id, content) => {
+      const agent = records.get(id);
+      return agent === undefined ? undefined : saveInstructionsCopy(path.join(options.draftsDir, agent.id), options.now(), content);
     },
   };
-}
-
-/** Saving replaces the file, so save through a symlinked `AGENTS.md` to the file it points at. */
-async function followLink(file: string): Promise<string> {
-  try {
-    return await realpath(file);
-  } catch (error) {
-    if (isMissingFile(error)) return file;
-    throw error;
-  }
 }
 
 function isMissingFile(error: unknown): boolean {
