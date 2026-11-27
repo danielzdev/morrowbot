@@ -3,8 +3,11 @@ import type {
   BlockedGroup,
   ChatEvent,
   CreateAgentRequest,
+  CreateFolderRequest,
   CreateThreadRequest,
   Cursor,
+  Folder,
+  LastMessage,
   Message,
   PluginConfig,
   PluginManifest,
@@ -17,6 +20,7 @@ import type {
   Thread,
   ThreadState,
   UpdateAgentRequest,
+  UpdateFolderRequest,
   UsageResponse,
   UserMessage,
 } from '@morrowbot/contracts';
@@ -25,14 +29,28 @@ export interface ApiAgents {
   list(): Agent[];
   get(id: string): Agent | undefined;
   create(request: CreateAgentRequest): Promise<ApiCreateAgentResult>;
-  update(id: string, request: UpdateAgentRequest): Agent | undefined;
+  update(id: string, request: UpdateAgentRequest): ApiUpdateAgentResult;
   readInstructions(id: string): Promise<string | undefined>;
   writeInstructions(id: string, content: string): Promise<boolean>;
+  /** Each agent's newest message with text, for the sidebar. */
+  lastMessages(): LastMessage[];
 }
 
 export type ApiCreateAgentResult =
   | { readonly kind: 'created'; readonly agent: Agent }
   | { readonly kind: 'invalid'; readonly reason: string };
+
+export type ApiUpdateAgentResult =
+  | { readonly kind: 'updated'; readonly agent: Agent }
+  | { readonly kind: 'not-found' }
+  | { readonly kind: 'invalid'; readonly reason: string };
+
+export interface ApiFolders {
+  list(): Folder[];
+  create(request: CreateFolderRequest): Folder;
+  rename(id: string, request: UpdateFolderRequest): Folder | undefined;
+  delete(id: string): boolean;
+}
 
 /** How a send or Continue was admitted, or why nothing was written. */
 export type ApiAdmitResult =
@@ -100,6 +118,7 @@ export interface ApiPlugins {
 
 export interface ApiServices {
   readonly agents: ApiAgents;
+  readonly folders: ApiFolders;
   readonly chat: ApiChat;
   readonly plugins: ApiPlugins;
 }

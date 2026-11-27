@@ -1,0 +1,83 @@
+import type { Agent, Folder } from '@morrowbot/contracts';
+import { expect, it } from 'vitest';
+import { groupAgents, sectionKey, type AgentFacts } from './sidebar-groups.ts';
+
+const BOUND: Agent['provider'] = { kind: 'bound', pluginId: 'provider-echo', selection: { kind: 'default' }, access: 'read-only', vendorSettings: 'isolated' };
+
+const folder = (id: string, name: string): Folder => ({ id, name, createdAt: '2026-01-01T00:00:00.000Z' });
+const FOLDERS = [folder('f-home', 'Home'), folder('f-work', 'Work'), folder('f-empty', 'Empty')];
+
+function facts(name: string, change: Partial<AgentFacts> = {}, agentChange: Partial<Agent> = {}): AgentFacts {
+  const agent: Agent = {
+    id: `agent-${name.toLowerCase().replaceAll(' ', '-')}`,
+    name,
+    description: '',
+    workspace: { kind: 'dedicated', dir: '/data/workspaces/x' },
+    avatar: { kind: 'bot', shape: 'chat', color: '#6b7280', finish: 'flat' },
+    provider: BOUND,
+    folderId: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    ...agentChange,
+  };
+  return { agent, providerReady: true, approvalChats: [], failed: false, working: null, unread: false, lastMessage: null, ...change };
+}
+
+const shown = (groups: ReturnType<typeof groupAgents>) =>
+  groups.flatMap((group) => [`# ${sectionKey(group.section)}`, ...group.entries.map(({ agent, status }) => `${agent.name}: ${JSON.stringify(status)}`)]);
+
+it('pins agents that need you or are working on top, then Agents, then each folder; folders always show', () => {
+  const all = [
+    facts('Reading Buddy', { approvalChats: ['t1'], working: 'running' }, { folderId: 'f-home' }),
+    facts('errand Bot', { working: 'running' }),
+    facts('Zed Helper', {}, { provider: { kind: 'unbound' } }),
+    facts('Inbox Helper', {}, { folderId: 'f-work' }),
+    facts('Garden Pal', { providerReady: false, working: 'running' }),
+    facts('Alarm Clock', { working: 'queued' }),
+    facts('Notes', { failed: true }),
+    facts('Mail Sorter', { unread: true }, { folderId: 'f-home' }),
+    facts('Unopened', { providerReady: null }),
+    facts('Lost Folder', {}, { folderId: 'f-gone' }),
+  ];
+  expect(shown(groupAgents(all, FOLDERS, ''))).toMatchInlineSnapshot(`
+    [
+      "# needs-you",
+      "Garden Pal: {"kind":"needs-you","reason":"provider"}",
+      "Notes: {"kind":"needs-you","reason":"failed"}",
+      "Reading Buddy: {"kind":"needs-approval","threadIds":["t1"]}",
+      "Zed Helper: {"kind":"needs-you","reason":"unbound"}",
+      "# working",
+      "Alarm Clock: {"kind":"queued"}",
+      "errand Bot: {"kind":"working"}",
+      "# agents",
+      "Lost Folder: {"kind":"idle"}",
+      "Unopened: {"kind":"idle"}",
+      "# folder-f-home",
+      "Mail Sorter: {"kind":"unread"}",
+      "# folder-f-work",
+      "Inbox Helper: {"kind":"idle"}",
+      "# folder-f-empty",
+    ]
+  `);
+});
+
+it('filters by name and description, ignoring case, and hides sections with no match', () => {
+  const all = [facts('Errand Bot', {}, { description: 'Groceries and pharmacy runs', folderId: 'f-home' }), facts('Reading Buddy', {}, { description: 'Book notes' }), facts('Inbox Helper')];
+  expect({
+    byName: shown(groupAgents(all, FOLDERS, 'BUDDY')),
+    byDescription: shown(groupAgents(all, FOLDERS, 'grocer')),
+    none: groupAgents(all, FOLDERS, 'zzz'),
+  }).toMatchInlineSnapshot(`
+    {
+      "byDescription": [
+        "# folder-f-home",
+        "Errand Bot: {"kind":"idle"}",
+      ],
+      "byName": [
+        "# agents",
+        "Reading Buddy: {"kind":"idle"}",
+      ],
+      "none": [],
+    }
+  `);
+});

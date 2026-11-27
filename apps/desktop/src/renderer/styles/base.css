@@ -1,0 +1,232 @@
+/* Element defaults, buttons, inputs and small shared pieces. Colours come from tokens.css only. */
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+html {
+  -webkit-font-smoothing: antialiased;
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-disabled) transparent;
+}
+body {
+  background: var(--surface-0);
+  color: var(--text-1);
+  font: var(--t-body);
+  overflow: hidden;
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+code,
+.mono {
+  font: var(--t-mono);
+}
+kbd {
+  font: var(--t-meta);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+::selection {
+  background: var(--accent-soft);
+}
+:focus {
+  outline: none;
+}
+:focus-visible {
+  outline: var(--focus-width) solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Buttons: a plain reset, then variants. Older screens use the bare variant classes. */
+button {
+  cursor: pointer;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  padding: 0;
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+button:disabled {
+  cursor: default;
+}
+.btn,
+button.primary,
+button.secondary,
+button.ghost,
+button.danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  min-height: var(--hit-primary);
+  padding: 0 var(--s-3);
+  font: var(--t-ui-strong);
+  white-space: nowrap;
+}
+.primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+.secondary {
+  background: var(--surface-2);
+  border-color: var(--hairline-strong);
+  color: var(--text-1);
+}
+.secondary:hover:not(:disabled) {
+  background-image: linear-gradient(var(--hover), var(--hover));
+}
+.ghost {
+  color: var(--text-2);
+}
+.ghost:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text-1);
+}
+button.danger,
+.btn.danger {
+  background: var(--danger);
+  color: var(--on-danger);
+}
+:is(.btn, button.primary, button.secondary, button.ghost, button.danger):disabled {
+  background: var(--selected);
+  border-color: transparent;
+  color: var(--text-disabled);
+}
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--hit);
+  height: var(--hit);
+  flex: none;
+  color: var(--text-2);
+}
+.icon-btn:hover:not(:disabled),
+.icon-btn[aria-expanded='true'] {
+  background: var(--hover);
+  color: var(--text-1);
+}
+.icon {
+  flex: none;
+  display: block;
+}
+.tooltip-anchor {
+  display: inline-flex;
+}
+
+/* Text fields */
+input[type='text'],
+input[type='search'],
+input[type='number'],
+input:not([type]),
+select,
+textarea {
+  min-height: var(--hit);
+  padding: var(--s-1) var(--s-2);
+  background: var(--surface-2);
+  border: 1px solid var(--control-edge);
+  border-radius: var(--r-sm);
+  font: var(--t-ui);
+  color: var(--text-1);
+}
+:is(input, select, textarea):focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 calc(var(--focus-width) - 1px) var(--accent);
+}
+::placeholder {
+  color: var(--text-3);
+}
+input[type='search']::-webkit-search-cancel-button {
+  display: none;
+}
+input[type='checkbox'] {
+  accent-color: var(--accent);
+}
+
+/* Small shared pieces */
+.spacer {
+  flex: 1;
+}
+.row {
+  display: flex;
+  gap: var(--s-2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+.muted {
+  color: var(--text-2);
+}
+.path {
+  font: var(--t-mono);
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kicker {
+  font: var(--t-meta);
+  color: var(--text-3);
+  letter-spacing: 0.02em;
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.status-dot,
+.unread-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-pill);
+  flex: none;
+}
+.status-dot.accent,
+.unread-dot {
+  background: var(--accent);
+}
+.status-dot.warn {
+  background: var(--warn);
+}
+.status-dot.danger {
+  background: var(--danger);
+}
+.status-dot.ok {
+  background: var(--ok);
+}
+.status-dot.muted {
+  background: var(--text-3);
+}
+.status-dot.none {
+  visibility: hidden;
+}
+
+/* Window chrome: the top bars drag the window; every control in them stays clickable. */
+.drag {
+  -webkit-app-region: drag;
+  user-select: none;
+}
+.drag :is(button, input, select, textarea, a, [role='separator'], .tooltip-anchor) {
+  -webkit-app-region: no-drag;
+}

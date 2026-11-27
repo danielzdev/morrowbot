@@ -9,6 +9,8 @@ import { openThreadSession, type ThreadSession } from './thread-session.ts';
 export interface ThreadActivity {
   readonly agentId: string;
   readonly activity: ChatActivity;
+  /** The chat's last reply failed and no turn has started since. */
+  readonly failed: boolean;
 }
 
 /** The open chats. Each keeps its draft while the user switches tabs, and all reload after a host restart. */
@@ -39,7 +41,7 @@ export function createChatHub(options: ChatHubOptions): ChatHub {
   const activity = new Store<Readonly<Record<string, ThreadActivity>>>({});
   const setActivity = (threadId: string, next: ThreadActivity | undefined): void => {
     const current = activity.get()[threadId];
-    if (current?.agentId === next?.agentId && current?.activity === next?.activity) return;
+    if (current?.agentId === next?.agentId && current?.activity === next?.activity && current?.failed === next?.failed) return;
     activity.update((all) => {
       const others = Object.fromEntries(Object.entries(all).filter(([key]) => key !== threadId));
       return next === undefined ? others : { ...others, [threadId]: next };
@@ -66,17 +68,19 @@ export function createChatHub(options: ChatHubOptions): ChatHub {
         }
         const { agentId } = view.value.thread;
         const next = nextActivity(activity.get()[threadId]?.activity, view.value);
+        const last = view.value.messages.at(-1);
+        const failed = view.value.activeTurn === null && last?.kind === 'assistant' && last.outcome.kind === 'failed';
         if (next !== 'completed') settle(threadId);
         else if (!completed.has(threadId)) {
           completed.set(
             threadId,
             setTimeout(() => {
               completed.delete(threadId);
-              setActivity(threadId, { agentId, activity: 'idle' });
+              setActivity(threadId, { agentId, activity: 'idle', failed });
             }, options.completedMs ?? COMPLETED_MS),
           );
         }
-        setActivity(threadId, { agentId, activity: next });
+        setActivity(threadId, { agentId, activity: next, failed });
       }),
     );
   };

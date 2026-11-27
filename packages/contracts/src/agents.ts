@@ -51,6 +51,18 @@ export const ProviderBinding = z.discriminatedUnion('kind', [
 ]);
 export type ProviderBinding = z.infer<typeof ProviderBinding>;
 
+const FolderName = z.string().trim().min(1).max(80);
+
+/** A user-made group of agents in the sidebar. */
+export const Folder = z.strictObject({ id: EntityId, name: FolderName, createdAt: Timestamp });
+export type Folder = z.infer<typeof Folder>;
+
+export const CreateFolderRequest = z.strictObject({ name: FolderName });
+export type CreateFolderRequest = z.infer<typeof CreateFolderRequest>;
+
+export const UpdateFolderRequest = z.strictObject({ name: FolderName });
+export type UpdateFolderRequest = z.infer<typeof UpdateFolderRequest>;
+
 const AgentName = z.string().trim().min(1).max(200);
 const AgentDescription = z.string().max(2000);
 
@@ -61,6 +73,7 @@ export const Agent = z.strictObject({
   workspace: AgentWorkspace,
   avatar: AgentAvatar,
   provider: ProviderBinding,
+  folderId: EntityId.nullable(),
   createdAt: Timestamp,
   updatedAt: Timestamp,
 });
@@ -72,6 +85,7 @@ export const CreateAgentRequest = z.strictObject({
   workspace: AgentWorkspaceRequest.default({ kind: 'dedicated' }),
   avatar: AgentAvatar.default(DEFAULT_AVATAR),
   provider: ProviderBinding.default({ kind: 'unbound' }),
+  folderId: EntityId.nullable().default(null),
 });
 export type CreateAgentRequest = z.infer<typeof CreateAgentRequest>;
 
@@ -80,8 +94,20 @@ export const UpdateAgentRequest = z.strictObject({
   description: AgentDescription.optional(),
   avatar: AgentAvatar.optional(),
   provider: ProviderBinding.optional(),
+  /** `null` moves the agent out of its folder; left out, the folder is unchanged. */
+  folderId: EntityId.nullable().optional(),
 });
 export type UpdateAgentRequest = z.infer<typeof UpdateAgentRequest>;
+
+/** The newest non-empty message of an agent, across all its threads, as the sidebar previews it. */
+export const LastMessage = z.strictObject({
+  agentId: EntityId,
+  threadId: EntityId,
+  kind: z.enum(['user', 'assistant']),
+  preview: z.string().max(401),
+  at: Timestamp,
+});
+export type LastMessage = z.infer<typeof LastMessage>;
 
 /** The contents of the agent's `AGENTS.md` instruction file. */
 export const AgentInstructions = z.strictObject({ content: z.string().max(1_000_000) });

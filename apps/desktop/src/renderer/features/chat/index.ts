@@ -5,3 +5,4 @@ export { Composer } from './Composer.tsx';
 export { describeOutcome, type OutcomeNote } from './outcome.ts';
 export { applyEvent, viewOf, type ThreadView } from './thread-model.ts';
 export { openThreadSession, type ThreadScreen, type ThreadSession } from './thread-session.ts';
+export { chatMarkdown } from './chat-markdown.ts';

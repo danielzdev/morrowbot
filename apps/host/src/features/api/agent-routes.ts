@@ -8,13 +8,13 @@ import type { ApiServices } from './ports.ts';
 import { failure, json, noContent, notFound } from './reply.ts';
 import { parseBody, type Route } from './route.ts';
 
-export function agentRoutes({ agents, chat }: ApiServices): Route[] {
+export function agentRoutes({ agents, folders, chat }: ApiServices): Route[] {
   return [
     {
       method: 'GET',
       path: '/api/agents',
       handle: () => {
-        const body: AgentList = { agents: agents.list() };
+        const body: AgentList = { agents: agents.list(), folders: folders.list(), lastMessages: agents.lastMessages() };
         return json(200, body);
       },
     },
@@ -47,8 +47,15 @@ export function agentRoutes({ agents, chat }: ApiServices): Route[] {
       handle: async (context) => {
         const request = await parseBody(context, UpdateAgentRequest);
         if (request.kind === 'rejected') return request.reply;
-        const agent = agents.update(context.params.get('id'), request.value);
-        return agent === undefined ? notFound('Agent') : json(200, agent);
+        const updated = agents.update(context.params.get('id'), request.value);
+        switch (updated.kind) {
+          case 'updated':
+            return json(200, updated.agent);
+          case 'not-found':
+            return notFound('Agent');
+          case 'invalid':
+            return failure('invalid_request', updated.reason);
+        }
       },
     },
     {

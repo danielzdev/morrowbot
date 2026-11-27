@@ -5,6 +5,7 @@ import type { Duplex } from 'node:stream';
 import { EventClientFrame, type EventServerFrame } from '@morrowbot/contracts';
 import { WebSocketServer, type RawData, type WebSocket } from 'ws';
 import { agentRoutes } from './agent-routes.ts';
+import { folderRoutes } from './folder-routes.ts';
 import { pluginRoutes } from './plugin-routes.ts';
 import type { ApiServices } from './ports.ts';
 import { failure, readJson, send, type Reply } from './reply.ts';
@@ -30,7 +31,12 @@ export interface ApiServer {
 
 /** Serves the local HTTP + WebSocket API on 127.0.0.1 only. */
 export async function startApiServer(options: ApiServerOptions): Promise<ApiServer> {
-  const routes = [...agentRoutes(options.services), ...threadRoutes(options.services), ...pluginRoutes(options.services)];
+  const routes = [
+    ...agentRoutes(options.services),
+    ...folderRoutes(options.services),
+    ...threadRoutes(options.services),
+    ...pluginRoutes(options.services),
+  ];
   const sockets = new WebSocketServer({ noServer: true });
   let port = options.address.port;
 
