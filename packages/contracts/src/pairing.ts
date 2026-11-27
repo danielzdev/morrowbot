@@ -12,11 +12,19 @@ export type DevicePlatform = z.infer<typeof DevicePlatform>;
 export const HostUrl = z
   .url({ protocol: /^https?$/ })
   .refine((value) => {
-    const url = URL.parse(value);
+    const url = parsedUrl(value);
     return url !== null && url.pathname === '/' && url.search === '' && url.hash === '' && url.username === '' && url.password === '';
   }, 'Use only the scheme, host and port')
   .transform((value) => new URL(value).origin);
 export type HostUrl = z.infer<typeof HostUrl>;
+
+function parsedUrl(value: string): URL | null {
+  try {
+    return new URL(value);
+  } catch {
+    return null;
+  }
+}
 
 /** `url` is the address the device should use; it defaults to the host's own LAN or Tailscale listen address. */
 export const CreatePairingCodeRequest = z.strictObject({ url: HostUrl.optional() });
