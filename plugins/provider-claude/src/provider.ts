@@ -51,18 +51,24 @@ export function createClaudeProvider(): ProviderPlugin {
     return auth;
   };
 
+  /** An answer with no validated account: usage seen before it is no longer shown. */
+  const notReady = (info: ProviderInfo): ProviderInfo => {
+    see({ kind: 'nothing' });
+    return info;
+  };
+
   const providerInfo = async (refresh: boolean): Promise<ProviderInfo> => {
     const { settings, probeCwd } = current();
     const { cliPath } = settings;
-    if ((await statExecutable(cliPath)).kind === 'missing') return missingRuntime();
+    if ((await statExecutable(cliPath)).kind === 'missing') return notReady(missingRuntime());
     const version = await readVersion(cliPath, probeCwd);
     switch (version.kind) {
       case 'missing':
-        return missingRuntime();
+        return notReady(missingRuntime());
       case 'below':
-        return { kind: 'outdated', found: version.version, supported: SUPPORTED_TEXT };
+        return notReady({ kind: 'outdated', found: version.version, supported: SUPPORTED_TEXT });
       case 'unreadable':
-        return { kind: 'error', message: version.reason };
+        return notReady({ kind: 'error', message: version.reason });
       case 'supported':
       case 'above':
         break;
@@ -70,7 +76,7 @@ export function createClaudeProvider(): ProviderPlugin {
     const policy = await checkManagedPolicy();
     if (policy.kind === 'withheld') {
       see({ kind: 'nothing' });
-      return readyInfo(version, policy, null);
+      return readyInfo(version, policy, null, process.platform);
     }
     const auth = await displayAuth(refresh);
     switch (auth.kind) {
@@ -78,13 +84,13 @@ export function createClaudeProvider(): ProviderPlugin {
         see({ kind: 'signed-out' });
         return { kind: 'signed-out', signIn: { kind: 'run-in-terminal', argv: [cliPath, 'auth', 'login'] } };
       case 'not-installed':
-        return missingRuntime();
+        return notReady(missingRuntime());
       case 'failed':
-        return { kind: 'error', message: auth.message };
+        return notReady({ kind: 'error', message: auth.message });
       case 'personal':
       case 'withheld':
         see({ kind: 'account', accountKey: auth.accountKey });
-        return readyInfo(version, policy, auth);
+        return readyInfo(version, policy, auth, process.platform);
     }
   };
 

@@ -43,15 +43,15 @@ it('offers both profiles, with approvals and live usage, only on a tested versio
   const newer = judgeVersion('2.2.1');
   if (tested.kind !== 'supported' || newer.kind !== 'above') throw new Error('unexpected version judgement');
   expect({
-    ready: ProviderInfo.parse(readyInfo(tested, { kind: 'clear' }, personal)),
-    newer: ProviderInfo.parse(readyInfo(newer, { kind: 'clear' }, personal)),
+    ready: ProviderInfo.parse(readyInfo(tested, { kind: 'clear' }, personal, 'darwin')),
+    newer: ProviderInfo.parse(readyInfo(newer, { kind: 'clear' }, personal, 'darwin')),
   }).toMatchInlineSnapshot(`
     {
       "newer": {
         "accountKey": "key",
         "accountLabel": "Claude Max 5x",
         "capabilities": {
-          "approvals": true,
+          "approvals": false,
           "profiles": [],
           "sessions": false,
           "usage": "live",
@@ -166,7 +166,7 @@ it('withholds each profile with every reason, and shows no account when policy k
   if (tested.kind !== 'supported') throw new Error('unexpected version judgement');
   const team = { kind: 'withheld', accountKey: 'team-key', reason: 'Team plans are not supported.' } as const;
   const info = (policy: Parameters<typeof readyInfo>[1], auth: Parameters<typeof readyInfo>[2]) => {
-    const ready = ProviderInfo.parse(readyInfo(tested, policy, auth));
+    const ready = ProviderInfo.parse(readyInfo(tested, policy, auth, 'darwin'));
     return ready.kind === 'ready'
       ? { accountKey: ready.accountKey, accountLabel: ready.accountLabel, profiles: ready.capabilities.profiles, withheld: ready.capabilities.withheld }
       : ready;
@@ -210,6 +210,37 @@ it('withholds each profile with every reason, and shows no account when policy k
           },
         ],
       },
+    }
+  `);
+});
+
+it('offers only read-only on Linux, where workspace-write has not been checked', () => {
+  const tested = judgeVersion('2.1.332');
+  if (tested.kind !== 'supported') throw new Error('unexpected version judgement');
+  const linux = ProviderInfo.parse(readyInfo(tested, { kind: 'clear' }, personal, 'linux'));
+  expect(linux.kind === 'ready' ? linux.capabilities : linux).toMatchInlineSnapshot(`
+    {
+      "approvals": false,
+      "profiles": [
+        {
+          "access": "read-only",
+          "modes": [
+            "interactive",
+            "background",
+          ],
+          "readsOutsideCwd": false,
+          "vendorSettings": "isolated",
+        },
+      ],
+      "sessions": false,
+      "usage": "live",
+      "withheld": [
+        {
+          "access": "workspace-write",
+          "reason": "Workspace-write for Claude has been checked only on macOS so far, not on linux.",
+          "vendorSettings": "isolated",
+        },
+      ],
     }
   `);
 });

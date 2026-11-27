@@ -3,7 +3,10 @@ import { expect, it } from 'vitest';
 import { parseRateLimit } from './rate-limit.ts';
 import { createTurnReader } from './reader.ts';
 
-/** A `rate_limit_event` as Claude Code 2.1.332 prints it, with the five-hour window refusing. */
+/**
+ * Written by hand: the recorded 2.1.332 events (`fixtures/2.1.332/`) are all `allowed`. It is their
+ * shape with the five-hour window refusing; no refusal has been recorded yet.
+ */
 const rejected = {
   type: 'rate_limit_event',
   rate_limit_info: {

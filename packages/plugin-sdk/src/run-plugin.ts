@@ -145,6 +145,13 @@ async function runTurn(
     if (!ended) send({ kind: 'turn-chunk', turnId, chunk });
   };
   const approvals = createTurnApprovals({ mode: request.mode, emit });
+  controller.signal.addEventListener(
+    'abort',
+    () => {
+      approvals.close();
+    },
+    { once: true },
+  );
   turns.set(turnId, { controller, approvals });
   let end: TurnEnd;
   try {

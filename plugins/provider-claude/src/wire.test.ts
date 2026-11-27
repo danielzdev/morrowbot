@@ -86,12 +86,12 @@ it('asks before an interactive workspace-write turn writes .git/x, and allows it
         },
         {
           "input": {
-            "content": "hi",
+            "content": "(2 characters)",
             "file_path": "~/work/.git/x",
           },
           "kind": "tool-start",
           "name": "Write",
-          "toolUseId": "toolu_01JZtNfdtDvX6Qu2TkbXwGDX",
+          "toolUseId": "toolu_01",
         },
         {
           "card": "Write .git/x: Claude requested permissions to edit ~/work/.git/x which is a sensitive file.",
@@ -119,7 +119,7 @@ it('asks before an interactive workspace-write turn writes .git/x, and allows it
         {
           "kind": "tool-end",
           "outcome": "ok",
-          "toolUseId": "toolu_01JZtNfdtDvX6Qu2TkbXwGDX",
+          "toolUseId": "toolu_01",
         },
         {
           "text": "I created the file \`.git/x\` containing \`hi\`, at \`/Users/tester/work/.git/x\`. I didn't run anything else.",
@@ -178,14 +178,14 @@ it('denies writes the CLI refuses without a card: outside the workspace, and .gi
         {
           "kind": "tool-end",
           "outcome": "error",
-          "toolUseId": "toolu_01NVf9AsM7mWTdq4AgGhyh1z",
+          "toolUseId": "toolu_01",
         },
       ],
       "outside": [
         {
           "kind": "tool-end",
           "outcome": "error",
-          "toolUseId": "toolu_0186RmxLHwL1w4AyYUSAT9YP",
+          "toolUseId": "toolu_01",
         },
       ],
     }
@@ -201,17 +201,17 @@ it('in read-only, has no Edit tool and refuses to read a file in the home folder
         {
           "input": {
             "file_path": "~/work/a.txt",
-            "new_string": "bye",
-            "old_string": "hello",
+            "new_string": "(3 characters)",
+            "old_string": "(5 characters)",
           },
           "kind": "tool-start",
           "name": "Edit",
-          "toolUseId": "toolu_016pS8uaphQxJHAsQas1M4wS",
+          "toolUseId": "toolu_01",
         },
         {
           "kind": "tool-end",
           "outcome": "error",
-          "toolUseId": "toolu_016pS8uaphQxJHAsQas1M4wS",
+          "toolUseId": "toolu_01",
         },
         {
           "usage": [
@@ -253,12 +253,12 @@ it('in read-only, has no Edit tool and refuses to read a file in the home folder
           },
           "kind": "tool-start",
           "name": "Read",
-          "toolUseId": "toolu_013hjEqRz4ti6FZoeW6GoawD",
+          "toolUseId": "toolu_01",
         },
         {
           "kind": "tool-end",
           "outcome": "error",
-          "toolUseId": "toolu_013hjEqRz4ti6FZoeW6GoawD",
+          "toolUseId": "toolu_01",
         },
         {
           "text": "I couldn't read \`/Users/tester/x\`. The Read tool is restricted to the working directory (\`/Users/tester/work\`), and the file is outside it. I didn't retry or use another tool, as you asked.
@@ -266,6 +266,85 @@ it('in read-only, has no Edit tool and refuses to read a file in the home folder
     If you want me to read it, you could copy it into the working directory or tell me a different path inside it. Or you could allow reads outside the working directory and I'll try again.",
         },
         "stdin closed",
+      ],
+    }
+  `);
+});
+
+it('edits inside the workspace without a card, showing the file text only as its length', async () => {
+  const { log, outcome } = await replay('write-inside', { asks: true, choice: ALLOW });
+  expect({ log: log.filter((entry) => typeof entry === 'object' && entry !== null && !('usage' in entry) && !('text' in entry)), outcome }).toMatchInlineSnapshot(`
+    {
+      "log": [
+        {
+          "input": {
+            "content": "(2 characters)",
+            "file_path": "~/work/notes.txt",
+          },
+          "kind": "tool-start",
+          "name": "Write",
+          "toolUseId": "toolu_01",
+        },
+        {
+          "kind": "tool-end",
+          "outcome": "ok",
+          "toolUseId": "toolu_01",
+        },
+      ],
+      "outcome": {
+        "finishReason": "stop",
+        "kind": "completed",
+      },
+    }
+  `);
+});
+
+it('denies a permission request without a card when the turn may not ask, and refuses control requests it does not know', async () => {
+  const written: unknown[] = [];
+  const asked: string[] = [];
+  const wire = createTurnWire({
+    home: HOME,
+    accountKey: 'key',
+    asks: false,
+    ask: (request) => {
+      asked.push(request.summary);
+      return Promise.resolve(ALLOW);
+    },
+    emit: () => undefined,
+    onUsage: () => undefined,
+    write: (line) => {
+      const parsed: unknown = JSON.parse(line);
+      written.push(parsed);
+    },
+    end: () => undefined,
+  });
+  const input = { file_path: `${HOME}/work/.git/x`, content: 'hi' };
+  wire.read(JSON.stringify({ type: 'control_request', request_id: 'r1', request: { subtype: 'can_use_tool', tool_name: 'Write', input, description: '' } }));
+  wire.read(JSON.stringify({ type: 'control_request', request_id: 'r2', request: { subtype: 'elicitation', message: 'Pick one' } }));
+  await Promise.resolve();
+  expect({ asked, written }).toMatchInlineSnapshot(`
+    {
+      "asked": [],
+      "written": [
+        {
+          "response": {
+            "request_id": "r1",
+            "response": {
+              "behavior": "deny",
+              "message": "MorrowBot does not ask for approval in this access level, so this was denied.",
+            },
+            "subtype": "success",
+          },
+          "type": "control_response",
+        },
+        {
+          "response": {
+            "error": "MorrowBot does not answer "elicitation" control requests",
+            "request_id": "r2",
+            "subtype": "error",
+          },
+          "type": "control_response",
+        },
       ],
     }
   `);

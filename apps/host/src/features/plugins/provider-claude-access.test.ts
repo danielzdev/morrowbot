@@ -1,8 +1,8 @@
-import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Agent, MessageList, SendMessageResponse, Thread, type AccessLevel, type ChatEvent, type ProviderBinding } from '@morrowbot/contracts';
+import { Agent, MessageList, SendMessageResponse, Thread, UsageResponse, type AccessLevel, type ChatEvent, type ProviderBinding } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { startTestHost, type EventClient, type TestHost } from '../../testing/test-host.ts';
 
@@ -80,7 +80,10 @@ const reparse = (json: string): unknown => JSON.parse(json);
 
 const written = (workspace: string) => readFile(path.join(workspace, '.git', 'x'), 'utf8').catch(() => null);
 
-it('asks before a workspace-write turn writes .git/x: Allow writes it, Deny leaves it unwritten', async () => {
+/** Workspace-write is offered on macOS only (`plugins/provider-claude/src/info.ts`). */
+const MAC = process.platform === 'darwin';
+
+it.runIf(MAC)('asks before a workspace-write turn writes .git/x: Allow writes it, Deny leaves it unwritten', async () => {
   const allowed = await agentThread('workspace-write');
   const allowTurn = await start(allowed.thread, 'write-git');
   const allowReply = await answer(allowed.thread, allowTurn, 'allow');
@@ -145,7 +148,7 @@ it('asks before a workspace-write turn writes .git/x: Allow writes it, Deny leav
   `);
 });
 
-it('stops a turn waiting on an approval, clears the card, writes nothing, and runs the next turn', async () => {
+it.runIf(MAC)('stops a turn waiting on an approval, clears the card, writes nothing, and runs the next turn', async () => {
   const { thread, workspace } = await agentThread('workspace-write');
   const generationId = await start(thread, 'write-git');
   await events.until((event) => event.kind === 'generation.approval-requested' && event.generationId === generationId);
@@ -273,4 +276,19 @@ it("shows a turn's rate-limit windows as live usage, and fails a refused turn as
       ],
     }
   `);
+});
+
+it("drops the old account's live usage once provider info sees another account", async () => {
+  const { thread } = await agentThread('read-only');
+  await events.finished(await start(thread, 'rate-limit'));
+  const before = UsageResponse.parse((await host.call('GET', '/api/plugins/provider-claude/usage')).body).usage;
+  await mkdir(path.join(home, 'fake-claude'), { recursive: true });
+  const other = { loggedIn: true, authMethod: 'claude.ai', apiProvider: 'firstParty', subscriptionType: 'pro', planTier: 'pro', email: 'other@example.com' };
+  await writeFile(path.join(home, 'fake-claude', 'auth.json'), JSON.stringify(other));
+  expect((await host.call('GET', '/api/plugins/provider-claude/info?refresh=1')).status).toBe(200);
+  const after = UsageResponse.parse((await host.call('GET', '/api/plugins/provider-claude/usage')).body).usage;
+  expect({
+    before: before.kind,
+    after: { kind: after.kind, reason: after.kind === 'unavailable' ? after.reason : null, sameAccount: after.accountKey === before.accountKey },
+  }).toEqual({ before: 'available', after: { kind: 'unavailable', reason: 'not-yet-observed', sameAccount: false } });
 });

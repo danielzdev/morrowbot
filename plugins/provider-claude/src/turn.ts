@@ -1,5 +1,6 @@
 import { openCommand, type ProviderError, type TurnContext, type TurnEnd } from '@morrowbot/plugin-sdk';
 import { readAuth } from './auth.ts';
+import { platformReason } from './info.ts';
 import { buildInvocation, type ClaudeAccess } from './invocation.ts';
 import { checkManagedPolicy } from './policy.ts';
 import { failed } from './reader.ts';
@@ -102,6 +103,8 @@ async function preflight({ request, signal }: TurnContext, cliPath: string): Pro
       reason: `provider-claude runs read-only or workspace-write turns with MorrowBot's own instructions, not ${access} with ${request.vendorSettings} settings.`,
     });
   }
+  const held = platformReason(access, process.platform);
+  if (held !== null) return refuse({ kind: 'access-not-supported', reason: held });
   if (signal.aborted) return refuse({ kind: 'other', message: 'cancelled' });
   return { kind: 'ok', accountKey: auth.accountKey, access };
 }

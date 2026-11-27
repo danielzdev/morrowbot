@@ -102,8 +102,11 @@ export function parseCliLine(line: string, context: LineContext): CliLine {
       return parse(AssistantLine, json, (value) => assistant(value, context));
     case 'user':
       return parse(UserLine, json, user);
-    case 'result':
-      return parse(ResultLine, json, result);
+    case 'result': {
+      const parsed = parse(ResultLine, json, result);
+      if (parsed.kind !== 'malformed') return parsed;
+      return { kind: 'result', result: { kind: 'error', message: `Claude Code ended with ${parsed.problem}`, usage: { kind: 'unavailable' } } };
+    }
     case 'control_request': {
       const request = parseControlRequest(json, context.home);
       return request === null ? { kind: 'malformed', problem: 'a "control_request" line without a request id' } : { kind: 'control', request };

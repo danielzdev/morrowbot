@@ -223,7 +223,7 @@ describe('parseCliLine', () => {
     `);
   });
 
-  it('flags malformed lines and skips blank lines and unknown event types', () => {
+  it('flags malformed lines, skips blank lines and unknown event types, and ends on a result it cannot read', () => {
     expect([
       parse('Warning: something printed to stdout'),
       parse('[1, 2]'),
@@ -245,8 +245,14 @@ describe('parseCliLine', () => {
           "problem": "a JSON value without a "type"",
         },
         {
-          "kind": "malformed",
-          "problem": "a "result" line with an unexpected shape (is_error: Invalid input: expected boolean, received undefined)",
+          "kind": "result",
+          "result": {
+            "kind": "error",
+            "message": "Claude Code ended with a "result" line with an unexpected shape (is_error: Invalid input: expected boolean, received undefined)",
+            "usage": {
+              "kind": "unavailable",
+            },
+          },
         },
         {
           "kind": "skip",

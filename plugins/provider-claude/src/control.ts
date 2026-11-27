@@ -21,12 +21,18 @@ const ControlLine = z.looseObject({
   request: z.looseObject({ subtype: Text }),
 });
 
+/** Shown on the card only: an empty or missing one is left out, never a reason to drop the card. */
+const Shown = z
+  .string()
+  .nullish()
+  .transform((text) => (text?.trim() ? text : null));
+
 const CanUseTool = z.looseObject({
   tool_name: Text,
-  display_name: Text.nullish(),
+  display_name: Shown,
   input: ToolInput,
-  description: Text.nullish(),
-  decision_reason: Text.nullish(),
+  description: Shown,
+  decision_reason: Shown,
 });
 
 /** The summary is shown on a card; a path or reason longer than this is cut. */
@@ -57,7 +63,7 @@ function summaryOf(tool: z.infer<typeof CanUseTool>, home: string | null): strin
   const name = tool.display_name ?? tool.tool_name;
   const path = tool.input.file_path;
   const target = tool.description ?? (typeof path === 'string' ? path : null);
-  const reason = tool.decision_reason ?? null;
+  const reason = tool.decision_reason;
   const text = [target === null ? name : `${name} ${target}`, reason].filter((part) => part !== null).join(': ');
   const shown = tilde(text, home);
   return shown.length <= MAX_SUMMARY_CHARS ? shown : `${shown.slice(0, MAX_SUMMARY_CHARS - 1)}…`;
