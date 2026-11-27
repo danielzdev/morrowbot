@@ -21,3 +21,4 @@ export * from './chat-api.ts';
 export * from './host-ipc.ts';
 export * from './usage.ts';
 export * from './pairing.ts';
+export * from './profiles.ts';

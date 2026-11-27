@@ -7,6 +7,7 @@ import { createProvidersModel, type ProviderCard, type ProvidersModel } from '..
 import { createApi, type Api } from '../shared/api.ts';
 import { createAppearance, type AppearanceModel } from '../shared/appearance.ts';
 import { createChatPrefs, type ChatPrefsModel } from '../shared/chat-prefs.ts';
+import { createUpdates, type UpdatesModel } from '../shared/updates.ts';
 
 export interface Models {
   readonly api: Api;
@@ -16,6 +17,7 @@ export interface Models {
   readonly chats: ChatHub;
   readonly appearance: AppearanceModel;
   readonly chatPrefs: ChatPrefsModel;
+  readonly updates: UpdatesModel;
 }
 
 export function cardOf(providers: ProvidersModel, pluginId: string): ProviderCard | undefined {
@@ -67,5 +69,5 @@ export function createModels(bridge: MorrowbotBridge): Models {
       }
     },
   });
-  return { api, agents, providers, plugins, chats, appearance: createAppearance(document.documentElement), chatPrefs: createChatPrefs() };
+  return { api, agents, providers, plugins, chats, appearance: createAppearance(document.documentElement), chatPrefs: createChatPrefs(), updates: createUpdates(bridge) };
 }

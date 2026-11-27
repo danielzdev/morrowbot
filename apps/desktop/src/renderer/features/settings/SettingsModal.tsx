@@ -6,6 +6,7 @@ import type { ChatPrefsModel } from '../../shared/chat-prefs.ts';
 import { PLATFORM } from '../../shared/keys.ts';
 import type { AppInfo } from '../../shared/privacy.ts';
 import { SettingsShell } from '../../shared/ui/SettingsShell.tsx';
+import type { UpdatesModel } from '../../shared/updates.ts';
 import { useStore } from '../../shared/use-store.ts';
 import { AboutSection } from './AboutSection.tsx';
 import { AppearanceSection } from './AppearanceSection.tsx';
@@ -27,6 +28,7 @@ export interface SettingsModalProps {
   readonly appearance: AppearanceModel;
   readonly chatPrefs: ChatPrefsModel;
   readonly info: AppInfo | null;
+  readonly updates: UpdatesModel;
   readonly bridge: Pick<MorrowbotBridge, 'loginItem' | 'setOpenAtLogin' | 'revealPath'>;
   /** Settings › Providers, from `features/providers` (wired in by `app/`): opened at `initial`, naming its selection for the breadcrumb. */
   readonly providers: (slot: { readonly initial: string | null; readonly onTrail: (name: string | null) => void }) => ComponentChildren;
@@ -60,6 +62,7 @@ function reveal(body: HTMLElement, rowId: string, reducedMotion: boolean): (() =
 export function SettingsModal(props: SettingsModalProps) {
   const appearance = useStore(props.appearance.state);
   const chatPrefs = useStore(props.chatPrefs.state);
+  const update = useStore(props.updates.status);
   const [start] = useState(() => targetOf(props.link));
   const [section, setSection] = useState<SettingsSection>(start.section);
   const [query, setQuery] = useState('');
@@ -99,7 +102,15 @@ export function SettingsModal(props: SettingsModalProps) {
       case 'usage':
         return props.usage;
       case 'about':
-        return <AboutSection info={props.info} onRevealData={() => void props.bridge.revealPath({ kind: 'data-dir' })} />;
+        return (
+          <AboutSection
+            info={props.info}
+            update={update}
+            onRevealData={() => void props.bridge.revealPath({ kind: 'data-dir' })}
+            onCheckForUpdates={props.updates.check}
+            onRestartToUpdate={props.updates.restart}
+          />
+        );
     }
   };
 

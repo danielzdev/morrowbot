@@ -36,12 +36,6 @@ export function parseRevealTarget(options: FromRenderer): RevealTarget {
   return parsed.data;
 }
 
-/** The data folder the host uses: the same rule as the host's own config. */
-export function dataDirOf(env: NodeJS.ProcessEnv): string {
-  const configured = env.MORROWBOT_DATA_DIR;
-  return configured !== undefined && path.isAbsolute(configured) ? configured : path.join(homedir(), '.morrowbot');
-}
-
 /** The user's plugins folder: the same rule as the host's own config. */
 export function pluginsDirOf(env: NodeJS.ProcessEnv, dataDir: string): string {
   const configured = env.MORROWBOT_PLUGINS_DIR;

@@ -76,6 +76,10 @@ export function openTestWindow(target: HostTarget): TestWindow {
       seen.push({ relaunch: options });
       return Promise.resolve();
     },
+    updateStatus: () => Promise.resolve({ kind: 'unsupported' }),
+    onUpdateStatus: () => () => undefined,
+    checkForUpdates: () => Promise.resolve({ kind: 'unsupported' }),
+    restartToUpdate: () => Promise.resolve(),
   };
   return {
     bridge,
