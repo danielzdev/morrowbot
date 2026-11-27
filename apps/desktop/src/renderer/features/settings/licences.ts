@@ -7,6 +7,7 @@ export interface Licence {
 
 /** Settings › About › Third-party licences. `checks/licences.test.ts` keeps it in step with the runtime dependencies. */
 export const LICENCES: readonly Licence[] = [
+  { name: 'Croner', npm: 'croner', licence: 'MIT' },
   { name: 'Electron', npm: 'electron', licence: 'MIT' },
   { name: 'open-bot-avatar', npm: 'open-bot-avatar', licence: 'MIT' },
   { name: 'Preact', npm: 'preact', licence: 'MIT' },

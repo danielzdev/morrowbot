@@ -2,6 +2,7 @@ import type {
   Agent,
   AgentInstructionsView,
   ClaimPairingRequest,
+  CreateRoutineRequest,
   BlockedGroup,
   ChatEvent,
   CreateAgentRequest,
@@ -11,12 +12,16 @@ import type {
   Folder,
   LastMessage,
   Message,
+  OpenWaitRequest,
   PairedDevice,
   PluginConfig,
   PluginManifest,
   PluginStatus,
   ProviderInfo,
   ProviderUnavailableReason,
+  Routine,
+  RoutineRun,
+  RunRoutineRequest,
   SessionChoice,
   SessionChoiceReason,
   StopGenerationResponse,
@@ -24,8 +29,10 @@ import type {
   ThreadState,
   UpdateAgentRequest,
   UpdateFolderRequest,
+  UpdateRoutineRequest,
   UsageResponse,
   UserMessage,
+  Wait,
 } from '@morrowbot/contracts';
 
 export interface ApiAgents {
@@ -144,10 +151,36 @@ export interface ApiPairing {
   revoke(deviceId: string): boolean;
 }
 
+export type ApiRoutineSave =
+  | { readonly kind: 'saved'; readonly routine: Routine }
+  | { readonly kind: 'not-found' }
+  | { readonly kind: 'invalid'; readonly reason: string };
+
+export interface ApiRoutines {
+  list(agentId?: string): Routine[];
+  create(request: CreateRoutineRequest): ApiRoutineSave;
+  update(id: string, request: UpdateRoutineRequest): ApiRoutineSave;
+  delete(id: string): boolean;
+  run(
+    id: string,
+    request: RunRoutineRequest,
+  ): Promise<
+    | { readonly kind: 'started'; readonly run: RoutineRun }
+    | { readonly kind: 'not-found' }
+    | { readonly kind: 'busy' }
+    | { readonly kind: 'invalid'; readonly reason: string }
+    | { readonly kind: 'wait-closed' }
+  >;
+  listWaits(): Wait[];
+  openWait(request: OpenWaitRequest): { readonly kind: 'opened'; readonly wait: Wait } | { readonly kind: 'invalid'; readonly reason: string };
+  closeWait(waitId: string): boolean;
+}
+
 export interface ApiServices {
   readonly agents: ApiAgents;
   readonly folders: ApiFolders;
   readonly chat: ApiChat;
   readonly plugins: ApiPlugins;
   readonly pairing: ApiPairing;
+  readonly routines: ApiRoutines;
 }

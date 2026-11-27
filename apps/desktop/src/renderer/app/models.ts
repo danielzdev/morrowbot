@@ -3,6 +3,7 @@ import type { MorrowbotBridge } from '../bridge.ts';
 import { createAgentsModel, type AgentsModel } from '../features/agents/index.ts';
 import { createChatHub, localDrafts, type ChatHub } from '../features/chat/index.ts';
 import { createPluginsModel, type PluginCard, type PluginsModel } from '../features/plugins/index.ts';
+import { createRoutinesModel, type RoutinesModel } from '../features/routines/index.ts';
 import { createApi } from '../shared/api.ts';
 import { createAppearance, type AppearanceModel } from '../shared/appearance.ts';
 import { createChatPrefs, type ChatPrefsModel } from '../shared/chat-prefs.ts';
@@ -13,6 +14,7 @@ export interface Models {
   readonly chats: ChatHub;
   readonly appearance: AppearanceModel;
   readonly chatPrefs: ChatPrefsModel;
+  readonly routines: RoutinesModel;
 }
 
 export function cardOf(plugins: PluginsModel, pluginId: string): PluginCard | undefined {
@@ -62,5 +64,6 @@ export function createModels(bridge: MorrowbotBridge): Models {
       }
     },
   });
-  return { agents, plugins, chats, appearance: createAppearance(document.documentElement), chatPrefs: createChatPrefs() };
+  const routines = createRoutinesModel({ api, bridge, onPosted: (agentId) => void agents.reloadThreads(agentId) });
+  return { agents, plugins, chats, appearance: createAppearance(document.documentElement), chatPrefs: createChatPrefs(), routines };
 }

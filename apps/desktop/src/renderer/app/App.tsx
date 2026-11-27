@@ -42,6 +42,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
       models.chats.close();
       models.plugins.close();
       models.agents.close();
+      models.routines.close();
       models.appearance.close();
     };
   }, [models]);

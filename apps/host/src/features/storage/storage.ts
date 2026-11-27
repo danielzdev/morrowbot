@@ -8,10 +8,13 @@ import { folderRepository, type FolderRepository } from './folders-repo.ts';
 import { generationRepository, type GenerationRepository } from './generations-repo.ts';
 import { messageRepository, type MessageRepository } from './messages-repo.ts';
 import { pluginSettingsRepository, type PluginSettingsRepository } from './plugins-repo.ts';
+import { routineRunRepository, type RoutineRunRepository } from './routine-runs-repo.ts';
+import { routineRepository, type RoutineRepository } from './routines-repo.ts';
 import { migrate } from './schema.ts';
 import { sessionRepository, type SessionRepository } from './sessions-repo.ts';
 import { threadRepository, type ThreadRepository } from './threads-repo.ts';
 import { usageSnapshotRepository, type UsageSnapshotRepository } from './usage-repo.ts';
+import { waitRepository, type WaitRepository } from './waits-repo.ts';
 
 export interface Storage {
   readonly agents: AgentRepository;
@@ -24,6 +27,9 @@ export interface Storage {
   readonly childGroups: ChildGroupRepository;
   readonly usage: UsageSnapshotRepository;
   readonly devices: DeviceRepository;
+  readonly routines: RoutineRepository;
+  readonly routineRuns: RoutineRunRepository;
+  readonly waits: WaitRepository;
   /** Runs `work` in one write transaction (`BEGIN IMMEDIATE`), rolled back if it throws. Not reentrant. */
   transaction<T>(work: () => T): T;
   close(): void;
@@ -49,6 +55,9 @@ export function openStorage(file: string, now: () => string): Storage {
       childGroups: childGroupRepository(db),
       usage: usageSnapshotRepository(db),
       devices: deviceRepository(db),
+      routines: routineRepository(db),
+      routineRuns: routineRunRepository(db),
+      waits: waitRepository(db),
       transaction: (work) => {
         db.exec('BEGIN IMMEDIATE');
         try {

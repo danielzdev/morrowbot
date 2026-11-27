@@ -11,6 +11,7 @@ import { pluginRoutes } from './plugin-routes.ts';
 import type { ApiServices } from './ports.ts';
 import { failure, readJson, send, type Reply } from './reply.ts';
 import { matchPath, type Params, type Route } from './route.ts';
+import { routineRoutes } from './routine-routes.ts';
 import { threadRoutes } from './thread-routes.ts';
 
 export const EVENTS_PATH = '/api/events';
@@ -54,6 +55,7 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
     ...folderRoutes(options.services),
     ...threadRoutes(options.services),
     ...pluginRoutes(options.services),
+    ...routineRoutes(options.services),
     ...pairingRoutes({
       pairing: options.services.pairing,
       hostName: options.hostName,

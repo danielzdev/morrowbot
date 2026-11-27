@@ -9,3 +9,6 @@ export type { GenerationRecord, GenerationRepository, SessionState, TurnUsageRec
 export type { SessionKey, SessionRecord, SessionRepository } from './sessions-repo.ts';
 export type { UsageSnapshot, UsageSnapshotRepository } from './usage-repo.ts';
 export type { DeviceRepository } from './devices-repo.ts';
+export type { RoutineRecord, RoutineRepository } from './routines-repo.ts';
+export type { RoutineRunRepository } from './routine-runs-repo.ts';
+export type { WaitRepository } from './waits-repo.ts';

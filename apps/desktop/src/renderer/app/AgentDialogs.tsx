@@ -2,6 +2,7 @@ import type { Agent } from '@morrowbot/contracts';
 import type { MorrowbotBridge } from '../bridge.ts';
 import { AgentSettingsDialog, NewAgentDialog, type AgentSection, type AvatarEditor } from '../features/agents/index.ts';
 import { AvatarPicker, freshAvatar } from '../features/avatar/index.ts';
+import { RoutinesSection } from '../features/routines/index.ts';
 import { displayPath, redact, type AppInfo } from '../shared/privacy.ts';
 import { useStore } from '../shared/use-store.ts';
 import { providerChoicesOf } from './derive.ts';
@@ -73,6 +74,7 @@ export function AgentDialogs(props: {
           onSection={(section) => { props.onDialog({ ...dialog, section }); }}
           choices={choices}
           avatarEditor={avatarEditor}
+          routines={<RoutinesSection model={models.routines} agentId={agent.id} redact={safe} />}
           workspaceLabel={workspaceLabel}
           redact={safe}
           onOpenProviders={providers}

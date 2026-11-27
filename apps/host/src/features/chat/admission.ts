@@ -1,5 +1,5 @@
 import { realpath } from 'node:fs/promises';
-import type { Message, ProviderUnavailableReason, SessionChoice, SessionChoiceReason, UserMessage } from '@morrowbot/contracts';
+import type { Message, ProviderUnavailableReason, SessionChoice, SessionChoiceReason, TurnMode, UserMessage } from '@morrowbot/contracts';
 import { decideSession, profileAllowed } from './admission-rules.ts';
 import { instructionsHash } from './seed.ts';
 import { laneKey, laneOf, pump, type BoundProvider, type ChatCore, type Turn } from './turn.ts';
@@ -15,7 +15,7 @@ export type AdmitResult =
   | { readonly kind: 'not_continuable'; readonly reason: string };
 
 export type AdmitInput =
-  | { readonly kind: 'send'; readonly text: string }
+  | { readonly kind: 'send'; readonly text: string; readonly mode: TurnMode }
   | { readonly kind: 'continue'; readonly failedMessageId: string };
 
 type Ready = {
@@ -47,7 +47,8 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
       ? { kind: 'provider_unavailable', reason: 'daemon-blocked' }
       : { kind: 'no_provider', reason: `Provider plugin ${pluginId} is not available: ${info.reason}` };
   }
-  const refused = profileAllowed(info.info, binding, 'interactive');
+  const mode: TurnMode = input.kind === 'send' ? input.mode : 'interactive';
+  const refused = profileAllowed(info.info, binding, mode);
   if (refused !== undefined) return { kind: 'no_provider', reason: refused };
   if (info.info.kind !== 'ready' && info.info.kind !== 'ready-models-later') return { kind: 'no_provider', reason: 'not ready' };
   const capabilities = info.info.capabilities;
@@ -148,6 +149,7 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
     accountKey,
     routeKey,
     cwd,
+    mode,
     binding,
     bindingJson: second.ready.bindingJson,
     workspaceDir: second.ready.workspaceDir,
@@ -220,7 +222,7 @@ type Source =
   | { readonly kind: 'refused'; readonly reason: string };
 
 /** A send's new text, or the saved input of the failed or interrupted latest turn being continued. */
-function sourceOf(core: ChatCore, messages: readonly Message[], input: { readonly kind: 'send'; readonly text: string } | { readonly kind: 'continue'; readonly failedMessageId: string }): Source {
+function sourceOf(core: ChatCore, messages: readonly Message[], input: AdmitInput): Source {
   if (input.kind === 'send') return { kind: 'new', text: input.text };
   const latest = messages.at(-1);
   if (latest?.id !== input.failedMessageId) return { kind: 'refused', reason: 'Only the latest message can be continued.' };

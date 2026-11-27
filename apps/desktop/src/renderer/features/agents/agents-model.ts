@@ -36,6 +36,8 @@ export interface AgentsModel {
   /** Deletes the folder; its agents stay, in no folder. */
   deleteFolder(id: string): Promise<void>;
   newThread(agentId: string): Promise<void>;
+  /** Fetches the agent's chats again, such as after a routine posted in a new one. */
+  reloadThreads(agentId: string): Promise<void>;
   openThread(agentId: string, threadId: string): void;
   renameThread(agentId: string, threadId: string, title: string): Promise<void>;
   deleteThread(agentId: string, threadId: string): Promise<void>;
@@ -281,6 +283,7 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
       });
     },
     newThread,
+    reloadThreads: loadThreads,
     openThread: setOpen,
     markFinished: (agentId, threadId) => {
       void refreshSummary();

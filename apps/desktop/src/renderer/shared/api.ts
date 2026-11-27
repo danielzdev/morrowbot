@@ -11,6 +11,9 @@ import {
   PluginList,
   ProviderInfoResponse,
   ReleaseGroupResponse,
+  Routine,
+  RoutineList,
+  RunRoutineResponse,
   SendMessageResponse,
   StopGenerationResponse,
   Thread,
@@ -18,9 +21,11 @@ import {
   ThreadState,
   UsageResponse,
   CreateAgentRequest,
+  type CreateRoutineRequest,
   type PluginConfig,
   type SessionChoice,
   type UpdateAgentRequest,
+  type UpdateRoutineRequest,
 } from '@morrowbot/contracts';
 import { z } from 'zod';
 import type { ApiMethod, MorrowbotBridge } from '../bridge.ts';
@@ -65,6 +70,11 @@ export interface Api {
   recheck(id: string): Promise<ApiResult<ProviderInfoResponse>>;
   usage(id: string, refresh: boolean): Promise<ApiResult<UsageResponse>>;
   releaseGroup(regId: string): Promise<ApiResult<ReleaseGroupResponse>>;
+  listRoutines(agentId: string): Promise<ApiResult<RoutineList>>;
+  createRoutine(request: z.input<typeof CreateRoutineRequest>): Promise<ApiResult<Routine>>;
+  updateRoutine(id: string, request: UpdateRoutineRequest): Promise<ApiResult<Routine>>;
+  deleteRoutine(id: string): Promise<ApiResult<null>>;
+  runRoutine(id: string): Promise<ApiResult<RunRoutineResponse>>;
 }
 
 const at = (...segments: readonly string[]): string => `/api/${segments.map(encodeURIComponent).join('/')}`;
@@ -116,6 +126,11 @@ export function createApi(bridge: MorrowbotBridge): Api {
     recheck: (id) => call(ProviderInfoResponse, 'POST', at('plugins', id, 'recheck')),
     usage: (id, refresh) => call(UsageResponse, 'GET', `${at('plugins', id, 'usage')}${refresh ? '?refresh=1' : ''}`),
     releaseGroup: (regId) => call(ReleaseGroupResponse, 'POST', at('child-groups', regId, 'release')),
+    listRoutines: (agentId) => call(RoutineList, 'GET', `${at('routines')}?agentId=${encodeURIComponent(agentId)}`),
+    createRoutine: (request) => call(Routine, 'POST', at('routines'), request),
+    updateRoutine: (id, request) => call(Routine, 'PATCH', at('routines', id), request),
+    deleteRoutine: (id) => call(NoContent, 'DELETE', at('routines', id)),
+    runRoutine: (id) => call(RunRoutineResponse, 'POST', at('routines', id, 'run'), {}),
   };
 }
 
