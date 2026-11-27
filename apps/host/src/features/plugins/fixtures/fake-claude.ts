@@ -31,10 +31,15 @@ function flag(name: string): string | undefined {
 /** Starts a process that ignores SIGTERM and holds stdout open, like a stuck tool. */
 function stall(ignoreTerm: boolean): void {
   if (ignoreTerm) process.on('SIGTERM', () => undefined);
-  const tool = spawn(process.execPath, ['-e', "process.on('SIGTERM', () => {}); setInterval(() => {}, 1000)"], {
-    stdio: ['ignore', 'inherit', 'inherit'],
+  const tool = spawn(
+    process.execPath,
+    ['-e', "process.on('SIGTERM', () => {}); process.send('ready'); setInterval(() => {}, 1000)"],
+    { stdio: ['ignore', 'inherit', 'inherit', 'ipc'] },
+  );
+  tool.once('message', () => {
+    tool.disconnect();
+    delta(`pids ${String(process.pid)} ${String(tool.pid)} guard ${String(process.ppid)}`);
   });
-  delta(`pids ${String(process.pid)} ${String(tool.pid)} guard ${String(process.ppid)}`);
   setInterval(() => undefined, 1_000);
 }
 

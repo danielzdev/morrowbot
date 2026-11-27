@@ -51,8 +51,9 @@ A stream emits `text` deltas, and may also emit `status` lines, `tool-start` and
 `tool-end` events, and the `final` reply text. The SDK also gives plugins `z`
 (Zod) to parse outside data, and `runCommand` to run a program. A small guard
 process runs each program in its own process group: aborting stops the whole
-group (SIGTERM, then SIGKILL), anything the program leaves behind is killed when it
-exits, and everything is killed if the plugin process dies, even by SIGKILL.
+group (SIGTERM, then SIGKILL), whatever the program leaves running in the group is
+killed when it exits, and the whole group is killed if the plugin process dies, even
+by SIGKILL. Processes that move to a group of their own are out of its reach.
 `runCommand` needs macOS or Linux.
 
 `provider-claude/` is the first real plugin. Small examples live in

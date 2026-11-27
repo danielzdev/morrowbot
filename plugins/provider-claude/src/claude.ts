@@ -90,7 +90,7 @@ export async function checkHealth(settings: Settings): Promise<PluginHealth> {
     return {
       kind: 'degraded',
       detail:
-        `"${settings.cliPath} auth status" did not report whether you are signed in (exit code ${String(exit.code)}` +
+        `"${settings.cliPath} auth status" did not report whether you are signed in (${exitedWith(exit)}` +
         `${stderr === '' ? '' : `: ${stderr}`}). Update Claude Code and try again.`,
     };
   }
@@ -107,11 +107,14 @@ function describeEarlyExit(cliPath: string, exit: CommandExit): string {
     case 'failed':
       return `Could not start the Claude Code CLI ("${cliPath}"): ${exit.message}`;
     case 'exited': {
-      const how = exit.signal === null ? `code ${String(exit.code)}` : `signal ${exit.signal}`;
       const stderr = exit.stderr.trim();
-      return `Claude Code exited with ${how} before it replied${stderr === '' ? '' : `: ${stderr}`}`;
+      return `Claude Code exited with ${exitedWith(exit)} before it replied${stderr === '' ? '' : `: ${stderr}`}`;
     }
   }
+}
+
+function exitedWith(exit: Extract<CommandExit, { kind: 'exited' }>): string {
+  return exit.signal === null ? `code ${String(exit.code)}` : `signal ${exit.signal}`;
 }
 
 function parseJson(text: string): unknown {

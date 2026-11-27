@@ -14,8 +14,9 @@ Settings:
 - **Model**: `default` keeps Claude Code's own choice; or `fable`, `opus`, `sonnet`, `haiku`.
 - **Claude Code CLI path**: `claude` (found on `PATH`) or a full path.
 
-The CLI runs in the plugin's own empty data folder, so its file tools see none of
-your files, and it does not save its sessions. The prompt goes on stdin and the
+The CLI starts in the plugin's own empty data folder rather than your home folder,
+and does not save its sessions. Which files its tools may read beyond that folder
+is up to your Claude Code permission settings. The prompt goes on stdin and the
 system prompt through a pipe, so neither shows in the process list. The CLI
 receives only `PATH`, `HOME`, `USER`, and `CLAUDE_CONFIG_DIR` from the host (see
 `manifest.json`); macOS needs `USER` to read the sign-in from the keychain.

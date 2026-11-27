@@ -21,8 +21,12 @@ function sweep(): void {
 }
 
 function report(message: GuardMessage): void {
-  if (process.send === undefined) sweep();
-  else process.send(message, undefined, undefined, sweep);
+  try {
+    if (process.send === undefined || !process.connected) sweep();
+    else process.send(message, undefined, undefined, sweep);
+  } catch {
+    sweep();
+  }
 }
 
 process.on('SIGTERM', () => undefined);
