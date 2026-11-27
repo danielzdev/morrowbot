@@ -58,6 +58,7 @@ it('keeps agents, threads, messages and AGENTS.md across a host restart', async 
             },
             "createdAt": "2026-01-01T00:00:00.000Z",
             "description": "",
+            "folderId": null,
             "id": "id-1",
             "name": "Keeper",
             "provider": {
@@ -74,6 +75,16 @@ it('keeps agents, threads, messages and AGENTS.md across a host restart', async 
               "dir": "<data>/workspaces/id-1",
               "kind": "dedicated",
             },
+          },
+        ],
+        "folders": [],
+        "lastMessages": [
+          {
+            "agentId": "id-1",
+            "at": "2026-01-01T00:00:04.000Z",
+            "kind": "assistant",
+            "preview": "hello from pid <pid>: remember me",
+            "threadId": "id-3",
           },
         ],
       },
@@ -155,6 +166,7 @@ it('creates, updates and deletes agents and threads', async () => {
               },
               "createdAt": "2026-01-01T00:00:00.000Z",
               "description": "Own folder",
+              "folderId": null,
               "id": "id-1",
               "name": "Solo 2",
               "provider": {
@@ -175,6 +187,8 @@ it('creates, updates and deletes agents and threads', async () => {
               },
             },
           ],
+          "folders": [],
+          "lastMessages": [],
         },
         "status": 200,
       },
@@ -207,6 +221,7 @@ it('creates, updates and deletes agents and threads', async () => {
           },
           "createdAt": "2026-01-01T00:00:00.000Z",
           "description": "Own folder",
+          "folderId": null,
           "id": "id-1",
           "name": "Solo 2",
           "provider": {

@@ -2,6 +2,7 @@ import type { Agent, AgentAvatar, AgentWorkspaceRequest, ProviderBinding } from 
 import type { ComponentChildren } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import type { MorrowbotBridge } from '../../bridge.ts';
+import { ConfirmDialog } from '../../shared/ui/ConfirmDialog.tsx';
 import type { AgentsModel } from './agents-model.ts';
 
 /** A provider plugin the user can bind an agent to. */
@@ -162,9 +163,13 @@ export function AgentSettings(props: {
   readonly providers: readonly ProviderOption[];
   readonly bindingFor: (pluginId: string) => ProviderBinding;
   readonly avatarEditor: AvatarEditor;
+  /** The workspace path as the UI may show it (spec §9.1). */
+  readonly workspaceLabel: string;
+  readonly onReveal: () => void;
   readonly onDeleted: () => void;
 }) {
   const { agent, model } = props;
+  const [deleting, setDeleting] = useState(false);
   const [name, setName] = useState(agent.name);
   const [description, setDescription] = useState(agent.description);
   const [problem, setProblem] = useState<string | null>(null);
@@ -204,7 +209,12 @@ export function AgentSettings(props: {
       </label>
       <div class="field">
         <span>Workspace folder ({agent.workspace.kind === 'dedicated' ? 'this agent only' : 'shared'})</span>
-        <span class="path">{agent.workspace.dir}</span>
+        <div class="row">
+          <span class="path">{props.workspaceLabel}</span>
+          <button type="button" class="btn secondary" onClick={props.onReveal}>
+            Reveal in Finder
+          </button>
+        </div>
       </div>
       <label class="field">
         <span>Provider</span>
@@ -218,15 +228,30 @@ export function AgentSettings(props: {
       <Instructions model={model} agentId={agent.id} />
       <div class="danger-zone">
         <button
-          class="danger"
+          class="btn danger"
           onClick={() => {
-            if (!window.confirm(`Delete ${agent.name} and all of its chats? Its workspace folder stays on disk.`)) return;
-            void model.deleteAgent(agent.id).then(props.onDeleted);
+            setDeleting(true);
           }}
         >
-          Delete agent
+          Delete agent…
         </button>
       </div>
+      {deleting && (
+        <ConfirmDialog
+          title={`Delete ${agent.name}?`}
+          body={<p>Its chats are deleted. The workspace folder stays on disk.</p>}
+          confirmLabel="Delete agent"
+          tone="danger"
+          typeToConfirm={agent.name}
+          onCancel={() => {
+            setDeleting(false);
+          }}
+          onConfirm={() => {
+            setDeleting(false);
+            void model.deleteAgent(agent.id).then(props.onDeleted);
+          }}
+        />
+      )}
     </div>
   );
 }

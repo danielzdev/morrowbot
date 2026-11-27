@@ -1,6 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { MIGRATION_2 } from './migration-2.ts';
 import { MIGRATION_3 } from './migration-3.ts';
+import { MIGRATION_4 } from './migration-4.ts';
 
 export const MIGRATIONS: readonly string[] = [
   `
@@ -45,6 +46,7 @@ export const MIGRATIONS: readonly string[] = [
   `,
   MIGRATION_2,
   MIGRATION_3,
+  MIGRATION_4,
 ];
 
 export function migrate(db: DatabaseSync): void {

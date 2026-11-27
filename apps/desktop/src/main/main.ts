@@ -1,10 +1,11 @@
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { app, BrowserWindow, clipboard, dialog, ipcMain, type IpcMainEvent, type IpcMainInvokeEvent, type OpenDialogOptions } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, shell, type IpcMainEvent, type IpcMainInvokeEvent, type OpenDialogOptions, type BrowserWindowConstructorOptions } from 'electron';
 import type { BridgeChannels } from '../renderer/bridge.ts';
 import { APP_ID, PRODUCT_NAME } from './app-identity.ts';
 import { openEventStream, type EventStream } from './event-stream.ts';
 import { superviseHost } from './host-supervisor.ts';
 import { checkSender, IpcRefusedError, parseCopyText, parseSubscription, proxyRequest, type HostTarget, type IpcSender } from './ipc-proxy.ts';
+import { appInfoOf, dataDirOf, loginItemOf, parseExternalUrl, parseOpenAtLogin, parseRevealTarget, resolveReveal } from './shell-actions.ts';
 
 const RENDERER_URL = pathToFileURL(fileURLToPath(new URL('../../dist/renderer/index.html', import.meta.url))).href;
 const PRELOAD = fileURLToPath(new URL('../preload/preload.cjs', import.meta.url));
@@ -17,7 +18,16 @@ const CHANNELS: BridgeChannels = {
   hostReady: 'morrowbot:host-ready',
   pickFolder: 'morrowbot:pick-folder',
   copyText: 'morrowbot:copy-text',
+  openExternal: 'morrowbot:open-external',
+  revealPath: 'morrowbot:reveal-path',
+  appInfo: 'morrowbot:app-info',
+  loginItem: 'morrowbot:login-item',
+  setOpenAtLogin: 'morrowbot:set-open-at-login',
 };
+
+/** macOS keeps its traffic lights, inset into the window's own 48px top bar; elsewhere the system frame stays. */
+const TITLE_BAR: BrowserWindowConstructorOptions =
+  process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 16, y: 18 } } : {};
 
 type Lifetime = 'running' | 'stopping-host' | 'host-stopped';
 
@@ -45,6 +55,8 @@ function runApp(): void {
       minWidth: 720,
       minHeight: 480,
       title: PRODUCT_NAME,
+      show: false,
+      ...TITLE_BAR,
       webPreferences: { preload: PRELOAD, contextIsolation: true, sandbox: true, nodeIntegration: false },
     });
     opened.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -53,6 +65,9 @@ function runApp(): void {
     });
     opened.webContents.on('will-attach-webview', (event) => {
       event.preventDefault();
+    });
+    opened.once('ready-to-show', () => {
+      opened.show();
     });
     opened.on('closed', () => {
       if (window === opened) window = undefined;
@@ -139,6 +154,33 @@ function runApp(): void {
   ipcMain.handle(CHANNELS.copyText, (event, input: unknown) =>
     clipboard.writeText(parseCopyText({ sender: senderOf(event), rendererUrl: RENDERER_URL, input })),
   );
+
+  const dataDir = dataDirOf(process.env);
+  const fromRenderer = (event: IpcMainInvokeEvent, input: unknown) => ({ sender: senderOf(event), rendererUrl: RENDERER_URL, input });
+
+  ipcMain.handle(CHANNELS.openExternal, (event, input: unknown) => shell.openExternal(parseExternalUrl(fromRenderer(event, input))));
+
+  ipcMain.handle(CHANNELS.revealPath, async (event, input: unknown) => {
+    const target = parseRevealTarget(fromRenderer(event, input));
+    shell.showItemInFolder(await resolveReveal(target, { dataDir, host: host.target(), rendererUrl: RENDERER_URL }));
+  });
+
+  ipcMain.handle(CHANNELS.appInfo, (event) => {
+    checkSender(senderOf(event), RENDERER_URL);
+    return appInfoOf(app.getVersion(), dataDir);
+  });
+
+  const loginItems = app.isPackaged && (process.platform === 'darwin' || process.platform === 'win32');
+  const loginItem = () => loginItemOf(loginItems ? app.getLoginItemSettings().openAtLogin : null);
+  ipcMain.handle(CHANNELS.loginItem, (event) => {
+    checkSender(senderOf(event), RENDERER_URL);
+    return loginItem();
+  });
+  ipcMain.handle(CHANNELS.setOpenAtLogin, (event, input: unknown) => {
+    const open = parseOpenAtLogin(fromRenderer(event, input));
+    if (loginItems) app.setLoginItemSettings({ openAtLogin: open });
+    return loginItem();
+  });
 
   app.on('second-instance', openWindow);
   app.on('activate', openWindow);

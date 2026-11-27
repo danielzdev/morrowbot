@@ -15,6 +15,11 @@ const CHANNELS = {
   hostReady: 'morrowbot:host-ready',
   pickFolder: 'morrowbot:pick-folder',
   copyText: 'morrowbot:copy-text',
+  openExternal: 'morrowbot:open-external',
+  revealPath: 'morrowbot:reveal-path',
+  appInfo: 'morrowbot:app-info',
+  loginItem: 'morrowbot:login-item',
+  setOpenAtLogin: 'morrowbot:set-open-at-login',
 };
 
 /**
@@ -40,6 +45,11 @@ const bridge = {
   // Main answers with the chosen folder path or null.
   pickFolder: () => ipcRenderer.invoke(CHANNELS.pickFolder),
   copyText: (text) => ipcRenderer.invoke(CHANNELS.copyText, text),
+  openExternal: (url) => ipcRenderer.invoke(CHANNELS.openExternal, url),
+  revealPath: (target) => ipcRenderer.invoke(CHANNELS.revealPath, target),
+  appInfo: () => ipcRenderer.invoke(CHANNELS.appInfo),
+  loginItem: () => ipcRenderer.invoke(CHANNELS.loginItem),
+  setOpenAtLogin: (open) => ipcRenderer.invoke(CHANNELS.setOpenAtLogin, open),
 };
 
 contextBridge.exposeInMainWorld('morrowbot', bridge);

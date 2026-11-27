@@ -1,4 +1,6 @@
 import type { AccessLevel, ModelSelection, ProviderInfo, VendorSettings } from '@morrowbot/contracts';
+import { useState } from 'preact/hooks';
+import { ConfirmDialog } from '../../shared/ui/ConfirmDialog.tsx';
 import { accessChoices, modelChoices, selectChoice, selectModel, SHELL_NOTE, type BoundProvider } from './binding.ts';
 
 const DEFAULT_MODEL = '';
@@ -80,12 +82,14 @@ export function AccessPicker(props: {
   readonly onChange: (access: AccessLevel, vendorSettings: VendorSettings) => void;
 }) {
   const choices = accessChoices(props.info, props.binding);
+  const [pending, setPending] = useState<(typeof choices.options)[number] | null>(null);
   if (choices.options.length === 0 && choices.withheld.length === 0) return null;
   const current = keyOf(props.binding.access, props.binding.vendorSettings);
   const offered = choices.options.some((option) => keyOf(option.access, option.vendorSettings) === current);
   const warnings = choices.options.find((option) => keyOf(option.access, option.vendorSettings) === current)?.warnings ?? [];
   const reasons = [SHELL_NOTE, ...warnings, ...choices.withheld.map((each) => `${each.label}: ${each.reason}`)];
   return (
+    <>
     <label class={`chip ${choices.currentProblem === null ? '' : 'warning'}`} title={reasons.join('\n')}>
       <span class="chip-label">Access</span>
       <select
@@ -95,8 +99,9 @@ export function AccessPicker(props: {
         onChange={(event) => {
           const picked = choices.options.find((option) => keyOf(option.access, option.vendorSettings) === event.currentTarget.value);
           if (picked === undefined) return;
-          if (picked.warnings.length > 0 && !window.confirm(`${picked.label}\n\n${picked.warnings.join('\n')}`)) {
+          if (picked.warnings.length > 0) {
             event.currentTarget.value = current;
+            setPending(picked);
             return;
           }
           props.onChange(picked.access, picked.vendorSettings);
@@ -120,6 +125,28 @@ export function AccessPicker(props: {
         <option disabled>{SHELL_NOTE}</option>
       </select>
     </label>
+      {pending !== null && (
+        <ConfirmDialog
+          title={`Use ${pending.label}?`}
+          body={
+            <ul class="dialog-list">
+              {pending.warnings.map((warning) => (
+                <li key={warning}>{warning}</li>
+              ))}
+            </ul>
+          }
+          confirmLabel="Use it"
+          tone="primary"
+          onCancel={() => {
+            setPending(null);
+          }}
+          onConfirm={() => {
+            setPending(null);
+            props.onChange(pending.access, pending.vendorSettings);
+          }}
+        />
+      )}
+    </>
   );
 }
 

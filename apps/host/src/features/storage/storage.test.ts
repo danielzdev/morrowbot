@@ -19,6 +19,7 @@ beforeEach(async () => {
     workspace: { kind: 'shared', dir: '/work' },
     avatar: { kind: 'bot', shape: 'mug', color: '#112233', finish: 'metallic' },
     provider: { kind: 'unbound' },
+    folderId: null,
     createdAt: AT,
     updatedAt: AT,
   });

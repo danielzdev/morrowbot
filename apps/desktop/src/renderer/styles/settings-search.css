@@ -1,0 +1,96 @@
+/* Settings search: the field on top of the nav, the grouped matches, and the row flash on a jump. */
+.settings-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin: var(--s-3) var(--s-2) 0;
+}
+.settings-search .icon {
+  position: absolute;
+  left: var(--s-2);
+  color: var(--text-3);
+  pointer-events: none;
+}
+.settings-search input {
+  width: 100%;
+  padding-left: calc(var(--s-2) + 16px + 6px);
+  padding-right: var(--s-6);
+}
+.settings-search kbd {
+  position: absolute;
+  right: var(--s-2);
+  pointer-events: none;
+}
+.settings-results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding-top: var(--s-3);
+}
+.settings-results-groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+.settings-results-count {
+  color: var(--text-3);
+  font: var(--t-small);
+}
+.settings-results-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.settings-results-group .kicker {
+  padding-bottom: var(--s-1);
+}
+.settings-result {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: var(--s-2) var(--s-3);
+  text-align: left;
+}
+.settings-result:hover {
+  background: var(--hover);
+}
+.settings-result:focus-visible {
+  outline-offset: -2px;
+}
+.setting-row {
+  transition: background-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+.setting-row.flash {
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 var(--s-2) var(--accent-soft);
+  border-radius: var(--r-sm);
+}
+:root[data-motion='reduced'] .setting-row {
+  transition: none;
+}
+.licence-list {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px var(--s-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font: var(--t-small);
+  color: var(--text-2);
+}
+.licence-list li {
+  display: grid;
+  grid-column: span 2;
+  grid-template-columns: subgrid;
+}
+.licence-list .mono {
+  color: var(--text-3);
+  text-align: right;
+}
+@media (max-width: 759px) {
+  .settings-search {
+    margin: var(--s-2) var(--s-2) 0;
+  }
+}

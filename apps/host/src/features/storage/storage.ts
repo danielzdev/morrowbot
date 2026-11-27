@@ -3,6 +3,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { agentRepository, type AgentRepository } from './agents-repo.ts';
 import { childGroupRepository, type ChildGroupRepository } from './child-groups-repo.ts';
+import { folderRepository, type FolderRepository } from './folders-repo.ts';
 import { generationRepository, type GenerationRepository } from './generations-repo.ts';
 import { messageRepository, type MessageRepository } from './messages-repo.ts';
 import { pluginSettingsRepository, type PluginSettingsRepository } from './plugins-repo.ts';
@@ -13,6 +14,7 @@ import { usageSnapshotRepository, type UsageSnapshotRepository } from './usage-r
 
 export interface Storage {
   readonly agents: AgentRepository;
+  readonly folders: FolderRepository;
   readonly threads: ThreadRepository;
   readonly messages: MessageRepository;
   readonly plugins: PluginSettingsRepository;
@@ -36,6 +38,7 @@ export function openStorage(file: string, now: () => string): Storage {
     migrate(db);
     return {
       agents: agentRepository(db),
+      folders: folderRepository(db),
       threads: threadRepository(db),
       messages: messageRepository(db),
       plugins: pluginSettingsRepository(db, now),

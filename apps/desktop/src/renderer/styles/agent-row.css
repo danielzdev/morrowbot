@@ -1,0 +1,133 @@
+/* Sidebar agent rows: avatar, name, role, time and preview; the rail variant */
+.agent-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: var(--row-agent);
+  border-radius: var(--r-lg);
+}
+.agent-row:hover {
+  background: var(--hover);
+}
+.agent-row.selected {
+  background: var(--selected);
+}
+.agent-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 var(--s-2);
+  border-radius: var(--r-lg);
+  color: var(--text-1);
+  text-align: left;
+}
+:is(.agent-main, .menu-item, .switcher-open, .switcher-new, .settings-nav-item, .bottom-btn, .section-toggle):focus-visible {
+  outline-offset: -2px;
+}
+.agent-text {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.agent-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.agent-name {
+  flex: 0 1 auto;
+  min-width: 3rem;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--t-body);
+  font-weight: 600;
+}
+.agent-role {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: max-content;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 6px;
+  border-radius: var(--r-sm);
+  background: var(--selected);
+  color: var(--text-3);
+  font: var(--t-small);
+}
+@container (max-width: 11rem) {
+  .agent-role {
+    display: none;
+  }
+}
+.agent-time {
+  flex: none;
+  margin-left: auto;
+  padding-left: var(--s-1);
+  color: var(--text-3);
+  font: var(--t-small);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.agent-preview {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-2);
+  font: var(--t-ui);
+}
+.agent-preview.empty {
+  color: var(--text-3);
+}
+.agent-preview.warn {
+  color: var(--warn);
+}
+.agent-row.unread .agent-preview {
+  color: var(--text-1);
+  font-weight: 500;
+}
+.agent-row.rail {
+  justify-content: center;
+  height: 48px;
+}
+.agent-row.rail .agent-main {
+  position: relative;
+  flex: none;
+  justify-content: center;
+  width: 44px;
+  padding: 0;
+}
+.rail-dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--r-pill);
+  box-shadow: 0 0 0 2px var(--surface-1);
+}
+.rail-dot.warn {
+  background: var(--warn);
+}
+.rail-dot.unread {
+  background: var(--accent);
+}
+.agent-row.renaming {
+  gap: 10px;
+  padding: 0 var(--s-2);
+}
+.row-rename {
+  flex: 1;
+  min-width: 0;
+}

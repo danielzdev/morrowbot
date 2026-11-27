@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { mkdir, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import type { PluginStatusEvent } from '@morrowbot/contracts';
-import { createAgentService } from './features/agents/index.ts';
+import { createAgentService, createFolderService } from './features/agents/index.ts';
 import { startApiServer } from './features/api/index.ts';
 import { createChatService, type ProviderPlugins } from './features/chat/index.ts';
 import type { HostConfig } from './features/config/index.ts';
@@ -104,7 +104,14 @@ export async function startHost(options: HostOptions): Promise<Host> {
     });
     undo.push(() => plugins.stop());
     options.signal?.throwIfAborted();
-    const agents = createAgentService({ records: storage.agents, workspacesDir: path.join(dataDir, 'workspaces'), newId, now });
+    const folders = createFolderService({ records: storage.folders, newId, now });
+    const agents = createAgentService({
+      records: storage.agents,
+      folderExists: (id) => folders.get(id) !== undefined,
+      workspacesDir: path.join(dataDir, 'workspaces'),
+      newId,
+      now,
+    });
     const chat = createChatService({
       store: chatStore(storage),
       agents,
@@ -120,7 +127,8 @@ export async function startHost(options: HostOptions): Promise<Host> {
       address: { hostname: config.hostname, port: config.port },
       token,
       services: {
-        agents,
+        agents: { ...agents, lastMessages: () => storage.messages.lastByAgent() },
+        folders,
         chat,
         plugins: {
           list: () => plugins.list(),

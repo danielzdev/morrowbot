@@ -1,5 +1,6 @@
 import type { PluginEntry, PluginStatus, ProviderInfo } from '@morrowbot/contracts';
 import type { Loadable } from '../../shared/store.ts';
+import { planLabel } from '../../shared/privacy.ts';
 
 export type SummaryTone = 'ok' | 'muted' | 'warning' | 'error';
 
@@ -77,7 +78,8 @@ function fromInfo(info: ProviderInfo): PluginSummary {
       };
     case 'ready':
     case 'ready-models-later': {
-      const account = info.accountLabel === null ? '' : ` · ${info.accountLabel}`;
+      const plan = info.accountLabel === null ? null : planLabel(info.accountLabel);
+      const account = plan === null ? '' : ` · ${plan}`;
       const title = info.capabilities.profiles.length === 0 ? `Ready ${info.version}, but no access level is available` : `Ready · ${info.version}${account}`;
       return summary('ready', info.capabilities.profiles.length === 0 ? 'warning' : 'ok', title, info.warning);
     }
@@ -98,4 +100,26 @@ export function summarize(entry: PluginEntry, info: Loadable<ProviderInfo> | nul
     case 'loaded':
       return fromInfo(info.value);
   }
+}
+
+const ALERTS: Partial<Readonly<Record<PluginStatus['kind'], { readonly tone: 'warn' | 'danger'; readonly words: string }>>> = {
+  crashed: { tone: 'danger', words: 'crashed' },
+  quarantined: { tone: 'danger', words: 'quarantined' },
+  unhealthy: { tone: 'warn', words: 'not responding' },
+  'invalid-config': { tone: 'warn', words: 'with settings to fix' },
+};
+
+/** The Plugins button's dot and its accessible label (spec §3.1), or null when every plugin is fine. */
+export function pluginAlert(entries: readonly PluginEntry[]): { readonly tone: 'warn' | 'danger'; readonly label: string } | null {
+  if (entries.some((entry) => entry.status.kind === 'safe-mode')) return { tone: 'warn', label: 'Extensions: Safe mode: extensions are off.' };
+  const counts = new Map<string, number>();
+  let tone: 'warn' | 'danger' | null = null;
+  for (const entry of entries) {
+    const alert = ALERTS[entry.status.kind];
+    if (alert === undefined) continue;
+    counts.set(alert.words, (counts.get(alert.words) ?? 0) + 1);
+    if (tone !== 'danger') tone = alert.tone;
+  }
+  if (tone === null) return null;
+  return { tone, label: `Extensions: ${[...counts].map(([words, count]) => `${String(count)} ${words}`).join(', ')}` };
 }

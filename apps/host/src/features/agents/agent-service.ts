@@ -15,6 +15,8 @@ export interface AgentRecords {
 
 export interface AgentServiceOptions {
   readonly records: AgentRecords;
+  /** Whether a folder exists, so agents are only filed into real folders. */
+  readonly folderExists: (id: string) => boolean;
   /** Parent folder for dedicated workspaces: each agent gets `<workspacesDir>/<agentId>`. */
   readonly workspacesDir: string;
   readonly newId: () => string;
@@ -25,11 +27,18 @@ export type CreateAgentResult =
   | { readonly kind: 'created'; readonly agent: Agent }
   | { readonly kind: 'invalid'; readonly reason: string };
 
+export type UpdateAgentResult =
+  | { readonly kind: 'updated'; readonly agent: Agent }
+  | { readonly kind: 'not-found' }
+  | { readonly kind: 'invalid'; readonly reason: string };
+
+const NO_SUCH_FOLDER = 'folderId: No such folder';
+
 export interface AgentService {
   list(): Agent[];
   get(id: string): Agent | undefined;
   create(request: CreateAgentRequest): Promise<CreateAgentResult>;
-  update(id: string, request: UpdateAgentRequest): Agent | undefined;
+  update(id: string, request: UpdateAgentRequest): UpdateAgentResult;
   delete(id: string): boolean;
   /** Returns the agent's `AGENTS.md` ('' when the file does not exist), or undefined for an unknown agent. */
   readInstructions(id: string): Promise<string | undefined>;
@@ -49,10 +58,14 @@ export function createAgentService(options: AgentServiceOptions): AgentService {
     }
   }
 
+  const unknownFolder = (folderId: string | null | undefined): boolean =>
+    folderId !== undefined && folderId !== null && !options.folderExists(folderId);
+
   return {
     list: () => records.list(),
     get: (id) => records.get(id),
     create: async (request) => {
+      if (unknownFolder(request.folderId)) return { kind: 'invalid', reason: NO_SUCH_FOLDER };
       const id = options.newId();
       const workspace = workspaceFor(id, request.workspace);
       if (workspace === undefined) return { kind: 'invalid', reason: 'workspace.dir: Use an absolute path on this computer' };
@@ -64,26 +77,30 @@ export function createAgentService(options: AgentServiceOptions): AgentService {
         workspace,
         avatar: request.avatar,
         provider: request.provider,
+        folderId: request.folderId,
         createdAt: at,
         updatedAt: at,
       };
       await mkdir(agent.workspace.dir, { recursive: true });
+      if (unknownFolder(agent.folderId)) return { kind: 'invalid', reason: NO_SUCH_FOLDER };
       records.insert(agent);
       return { kind: 'created', agent };
     },
     update: (id, request) => {
       const current = records.get(id);
-      if (current === undefined) return undefined;
+      if (current === undefined) return { kind: 'not-found' };
+      if (unknownFolder(request.folderId)) return { kind: 'invalid', reason: NO_SUCH_FOLDER };
       const next: Agent = {
         ...current,
         name: request.name ?? current.name,
         description: request.description ?? current.description,
         avatar: request.avatar ?? current.avatar,
         provider: request.provider ?? current.provider,
+        folderId: request.folderId === undefined ? current.folderId : request.folderId,
         updatedAt: options.now(),
       };
       records.update(next);
-      return next;
+      return { kind: 'updated', agent: next };
     },
     delete: (id) => records.delete(id),
     readInstructions: async (id) => {

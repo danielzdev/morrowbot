@@ -1,259 +1,136 @@
-import type { Agent, ProviderBinding, ProviderInfo } from '@morrowbot/contracts';
+import type { Agent } from '@morrowbot/contracts';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { MorrowbotBridge } from '../bridge.ts';
-import {
-  AgentSettings,
-  ChatTabs,
-  createAgentsModel,
-  NewAgent,
-  Sidebar,
-  type AgentsModel,
-  type AvatarEditor,
-  type Page,
-  type ProviderOption,
-} from '../features/agents/index.ts';
-import { AvatarPicker, BotAvatar, combineActivity, freshAvatar, motionOf, type AvatarMotion } from '../features/avatar/index.ts';
-import { AccessNotes, AccessPicker, bindTo, ModelPicker, type BoundProvider } from '../features/binding/index.ts';
-import { ChatView, Composer, createChatHub, type ChatHub, type ThreadActivity } from '../features/chat/index.ts';
-import { createPluginsModel, PluginsPage, summarize, type PluginCard, type PluginsModel } from '../features/plugins/index.ts';
-import { createApi } from '../shared/api.ts';
+import { Sidebar } from '../features/agents/index.ts';
+import { BotAvatar, combineActivity, motionOf } from '../features/avatar/index.ts';
+import { chatMarkdown } from '../features/chat/index.ts';
+import { pluginAlert } from '../features/plugins/index.ts';
+import { SettingsModal, type SettingsLink } from '../features/settings/index.ts';
+import { AppInfo, redact } from '../shared/privacy.ts';
 import { useStore } from '../shared/use-store.ts';
+import { entriesOf, liveFactsOf } from './derive.ts';
+import { createModels } from './models.ts';
+import { Pages, type Page } from './Pages.tsx';
+import { Shell } from './Shell.tsx';
 
-interface Models {
-  readonly agents: AgentsModel;
-  readonly plugins: PluginsModel;
-  readonly chats: ChatHub;
-}
-
-function cardOf(plugins: PluginsModel, pluginId: string): PluginCard | undefined {
-  const cards = plugins.cards.get();
-  return cards.kind === 'loaded' ? cards.value.find(({ entry }) => entry.manifest.id === pluginId) : undefined;
-}
-
-function infoOf(card: PluginCard | undefined): ProviderInfo | undefined {
-  return card?.info?.kind === 'loaded' ? card.info.value : undefined;
-}
-
-function createModels(bridge: MorrowbotBridge): Models {
-  const api = createApi(bridge);
-  const agents = createAgentsModel({
-    api,
-    bridge,
-    onThreadsDeleted: (threadIds) => {
-      for (const threadId of threadIds) chats.forget(threadId);
-    },
-  });
-  const plugins = createPluginsModel({
-    api,
-    bridge,
-    onReleased: () => {
-      chats.reloadAll();
-    },
-  });
-  const chats = createChatHub({
-    api,
-    bridge,
-    onGroupsChanged: () => void plugins.load(),
-    onFinished: (threadId, message) => {
-      const state = agents.state.get();
-      const agentId = Object.entries(state.threads).find(([, threads]) => threads.kind === 'loaded' && threads.value.some(({ id }) => id === threadId))?.[0];
-      const troubled = message.outcome.kind === 'failed' || message.outcome.kind === 'interrupted';
-      if (troubled) void plugins.load();
-      if (agentId === undefined) return;
-      const view = chats.session(threadId).screen.get().view;
-      const first = view.kind === 'loaded' ? view.value.messages.find(({ kind }) => kind === 'user')?.text ?? null : null;
-      void agents.touchThread(agentId, threadId, first);
-      const agent = state.agents.kind === 'loaded' ? state.agents.value.find(({ id }) => id === agentId) : undefined;
-      if (!troubled && agent?.provider.kind === 'bound' && infoOf(cardOf(plugins, agent.provider.pluginId))?.kind !== 'ready') {
-        void plugins.refreshInfo(agent.provider.pluginId);
-      }
-    },
-  });
-  return { agents, plugins, chats };
-}
-
-/** How an agent's avatar moves: by what the busiest of its open chats is doing. */
-function motionOfAgent(activity: Readonly<Record<string, ThreadActivity>>, agentId: string): AvatarMotion {
-  return motionOf(combineActivity(Object.values(activity).filter((each) => each.agentId === agentId).map((each) => each.activity)));
-}
-
-const avatarEditor: AvatarEditor = (value, onChange) => <AvatarPicker value={value} onChange={onChange} />;
-
-function ProviderChip(props: { readonly card: PluginCard | undefined; readonly onPlugins: () => void }) {
-  if (props.card === undefined) return <span class="chip warning">Provider not installed</span>;
-  const summary = summarize(props.card.entry, props.card.info);
-  if (summary.state === 'ready' && summary.tone === 'ok') return null;
-  return (
-    <button class={`chip ${summary.tone}`} onClick={props.onPlugins} title={summary.detail ?? ''}>
-      {props.card.entry.manifest.name}: {summary.title}
-    </button>
-  );
-}
-
-function ChatPane(props: { readonly models: Models; readonly agent: Agent; readonly onPage: (page: Page) => void }) {
-  const { models, agent } = props;
-  const state = useStore(models.agents.state);
-  const cards = useStore(models.plugins.cards);
-  const activity = useStore(models.chats.activity);
-  const threadId = state.openThread[agent.id];
-  const binding = agent.provider.kind === 'bound' ? agent.provider : null;
-  const card = binding === null || cards.kind !== 'loaded' ? undefined : cards.value.find(({ entry }) => entry.manifest.id === binding.pluginId);
-  const info = infoOf(card);
-  const [saving, setSaving] = useState(false);
-  const inFlight = useRef(false);
-  const [bindingProblem, setBindingProblem] = useState<string | null>(null);
-  const rebind = (next: BoundProvider): void => {
-    if (inFlight.current) return;
-    inFlight.current = true;
-    setSaving(true);
-    setBindingProblem(null);
-    void models.agents.updateAgent(agent.id, { provider: next }).then((result) => {
-      inFlight.current = false;
-      setSaving(false);
-      if (result.kind === 'refused') setBindingProblem(`The change was not saved: ${result.message}`);
-    });
-  };
-  const session = threadId === undefined ? undefined : models.chats.session(threadId);
-  return (
-    <div class="main">
-      <header class="main-header">
-        <BotAvatar avatar={agent.avatar} motion={motionOfAgent(activity, agent.id)} size={40} />
-        <div class="title">
-          <strong>{agent.name}</strong>
-          {agent.description !== '' && <span class="muted">{agent.description}</span>}
-        </div>
-        <button class="ghost" onClick={() => { props.onPage({ kind: 'agent-settings' }); }}>
-          Settings
-        </button>
-      </header>
-      <ChatTabs model={models.agents} agentId={agent.id} />
-      {session === undefined ? (
-        <div class="chat empty">
-          <p>No chats yet.</p>
-          <button class="primary" onClick={() => void models.agents.newThread(agent.id)}>
-            New chat
-          </button>
-        </div>
-      ) : (
-        <>
-          <ChatView key={session.threadId} session={session} locked={saving} />
-          <Composer
-            key={`composer-${session.threadId}`}
-            session={session}
-            disabledReason={binding === null ? "Choose a provider in this agent's settings." : saving ? 'Saving the new settings…' : null}
-            toolbar={
-              binding === null ? (
-                <button class="chip warning" onClick={() => { props.onPage({ kind: 'agent-settings' }); }}>
-                  No provider
-                </button>
-              ) : (
-                <>
-                  <ModelPicker info={info} binding={binding} disabled={saving} onChange={(selection) => { rebind({ ...binding, selection }); }} />
-                  <AccessPicker info={info} binding={binding} disabled={saving} onChange={(access, vendorSettings) => { rebind({ ...binding, access, vendorSettings }); }} />
-                  <ProviderChip card={card} onPlugins={() => { props.onPage({ kind: 'plugins' }); }} />
-                </>
-              )
-            }
-          />
-          {bindingProblem !== null && <div class="access-notes note error">{bindingProblem}</div>}
-          {binding !== null && <AccessNotes info={info} binding={binding} />}
-        </>
-      )}
-    </div>
-  );
-}
+const NO_INFO: AppInfo = { appVersion: '', homeDir: '', userName: '', dataDir: '' };
 
 export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
   const models = useMemo(() => createModels(bridge), [bridge]);
   const [page, setPage] = useState<Page>({ kind: 'chat' });
+  const [settings, setSettings] = useState<SettingsLink | null>(null);
+  const [filterRequest, setFilterRequest] = useState(0);
+  const [info, setInfo] = useState<AppInfo | null>(null);
+  const copies = useRef(0);
   const state = useStore(models.agents.state);
   const cards = useStore(models.plugins.cards);
   const activity = useStore(models.chats.activity);
+  const appearance = useStore(models.appearance.state);
   useEffect(() => {
     void models.agents.load();
     void models.plugins.load();
+    void bridge.appInfo().then((reply) => {
+      const parsed = AppInfo.safeParse(reply);
+      if (parsed.success) setInfo(parsed.data);
+    });
     return () => {
       models.chats.close();
       models.plugins.close();
       models.agents.close();
+      models.appearance.close();
     };
   }, [models]);
 
-  const providers: readonly ProviderOption[] =
-    cards.kind === 'loaded'
-      ? cards.value.filter(({ entry }) => entry.manifest.kind === 'provider').map(({ entry }) => ({ id: entry.manifest.id, name: entry.manifest.name }))
-      : [];
-  const bindingFor = (pluginId: string): ProviderBinding => bindTo(pluginId, infoOf(cardOf(models.plugins, pluginId)));
   const agent = state.agents.kind === 'loaded' ? state.agents.value.find(({ id }) => id === state.selectedAgentId) : undefined;
-
-  const content = (() => {
-    switch (page.kind) {
-      case 'plugins':
-        return <PluginsPage model={models.plugins} bridge={bridge} />;
-      case 'new-agent':
-        return (
-          <NewAgent
-            model={models.agents}
-            bridge={bridge}
-            providers={providers}
-            bindingFor={bindingFor}
-            avatarEditor={avatarEditor}
-            newAvatar={freshAvatar}
-            onCreated={() => {
-              setPage({ kind: 'chat' });
-            }}
-          />
-        );
-      case 'agent-settings':
-        return agent === undefined ? null : (
-          <AgentSettings
-            key={agent.id}
-            model={models.agents}
-            agent={agent}
-            providers={providers}
-            bindingFor={bindingFor}
-            avatarEditor={avatarEditor}
-            onDeleted={() => { setPage({ kind: 'chat' }); }}
-          />
-        );
-      case 'chat':
-        if (agent !== undefined) return <ChatPane key={agent.id} models={models} agent={agent} onPage={setPage} />;
-        return (
-          <div class="chat empty">
-            <p>{state.agents.kind === 'loading' ? 'Loading…' : 'Create an agent to start chatting.'}</p>
-            {state.agents.kind === 'loaded' && (
-              <button class="primary" onClick={() => { setPage({ kind: 'new-agent' }); }}>
-                New agent
-              </button>
-            )}
-          </div>
-        );
-    }
-  })();
+  const safe = (text: string): string => redact(text, info ?? NO_INFO);
+  const preview = (text: string): string => (info === null ? '…' : safe(text));
+  const avatarOf = (each: Agent, size: number) => {
+    const motion = motionOf(combineActivity(Object.values(activity).filter((one) => one.agentId === each.id).map((one) => one.activity)));
+    return <BotAvatar avatar={each.avatar} motion={motion} size={size} reducedMotion={appearance.reducedMotion} />;
+  };
+  /** The one way to open Settings: the sidebar, ⌘, and later the palette and banners all pass a link here. */
+  const openSettings = (link: SettingsLink): void => {
+    setSettings(link);
+  };
+  const newChat = (agentId: string): void => {
+    models.agents.selectAgent(agentId);
+    setPage({ kind: 'chat' });
+    void models.agents.newThread(agentId).then(() => {
+      requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('.composer textarea')?.focus());
+    });
+  };
+  const copyChat = (threadId: string): void => {
+    const screen = models.chats.session(threadId).screen;
+    const mine = ++copies.current;
+    const copy = (): boolean => {
+      const view = screen.get().view;
+      if (mine !== copies.current) return true;
+      if (view.kind === 'loading') return false;
+      if (view.kind === 'loaded' && agent !== undefined) void bridge.copyText(chatMarkdown(view.value.thread.title, agent.name, view.value.messages, safe));
+      return true;
+    };
+    if (copy()) return;
+    const stop = screen.subscribe(() => {
+      if (copy()) stop();
+    });
+  };
 
   return (
-    <div class="app">
-      <Sidebar
-        model={models.agents}
-        page={page}
-        onPage={setPage}
-        avatar={(each) => <BotAvatar avatar={each.avatar} motion={motionOfAgent(activity, each.id)} size={28} />}
-      />
-      <div class="content">
-        {state.problem !== null && (
-          <div class="banner error">
-            <div class="banner-row">
-              <span>{state.problem}</span>
-              <button class="ghost" onClick={() => {
-                  models.agents.dismissProblem();
-                }}>
-                Dismiss
-              </button>
-            </div>
-          </div>
+    <>
+      <Shell
+        onShortcut={(id) => {
+          if (id === 'new-chat' && agent !== undefined) newChat(agent.id);
+          if (id === 'new-agent') setPage({ kind: 'new-agent' });
+          if (id === 'settings') openSettings('general');
+          if (id === 'filter-agents') setFilterRequest((count) => count + 1);
+          if (id === 'extensions') setPage({ kind: 'plugins' });
+        }}
+        sidebar={(mode, controls) => (
+          <Sidebar
+            model={models.agents}
+            mode={mode}
+            facts={(each) => liveFactsOf(cards, activity, each)}
+            avatar={avatarOf}
+            redact={preview}
+            alert={pluginAlert(entriesOf(cards))}
+            filterRequest={filterRequest}
+            onToggle={controls.toggle}
+            onOpenAgent={(agentId, threadId) => {
+              models.agents.selectAgent(agentId);
+              if (threadId !== null) models.agents.openThread(agentId, threadId);
+              setPage({ kind: 'chat' });
+              controls.dismiss();
+            }}
+            onNewChat={(agentId) => { newChat(agentId); controls.dismiss(); }}
+            onAgentSettings={(agentId) => { models.agents.selectAgent(agentId); setPage({ kind: 'agent-settings' }); controls.dismiss(); }}
+            onNewAgent={() => { setPage({ kind: 'new-agent' }); controls.dismiss(); }}
+            onSettings={() => { openSettings('general'); }}
+            onExtensions={() => { setPage({ kind: 'plugins' }); controls.dismiss(); }}
+          />
         )}
-        {content}
-      </div>
-    </div>
+        main={(chrome) => (
+          <>
+            {state.problem !== null && (
+              <div class="banner danger" role="alert">
+                <span>{safe(state.problem)}</span>
+                <button class="btn ghost" onClick={() => { models.agents.dismissProblem(); }}>Dismiss</button>
+              </div>
+            )}
+            <Pages page={page} onPage={setPage} models={models} bridge={bridge} agent={agent} chrome={chrome} info={info} reducedMotion={appearance.reducedMotion} onCopy={copyChat} onNewChat={newChat} />
+          </>
+        )}
+      />
+      {settings !== null && (
+        <SettingsModal
+          key={settings}
+          link={settings}
+          onClose={() => { setSettings(null); }}
+          appearance={models.appearance}
+          chatPrefs={models.chatPrefs}
+          info={info}
+          bridge={bridge}
+        />
+      )}
+    </>
   );
 }

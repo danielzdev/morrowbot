@@ -8,7 +8,18 @@ export interface BridgeChannels {
   readonly hostReady: 'morrowbot:host-ready';
   readonly pickFolder: 'morrowbot:pick-folder';
   readonly copyText: 'morrowbot:copy-text';
+  readonly openExternal: 'morrowbot:open-external';
+  readonly revealPath: 'morrowbot:reveal-path';
+  readonly appInfo: 'morrowbot:app-info';
+  readonly loginItem: 'morrowbot:login-item';
+  readonly setOpenAtLogin: 'morrowbot:set-open-at-login';
 }
+
+/** A folder to show in Finder, named by an opaque id; desktop main resolves the path itself. */
+export type RevealTarget = { readonly kind: 'data-dir' } | { readonly kind: 'agent-workspace'; readonly agentId: string };
+
+/** Open at login: only the installed app on macOS and Windows can register a login item. */
+export type LoginItem = { readonly kind: 'unsupported' } | { readonly kind: 'supported'; readonly openAtLogin: boolean };
 
 export type ApiMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -36,4 +47,14 @@ export interface MorrowbotBridge {
   pickFolder(): Promise<string | null>;
   /** Puts text on the system clipboard. */
   copyText(text: string): Promise<void>;
+  /** Opens an http or https link in the system browser; main refuses every other scheme. */
+  openExternal(url: string): Promise<void>;
+  /** Shows a folder in Finder. The renderer never sends a path. */
+  revealPath(target: RevealTarget): Promise<void>;
+  /** Version, home folder, user name and data folder, for `shared/privacy.ts` and About only. Parse with `AppInfo`. */
+  appInfo(): Promise<unknown>;
+  /** Whether MorrowBot opens at login, where the installed app supports it. Parse with `LoginItem`. */
+  loginItem(): Promise<unknown>;
+  /** Turns open-at-login on or off; answers like `loginItem()`. */
+  setOpenAtLogin(open: boolean): Promise<unknown>;
 }

@@ -4,6 +4,7 @@ import {
   AgentList,
   ApiError,
   ContinueResponse,
+  Folder,
   PluginEntry,
   PluginList,
   ProviderInfoResponse,
@@ -39,6 +40,9 @@ export interface Api {
   createAgent(request: z.input<typeof CreateAgentRequest>): Promise<ApiResult<Agent>>;
   updateAgent(id: string, request: UpdateAgentRequest): Promise<ApiResult<Agent>>;
   deleteAgent(id: string): Promise<ApiResult<null>>;
+  createFolder(name: string): Promise<ApiResult<Folder>>;
+  renameFolder(id: string, name: string): Promise<ApiResult<Folder>>;
+  deleteFolder(id: string): Promise<ApiResult<null>>;
   instructions(id: string): Promise<ApiResult<AgentInstructions>>;
   saveInstructions(id: string, content: string): Promise<ApiResult<AgentInstructions>>;
   listThreads(agentId: string): Promise<ApiResult<ThreadList>>;
@@ -84,6 +88,9 @@ export function createApi(bridge: MorrowbotBridge): Api {
     createAgent: (request) => call(Agent, 'POST', at('agents'), request),
     updateAgent: (id, request) => call(Agent, 'PATCH', at('agents', id), request),
     deleteAgent: (id) => call(NoContent, 'DELETE', at('agents', id)),
+    createFolder: (name) => call(Folder, 'POST', at('folders'), { name }),
+    renameFolder: (id, name) => call(Folder, 'PATCH', at('folders', id), { name }),
+    deleteFolder: (id) => call(NoContent, 'DELETE', at('folders', id)),
     instructions: (id) => call(AgentInstructions, 'GET', at('agents', id, 'instructions')),
     saveInstructions: (id, content) => call(AgentInstructions, 'PUT', at('agents', id, 'instructions'), { content }),
     listThreads: (agentId) => call(ThreadList, 'GET', at('agents', agentId, 'threads')),
