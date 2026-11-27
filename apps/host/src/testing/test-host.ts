@@ -65,6 +65,7 @@ export async function startTestHost(options: TestHostOptions): Promise<TestHost>
       pluginsDir: options.pluginsDir ?? path.join(options.dataDir, 'plugins'),
     },
     version: '0.0.0-test',
+    hostName: 'Studio Host',
     onPluginStatus: () => undefined,
     ...(options.sequence ?? sequence()),
     report: (error) => errors.push(error),

@@ -96,20 +96,24 @@ const MAX_BODY_BYTES = 2 * 1024 * 1024;
 export type Body = { readonly kind: 'ok'; readonly value: unknown } | { readonly kind: 'rejected'; readonly reply: Reply };
 
 /** Reads a JSON request body. Only `application/json` is accepted, so browsers must preflight (and fail). */
-export async function readJson(request: IncomingMessage): Promise<Body> {
+export async function readJson(request: IncomingMessage, maxBytes = MAX_BODY_BYTES): Promise<Body> {
   const type = request.headers['content-type']?.split(';')[0]?.trim().toLowerCase();
   if (type !== 'application/json') {
     return { kind: 'rejected', reply: failure('invalid_request', 'Send the body as application/json', 415) };
   }
   const chunks: Buffer[] = [];
   let size = 0;
-  for await (const chunk of request) {
-    if (!(chunk instanceof Buffer)) continue;
-    size += chunk.length;
-    if (size > MAX_BODY_BYTES) {
-      return { kind: 'rejected', reply: failure('invalid_request', 'Request body is too large', 413) };
+  try {
+    for await (const chunk of request) {
+      if (!(chunk instanceof Buffer)) continue;
+      size += chunk.length;
+      if (size > maxBytes) {
+        return { kind: 'rejected', reply: failure('invalid_request', 'Request body is too large', 413) };
+      }
+      chunks.push(chunk);
     }
-    chunks.push(chunk);
+  } catch {
+    return { kind: 'rejected', reply: failure('invalid_request', 'The request body was cut off') };
   }
   try {
     const value: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'));

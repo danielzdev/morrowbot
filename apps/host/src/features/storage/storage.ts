@@ -3,6 +3,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { agentRepository, type AgentRepository } from './agents-repo.ts';
 import { childGroupRepository, type ChildGroupRepository } from './child-groups-repo.ts';
+import { deviceRepository, type DeviceRepository } from './devices-repo.ts';
 import { folderRepository, type FolderRepository } from './folders-repo.ts';
 import { generationRepository, type GenerationRepository } from './generations-repo.ts';
 import { messageRepository, type MessageRepository } from './messages-repo.ts';
@@ -24,6 +25,7 @@ export interface Storage {
   readonly childGroups: ChildGroupRepository;
   readonly usage: UsageSnapshotRepository;
   readonly tokens: TokenTotalsRepository;
+  readonly devices: DeviceRepository;
   /** Runs `work` in one write transaction (`BEGIN IMMEDIATE`), rolled back if it throws. Not reentrant. */
   transaction<T>(work: () => T): T;
   close(): void;
@@ -49,6 +51,7 @@ export function openStorage(file: string, now: () => string): Storage {
       childGroups: childGroupRepository(db),
       usage: usageSnapshotRepository(db),
       tokens: tokenTotalsRepository(db, now),
+      devices: deviceRepository(db),
       transaction: (work) => {
         db.exec('BEGIN IMMEDIATE');
         try {
