@@ -42,6 +42,7 @@ export function ChatPane(props: {
   const state = useStore(models.agents.state);
   const cards = useStore(models.plugins.cards);
   const activity = useStore(models.chats.activity);
+  const { sendWith } = useStore(models.chatPrefs.state);
   const threadId = state.openThread[agent.id] ?? null;
   const threads = state.threads[agent.id];
   const binding = agent.provider.kind === 'bound' ? agent.provider : null;
@@ -98,6 +99,7 @@ export function ChatPane(props: {
           <Composer
             key={`composer-${session.threadId}`}
             session={session}
+            sendWith={sendWith}
             disabledReason={binding === null ? "Choose a provider in this agent's settings." : saving ? 'Saving the new settings…' : null}
             toolbar={
               binding === null ? (
