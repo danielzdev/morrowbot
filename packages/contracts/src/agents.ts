@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { EntityId, PluginId, Timestamp } from './ids.ts';
+import { AccessLevel, ModelSelection, VendorSettings } from './provider.ts';
 
 /** POSIX (`/x`), Windows drive (`C:\x`) or UNC (`\\server\share`) absolute paths. */
 const AbsolutePath = z.string().regex(/^(\/|[A-Za-z]:[\\/]|\\\\)/, 'Use an absolute path');
@@ -24,7 +25,13 @@ export type AgentAvatar = z.infer<typeof AgentAvatar>;
 
 export const ProviderBinding = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('unbound') }),
-  z.strictObject({ kind: z.literal('bound'), pluginId: PluginId, model: z.string().min(1) }),
+  z.strictObject({
+    kind: z.literal('bound'),
+    pluginId: PluginId,
+    selection: ModelSelection,
+    access: AccessLevel,
+    vendorSettings: VendorSettings,
+  }),
 ]);
 export type ProviderBinding = z.infer<typeof ProviderBinding>;
 

@@ -3,6 +3,7 @@ import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, it } from 'vitest';
+import WebSocket from 'ws';
 import { startTestHost, type TestHost } from './testing/test-host.ts';
 
 let dataDir: string;
@@ -23,7 +24,11 @@ it('rejects bad requests with a reason', async () => {
     await host.call('PATCH', '/api/agents/nope', { name: 'x' }),
     await host.call('PUT', '/api/agents', {}),
     await host.call('GET', '/api/nothing'),
-    await fetch(`${host.url}/api/agents`, { method: 'POST', body: '{"name":"x"}' }).then(async (response) => ({
+    await fetch(`${host.url}/api/agents`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${host.host.token}` },
+      body: '{"name":"x"}',
+    }).then(async (response) => ({
       status: response.status,
       body: await response.json(),
     })),
@@ -88,25 +93,29 @@ it('rejects bad requests with a reason', async () => {
   `);
 });
 
-it('serves only loopback clients that are not browser pages', async () => {
+it('serves only loopback clients that are not browser pages and hold this launch\'s token', async () => {
   const { port } = new URL(host.url);
+  const bearer = `Bearer ${host.host.token}`;
   const raw = (headers: Record<string, string>, target = '/api/agents') =>
     new Promise<number | undefined>((resolve, reject) => {
-      request({ host: '127.0.0.1', port, path: target, headers }, (response) => {
+      request({ host: '127.0.0.1', port, path: target, headers: { authorization: bearer, ...headers } }, (response) => {
         response.resume();
         resolve(response.statusCode);
       })
         .on('error', reject)
         .end();
     });
-  const socket = (origin: string | undefined) =>
+  const socket = (headers: Record<string, string>) =>
     new Promise<string>((resolve) => {
-      const ws = new WebSocket(`ws://127.0.0.1:${port}/api/events`, origin === undefined ? {} : { headers: { origin } });
-      ws.addEventListener('open', () => {
+      const ws = new WebSocket(`ws://127.0.0.1:${port}/api/events`, { headers: { authorization: bearer, ...headers } });
+      ws.once('open', () => {
         ws.close();
         resolve('open');
       });
-      ws.addEventListener('error', () => {
+      ws.once('unexpected-response', (_request, response) => {
+        resolve(`refused ${String(response.statusCode)}`);
+      });
+      ws.once('error', () => {
         resolve('refused');
       });
     });
@@ -118,19 +127,27 @@ it('serves only loopback clients that are not browser pages', async () => {
     malformedTarget: await raw({}, '//bad:port/api/agents'),
     stillServing: await raw({}),
     browserOrigin: await raw({ origin: 'https://evil.example' }),
-    socket: await socket(undefined),
-    browserSocket: await socket('https://evil.example'),
+    noToken: await raw({ authorization: '' }),
+    wrongToken: await raw({ authorization: `Bearer ${'x'.repeat(host.host.token.length)}` }),
+    healthWithoutToken: await raw({ authorization: '' }, '/health'),
+    socket: await socket({}),
+    browserSocket: await socket({ origin: 'https://evil.example' }),
+    socketWithoutToken: await socket({ authorization: '' }),
   }).toMatchInlineSnapshot(`
     {
       "browserOrigin": 403,
-      "browserSocket": "refused",
+      "browserSocket": "refused 403",
       "health": 200,
+      "healthWithoutToken": 401,
       "loopback": 200,
       "malformedTarget": 404,
+      "noToken": 401,
       "rebindingHost": 403,
       "socket": "open",
+      "socketWithoutToken": "refused 401",
       "stillServing": 200,
       "upperCaseHost": 200,
+      "wrongToken": 401,
     }
   `);
 });

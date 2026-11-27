@@ -1,15 +1,19 @@
 import { fork } from 'node:child_process';
 import {
   PluginMessage,
+  PROTOCOL_VERSION,
   type CrashReason,
-  type FinishReason,
   type HostMessage,
   type PluginConfig,
   type PluginErrorCode,
   type PluginHealth,
   type PluginKind,
-  type ProviderStreamRequest,
-  type StreamChunk,
+  type ProviderInfo,
+  type RouteInfo,
+  type TurnChunk,
+  type TurnEnd,
+  type TurnRequest,
+  type UsageResult,
 } from '@morrowbot/contracts';
 import { describeIssues } from './issues.ts';
 
@@ -17,6 +21,13 @@ export interface PluginTimeouts {
   readonly initMs: number;
   readonly healthMs: number;
   readonly shutdownMs: number;
+  /** The first `provider-info` of a worker may install or update things; later ones are shorter. */
+  readonly firstInfoMs: number;
+  readonly infoMs: number;
+  readonly usageMs: number;
+  readonly routeInfoMs: number;
+  /** How long Stop waits for `turn-end` before the host kills the worker. */
+  readonly turnStopMs: number;
 }
 
 export type PluginExit = { readonly kind: 'expected' } | { readonly kind: 'crashed'; readonly reason: CrashReason };
@@ -32,6 +43,14 @@ export class PluginRequestError extends Error {
   }
 }
 
+/** The plugin did not answer one request in time. Only that request fails; the process keeps running. */
+export class PluginTimeoutError extends Error {
+  constructor(request: string) {
+    super(`The plugin did not answer "${request}" in time`);
+    this.name = 'PluginTimeoutError';
+  }
+}
+
 /** The plugin process stopped before it answered. */
 export class PluginGoneError extends Error {
   constructor() {
@@ -40,59 +59,74 @@ export class PluginGoneError extends Error {
   }
 }
 
+export interface TurnHandlers {
+  onChunk(chunk: TurnChunk): void;
+  onEnd(end: TurnEnd): void;
+}
+
+export interface ChildGroupListener {
+  started(message: Extract<PluginMessage, { kind: 'child-group-started' }>): void;
+  exited(pgid: number): void;
+}
+
 export interface PluginProcess {
   readonly pid: number | undefined;
   /** Settles once, when the process is gone. */
   readonly exited: Promise<PluginExit>;
   init(config: PluginConfig, dataDir: string): Promise<PluginKind>;
   health(): Promise<PluginHealth>;
-  stream(request: ProviderStreamRequest, onChunk: (chunk: StreamChunk) => void, signal?: AbortSignal): Promise<FinishReason>;
+  providerInfo(refresh: boolean): Promise<ProviderInfo>;
+  usage(refresh: boolean): Promise<UsageResult>;
+  routeInfo(cwd: string): Promise<RouteInfo>;
+  /** Sends a turn. Its chunks and `turn-end` are routed by `turnId`, never through the request map. */
+  startTurn(request: TurnRequest, handlers: TurnHandlers): void;
+  cancelTurn(turnId: string): void;
+  replyApproval(turnId: string, approvalId: string, choiceId: string): void;
+  /** Stops routing a turn's messages; true if it had not ended. */
+  forgetTurn(turnId: string): boolean;
+  /** Whether a turn has been sent and has not ended. */
+  hasTurn(turnId: string): boolean;
+  ackChildGroup(pgid: number): void;
+  /** Kills the process through its own handle (SIGKILL). Its guards sweep their groups on pipe EOF. */
+  kill(): void;
   /** Asks the plugin to shut down, then kills it if it has not exited within the shutdown timeout. */
   stop(): Promise<void>;
 }
 
 interface Waiter {
+  readonly name: string;
   readonly reject: (error: Error) => void;
   readonly timer: NodeJS.Timeout | undefined;
+  readonly accept: (message: PluginMessage) => boolean;
 }
-
-type Variant =
-  | { readonly kind: 'init'; readonly resolve: (kind: PluginKind) => void }
-  | { readonly kind: 'health'; readonly resolve: (health: PluginHealth) => void }
-  | { readonly kind: 'shutdown'; readonly resolve: () => void }
-  | {
-      readonly kind: 'stream';
-      readonly resolve: (reason: FinishReason) => void;
-      readonly onChunk: (chunk: StreamChunk) => void;
-    };
-
-type Pending = Waiter & Variant;
 
 export interface SpawnOptions {
   readonly entryPath: string;
   readonly cwd: string;
-  /** Host environment variables to pass on besides `PATH` (the manifest's `env`). */
-  readonly envNames: readonly string[];
+  readonly env: Readonly<Record<string, string>>;
   readonly timeouts: PluginTimeouts;
+  readonly groups: ChildGroupListener;
+  readonly log: (message: string) => void;
 }
 
-/** Starts a plugin in its own Node process and talks to it over IPC. */
-export function spawnPluginProcess({ entryPath, cwd, envNames, timeouts }: SpawnOptions): PluginProcess {
+/** Starts a plugin in its own Node process and talks to it over IPC (wire protocol v1). */
+export function spawnPluginProcess({ entryPath, cwd, env, timeouts, groups, log }: SpawnOptions): PluginProcess {
   const child = fork(entryPath, [], {
     cwd,
     execArgv: [],
-    env: pluginEnv(envNames),
+    env,
     serialization: 'json',
     stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
   });
-  const pending = new Map<number, Pending>();
+  const pending = new Map<number, Waiter>();
+  const turns = new Map<string, TurnHandlers>();
   const exit = Promise.withResolvers<PluginExit>();
   let nextId = 0;
+  let infoCount = 0;
   let stopping = false;
   let failure: CrashReason | undefined;
   let gone = false;
   let killer: NodeJS.Timeout | undefined;
-  const abandoned = new Set<number>();
 
   function finish(result: PluginExit): void {
     if (gone) return;
@@ -102,7 +136,6 @@ export function spawnPluginProcess({ entryPath, cwd, envNames, timeouts }: Spawn
       waiter.reject(new PluginGoneError());
     }
     pending.clear();
-    abandoned.clear();
     exit.resolve(result);
   }
 
@@ -132,132 +165,179 @@ export function spawnPluginProcess({ entryPath, cwd, envNames, timeouts }: Spawn
   });
 
   function receive(message: PluginMessage): void {
-    const waiter = pending.get(message.id);
-    if (waiter === undefined && abandoned.has(message.id)) {
-      if (message.kind === 'stream-end' || message.kind === 'error') abandoned.delete(message.id);
-      return;
-    }
-    if (waiter === undefined) {
-      fail({ kind: 'protocol', problem: `answered unknown request ${String(message.id)}` });
-      return;
-    }
     switch (message.kind) {
+      case 'turn-chunk': {
+        const handlers = turns.get(message.turnId);
+        if (handlers === undefined) log(`dropped output for unknown turn ${message.turnId}`);
+        else
+          guarded(() => {
+            handlers.onChunk(message.chunk);
+          });
+        return;
+      }
+      case 'turn-end': {
+        const handlers = turns.get(message.turnId);
+        turns.delete(message.turnId);
+        const { outcome, usage, actualModel, accountKey, sessionTouched, finalText } = message;
+        if (handlers === undefined) log(`dropped the end of unknown turn ${message.turnId}`);
+        else
+          guarded(() => {
+            handlers.onEnd({ outcome, usage, actualModel, accountKey, sessionTouched, finalText });
+          });
+        return;
+      }
+      case 'child-group-started':
+        guarded(() => {
+          groups.started(message);
+        });
+        return;
+      case 'child-group-exited':
+        guarded(() => {
+          groups.exited(message.pgid);
+        });
+        return;
       case 'init-result':
-        if (waiter.kind !== 'init') break;
-        settle(message.id);
-        waiter.resolve(message.pluginKind);
-        return;
       case 'health-result':
-        if (waiter.kind !== 'health') break;
-        settle(message.id);
-        waiter.resolve(message.health);
-        return;
       case 'shutdown-result':
-        if (waiter.kind !== 'shutdown') break;
-        settle(message.id);
-        waiter.resolve();
-        return;
-      case 'stream-chunk':
-        if (waiter.kind !== 'stream') break;
-        try {
-          waiter.onChunk(message.chunk);
-        } catch (error) {
-          abandon(message.id);
-          waiter.reject(error instanceof Error ? error : new Error(String(error)));
-        }
-        return;
-      case 'stream-end':
-        if (waiter.kind !== 'stream') break;
-        settle(message.id);
-        waiter.resolve(message.finishReason);
-        return;
+      case 'provider-info-result':
+      case 'usage-result':
+      case 'route-info-result':
+      case 'route-info-failed':
       case 'error':
-        settle(message.id);
-        waiter.reject(new PluginRequestError(message.code, message.message));
+        answer(message);
         return;
     }
-    fail({ kind: 'protocol', problem: `answered a ${waiter.kind} request with ${message.kind}` });
   }
 
-  function settle(id: number): void {
-    clearTimeout(pending.get(id)?.timer);
-    pending.delete(id);
+  function answer(message: Extract<PluginMessage, { id: number }>): void {
+    const waiter = pending.get(message.id);
+    if (waiter === undefined) {
+      log(`ignored a late or unknown ${message.kind} for request ${String(message.id)}`);
+      return;
+    }
+    clearTimeout(waiter.timer);
+    pending.delete(message.id);
+    if (message.kind === 'error') {
+      waiter.reject(new PluginRequestError(message.code, message.message));
+    } else if (!waiter.accept(message)) {
+      fail({ kind: 'protocol', problem: `answered a ${waiter.name} request with ${message.kind}` });
+    }
   }
 
-  /** Stops waiting for a stream and tells the plugin to cancel it; its late replies are ignored. */
-  function abandon(id: number): boolean {
-    if (!pending.has(id)) return false;
-    settle(id);
-    abandoned.add(id);
-    send({ kind: 'cancel', id });
-    return true;
+  function guarded(work: () => void): void {
+    try {
+      work();
+    } catch (error) {
+      log(`a plugin message handler threw: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   function send(message: HostMessage): void {
+    if (gone || !child.connected) return;
     child.send(message, (error) => {
       if (error) fail({ kind: 'protocol', problem: `could not reach the plugin: ${error.message}` });
     });
   }
 
-  function request(
-    variant: Variant,
-    reject: (error: Error) => void,
+  /**
+   * Sends one request and settles with its answer. A timeout fails this request only,
+   * except for `init`, whose timeout ends the process (the slot then reports the crash).
+   */
+  function request<T>(
+    name: string,
     timeoutMs: number | undefined,
     message: (id: number) => HostMessage,
-  ): number {
-    const id = nextId++;
-    if (gone) {
-      reject(new PluginGoneError());
-      return id;
-    }
-    const timer =
-      timeoutMs === undefined
-        ? undefined
-        : setTimeout(() => {
-            fail({ kind: 'timeout', request: variant.kind });
-          }, timeoutMs);
-    const waiter: Pending = { ...variant, reject, timer };
-    pending.set(id, waiter);
-    send(message(id));
-    return id;
+    read: (message: PluginMessage) => T | undefined,
+  ): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const id = nextId++;
+      if (gone) {
+        reject(new PluginGoneError());
+        return;
+      }
+      const timer =
+        timeoutMs === undefined
+          ? undefined
+          : setTimeout(() => {
+              pending.delete(id);
+              if (name === 'init') fail({ kind: 'timeout', request: name });
+              reject(new PluginTimeoutError(name));
+            }, timeoutMs);
+      pending.set(id, {
+        name,
+        reject,
+        timer,
+        accept: (reply) => {
+          const value = read(reply);
+          if (value === undefined) return false;
+          resolve(value);
+          return true;
+        },
+      });
+      send(message(id));
+    });
   }
 
   return {
     pid: child.pid,
     exited: exit.promise,
     init: (config, dataDir) =>
-      new Promise((resolve, reject) => {
-        request({ kind: 'init', resolve }, reject, timeouts.initMs, (id) => ({ kind: 'init', id, config, dataDir }));
-      }),
+      request(
+        'init',
+        timeouts.initMs,
+        (id) => ({ kind: 'init', id, protocolVersion: PROTOCOL_VERSION, config, dataDir }),
+        (reply) => (reply.kind === 'init-result' ? reply.pluginKind : undefined),
+      ),
     health: () =>
-      new Promise((resolve, reject) => {
-        request({ kind: 'health', resolve }, reject, timeouts.healthMs, (id) => ({ kind: 'health', id }));
-      }),
-    stream: (streamRequest, onChunk, signal) =>
-      signal?.aborted ? Promise.resolve('cancelled') : new Promise((resolve, reject) => {
-        const onAbort = (): void => {
-          if (!abandon(id)) return;
-          signal?.removeEventListener('abort', onAbort);
-          resolve('cancelled');
-        };
-        const id = request(
-          {
-            kind: 'stream',
-            onChunk,
-            resolve: (reason) => {
-              signal?.removeEventListener('abort', onAbort);
-              resolve(reason);
-            },
-          },
-          (error) => {
-            signal?.removeEventListener('abort', onAbort);
-            reject(error);
-          },
-          undefined,
-          (requestId) => ({ kind: 'stream', id: requestId, request: streamRequest }),
-        );
-        signal?.addEventListener('abort', onAbort, { once: true });
-      }),
+      request(
+        'health',
+        timeouts.healthMs,
+        (id) => ({ kind: 'health', id }),
+        (reply) => (reply.kind === 'health-result' ? reply.health : undefined),
+      ),
+    providerInfo: (refresh) =>
+      request(
+        'provider-info',
+        infoCount++ === 0 ? timeouts.firstInfoMs : timeouts.infoMs,
+        (id) => ({ kind: 'provider-info', id, refresh }),
+        (reply) => (reply.kind === 'provider-info-result' ? reply.info : undefined),
+      ),
+    usage: (refresh) =>
+      request(
+        'usage',
+        timeouts.usageMs,
+        (id) => ({ kind: 'usage', id, refresh }),
+        (reply) => (reply.kind === 'usage-result' ? reply.usage : undefined),
+      ),
+    routeInfo: (cwd) =>
+      request<RouteInfo>(
+        'route-info',
+        timeouts.routeInfoMs,
+        (id) => ({ kind: 'route-info', id, cwd }),
+        (reply) => {
+          if (reply.kind === 'route-info-result') return { kind: 'known', accountKey: reply.accountKey, routeKey: reply.routeKey };
+          if (reply.kind === 'route-info-failed') return { kind: 'failed', reason: reply.reason };
+          return undefined;
+        },
+      ),
+    startTurn: (turn, handlers) => {
+      turns.set(turn.turnId, handlers);
+      send({ kind: 'turn', ...turn });
+    },
+    cancelTurn: (turnId) => {
+      if (turns.has(turnId)) send({ kind: 'cancel', turnId });
+    },
+    replyApproval: (turnId, approvalId, choiceId) => {
+      if (turns.has(turnId)) send({ kind: 'approval-reply', turnId, approvalId, choiceId });
+    },
+    forgetTurn: (turnId) => turns.delete(turnId),
+    hasTurn: (turnId) => turns.has(turnId),
+    ackChildGroup: (pgid) => {
+      send({ kind: 'child-group-ack', pgid });
+    },
+    kill: () => {
+      if (!gone) child.kill('SIGKILL');
+    },
     stop: async () => {
       if (!stopping && !gone) {
         stopping = true;
@@ -265,22 +345,12 @@ export function spawnPluginProcess({ entryPath, cwd, envNames, timeouts }: Spawn
         killer = setTimeout(() => {
           child.kill('SIGKILL');
         }, timeouts.shutdownMs);
-        request({ kind: 'shutdown', resolve: () => undefined }, () => undefined, undefined, (id) => ({
-          kind: 'shutdown',
-          id,
-        }));
+        request('shutdown', undefined, (id) => ({ kind: 'shutdown', id }), (reply) =>
+          reply.kind === 'shutdown-result' ? true : undefined,
+        ).catch(() => undefined);
       }
       await exit.promise;
       clearTimeout(killer);
     },
   };
-}
-
-function pluginEnv(names: readonly string[]): Record<string, string> {
-  const env: Record<string, string> = { PATH: process.env.PATH ?? '' };
-  for (const name of names) {
-    const value = process.env[name];
-    if (value !== undefined) env[name] = value;
-  }
-  return env;
 }

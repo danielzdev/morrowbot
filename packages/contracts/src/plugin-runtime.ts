@@ -18,6 +18,10 @@ export const PluginStatus = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('unhealthy'), detail: z.string() }),
   z.strictObject({ kind: z.literal('crashed'), reason: CrashReason }),
   z.strictObject({ kind: z.literal('stopped') }),
+  /** A process group the plugin started could not be confirmed gone, so it runs no new work. */
+  z.strictObject({ kind: z.literal('quarantined'), detail: z.string().min(1) }),
+  /** The plugin kind cannot run on this OS (provider plugins on Windows in v1). */
+  z.strictObject({ kind: z.literal('unsupported'), reason: z.string().min(1) }),
 ]);
 export type PluginStatus = z.infer<typeof PluginStatus>;
 

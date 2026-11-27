@@ -1,6 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite';
+import { MIGRATION_2 } from './migration-2.ts';
 
-const MIGRATIONS: readonly string[] = [
+export const MIGRATIONS: readonly string[] = [
   `
   CREATE TABLE agents (
     id TEXT PRIMARY KEY,
@@ -41,6 +42,7 @@ const MIGRATIONS: readonly string[] = [
     updated_at TEXT NOT NULL
   ) STRICT;
   `,
+  MIGRATION_2,
 ];
 
 export function migrate(db: DatabaseSync): void {

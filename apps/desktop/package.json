@@ -11,6 +11,12 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "devDependencies": {
+    "@types/ws": "^8.18.2",
     "electron": "^45.5.0"
+  },
+  "dependencies": {
+    "@morrowbot/contracts": "^0.0.0",
+    "ws": "^8.23.0",
+    "zod": "^4.6.7"
   }
 }

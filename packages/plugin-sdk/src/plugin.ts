@@ -1,4 +1,13 @@
-import type { FinishReason, PluginConfig, PluginHealth, ProviderStreamRequest, StreamChunk } from '@morrowbot/contracts';
+import type {
+  PluginConfig,
+  PluginHealth,
+  ProviderInfo,
+  RouteInfo,
+  TurnChunk,
+  TurnEnd,
+  TurnRequest,
+  UsageResult,
+} from '@morrowbot/contracts';
 
 export interface PluginContext {
   /** The plugin's settings, already checked against its manifest `settingsSchema`, with defaults filled in. */
@@ -16,21 +25,40 @@ export interface LifecycleHooks {
   shutdown?(): void | Promise<void>;
 }
 
-export interface StreamSink {
-  emit(chunk: StreamChunk): void;
-  /** Aborted when the host cancels the stream. */
+export interface TurnContext {
+  readonly request: TurnRequest;
+  /** Aborted when the host cancels the turn. Commands given this signal stop with it. */
   readonly signal: AbortSignal;
+  /** Sends one piece of the turn to the host. Ignored once the turn has ended. */
+  readonly emit: (chunk: TurnChunk) => void;
 }
 
 export interface ToolPlugin extends LifecycleHooks {
   readonly kind: 'tool';
 }
 
-export interface ProviderPlugin extends LifecycleHooks {
+export interface ProviderHooks extends LifecycleHooks {
+  /** Reports the CLI, sign-in, models and access. `refresh: false` may answer from a short display cache. */
+  providerInfo(request: { readonly refresh: boolean }): ProviderInfo | Promise<ProviderInfo>;
+  /** Reports plan usage. `refresh: false` reads only what this process already observed, with no network call. */
+  usage(request: { readonly refresh: boolean }): UsageResult | Promise<UsageResult>;
+  /** Resolves the account and inference route a turn in `cwd` would use. Never runs inference. */
+  routeInfo(request: { readonly cwd: string }): RouteInfo | Promise<RouteInfo>;
+  /**
+   * Runs one turn. Check the account against `request.expectedAccountKey` before sending anything.
+   * Throwing ends the turn as `failed{other}` (or `cancelled` once the signal is aborted).
+   */
+  turn(context: TurnContext): Promise<TurnEnd>;
+}
+
+export interface ProviderPlugin extends ProviderHooks {
   readonly kind: 'provider';
-  /** Streams a reply as chunks and resolves with why it stopped. */
-  stream(request: ProviderStreamRequest, sink: StreamSink): Promise<FinishReason>;
 }
 
 /** What a plugin implements. `kind` must match the `kind` in its `manifest.json`. */
 export type PluginDefinition = ToolPlugin | ProviderPlugin;
+
+/** Declares a provider plugin; pass the result to `runPlugin`. */
+export function defineProvider(hooks: ProviderHooks): ProviderPlugin {
+  return { kind: 'provider', ...hooks };
+}

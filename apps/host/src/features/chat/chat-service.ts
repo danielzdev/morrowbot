@@ -1,210 +1,210 @@
 import type {
-  AgentTools,
+  ActiveTurn,
   AssistantMessage,
-  ChatEvent,
-  ChatProvider,
   CreateThreadRequest,
+  Cursor,
   Message,
+  ProviderInfo,
+  SessionChoice,
   StopGenerationResponse,
   Thread,
-  ToolResult,
-  UserMessage,
+  ThreadState,
 } from '@morrowbot/contracts';
-import { assistantMessage, generate } from './generation.ts';
+import { admit, type AdmitResult } from './admission.ts';
+import { dispatch } from './dispatch.ts';
+import { EventLog, type Replay } from './event-log.ts';
 import type { ChatListener, ChatServiceOptions } from './ports.ts';
+import { laneOf, localSettlement, queueNote, settle, type ChatCore, type Turn } from './turn.ts';
+import { readUsage, type UsageAnswer } from './usage.ts';
 
-export type SendResult =
-  | { readonly kind: 'started'; readonly generationId: string; readonly userMessage: UserMessage }
-  | { readonly kind: 'thread_not_found' }
+export type ApprovalResult = { readonly kind: 'replied' } | { readonly kind: 'not_found' };
+
+export type RecheckResult =
+  | { readonly kind: 'ok'; readonly info: ProviderInfo }
   | { readonly kind: 'busy' }
-  | { readonly kind: 'no_provider'; readonly reason: string };
+  | { readonly kind: 'unavailable'; readonly reason: string };
 
 export interface ChatService {
   listThreads(agentId: string): Thread[] | undefined;
   createThread(agentId: string, request: CreateThreadRequest): Thread | undefined;
   getThread(id: string): Thread | undefined;
   renameThread(id: string, title: string): Thread | undefined;
-  /** Stops the thread's generation, then deletes the thread. No new message can start meanwhile. */
+  /** Stops the thread's turn, then deletes the thread. No new turn can start meanwhile. */
   deleteThread(id: string): Promise<boolean>;
-  /** Stops every generation of the agent, then deletes the agent and its threads. */
+  /** Stops every turn of the agent, then deletes the agent and its threads. */
   deleteAgent(id: string): Promise<boolean>;
   listMessages(threadId: string): Message[] | undefined;
-  send(threadId: string, text: string): SendResult;
-  /** Stops the thread's active generation and resolves once its partial reply is saved. */
+  /** The thread, its messages, its live turn and blocked groups, and its cursor, as one snapshot. */
+  state(threadId: string): ThreadState | undefined;
+  send(threadId: string, text: string, choice: SessionChoice): Promise<AdmitResult>;
+  continueTurn(threadId: string, failedMessageId: string, choice: SessionChoice): Promise<AdmitResult>;
+  /** Stops the thread's turn and resolves once its reply is stored and its processes are gone. */
   stop(threadId: string): Promise<StopGenerationResponse>;
+  replyApproval(threadId: string, generationId: string, approvalId: string, choiceId: string): ApprovalResult;
+  /** Refreshes a provider's info with no new sends admitted meanwhile. Refused while it has turns. */
+  recheck(pluginId: string): Promise<RecheckResult>;
+  usage(pluginId: string, refresh: boolean): Promise<UsageAnswer>;
+  /** The events a client missed since `since`, or `resync`. Synchronous with `subscribe`. */
+  replay(threadId: string, since: Cursor): Replay;
   subscribe(listener: ChatListener): () => void;
   close(): Promise<void>;
 }
 
-interface ActiveGeneration {
-  readonly agentId: string;
-  readonly controller: AbortController;
-  readonly done: Promise<AssistantMessage>;
-}
-
-interface StartRun {
-  readonly provider: ChatProvider;
-  readonly model: string;
-  readonly tools: AgentTools;
-}
-
 export function createChatService(options: ChatServiceOptions): ChatService {
-  const { threads, messages, agents } = options;
-  const listeners = new Set<ChatListener>();
-  const active = new Map<string, ActiveGeneration>();
-  const deletingThreads = new Set<string>();
-  const deletingAgents = new Set<string>();
-  let closed = false;
+  const { store, agents } = options;
+  const core: ChatCore = {
+    options,
+    events: new EventLog(options.hostEpoch),
+    active: new Map(),
+    lanes: new Map(),
+    fenced: new Set(),
+    rechecking: new Set(),
+    liveUsage: new Map(),
+    deletingThreads: new Set(),
+    deletingAgents: new Set(),
+    dispatch: (turn) => dispatch(core, turn),
+    closed: false,
+  };
+  recover(options);
 
-  const publish = (event: ChatEvent): void => {
-    for (const listener of listeners) {
-      try {
-        listener(event);
-      } catch (error) {
-        options.report(error);
+  /** Stops a turn the way its state allows. Resolves with its stored reply. */
+  const stopTurn = (turn: Turn): Promise<AssistantMessage> => {
+    switch (turn.state) {
+      case 'queued': {
+        const lane = laneOf(core, turn);
+        lane.queue.splice(lane.queue.indexOf(turn), 1);
+        settle(core, turn, localSettlement({ kind: 'cancelled' }));
+        break;
       }
+      case 'dispatching':
+        turn.stopRequested = true;
+        break;
+      case 'running':
+        turn.stopRequested = true;
+        options.plugins.cancelTurn(turn.pluginId, turn.generationId);
+        break;
+      case 'settled':
+        break;
     }
+    return turn.settled.promise;
   };
 
   const stop = async (threadId: string): Promise<StopGenerationResponse> => {
-    const generation = active.get(threadId);
-    if (generation === undefined) return { kind: 'idle' };
-    generation.controller.abort();
-    return { kind: 'stopped', message: await generation.done };
+    const turn = core.active.get(threadId);
+    if (turn === undefined) return { kind: 'idle' };
+    const message = await stopTurn(turn);
+    await turn.released.promise;
+    return { kind: 'stopped', message };
   };
 
-  const stopWhere = async (match: (threadId: string, generation: ActiveGeneration) => boolean): Promise<void> => {
-    const threadIds = [...active].filter(([id, generation]) => match(id, generation)).map(([id]) => id);
-    await Promise.all(threadIds.map((id) => stop(id)));
-  };
-
-  /** Runs `remove` with no generation running, and none able to start, in the threads it removes. */
-  async function exclusively(
-    keys: Set<string>,
-    key: string,
-    match: (threadId: string, generation: ActiveGeneration) => boolean,
-    remove: () => boolean,
-  ): Promise<boolean> {
+  /** Runs `remove` with no turn running, and none able to start, in the threads it removes. */
+  async function exclusively(keys: Set<string>, key: string, match: (turn: Turn) => boolean, remove: () => boolean): Promise<boolean> {
     keys.add(key);
     try {
-      await stopWhere(match);
+      await Promise.all([...core.active.values()].filter(match).map((turn) => stopTurn(turn)));
       return remove();
     } finally {
       keys.delete(key);
     }
   }
 
-  function start(thread: Thread, userMessage: UserMessage, run: StartRun): string {
-    const generationId = options.newId();
-    const controller = new AbortController();
-    const ref = { threadId: thread.id, generationId };
-    const runningTools = new Set<Promise<ToolResult>>();
-    const tools: AgentTools = {
-      run: (call, signal) => {
-        if (controller.signal.aborted) return Promise.resolve({ kind: 'aborted' });
-        const running = run.tools
-          .run(call, signal === undefined ? controller.signal : AbortSignal.any([signal, controller.signal]))
-          .then((result) => {
-            publish({ kind: 'generation.tool', ...ref, call, result });
-            return result;
-          });
-        runningTools.add(running);
-        void running.finally(() => runningTools.delete(running));
-        return running;
-      },
+  const activeTurn = (threadId: string): ActiveTurn | null => {
+    const turn = core.active.get(threadId);
+    if (turn === undefined || turn.state === 'settled') return null;
+    return {
+      generationId: turn.generationId,
+      state: turn.state === 'queued' ? 'queued' : 'running',
+      queueNote: turn.state === 'queued' ? queueNote(laneOf(core, turn)) : null,
+      text: turn.text,
+      pendingApprovals: [...turn.approvals.values()],
     };
-    const done = generate({
-      ...ref,
-      provider: run.provider,
-      model: run.model,
-      history: messages.listByThread(thread.id),
-      loadInstructions: async () => (await agents.readInstructions(thread.agentId)) ?? '',
-      tools,
-      signal: controller.signal,
-      publish,
-    }).then(async (result) => {
-      controller.abort();
-      await Promise.all(runningTools);
-      const message = assistantMessage(options.newId(), thread.id, result, options.now());
-      try {
-        messages.insert(message);
-        threads.touch(thread.id, message.createdAt);
-      } catch (error) {
-        options.report(error);
-      }
-      active.delete(thread.id);
-      publish({ kind: 'generation.finished', ...ref, message });
-      return message;
-    });
-    active.set(thread.id, { agentId: thread.agentId, controller, done });
-    publish({ kind: 'generation.started', ...ref, userMessage });
-    return generationId;
-  }
+  };
 
   return {
-    listThreads: (agentId) => (agents.get(agentId) === undefined ? undefined : threads.listByAgent(agentId)),
+    listThreads: (agentId) => (agents.get(agentId) === undefined ? undefined : store.threads.listByAgent(agentId)),
     createThread: (agentId, request) => {
       if (agents.get(agentId) === undefined) return undefined;
       const at = options.now();
       const thread: Thread = { id: options.newId(), agentId, title: request.title, createdAt: at, updatedAt: at };
-      threads.insert(thread);
+      store.threads.insert(thread);
       return thread;
     },
-    getThread: (id) => threads.get(id),
+    getThread: (id) => store.threads.get(id),
     renameThread: (id, title) => {
-      const current = threads.get(id);
+      const current = store.threads.get(id);
       if (current === undefined) return undefined;
       const next: Thread = { ...current, title, updatedAt: options.now() };
-      threads.update(next);
+      store.threads.update(next);
       return next;
     },
-    deleteThread: (id) => exclusively(deletingThreads, id, (threadId) => threadId === id, () => threads.delete(id)),
-    deleteAgent: (id) =>
-      exclusively(deletingAgents, id, (_threadId, generation) => generation.agentId === id, () => agents.delete(id)),
-    listMessages: (threadId) => (threads.get(threadId) === undefined ? undefined : messages.listByThread(threadId)),
-    send: (threadId, text) => {
-      if (closed || deletingThreads.has(threadId)) return { kind: 'thread_not_found' };
-      const thread = threads.get(threadId);
-      if (thread === undefined || deletingAgents.has(thread.agentId)) return { kind: 'thread_not_found' };
-      if (active.has(threadId)) return { kind: 'busy' };
-      const agent = agents.get(thread.agentId);
-      if (agent === undefined) return { kind: 'thread_not_found' };
-      switch (agent.provider.kind) {
-        case 'unbound':
-          return { kind: 'no_provider', reason: 'This agent has no provider. Choose a provider and model first.' };
-        case 'bound': {
-          const provider = options.providers.provider(agent.provider.pluginId);
-          if (provider === undefined) {
-            return { kind: 'no_provider', reason: `Provider plugin ${agent.provider.pluginId} is not available.` };
-          }
-          const userMessage: UserMessage = {
-            kind: 'user',
-            id: options.newId(),
-            threadId,
-            text,
-            createdAt: options.now(),
-          };
-          messages.insert(userMessage);
-          threads.touch(threadId, userMessage.createdAt);
-          const generationId = start(thread, userMessage, {
-            provider,
-            model: agent.provider.model,
-            tools: options.toolsFor(agent.workspace.dir),
-          });
-          return { kind: 'started', generationId, userMessage };
-        }
-      }
+    deleteThread: async (id) => {
+      const removed = await exclusively(core.deletingThreads, id, (turn) => turn.threadId === id, () => store.threads.delete(id));
+      if (removed) core.events.forget(id);
+      return removed;
     },
-    stop,
-    subscribe: (listener) => {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
+    deleteAgent: (id) => exclusively(core.deletingAgents, id, (turn) => turn.agentId === id, () => agents.delete(id)),
+    listMessages: (threadId) => (store.threads.get(threadId) === undefined ? undefined : store.messages.listByThread(threadId)),
+    state: (threadId) => {
+      const thread = store.threads.get(threadId);
+      if (thread === undefined) return undefined;
+      return {
+        thread,
+        messages: store.messages.listByThread(threadId),
+        activeTurn: activeTurn(threadId),
+        blockedGroups: options.plugins.blockedGroups(store.generations.idsByThread(threadId)),
+        cursor: core.events.cursor(threadId),
       };
     },
+    send: (threadId, text, choice) => admit(core, threadId, { kind: 'send', text }, choice),
+    continueTurn: (threadId, failedMessageId, choice) => admit(core, threadId, { kind: 'continue', failedMessageId }, choice),
+    stop,
+    replyApproval: (threadId, generationId, approvalId, choiceId) => {
+      const turn = core.active.get(threadId);
+      if (turn?.generationId !== generationId || turn.state !== 'running') return { kind: 'not_found' };
+      const approval = turn.approvals.get(approvalId);
+      if (approval?.choices.some((choice) => choice.id === choiceId) !== true) return { kind: 'not_found' };
+      turn.approvals.delete(approvalId);
+      options.plugins.replyApproval(turn.pluginId, generationId, approvalId, choiceId);
+      core.events.publish({ kind: 'generation.approval-resolved', threadId, generationId, approvalId, resolution: { kind: 'chosen', choiceId } });
+      return { kind: 'replied' };
+    },
+    recheck: async (pluginId) => {
+      if (core.rechecking.has(pluginId) || [...core.active.values()].some((turn) => turn.pluginId === pluginId)) return { kind: 'busy' };
+      core.rechecking.add(pluginId);
+      try {
+        const info = await options.plugins.info(pluginId, true);
+        return info.kind === 'ok' ? { kind: 'ok', info: info.info } : info;
+      } finally {
+        core.rechecking.delete(pluginId);
+      }
+    },
+    usage: (pluginId, refresh) => readUsage(core, pluginId, refresh),
+    replay: (threadId, since) => core.events.replay(threadId, since),
+    subscribe: (listener) => core.events.subscribe(listener),
     close: async () => {
-      closed = true;
-      await stopWhere(() => true);
+      core.closed = true;
+      await Promise.all([...core.active.values()].map((turn) => stopTurn(turn)));
     },
   };
+}
+
+/** Turns a crash left unsettled end as interrupted, keeping the text saved so far. */
+function recover(options: ChatServiceOptions): void {
+  const { store } = options;
+  for (const generation of store.generations.unsettled()) {
+    const at = options.now();
+    const message: AssistantMessage = {
+      kind: 'assistant',
+      id: options.newId(),
+      threadId: generation.threadId,
+      text: generation.partialText,
+      outcome: { kind: 'interrupted' },
+      createdAt: at,
+    };
+    store.transaction(() => {
+      store.messages.insert(message);
+      store.threads.touch(generation.threadId, at);
+      store.generations.settle(generation.id, message.id);
+    });
+  }
 }

@@ -1,13 +1,43 @@
 import { describe, expect, it } from 'vitest';
 import { parseCliLine } from './stream-json.ts';
 
-const parse = (value: unknown) => parseCliLine(typeof value === 'string' ? value : JSON.stringify(value));
+const HOME = '/Users/tester';
+const json = (value: unknown) => (typeof value === 'string' ? value : JSON.stringify(value));
+const parse = (value: unknown) => parseCliLine(json(value), { home: HOME });
 
 const textDelta = (text: string, parent: string | null = null) => ({
   type: 'stream_event',
   event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } },
   session_id: 's',
   parent_tool_use_id: parent,
+});
+
+const init = { type: 'system', subtype: 'init', model: 'claude-haiku-5-5', tools: ['Glob', 'Grep', 'Read'], session_id: 's' };
+
+const toolUse = (id: string, input: unknown) => ({
+  type: 'assistant',
+  parent_tool_use_id: null,
+  message: { content: [{ type: 'tool_use', id, name: 'Read', input, caller: { type: 'direct' } }] },
+});
+
+/** The `usage` of a real 2.1.332 `result` line, trimmed to the fields MorrowBot reads plus two it ignores. */
+const usage = {
+  input_tokens: 4,
+  cache_creation_input_tokens: 3083,
+  cache_read_input_tokens: 9355,
+  output_tokens: 395,
+  output_tokens_details: { thinking_tokens: 155 },
+  service_tier: 'standard',
+};
+
+const success = (result: string) => ({
+  type: 'result',
+  subtype: 'success',
+  is_error: false,
+  result,
+  stop_reason: 'end_turn',
+  usage,
+  session_id: 's',
 });
 
 describe('parseCliLine', () => {
@@ -32,24 +62,14 @@ describe('parseCliLine', () => {
 
   it('reports the model, thinking, and tool calls as status and tool events', () => {
     expect([
-      parse({ type: 'system', subtype: 'init', model: 'claude-haiku-5-5', tools: ['Read'], session_id: 's' }),
+      parse(init),
       parse({ type: 'system', subtype: 'status', status: 'requesting', session_id: 's' }),
       parse({
         type: 'stream_event',
         event: { type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '', signature: '' } },
         parent_tool_use_id: null,
       }),
-      parse({
-        type: 'assistant',
-        parent_tool_use_id: null,
-        message: {
-          model: 'claude-haiku-5-5',
-          content: [
-            { type: 'text', text: 'Let me look.' },
-            { type: 'tool_use', id: 'toolu_01', name: 'Read', input: { file_path: './note.txt' }, caller: { type: 'direct' } },
-          ],
-        },
-      }),
+      parse(toolUse('toolu_01', { file_path: `${HOME}/work/note.txt`, other: [HOME, '/elsewhere'] })),
       parse({
         type: 'user',
         parent_tool_use_id: null,
@@ -70,7 +90,8 @@ describe('parseCliLine', () => {
               "text": "Started claude-haiku-5-5",
             },
           ],
-          "kind": "chunks",
+          "kind": "init",
+          "model": "claude-haiku-5-5",
         },
         {
           "kind": "skip",
@@ -88,7 +109,11 @@ describe('parseCliLine', () => {
           "chunks": [
             {
               "input": {
-                "file_path": "./note.txt",
+                "file_path": "~/work/note.txt",
+                "other": [
+                  "~",
+                  "/elsewhere",
+                ],
               },
               "kind": "tool-start",
               "name": "Read",
@@ -116,22 +141,25 @@ describe('parseCliLine', () => {
     `);
   });
 
-  it('reads the final result, including errors Claude Code reports as results', () => {
+  it('shortens tool input over 4 KB to the start of its JSON', () => {
+    const parsed = parse(toolUse('toolu_big', { pattern: 'x"'.repeat(3000) }));
+    const input = parsed.kind === 'chunks' && parsed.chunks[0]?.kind === 'tool-start' ? parsed.chunks[0].input : null;
+    expect({ type: typeof input, jsonLength: JSON.stringify(input).length, start: typeof input === 'string' ? input.slice(0, 20) : null }).toMatchInlineSnapshot(`
+      {
+        "jsonLength": 3838,
+        "start": "{"pattern":"x\\"x\\"x\\",
+        "type": "string",
+      }
+    `);
+  });
+
+  it('reads the final result with its token usage, including errors Claude Code reports as results', () => {
     expect([
-      parse({ type: 'result', subtype: 'success', is_error: false, result: 'hi there', stop_reason: 'end_turn' }),
+      parse(success('hi there')),
       parse({ type: 'result', subtype: 'success', is_error: false, result: 'cut off', stop_reason: 'max_tokens' }),
-      parse({
-        type: 'result',
-        subtype: 'success',
-        is_error: true,
-        result: 'Not logged in · Please run /login',
-        terminal_reason: 'api_error',
-        stop_reason: 'stop_sequence',
-      }),
       parse({ type: 'result', subtype: 'error_during_execution', is_error: true, errors: ['tool crashed', 'gave up'] }),
       parse({ type: 'result', subtype: 'error_max_turns', is_error: true }),
       parse({ type: 'result', subtype: 'error_during_execution', is_error: true, result: '', errors: ['', 'rate limited'] }),
-      parse({ type: 'result', subtype: 'error_during_execution', is_error: true, result: null }),
     ]).toMatchInlineSnapshot(`
       [
         {
@@ -140,6 +168,14 @@ describe('parseCliLine', () => {
             "finishReason": "stop",
             "kind": "success",
             "text": "hi there",
+            "usage": {
+              "cacheWriteTokens": 3083,
+              "cachedInputTokens": 9355,
+              "inputTokens": 4,
+              "kind": "reported",
+              "outputTokens": 395,
+              "reasoningTokens": null,
+            },
           },
         },
         {
@@ -148,13 +184,9 @@ describe('parseCliLine', () => {
             "finishReason": "length",
             "kind": "success",
             "text": "cut off",
-          },
-        },
-        {
-          "kind": "result",
-          "result": {
-            "kind": "error",
-            "message": "Not logged in · Please run /login",
+            "usage": {
+              "kind": "unavailable",
+            },
           },
         },
         {
@@ -162,6 +194,9 @@ describe('parseCliLine', () => {
           "result": {
             "kind": "error",
             "message": "tool crashed; gave up",
+            "usage": {
+              "kind": "unavailable",
+            },
           },
         },
         {
@@ -169,6 +204,9 @@ describe('parseCliLine', () => {
           "result": {
             "kind": "error",
             "message": "Claude Code stopped (error_max_turns)",
+            "usage": {
+              "kind": "unavailable",
+            },
           },
         },
         {
@@ -176,20 +214,16 @@ describe('parseCliLine', () => {
           "result": {
             "kind": "error",
             "message": "rate limited",
-          },
-        },
-        {
-          "kind": "result",
-          "result": {
-            "kind": "error",
-            "message": "Claude Code stopped (error_during_execution)",
+            "usage": {
+              "kind": "unavailable",
+            },
           },
         },
       ]
     `);
   });
 
-  it('flags malformed lines and skips blank lines and unknown event types', () => {
+  it('flags malformed lines and skips blank lines, rate limit events and unknown event types', () => {
     expect([
       parse('Warning: something printed to stdout'),
       parse('[1, 2]'),

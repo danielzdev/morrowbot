@@ -1,16 +1,22 @@
-import { HostMessage, type PluginMessage } from '@morrowbot/contracts';
+import { HostMessage, PROTOCOL_VERSION, TurnRequest, type PluginMessage, type TurnEnd } from '@morrowbot/contracts';
+import { z } from 'zod';
 import { stopAllCommands } from './command.ts';
-import type { PluginDefinition } from './plugin.ts';
+import { ackGroup, connectHost, killGroup } from './host-link.ts';
+import type { PluginDefinition, ProviderPlugin } from './plugin.ts';
 
 type Send = (message: PluginMessage, done?: () => void) => void;
+type Turns = Map<string, AbortController>;
 
 /**
- * Serves a plugin over the IPC channel the host opened. Call it once from the
+ * Serves a plugin over the IPC channel the host opened (wire protocol v1). Call it once from the
  * plugin's entry file. The process exits when the host shuts it down or goes away.
  */
 export function runPlugin(plugin: PluginDefinition): void {
   const send = ipcSender();
-  const streams = new Map<number, AbortController>();
+  const turns: Turns = new Map();
+  connectHost((message) => {
+    send(message);
+  });
   process.on('disconnect', () => process.exit(0));
   process.on('message', (raw: unknown) => {
     const parsed = HostMessage.safeParse(raw);
@@ -18,7 +24,7 @@ export function runPlugin(plugin: PluginDefinition): void {
       console.error(`MorrowBot plugin: ignored a malformed host message: ${parsed.error.message}`);
       return;
     }
-    void handle(plugin, parsed.data, send, streams);
+    handle(plugin, parsed.data, send, turns);
   });
 }
 
@@ -32,80 +38,140 @@ function ipcSender(): Send {
   };
 }
 
-async function handle(
-  plugin: PluginDefinition,
-  message: HostMessage,
-  send: Send,
-  streams: Map<number, AbortController>,
-): Promise<void> {
-  const { id } = message;
-  try {
-    switch (message.kind) {
-      case 'init':
-        await plugin.init?.({ config: message.config, dataDir: message.dataDir });
-        send({ kind: 'init-result', id, pluginKind: plugin.kind });
-        return;
-      case 'health':
-        send({ kind: 'health-result', id, health: plugin.health ? await plugin.health() : { kind: 'ok' } });
-        return;
-      case 'shutdown': {
-        for (const controller of streams.values()) controller.abort();
-        let reply: PluginMessage = { kind: 'shutdown-result', id };
-        try {
-          await stopAllCommands();
-          await plugin.shutdown?.();
-        } catch (error) {
-          reply = failure(id, error);
-        }
-        send(reply, () => process.exit(0));
-        return;
-      }
-      case 'stream':
-        await stream(plugin, message, send, streams);
-        return;
-      case 'cancel':
-        streams.get(id)?.abort();
-        return;
-    }
-  } catch (error) {
-    send(failure(id, error));
+function handle(plugin: PluginDefinition, message: HostMessage, send: Send, turns: Turns): void {
+  switch (message.kind) {
+    case 'turn':
+      void runTurn(plugin, message, send, turns);
+      return;
+    case 'cancel':
+      turns.get(message.turnId)?.abort();
+      return;
+    case 'approval-reply':
+      console.error(`MorrowBot plugin: ignored an approval reply for ${message.approvalId}`);
+      return;
+    case 'child-group-ack':
+      ackGroup(message.pgid);
+      return;
+    case 'kill-child-group':
+      killGroup(message.pgid);
+      return;
+    case 'init':
+    case 'health':
+    case 'shutdown':
+    case 'provider-info':
+    case 'usage':
+    case 'route-info':
+      void answer(plugin, message, send, turns).catch((error: unknown) => {
+        send(failure(message.id, error));
+      });
+      return;
   }
 }
 
-function failure(id: number, error: unknown): PluginMessage {
-  return { kind: 'error', id, code: 'failed', message: error instanceof Error ? error.message : String(error) };
+type Request = Extract<HostMessage, { id: number }>;
+
+async function answer(plugin: PluginDefinition, message: Request, send: Send, turns: Turns): Promise<void> {
+  const { id } = message;
+  switch (message.kind) {
+    case 'init':
+      await plugin.init?.({ config: message.config, dataDir: message.dataDir });
+      send({ kind: 'init-result', id, protocolVersion: PROTOCOL_VERSION, pluginKind: plugin.kind });
+      return;
+    case 'health':
+      send({ kind: 'health-result', id, health: plugin.health ? await plugin.health() : { kind: 'ok' } });
+      return;
+    case 'shutdown': {
+      for (const controller of turns.values()) controller.abort();
+      let reply: PluginMessage = { kind: 'shutdown-result', id };
+      try {
+        await stopAllCommands();
+        await plugin.shutdown?.();
+      } catch (error) {
+        reply = failure(id, error);
+      }
+      send(reply, () => process.exit(0));
+      return;
+    }
+    case 'provider-info':
+      send({ kind: 'provider-info-result', id, info: await provider(plugin).providerInfo({ refresh: message.refresh }) });
+      return;
+    case 'usage':
+      send({ kind: 'usage-result', id, usage: await provider(plugin).usage({ refresh: message.refresh }) });
+      return;
+    case 'route-info': {
+      const route = await provider(plugin).routeInfo({ cwd: message.cwd });
+      switch (route.kind) {
+        case 'known':
+          send({ kind: 'route-info-result', id, accountKey: route.accountKey, routeKey: route.routeKey });
+          return;
+        case 'failed':
+          send({ kind: 'route-info-failed', id, reason: route.reason });
+          return;
+      }
+    }
+  }
 }
 
-async function stream(
-  plugin: PluginDefinition,
-  message: Extract<HostMessage, { kind: 'stream' }>,
-  send: Send,
-  streams: Map<number, AbortController>,
-): Promise<void> {
-  const { id } = message;
+function provider(plugin: PluginDefinition): ProviderPlugin {
   switch (plugin.kind) {
-    case 'tool':
-      send({ kind: 'error', id, code: 'unsupported', message: 'Tool plugins do not stream' });
-      return;
     case 'provider':
-      break;
+      return plugin;
+    case 'tool':
+      throw new UnsupportedError('Tool plugins do not run provider requests');
+  }
+}
+
+/** A `turn` frame without its `kind`. */
+const TurnFields = z.object(TurnRequest.shape);
+
+async function runTurn(
+  plugin: PluginDefinition,
+  message: Extract<HostMessage, { kind: 'turn' }>,
+  send: Send,
+  turns: Turns,
+): Promise<void> {
+  const request = TurnFields.parse(message);
+  const { turnId } = request;
+  if (turns.has(turnId)) {
+    console.error(`MorrowBot plugin: ignored a second turn with id ${turnId}`);
+    return;
   }
   const controller = new AbortController();
+  turns.set(turnId, controller);
   let ended = false;
-  streams.set(id, controller);
+  let end: TurnEnd;
   try {
-    const finishReason = await plugin.stream(message.request, {
-      emit: (chunk) => {
-        if (!ended && !controller.signal.aborted) send({ kind: 'stream-chunk', id, chunk });
-      },
+    end = await provider(plugin).turn({
+      request,
       signal: controller.signal,
+      emit: (chunk) => {
+        if (!ended) send({ kind: 'turn-chunk', turnId, chunk });
+      },
     });
-    send({ kind: 'stream-end', id, finishReason: controller.signal.aborted ? 'cancelled' : finishReason });
   } catch (error) {
-    if (!controller.signal.aborted) throw error;
-    send({ kind: 'stream-end', id, finishReason: 'cancelled' });
+    end = {
+      outcome: controller.signal.aborted
+        ? { kind: 'cancelled' }
+        : { kind: 'failed', error: { kind: 'other', message: describe(error) } },
+      usage: { kind: 'unavailable' },
+      actualModel: null,
+      accountKey: request.expectedAccountKey,
+      sessionTouched: true,
+      finalText: null,
+    };
   } finally {
     ended = true;
-    streams.delete(id);
+    turns.delete(turnId);
   }
+  send({ kind: 'turn-end', turnId, ...end });
+}
+
+class UnsupportedError extends Error {}
+
+function failure(id: number, error: unknown): PluginMessage {
+  return { kind: 'error', id, code: error instanceof UnsupportedError ? 'unsupported' : 'failed', message: describe(error) };
+}
+
+function describe(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
