@@ -68,7 +68,7 @@ it("previews each agent's newest message with text across its threads, cut to 40
   `);
 });
 
-it('sends the text as written, never cuts a word in half, and skips messages blank in any script or cut short by a NUL', () => {
+it('sends the text as written, never cuts a word in half, and skips messages blank in any script or holding a NUL', () => {
   say('g1', 'assistant', `${'a'.repeat(390)} reach   me at someone@example.com today`);
   say('g1', 'assistant', ' \n\t ');
   say('g1', 'assistant', '\u00a0\u2003');
@@ -76,6 +76,7 @@ it('sends the text as written, never cuts a word in half, and skips messages bla
   say('o1', 'user', `${' '.repeat(500)}hoot  hoot${'\n'.repeat(400)}`);
   say('f1', 'user', 'x'.repeat(410));
   say('f1', 'assistant', ' \0hidden');
+  say('f1', 'assistant', 'seen\0 hidden');
   expect(storage.messages.lastByAgent().map(({ agentId, preview }) => ({ agentId, preview }))).toMatchInlineSnapshot(`
     [
       {
