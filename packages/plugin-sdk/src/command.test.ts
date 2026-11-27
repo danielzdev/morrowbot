@@ -2,7 +2,7 @@ import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { commandFilePath, createCommandRunner, type CommandExit, type CommandOptions } from './command.ts';
+import { commandFilePath, createCommandRunner, LINE_LIMIT, type CommandExit, type CommandOptions } from './command.ts';
 import { createGroupLink } from './host-link.ts';
 import { waitUntilGone } from './testing/processes.ts';
 
@@ -46,6 +46,22 @@ it('returns a short command at once, with its output and exit', async () => {
         "hello",
       ],
       "underHalfASecond": true,
+    }
+  `);
+});
+
+it('stops a command whose stdout line runs past the limit, keeping the lines before it', async () => {
+  const { lines, exit, ms } = await run('/bin/sh', ['-c', `printf 'first\\n'; head -c ${String(LINE_LIMIT + 1)} /dev/zero | tr '\\0' x; sleep 30`]);
+  expect({ lines, exit, beforeTheSleepEnds: ms < 20_000 }).toMatchInlineSnapshot(`
+    {
+      "beforeTheSleepEnds": true,
+      "exit": {
+        "kind": "failed",
+        "message": "The command printed a line longer than 67108864 characters",
+      },
+      "lines": [
+        "first",
+      ],
     }
   `);
 });

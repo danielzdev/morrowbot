@@ -169,6 +169,55 @@ it('runs a built-in provider\'s commands with only its own environment, not the 
   expect(output).toMatchInlineSnapshot(`"host=[] path=[set]"`);
 });
 
+it('a turn end that is not JSON ends only that provider, as a crash, and the host carries on', async () => {
+  const { channel, received, exited } = connect(() =>
+    defineProvider({
+      providerInfo: unused,
+      usage: unused,
+      routeInfo: unused,
+      turn: ({ request }) => {
+        const end = {
+          outcome: { kind: 'completed', finishReason: 'stop' } as const,
+          usage: { kind: 'unavailable' } as const,
+          actualModel: null,
+          accountKey: request.expectedAccountKey,
+          sessionTouched: true,
+          finalText: null,
+          tokens: 1n,
+        };
+        return Promise.resolve(end);
+      },
+    }),
+  );
+  channel.send(
+    {
+      kind: 'turn',
+      turnId: 'turn-1',
+      cwd: tmpdir(),
+      mode: 'interactive',
+      access: 'read-only',
+      vendorSettings: 'isolated',
+      expectedAccountKey: 'acct',
+      expectedRouteKey: '',
+      selection: { kind: 'default' },
+      session: { kind: 'new', seed: null },
+      system: null,
+      prompt: 'hi',
+    },
+    () => undefined,
+  );
+  expect({ exit: await exited, connected: channel.connected, received }).toMatchInlineSnapshot(`
+    {
+      "connected": false,
+      "exit": {
+        "code": 1,
+        "signal": null,
+      },
+      "received": [],
+    }
+  `);
+});
+
 it('a built-in provider that throws while it is built fails to start instead of taking the host down', async () => {
   const failed = Promise.withResolvers<{ message: string; started: boolean }>();
   const open = inHostChannel(

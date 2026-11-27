@@ -10,7 +10,9 @@ import { servePlugin, type PluginFactory, type RuntimeEnv, type ServedPlugin } f
  * closes, so each sweeps its process group, and nothing more is delivered either way (a message
  * still in flight is dropped, so the exit reason stays the kill). A host message
  * whose handling throws ends the provider the same way, as an uncaught exception ends a worker, and
- * a provider that throws while it is built fails to start, as a worker that dies on load.
+ * a provider that throws while it is built fails to start, as a worker that dies on load. A message
+ * from the provider that is not JSON ends it too (a worker's `process.send` would throw instead,
+ * failing only that request), so no detached provider code can throw into the host.
  */
 export function inHostChannel(factory: PluginFactory, env: RuntimeEnv, platform: NodeJS.Platform): OpenPluginChannel {
   return (events) => {
@@ -34,6 +36,7 @@ export function inHostChannel(factory: PluginFactory, env: RuntimeEnv, platform:
         platform,
         transport: {
           send: (message, done) => {
+            if (!open) return;
             let copy: unknown;
             try {
               copy = copyOf(message);

@@ -135,7 +135,7 @@ it('lets workspace-write edit with the file tools only, asking the host interact
   `);
 });
 
-it('passes the effort a model offers after the model, and refuses one it does not offer', () => {
+it('passes the effort a model offers (its default when none was chosen) after the model, and refuses one it does not offer', () => {
   const opus = { kind: 'model', id: 'opus', choices: { effort: 'xhigh' } } as const;
   const effort = effortOf(opus);
   expect({
@@ -145,6 +145,7 @@ it('passes the effort a model offers after the model, and refuses one it does no
     providerDefault: effortOf({ kind: 'default' }),
     notOffered: effortOf({ kind: 'model', id: 'haiku', choices: { effort: 'ultra' } }),
     unknownModel: effortOf({ kind: 'model', id: 'claude-mystery', choices: { effort: 'low' } }),
+    unknownModelNoChoice: effortOf({ kind: 'model', id: 'claude-mystery', choices: {} }),
   }).toMatchInlineSnapshot(`
     {
       "args": [
@@ -158,7 +159,8 @@ it('passes the effort a model offers after the model, and refuses one it does no
         "level": "xhigh",
       },
       "noChoice": {
-        "kind": "none",
+        "kind": "level",
+        "level": "high",
       },
       "notOffered": {
         "kind": "unsupported",
@@ -170,6 +172,9 @@ it('passes the effort a model offers after the model, and refuses one it does no
       "unknownModel": {
         "kind": "unsupported",
         "reason": "Claude model "claude-mystery" does not offer the effort "low". Pick another effort.",
+      },
+      "unknownModelNoChoice": {
+        "kind": "none",
       },
     }
   `);

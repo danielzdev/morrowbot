@@ -34,6 +34,10 @@ const ALIASES: readonly { readonly id: string; readonly label: string; readonly 
   { id: 'haiku', label: 'Haiku', efforts: EFFORT_LEVELS },
 ];
 
+function defaultEffort(efforts: readonly EffortLevel[]): EffortLevel {
+  return efforts.includes(DEFAULT_EFFORT) ? DEFAULT_EFFORT : (efforts[0] ?? DEFAULT_EFFORT);
+}
+
 export const MODELS: readonly ProviderModel[] = ALIASES.map(({ id, label, efforts }) => ({
   id,
   label,
@@ -42,13 +46,17 @@ export const MODELS: readonly ProviderModel[] = ALIASES.map(({ id, label, effort
     {
       id: EFFORT_OPTION_ID,
       label: 'Effort',
-      defaultChoiceId: efforts.includes(DEFAULT_EFFORT) ? DEFAULT_EFFORT : (efforts[0] ?? DEFAULT_EFFORT),
+      defaultChoiceId: defaultEffort(efforts),
       choices: efforts.map((effort) => ({ id: effort, label: EFFORT_LABELS[effort] })),
     },
   ],
 }));
 
-/** The `--effort` a selection asks for: none, one its model offers, or a refusal for a choice it does not offer. */
+/**
+ * The `--effort` a selection asks for: none (the CLI's default model, or a model id Claude Code was
+ * not checked with), one its model offers (its default when none was chosen, as the picker shows),
+ * or a refusal for a choice it does not offer.
+ */
 export type EffortChoice =
   | { readonly kind: 'none' }
   | { readonly kind: 'level'; readonly level: EffortLevel }
@@ -56,9 +64,10 @@ export type EffortChoice =
 
 export function effortOf(selection: ModelSelection): EffortChoice {
   if (selection.kind === 'default') return { kind: 'none' };
+  const alias = ALIASES.find(({ id }) => id === selection.id);
   const asked = selection.choices[EFFORT_OPTION_ID];
-  if (asked === undefined) return { kind: 'none' };
-  const level = ALIASES.find(({ id }) => id === selection.id)?.efforts.find((effort) => effort === asked);
+  if (asked === undefined) return alias === undefined ? { kind: 'none' } : { kind: 'level', level: defaultEffort(alias.efforts) };
+  const level = alias?.efforts.find((effort) => effort === asked);
   return level === undefined
     ? { kind: 'unsupported', reason: `Claude model "${selection.id}" does not offer the effort "${asked}". Pick another effort.` }
     : { kind: 'level', level };

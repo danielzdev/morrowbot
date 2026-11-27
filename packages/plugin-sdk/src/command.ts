@@ -10,6 +10,8 @@ import type { GroupLink } from './host-link.ts';
 const GUARD_PATH = fileURLToPath(new URL('./command-guard.ts', import.meta.url));
 const DRAIN_MS = 250;
 const STDERR_LIMIT = 4_000;
+/** The longest stdout line a command may print; a longer one stops it, so one runaway line cannot exhaust the process that reads it. */
+export const LINE_LIMIT = 64 * 1024 * 1024;
 
 export interface CommandOptions {
   readonly args: readonly string[];
@@ -152,9 +154,11 @@ function openCommand(command: string, options: CommandOptions, owner: Owner): Op
   let killed = false;
   let pgid: number | undefined;
   let report: GuardMessage | undefined;
-  let lineError: unknown;
+  /** Why the command was stopped while its output was read: `onLine` threw, or a line ran past `LINE_LIMIT`. */
+  let lineError: string | undefined;
   let errorOutput = '';
-  let partial = '';
+  let partial: string[] = [];
+  let partialLength = 0;
 
   const tell = (message: OwnerMessage): void => {
     if (!guard.connected) return;
@@ -195,7 +199,7 @@ function openCommand(command: string, options: CommandOptions, owner: Owner): Op
     try {
       options.onLine(line.endsWith('\r') ? line.slice(0, -1) : line);
     } catch (error) {
-      lineError = error;
+      lineError = `onLine threw: ${describe(error)}`;
       terminate();
     }
   };
@@ -219,8 +223,9 @@ function openCommand(command: string, options: CommandOptions, owner: Owner): Op
     });
   });
   const complete = (code: number | null, signal: string | null): void => {
-    if (partial !== '') emit(partial);
-    partial = '';
+    if (partialLength > 0) emit(partial.join(''));
+    partial = [];
+    partialLength = 0;
     finish(outcome(report, lineError, { kind: 'exited', code, signal, stderr: errorOutput }));
   };
   guard.on('close', complete);
@@ -233,9 +238,23 @@ function openCommand(command: string, options: CommandOptions, owner: Owner): Op
   });
   stdout?.setEncoding('utf8');
   stdout?.on('data', (text: string) => {
-    const lines = (partial + text).split('\n');
-    partial = lines.pop() ?? '';
-    for (const line of lines) emit(line);
+    if (lineError !== undefined) return;
+    const lines = text.split('\n');
+    const rest = lines.pop() ?? '';
+    for (const line of lines) {
+      partial.push(line);
+      emit(partial.join(''));
+      partial = [];
+      partialLength = 0;
+    }
+    partial.push(rest);
+    partialLength += rest.length;
+    if (partialLength > LINE_LIMIT) {
+      partial = [];
+      partialLength = 0;
+      lineError = `The command printed a line longer than ${String(LINE_LIMIT)} characters`;
+      terminate();
+    }
   });
   stderr?.setEncoding('utf8');
   stderr?.on('data', (text: string) => {
@@ -265,10 +284,10 @@ function closedCommand(result: CommandExit): OpenCommand {
 
 function outcome(
   report: GuardMessage | undefined,
-  lineError: unknown,
+  lineError: string | undefined,
   guardExit: Extract<CommandExit, { kind: 'exited' }>,
 ): CommandExit {
-  if (lineError !== undefined) return { kind: 'failed', message: `onLine threw: ${describe(lineError)}` };
+  if (lineError !== undefined) return { kind: 'failed', message: lineError };
   if (report === undefined) return guardExit;
   switch (report.kind) {
     case 'started':

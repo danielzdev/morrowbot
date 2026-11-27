@@ -85,7 +85,9 @@ export const jsonRpcProcessOver = (open: CommandRunner['open']): StartJsonRpcPro
     }
     reply.then(
       (result) => {
-        write({ id, result: result ?? null });
+        guarded(`${method} reply`, () => {
+          write({ id, result: result ?? null });
+        });
       },
       (error: unknown) => {
         write({ id, error: { code: INTERNAL_ERROR, message: describe(error) } });
