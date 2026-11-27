@@ -68,6 +68,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
           if (id === 'new-agent') setPage({ kind: 'new-agent' });
           if (id === 'settings') setSettings((open) => (open === null ? 'appearance' : null));
           if (id === 'filter-agents') setFilterRequest((count) => count + 1);
+          if (id === 'extensions') setPage({ kind: 'plugins' });
         }}
         sidebar={(mode, controls) => (
           <Sidebar
@@ -75,7 +76,8 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
             mode={mode}
             facts={(each) => liveFactsOf(cards, activity, each)}
             avatar={avatarOf}
-            plugins={pluginAlert(entriesOf(cards))}
+            redact={safe}
+            alert={pluginAlert(entriesOf(cards))}
             filterRequest={filterRequest}
             onToggle={controls.toggle}
             onOpenAgent={(agentId, threadId) => {
@@ -88,7 +90,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
             onAgentSettings={(agentId) => { models.agents.selectAgent(agentId); setPage({ kind: 'agent-settings' }); controls.dismiss(); }}
             onNewAgent={() => { setPage({ kind: 'new-agent' }); controls.dismiss(); }}
             onSettings={() => { setSettings('appearance'); }}
-            onPlugins={() => { setPage({ kind: 'plugins' }); controls.dismiss(); }}
+            onExtensions={() => { setPage({ kind: 'plugins' }); controls.dismiss(); }}
           />
         )}
         main={(chrome) => (

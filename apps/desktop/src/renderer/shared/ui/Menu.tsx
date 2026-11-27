@@ -22,6 +22,7 @@ export type MenuItem =
 /** A menu of actions in a popover: ↑/↓/Home/End and type-ahead move, Enter or Space runs the item. */
 export function Menu(props: {
   readonly anchor: RefObject<HTMLElement | null>;
+  readonly at?: { readonly x: number; readonly y: number } | undefined;
   readonly label: string;
   readonly items: readonly MenuItem[];
   readonly onClose: () => void;
@@ -33,6 +34,7 @@ export function Menu(props: {
   return (
     <Popover
       anchor={props.anchor}
+      at={props.at}
       label={props.label}
       role="menu"
       class="menu"

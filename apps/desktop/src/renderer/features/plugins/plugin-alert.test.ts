@@ -21,16 +21,16 @@ it('shows a dot only for crashed, quarantined, unhealthy or invalid plugins, or 
   }).toMatchInlineSnapshot(`
     {
       "danger": {
-        "label": "Plugins: 1 not responding, 1 crashed, 1 quarantined",
+        "label": "Extensions: 1 not responding, 1 crashed, 1 quarantined",
         "tone": "danger",
       },
       "fine": null,
       "safeMode": {
-        "label": "Plugins: Safe mode: plugins are off.",
+        "label": "Extensions: Safe mode: extensions are off.",
         "tone": "warn",
       },
       "warn": {
-        "label": "Plugins: 1 not responding, 1 with settings to fix",
+        "label": "Extensions: 1 not responding, 1 with settings to fix",
         "tone": "warn",
       },
     }

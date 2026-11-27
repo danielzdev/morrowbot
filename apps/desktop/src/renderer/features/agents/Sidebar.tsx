@@ -1,19 +1,20 @@
 import type { Agent } from '@morrowbot/contracts';
 import type { ComponentChildren } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { PLATFORM, shortcutLabel } from '../../shared/keys.ts';
-import { ConfirmDialog } from '../../shared/ui/ConfirmDialog.tsx';
-import { Icon } from '../../shared/ui/Icon.tsx';
-import { Menu, type MenuItem } from '../../shared/ui/Menu.tsx';
+import type { MenuItem } from '../../shared/ui/Menu.tsx';
 import { useStore } from '../../shared/use-store.ts';
-import type { AgentsModel, AgentsState } from './agents-model.ts';
 import { AgentRow } from './AgentRow.tsx';
-import { GROUP_LABEL, groupAgents, type AgentEntry, type AgentFacts } from './sidebar-groups.ts';
-import { SidebarBottom, SidebarTop } from './SidebarChrome.tsx';
+import type { AgentsModel } from './agents-model.ts';
+import { NameInput } from '../../shared/ui/NameInput.tsx';
+import { SectionHeader } from './SectionHeader.tsx';
+import { groupAgents, sectionKey, type AgentEntry, type AgentFacts } from './sidebar-groups.ts';
+import { SidebarBottom, SidebarSearch, SidebarTop } from './SidebarChrome.tsx';
+import { SidebarPopups, type RowPopup } from './SidebarPopups.tsx';
 import { itemsOf } from './sidebar-window.ts';
 import { useAgentList } from './use-agent-list.ts';
+import { useFolderUi } from './use-folder-ui.ts';
 
-/** What the app knows about an agent beyond its chats list: provider readiness and its open chats' activity. */
+/** What the app knows about an agent beyond the host's list: provider readiness and its open chats' activity. */
 export type LiveFacts = Pick<AgentFacts, 'providerReady' | 'approvalChats' | 'failed' | 'working'>;
 
 export type SidebarMode = 'docked' | 'rail' | 'overlay';
@@ -23,52 +24,42 @@ export interface SidebarProps {
   readonly mode: SidebarMode;
   readonly facts: (agent: Agent) => LiveFacts;
   readonly avatar: (agent: Agent, size: number) => ComponentChildren;
+  /** Makes message previews safe to show (spec §9.1). */
+  readonly redact: (text: string) => string;
   /** Opens the agent, at `threadId` when given (e.g. the chat waiting for approval). */
   readonly onOpenAgent: (agentId: string, threadId: string | null) => void;
   readonly onNewChat: (agentId: string) => void;
   readonly onAgentSettings: (agentId: string) => void;
   readonly onNewAgent: () => void;
   readonly onSettings: () => void;
-  readonly onPlugins: () => void;
+  readonly onExtensions: () => void;
   readonly onToggle: () => void;
-  readonly plugins: { readonly tone: 'warn' | 'danger'; readonly label: string } | null;
-  /** Bumped by ⇧⌘F: shows the filter and focuses it. */
+  readonly alert: { readonly tone: 'warn' | 'danger'; readonly label: string } | null;
+  /** Bumped by ⇧⌘F: focuses the search. */
   readonly filterRequest: number;
 }
 
-const FILTER_FROM = 6;
+const AVATAR_PX = 44;
+const RAIL_AVATAR_PX = 36;
 
-function approvalChatsOf(entries: readonly AgentEntry[], agentId: string): readonly string[] {
-  const status = entries.find(({ agent }) => agent.id === agentId)?.status;
-  return status?.kind === 'needs-approval' ? status.threadIds : [];
-}
-
-const lastActiveOf = (state: AgentsState, agentId: string): string | null => {
-  const threads = state.threads[agentId];
-  return threads?.kind === 'loaded' ? (threads.value[0]?.updatedAt ?? null) : null;
-};
-
-/** The agents list (spec §3.1): Needs you / Working / Agents, a filter, and the bottom utility bar. */
+/** The agents list (spec §3.1, messenger style): search, Needs you / Working, Agents, the person's folders, then Extensions and Settings. */
 export function Sidebar(props: SidebarProps) {
   const state = useStore(props.model.state);
   const rail = props.mode === 'rail';
+  const folders = useFolderUi(props.model);
   const [filter, setFilter] = useState('');
-  const [filterOpen, setFilterOpen] = useState(false);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<Agent | null>(null);
-  const [chooser, setChooser] = useState<{ readonly agentId: string; readonly anchor: HTMLElement } | null>(null);
+  const [popup, setPopup] = useState<RowPopup | null>(null);
   const [now, setNow] = useState(Date.now);
-  const filterInput = useRef<HTMLInputElement>(null);
+  const search = useRef<HTMLInputElement>(null);
   const agents = state.agents.kind === 'loaded' ? state.agents.value : [];
   const unreadAgents = new Set(Object.values(state.unread));
-  const showFilter = !rail && (agents.length >= FILTER_FROM || filterOpen);
 
-  const groups = groupAgents(
-    agents.map((agent) => ({ agent, ...props.facts(agent), unread: unreadAgents.has(agent.id), lastActive: lastActiveOf(state, agent.id) })),
-    showFilter ? filter : '',
-  );
-  const items = itemsOf(groups, rail);
-  const view = useAgentList(items, state.selectedAgentId);
+  const facts = agents.map((agent): AgentFacts => ({ agent, ...props.facts(agent), unread: unreadAgents.has(agent.id), lastMessage: state.lastMessages[agent.id] ?? null }));
+  const groups = groupAgents(facts, state.folders, rail ? '' : filter);
+  const items = itemsOf(groups, rail, folders.folded);
+  const view = useAgentList(items, state.selectedAgentId, rail);
   const { entries, shown } = view;
 
   useEffect(() => {
@@ -80,14 +71,24 @@ export function Sidebar(props: SidebarProps) {
     };
   }, []);
   useEffect(() => {
-    if (props.filterRequest === 0) return;
-    setFilterOpen(true);
-    requestAnimationFrame(() => filterInput.current?.focus());
+    if (props.filterRequest !== 0) requestAnimationFrame(() => search.current?.focus());
   }, [props.filterRequest]);
 
+  const rowOf = (agentId: string): HTMLElement | null => view.list.current?.querySelector<HTMLElement>(`[data-agent="${agentId}"]`) ?? null;
   const menuFor = (agent: Agent): readonly MenuItem[] => [
+    { kind: 'action', id: 'new-chat', label: 'New chat', icon: 'plus', onSelect: () => { props.onNewChat(agent.id); } },
     { kind: 'action', id: 'settings', label: 'Agent settings', icon: 'settings', onSelect: () => { props.onAgentSettings(agent.id); } },
     { kind: 'action', id: 'rename', label: 'Rename', icon: 'pencil', onSelect: () => { setRenaming(agent.id); } },
+    {
+      kind: 'action',
+      id: 'move',
+      label: 'Move to folder…',
+      icon: 'folder',
+      onSelect: () => {
+        const anchor = rowOf(agent.id);
+        if (anchor !== null) setPopup({ kind: 'move', agent, anchor });
+      },
+    },
     { kind: 'separator', id: 'sep' },
     { kind: 'action', id: 'delete', label: 'Delete…', icon: 'trash', danger: true, onSelect: () => { setDeleting(agent); } },
   ];
@@ -95,109 +96,92 @@ export function Sidebar(props: SidebarProps) {
     const threads = state.threads[agentId];
     return (threads?.kind === 'loaded' ? threads.value.find(({ id }) => id === threadId)?.title : undefined) ?? 'Chat';
   };
+  const open = (entry: AgentEntry, row: HTMLElement): void => {
+    const { agent, status } = entry;
+    if (status.kind === 'needs-approval' && status.threadIds.length > 1) {
+      const items = status.threadIds.map((threadId): MenuItem => ({ kind: 'action', id: threadId, label: titleOf(agent.id, threadId), icon: 'chat', onSelect: () => { props.onOpenAgent(agent.id, threadId); } }));
+      setPopup({ kind: 'approval', agentId: agent.id, anchor: row, items });
+    } else props.onOpenAgent(agent.id, status.kind === 'needs-approval' ? (status.threadIds[0] ?? null) : null);
+  };
 
   return (
     <nav class={`sidebar ${props.mode}`} aria-label="Agents">
       <SidebarTop mode={props.mode} onToggle={props.onToggle} onNewAgent={props.onNewAgent} />
-      {showFilter && (
-        <div class="sidebar-filter">
-          <Icon name="search" />
-          <input
-            ref={filterInput}
-            type="search"
-            placeholder="Filter agents…"
-            aria-label="Filter agents"
-            aria-keyshortcuts={shortcutLabel('filter-agents', PLATFORM)}
-            value={filter}
-            onInput={(event) => {
-              setFilter(event.currentTarget.value);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'Escape' && (filter !== '' || filterOpen)) {
-                event.stopPropagation();
-                setFilter('');
-                setFilterOpen(false);
-              }
-              if (event.key === 'ArrowDown' && entries.length > 0) {
-                event.preventDefault();
-                view.moveTo(0);
-              }
-            }}
-          />
+      {!rail && <SidebarSearch inputRef={search} value={filter} onChange={setFilter} onDown={() => { view.moveTo(0); }} onNewAgent={props.onNewAgent} />}
+      {!rail && folders.draft !== null && (
+        <div class="folder-draft">
+          <NameInput initial="" label="New folder name" placeholder="Folder name" onDone={(name) => void folders.finishDraft(name)} />
         </div>
       )}
       <div ref={view.list} class="agent-list" onKeyDown={view.onKeyDown} onFocusIn={view.onFocusIn} onFocusOut={view.onFocusOut} onScroll={view.onScroll}>
         {state.agents.kind === 'loading' && <div class="sidebar-note">Loading…</div>}
         {state.agents.kind === 'failed' && <div class="sidebar-note danger">{state.agents.message}</div>}
-        {state.agents.kind === 'loaded' && agents.length === 0 && !rail && <div class="sidebar-note">No agents yet.</div>}
-        {state.agents.kind === 'loaded' && agents.length > 0 && entries.length === 0 && <div class="sidebar-note">No agents match.</div>}
+        {state.agents.kind === 'loaded' && agents.length > 0 && entries.length === 0 && filter !== '' && <div class="sidebar-note">No agents match.</div>}
         <div style={{ height: `${String(shown.before)}px` }} />
-        {items.slice(shown.start, shown.end).map((item) =>
-          item.kind === 'header' ? (
-            <div key={item.key} class="kicker group-label" role="presentation">
-              {GROUP_LABEL[item.group]}
-            </div>
-          ) : (
-            <AgentRow
-              key={item.key}
-              entry={item.entry}
-              avatar={props.avatar(item.entry.agent, 24)}
-              selected={item.entry.agent.id === state.selectedAgentId}
-              tabbable={item.entry.agent.id === view.tabStop}
-              rail={rail}
-              renaming={renaming === item.entry.agent.id}
-              now={now}
-              onFocus={() => {
-                view.setFocusId(item.entry.agent.id);
-              }}
-              onOpen={(row) => {
-                const { agent, status } = item.entry;
-                if (status.kind === 'needs-approval' && status.threadIds.length > 1) setChooser({ agentId: agent.id, anchor: row });
-                else props.onOpenAgent(agent.id, status.kind === 'needs-approval' ? (status.threadIds[0] ?? null) : null);
-              }}
-              onNewChat={() => {
-                props.onNewChat(item.entry.agent.id);
-              }}
-              menu={() => menuFor(item.entry.agent)}
-              onRenamed={(name) => {
-                setRenaming(null);
-                if (name !== null) void props.model.updateAgent(item.entry.agent.id, { name });
-              }}
-            />
-          ),
-        )}
+        {items.slice(shown.start, shown.end).map((item) => {
+          switch (item.kind) {
+            case 'header': {
+              const { section } = item;
+              const folderId = section.kind === 'folder' ? section.folder.id : null;
+              return (
+                <SectionHeader
+                  key={item.key}
+                  section={section}
+                  count={item.count}
+                  collapsed={item.collapsed}
+                  renaming={folderId !== null && folders.renaming === folderId}
+                  onToggle={() => { folders.toggle(sectionKey(section)); }}
+                  onNewFolder={() => { folders.startDraft(null); }}
+                  onRename={() => { folders.startRename(folderId); }}
+                  onRenamed={(name) => { if (folderId !== null) folders.finishRename(folderId, name); }}
+                  onDelete={() => { if (section.kind === 'folder') folders.askDelete(section.folder); }}
+                />
+              );
+            }
+            case 'empty':
+              return <div key={item.key} class="sidebar-note folder-empty">Empty. Right-click an agent › Move to folder.</div>;
+            case 'agent':
+              return (
+                <AgentRow
+                  key={item.key}
+                  entry={item.entry}
+                  avatar={props.avatar(item.entry.agent, rail ? RAIL_AVATAR_PX : AVATAR_PX)}
+                  selected={item.entry.agent.id === state.selectedAgentId}
+                  tabbable={item.entry.agent.id === view.tabStop}
+                  rail={rail}
+                  renaming={renaming === item.entry.agent.id}
+                  now={now}
+                  redact={props.redact}
+                  onFocus={() => { view.setFocusId(item.entry.agent.id); }}
+                  onOpen={(row) => { open(item.entry, row); }}
+                  onMenu={(anchor, at) => { setPopup({ kind: 'actions', agent: item.entry.agent, anchor, at, items: menuFor(item.entry.agent) }); }}
+                  onRenamed={(name) => {
+                    setRenaming(null);
+                    if (name !== null) void props.model.updateAgent(item.entry.agent.id, { name });
+                  }}
+                />
+              );
+          }
+        })}
         <div style={{ height: `${String(shown.after)}px` }} />
       </div>
-      <SidebarBottom rail={rail} plugins={props.plugins} onSettings={props.onSettings} onPlugins={props.onPlugins} />
-      {chooser !== null && (
-        <Menu
-          anchor={{ current: chooser.anchor }}
-          label="Choose an approval"
-          side="right"
-          align="start"
-          onClose={() => {
-            setChooser(null);
-          }}
-          items={approvalChatsOf(entries, chooser.agentId).map((threadId) => ({ kind: 'action', id: threadId, label: titleOf(chooser.agentId, threadId), icon: 'chat', onSelect: () => { props.onOpenAgent(chooser.agentId, threadId); } }))}
-        />
-      )}
-      {deleting !== null && (
-        <ConfirmDialog
-          title={`Delete ${deleting.name}?`}
-          body={<p>Its chats are deleted. The workspace folder stays on disk.</p>}
-          confirmLabel="Delete agent"
-          tone="danger"
-          typeToConfirm={deleting.name}
-          onCancel={() => {
-            setDeleting(null);
-          }}
-          onConfirm={() => {
-            const id = deleting.id;
-            setDeleting(null);
-            void props.model.deleteAgent(id);
-          }}
-        />
-      )}
+      <SidebarBottom rail={rail} alert={props.alert} onSettings={props.onSettings} onExtensions={props.onExtensions} />
+      <SidebarPopups
+        popup={popup}
+        folders={state.folders}
+        deletingAgent={deleting}
+        deletingFolder={folders.deleting}
+        onClosePopup={() => { setPopup(null); }}
+        onMove={(agentId, folderId) => void props.model.updateAgent(agentId, { folderId })}
+        onNewFolderFor={folders.startDraft}
+        onCancelDeleteAgent={() => { setDeleting(null); }}
+        onDeleteAgent={(id) => {
+          setDeleting(null);
+          void props.model.deleteAgent(id);
+        }}
+        onCancelDeleteFolder={() => { folders.askDelete(null); }}
+        onDeleteFolder={folders.confirmDelete}
+      />
     </nav>
   );
 }

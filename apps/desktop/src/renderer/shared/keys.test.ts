@@ -10,7 +10,7 @@ const press = (key: string, mods: Partial<Omit<KeyPress, 'key'>> = {}): KeyPress
   ...mods,
 });
 
-it('maps ⌘N, ⇧⌘N, ⌘, ⌘B and ⇧⌘F on macOS, and the Ctrl forms elsewhere', () => {
+it('maps ⌘N, ⇧⌘N, ⌘, ⌘B, ⇧⌘F and ⇧⌘X on macOS, and the Ctrl forms elsewhere', () => {
   expect({
     mac: [
       shortcutOf(press('n', { metaKey: true }), 'mac'),
@@ -18,10 +18,11 @@ it('maps ⌘N, ⇧⌘N, ⌘, ⌘B and ⇧⌘F on macOS, and the Ctrl forms elsew
       shortcutOf(press(',', { metaKey: true }), 'mac'),
       shortcutOf(press('b', { metaKey: true }), 'mac'),
       shortcutOf(press('F', { metaKey: true, shiftKey: true }), 'mac'),
+      shortcutOf(press('X', { metaKey: true, shiftKey: true }), 'mac'),
     ],
     other: [shortcutOf(press('n', { ctrlKey: true }), 'other'), shortcutOf(press('B', { ctrlKey: true }), 'other')],
   }).toEqual({
-    mac: ['new-chat', 'new-agent', 'settings', 'toggle-sidebar', 'filter-agents'],
+    mac: ['new-chat', 'new-agent', 'settings', 'toggle-sidebar', 'filter-agents', 'extensions'],
     other: ['new-chat', 'toggle-sidebar'],
   });
 });
@@ -41,6 +42,11 @@ it('labels every shortcut for tooltips and aria-keyshortcuts', () => {
   const ids = Object.keys(SHORTCUTS).filter((id): id is ShortcutId => id in SHORTCUTS);
   expect(Object.fromEntries(ids.map((id) => [id, [shortcutLabel(id, 'mac'), shortcutLabel(id, 'other'), ariaShortcut(id, 'mac')]]))).toMatchInlineSnapshot(`
     {
+      "extensions": [
+        "⇧⌘X",
+        "Ctrl+Shift+X",
+        "Meta+Shift+X",
+      ],
       "filter-agents": [
         "⇧⌘F",
         "Ctrl+Shift+F",

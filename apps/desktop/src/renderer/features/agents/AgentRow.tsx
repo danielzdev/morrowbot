@@ -1,26 +1,22 @@
 import type { ComponentChildren } from 'preact';
-import { relativeTime } from '../../shared/format.ts';
-import { MenuButton, type MenuItem } from '../../shared/ui/Menu.tsx';
-import { IconButton, Tooltip } from '../../shared/ui/Tooltip.tsx';
-import { RowRename } from './RowRename.tsx';
+import { messageTime } from '../../shared/format.ts';
+import { Tooltip } from '../../shared/ui/Tooltip.tsx';
+import { NameInput } from '../../shared/ui/NameInput.tsx';
 import type { AgentEntry, AgentStatus } from './sidebar-groups.ts';
 
-/** The one status a row shows on its right (spec §3.1), as words; null shows nothing. */
-export function statusText(status: AgentStatus, now: number): { readonly text: string; readonly tone: 'warn' | 'muted' | 'meta' | 'unread' } | null {
+/** A status that takes the place of the message preview (spec §3.1); null shows the preview. */
+export function statusText(status: AgentStatus): { readonly text: string; readonly tone: 'warn' | 'muted' } | null {
   switch (status.kind) {
     case 'needs-approval':
       return { text: 'Needs approval', tone: 'warn' };
     case 'needs-you':
-      return { text: 'Needs you', tone: 'warn' };
+      return { text: status.reason === 'unbound' ? 'Needs you: choose a provider' : 'Needs you', tone: 'warn' };
     case 'working':
-      return { text: 'Working', tone: 'muted' };
+      return { text: 'Working…', tone: 'muted' };
     case 'queued':
       return { text: 'Queued', tone: 'muted' };
     case 'unread':
-      return { text: 'New reply', tone: 'unread' };
-    case 'known':
-      return { text: relativeTime(status.lastActive, now), tone: 'meta' };
-    case 'unknown':
+    case 'idle':
       return null;
   }
 }
@@ -33,18 +29,22 @@ export interface AgentRowProps {
   readonly rail: boolean;
   readonly renaming: boolean;
   readonly now: number;
+  /** Makes message text safe to show (spec §9.1). */
+  readonly redact: (text: string) => string;
   readonly onOpen: (row: HTMLElement) => void;
   readonly onFocus: () => void;
-  readonly onNewChat: () => void;
-  readonly menu: () => readonly MenuItem[];
+  /** Opens the agent's menu at a right-click point, or beside the row from the keyboard (null). */
+  readonly onMenu: (row: HTMLElement, at: { readonly x: number; readonly y: number } | null) => void;
   readonly onRenamed: (name: string | null) => void;
 }
 
-/** One agent in the sidebar: avatar, name and one status; hover or focus shows New chat and ⋯. */
+/** One agent: a large avatar, then name, role and time over the last message or a status. Right-click, the menu key or ⇧F10 opens its actions. */
 export function AgentRow(props: AgentRowProps) {
-  const { agent, status } = props.entry;
-  const shown = statusText(status, props.now);
-  const describedBy = `agent-status-${agent.id}`;
+  const { agent, status, lastMessage } = props.entry;
+  const shown = statusText(status);
+  const unread = status.kind === 'unread';
+  const role = agent.description.split('\n')[0]?.trim() ?? '';
+  const preview = lastMessage === null ? null : `${lastMessage.kind === 'user' ? 'You: ' : ''}${props.redact(lastMessage.preview)}`;
   const main = (
     <button
       type="button"
@@ -52,24 +52,41 @@ export function AgentRow(props: AgentRowProps) {
       data-agent={agent.id}
       tabIndex={props.tabbable ? 0 : -1}
       aria-current={props.selected ? 'true' : undefined}
-      aria-label={props.rail ? agent.name : undefined}
-      aria-describedby={shown === null ? undefined : describedBy}
+      aria-label={props.rail ? (shown === null ? agent.name : `${agent.name}, ${shown.text}`) : undefined}
       onFocus={props.onFocus}
       onClick={(event) => {
         props.onOpen(event.currentTarget);
       }}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        props.onMenu(event.currentTarget, event.button === 2 ? { x: event.clientX, y: event.clientY } : null);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'F10' && event.shiftKey) {
+          event.preventDefault();
+          props.onMenu(event.currentTarget, null);
+        }
+      }}
     >
       {props.avatar}
-      {!props.rail && <span class="agent-name">{agent.name}</span>}
-      {shown !== null &&
-        (shown.tone === 'unread' ? (
-          <span id={describedBy} class="unread-dot" role="img" aria-label={shown.text} />
-        ) : (
-          <span id={describedBy} class={`agent-status ${shown.tone} ${props.rail ? 'visually-hidden' : ''}`}>
-            {shown.text}
+      {!props.rail && (
+        <span class="agent-text">
+          <span class="agent-line">
+            <span class="agent-name">{agent.name}</span>
+            {role !== '' && <span class="agent-role">{role}</span>}
+            {lastMessage !== null && <span class="agent-time">{messageTime(lastMessage.at, props.now)}</span>}
           </span>
-        ))}
-      {props.rail && shown !== null && shown.tone === 'warn' && <span class="rail-dot warn" aria-hidden="true" />}
+          <span class="agent-line">
+            {shown !== null ? (
+              <span class={`agent-preview ${shown.tone}`}>{shown.text}</span>
+            ) : (
+              <span class={`agent-preview ${preview === null ? 'empty' : ''}`}>{preview ?? 'No messages yet'}</span>
+            )}
+            {unread && <span class="unread-dot" role="img" aria-label="New reply" />}
+          </span>
+        </span>
+      )}
+      {props.rail && (unread || shown?.tone === 'warn') && <span class={`rail-dot ${unread ? 'unread' : 'warn'}`} aria-hidden="true" />}
     </button>
   );
   if (props.rail) {
@@ -85,18 +102,9 @@ export function AgentRow(props: AgentRowProps) {
     return (
       <div class="agent-row renaming">
         {props.avatar}
-        <RowRename agent={agent} onDone={props.onRenamed} />
+        <NameInput initial={agent.name} label={`Rename ${agent.name}`} onDone={props.onRenamed} />
       </div>
     );
   }
-  const actionTab = props.tabbable ? 0 : -1;
-  return (
-    <div class={`agent-row ${props.selected ? 'selected' : ''}`}>
-      {main}
-      <span class="row-actions">
-        <IconButton icon="plus" label={`New chat with ${agent.name}`} tabIndex={actionTab} onClick={props.onNewChat} />
-        <MenuButton icon="more" label={`${agent.name} actions`} tabIndex={actionTab} items={props.menu} />
-      </span>
-    </div>
-  );
+  return <div class={`agent-row ${props.selected ? 'selected' : ''} ${unread ? 'unread' : ''}`}>{main}</div>;
 }

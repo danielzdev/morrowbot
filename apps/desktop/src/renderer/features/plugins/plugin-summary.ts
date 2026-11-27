@@ -109,7 +109,7 @@ const ALERTS: Partial<Readonly<Record<PluginStatus['kind'], { readonly tone: 'wa
 
 /** The Plugins button's dot and its accessible label (spec §3.1), or null when every plugin is fine. */
 export function pluginAlert(entries: readonly PluginEntry[]): { readonly tone: 'warn' | 'danger'; readonly label: string } | null {
-  if (entries.some((entry) => entry.status.kind === 'safe-mode')) return { tone: 'warn', label: 'Plugins: Safe mode: plugins are off.' };
+  if (entries.some((entry) => entry.status.kind === 'safe-mode')) return { tone: 'warn', label: 'Extensions: Safe mode: extensions are off.' };
   const counts = new Map<string, number>();
   let tone: 'warn' | 'danger' | null = null;
   for (const entry of entries) {
@@ -119,5 +119,5 @@ export function pluginAlert(entries: readonly PluginEntry[]): { readonly tone: '
     if (tone !== 'danger') tone = alert.tone;
   }
   if (tone === null) return null;
-  return { tone, label: `Plugins: ${[...counts].map(([words, count]) => `${String(count)} ${words}`).join(', ')}` };
+  return { tone, label: `Extensions: ${[...counts].map(([words, count]) => `${String(count)} ${words}`).join(', ')}` };
 }

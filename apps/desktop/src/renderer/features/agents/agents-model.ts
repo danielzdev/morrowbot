@@ -1,4 +1,4 @@
-import type { Agent, CreateAgentRequest, Thread, UpdateAgentRequest } from '@morrowbot/contracts';
+import type { Agent, AgentList, CreateAgentRequest, Folder, LastMessage, Thread, UpdateAgentRequest } from '@morrowbot/contracts';
 import type { z } from 'zod';
 import type { MorrowbotBridge } from '../../bridge.ts';
 import type { Api, ApiResult } from '../../shared/api.ts';
@@ -6,6 +6,10 @@ import { Store, type Loadable } from '../../shared/store.ts';
 
 export interface AgentsState {
   readonly agents: Loadable<readonly Agent[]>;
+  /** The person's folders, in the order they made them. */
+  readonly folders: readonly Folder[];
+  /** Each agent's newest message across its chats, by agent id. */
+  readonly lastMessages: Readonly<Record<string, LastMessage>>;
   readonly selectedAgentId: string | null;
   /** Each agent's chats, newest first. */
   readonly threads: Readonly<Record<string, Loadable<readonly Thread[]>>>;
@@ -25,6 +29,10 @@ export interface AgentsModel {
   createAgent(request: z.input<typeof CreateAgentRequest>): Promise<Saved<Agent>>;
   updateAgent(id: string, request: UpdateAgentRequest): Promise<Saved<Agent>>;
   deleteAgent(id: string): Promise<void>;
+  createFolder(name: string): Promise<Saved<Folder>>;
+  renameFolder(id: string, name: string): Promise<void>;
+  /** Deletes the folder; its agents stay, in no folder. */
+  deleteFolder(id: string): Promise<void>;
   newThread(agentId: string): Promise<void>;
   openThread(agentId: string, threadId: string): void;
   renameThread(agentId: string, threadId: string, title: string): Promise<void>;
@@ -47,7 +55,7 @@ function saved<T, U>(result: ApiResult<T>, pick: (value: T) => U): Saved<U> {
 }
 
 const updateKey = (id: string, request: UpdateAgentRequest): string =>
-  [id, request.name !== undefined, request.description !== undefined, request.avatar !== undefined, request.provider !== undefined].join('|');
+  [id, ...[request.name, request.description, request.avatar, request.provider, request.folderId].map((field) => field !== undefined)].join('|');
 
 /** The agent as `request` asks for it. */
 const applied = (agent: Agent, request: UpdateAgentRequest): Agent => ({
@@ -56,6 +64,7 @@ const applied = (agent: Agent, request: UpdateAgentRequest): Agent => ({
   description: request.description ?? agent.description,
   avatar: request.avatar ?? agent.avatar,
   provider: request.provider ?? agent.provider,
+  folderId: request.folderId === undefined ? agent.folderId : request.folderId,
 });
 
 /** `agent` with the fields `request` names taken from `source`; other fields, maybe still saving, stay. */
@@ -65,7 +74,10 @@ const withFields = (agent: Agent, request: UpdateAgentRequest, source: Agent): A
   description: request.description === undefined ? agent.description : source.description,
   avatar: request.avatar === undefined ? agent.avatar : source.avatar,
   provider: request.provider === undefined ? agent.provider : source.provider,
+  folderId: request.folderId === undefined ? agent.folderId : source.folderId,
 });
+
+const lastByAgent = (list: AgentList): AgentsState['lastMessages'] => Object.fromEntries(list.lastMessages.map((last) => [last.agentId, last]));
 
 export function titleFrom(text: string): string {
   const line = text.trim().split('\n')[0]?.trim() ?? '';
@@ -90,7 +102,8 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
    * order; only the last one's reply is shown, and a refused one shows what the host kept.
    */
   const updates = new Map<string, Promise<unknown>>();
-  const state = new Store<AgentsState>({ agents: { kind: 'loading' }, selectedAgentId: null, threads: {}, openThread: {}, unread: {}, problem: null });
+  const state = new Store<AgentsState>({ agents: { kind: 'loading' }, folders: [], lastMessages: {}, selectedAgentId: null, threads: {}, openThread: {}, unread: {}, problem: null });
+  let summaries = 0;
   const patch = (change: Partial<AgentsState>): void => {
     state.update((current) => ({ ...current, ...change }));
   };
@@ -143,7 +156,8 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
     }
     const agents = result.value.agents;
     const selected = state.get().selectedAgentId;
-    patch({ agents: { kind: 'loaded', value: agents }, threads: {} });
+    summaries++;
+    patch({ agents: { kind: 'loaded', value: agents }, folders: result.value.folders, lastMessages: lastByAgent(result.value), threads: {} });
     const keep = agents.find(({ id }) => id === selected) ?? agents[0];
     if (keep === undefined) patch({ selectedAgentId: null });
     else selectAgent(keep.id);
@@ -178,6 +192,13 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
     threadLoads.set(agentId, ++threadSeq);
     setThreads(agentId, { kind: 'loaded', value: [result.value, ...threadsOf(agentId)] });
     setOpen(agentId, result.value.id);
+  }
+
+  /** Refreshes folders and last messages only, so agent edits still saving are not undone. */
+  async function refreshSummary(): Promise<void> {
+    const mine = ++summaries;
+    const result = await api.listAgents();
+    if (mine === summaries && result.kind === 'ok') patch({ folders: result.value.folders, lastMessages: lastByAgent(result.value) });
   }
 
   const stopRestarts = options.bridge.onHostReady(() => void load());
@@ -227,9 +248,35 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
       options.onThreadsDeleted?.(threadIds);
       await load();
     },
+    createFolder: async (name) => {
+      const result = await api.createFolder(name);
+      if (result.kind === 'ok') patch({ folders: [...state.get().folders, result.value] });
+      return saved(result, (folder) => folder);
+    },
+    renameFolder: async (id, name) => {
+      const result = await api.renameFolder(id, name);
+      if (result.kind === 'failed') {
+        patch({ problem: result.error.message });
+        return;
+      }
+      patch({ folders: state.get().folders.map((folder) => (folder.id === id ? result.value : folder)) });
+    },
+    deleteFolder: async (id) => {
+      const result = await api.deleteFolder(id);
+      if (result.kind === 'failed') {
+        patch({ problem: result.error.message });
+        return;
+      }
+      const agents = state.get().agents;
+      patch({
+        folders: state.get().folders.filter((folder) => folder.id !== id),
+        ...(agents.kind === 'loaded' ? { agents: { kind: 'loaded', value: agents.value.map((agent) => (agent.folderId === id ? { ...agent, folderId: null } : agent)) } } : {}),
+      });
+    },
     newThread,
     openThread: setOpen,
     markFinished: (agentId, threadId) => {
+      void refreshSummary();
       const current = state.get();
       if (current.selectedAgentId === agentId && current.openThread[agentId] === threadId) return;
       patch({ unread: { ...current.unread, [threadId]: agentId } });
@@ -253,6 +300,7 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
       await loadThreads(agentId);
     },
     touchThread: async (agentId, threadId, firstText) => {
+      void refreshSummary();
       const thread = threadsOf(agentId).find(({ id }) => id === threadId);
       const title = firstText === null ? '' : titleFrom(firstText);
       if (thread?.title === UNTITLED && title !== '') {

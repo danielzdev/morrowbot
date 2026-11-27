@@ -67,8 +67,10 @@ export function ChatPane(props: {
         agent={agent}
         avatar={<BotAvatar avatar={agent.avatar} motion={motion} size={20} reducedMotion={props.reducedMotion} />}
         threads={threads?.kind === 'loaded' ? threads.value : []}
+        threadsLoaded={threads?.kind === 'loaded'}
         openThreadId={threadId}
         statusOf={(id) => threadStatusOf(activity, id)}
+        unread={(id) => id in state.unread}
         sidebarButton={props.chrome.sidebarButton}
         onShowSidebar={props.chrome.showSidebar}
         onAgentSettings={props.onAgentSettings}

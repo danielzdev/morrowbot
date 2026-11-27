@@ -9,7 +9,7 @@ import type { Chrome } from './ChatPane.tsx';
 import { Overlay } from './Overlay.tsx';
 
 const NARROW = '(max-width: 759px)';
-const WIDTH = { min: 200, max: 320, initial: 240 };
+const WIDTH = { min: 260, max: 380, initial: 300 };
 const Layout = z.strictObject({ collapsed: z.boolean(), width: z.number().min(WIDTH.min).max(WIDTH.max) });
 const KEY = 'morrowbot.layout';
 

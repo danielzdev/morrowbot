@@ -14,6 +14,7 @@ export type IconName =
   | 'pencil'
   | 'copy'
   | 'folder'
+  | 'folder-plus'
   | 'chat'
   | 'search'
   | 'info'
@@ -69,6 +70,7 @@ const SHAPES: Readonly<Record<IconName, ComponentChildren>> = {
     </>
   ),
   folder: <path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3L8 4.5h4.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z" />,
+  'folder-plus': <path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3L8 4.5h4.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5zM8 6.75v4M6 8.75h4" />,
   chat: <path d="M3 3h10a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1H7.5L4.5 14v-2.5H3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" />,
   search: (
     <>

@@ -13,6 +13,8 @@ export function firstFocusable(root: HTMLElement): HTMLElement | null {
 export interface PopoverProps {
   /** The trigger: the popover anchors to it, it stays a safe click target, and focus returns to it. */
   readonly anchor: RefObject<HTMLElement | null>;
+  /** Opens at this window point (a right-click) instead of beside the anchor. */
+  readonly at?: { readonly x: number; readonly y: number } | undefined;
   readonly label: string;
   readonly onClose: () => void;
   readonly side?: Side;
@@ -39,7 +41,7 @@ export function Popover(props: PopoverProps) {
     if (element === null) return;
     element.showPopover();
     const place = (): void => {
-      const box = (trigger ?? element).getBoundingClientRect();
+      const box = props.at === undefined ? (trigger ?? element).getBoundingClientRect() : { top: props.at.y, left: props.at.x, width: 0, height: 0 };
       const placed = placeFloating(box, element.getBoundingClientRect(), { width: window.innerWidth, height: window.innerHeight }, props.side ?? 'bottom', props.align ?? 'start');
       element.style.top = `${String(placed.top)}px`;
       element.style.left = `${String(placed.left)}px`;

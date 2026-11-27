@@ -1,5 +1,5 @@
 /** The app's global shortcuts (spec §1.5). ⌘ on macOS is Ctrl elsewhere. */
-export type ShortcutId = 'new-chat' | 'new-agent' | 'settings' | 'toggle-sidebar' | 'filter-agents';
+export type ShortcutId = 'new-chat' | 'new-agent' | 'settings' | 'toggle-sidebar' | 'filter-agents' | 'extensions';
 
 export type Platform = 'mac' | 'other';
 
@@ -14,6 +14,7 @@ export const SHORTCUTS: Readonly<Record<ShortcutId, Chord>> = {
   settings: { key: ',', shift: false },
   'toggle-sidebar': { key: 'b', shift: false },
   'filter-agents': { key: 'f', shift: true },
+  extensions: { key: 'x', shift: true },
 };
 
 /** What the matcher reads from a keyboard event. */

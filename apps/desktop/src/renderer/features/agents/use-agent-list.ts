@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { rovingTarget, typeAheadTarget } from '../../shared/roving.ts';
-import { ROW_PX, windowOf, type SidebarItem } from './sidebar-window.ts';
+import { windowOf, type SidebarItem } from './sidebar-window.ts';
 
 const TYPE_AHEAD_MS = 700;
 
@@ -8,7 +8,7 @@ const TYPE_AHEAD_MS = 700;
  * The windowed agent list's scrolling and keyboard model: one tab stop (the focused, else the selected, else the first row),
  * arrows, Home/End and type-ahead. Rows outside the window are not in the DOM, so focus moves through state, then a layout effect.
  */
-export function useAgentList(items: readonly SidebarItem[], selectedId: string | null) {
+export function useAgentList(items: readonly SidebarItem[], selectedId: string | null, rail: boolean) {
   const [focusId, setFocusId] = useState<string | null>(null);
   const [scroll, setScroll] = useState({ top: 0, height: 600 });
   const list = useRef<HTMLDivElement>(null);
@@ -16,7 +16,7 @@ export function useAgentList(items: readonly SidebarItem[], selectedId: string |
   const listHasFocus = useRef(false);
   const typed = useRef({ text: '', at: 0 });
   const entries = items.flatMap((item) => (item.kind === 'agent' ? [item.entry] : []));
-  const shown = windowOf(items, scroll.top, scroll.height, entries.length);
+  const shown = windowOf(items, scroll.top, scroll.height, entries.length, rail);
   const tabStop = [focusId, selectedId].map((id) => entries.find(({ agent }) => agent.id === id)).find((entry) => entry !== undefined)?.agent.id ?? entries[0]?.agent.id;
 
   const measure = (element: HTMLElement): void => {
@@ -46,7 +46,7 @@ export function useAgentList(items: readonly SidebarItem[], selectedId: string |
     if (entry === undefined || element === null) return;
     const top = shown.tops[items.findIndex((item) => item.key === entry.agent.id)] ?? 0;
     if (top < element.scrollTop) element.scrollTop = top;
-    else if (top + ROW_PX > element.scrollTop + element.clientHeight) element.scrollTop = top + ROW_PX - element.clientHeight;
+    else if (top + shown.rowPx > element.scrollTop + element.clientHeight) element.scrollTop = top + shown.rowPx - element.clientHeight;
     measure(element);
     pendingFocus.current = true;
     setFocusId(entry.agent.id);
