@@ -1,7 +1,7 @@
 import { checkVersion, readCliVersion } from '@morrowbot/plugin-sdk';
 
 /** The Claude Code versions the fixtures have been run on. */
-const SUPPORTED = { atLeast: '2.1.332', below: '2.2.0' } as const;
+export const SUPPORTED = { atLeast: '2.1.332', below: '2.2.0' } as const;
 export const SUPPORTED_TEXT = `>=${SUPPORTED.atLeast} <${SUPPORTED.below}`;
 
 export type Version =

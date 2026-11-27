@@ -1,12 +1,25 @@
-import type { CommandExit, ProviderError, TurnChunk, TurnEnd, TurnUsage } from '@morrowbot/plugin-sdk';
+import type { CommandExit, ProviderError, TurnChunk, TurnEnd, TurnUsage, UsageWindow } from '@morrowbot/plugin-sdk';
+import type { ControlRequest } from './control.ts';
 import { describeExit } from './exit.ts';
+import type { RateLimit } from './rate-limit.ts';
 import { parseCliLine, type CliResult, type LineContext } from './stream-json.ts';
 
-/** Reads one turn's stdout lines: emits each chunk until the `result`, and remembers the model and result. */
+/** Reads one turn's stdout lines until the `result`, and remembers the model, the result and any rate-limit refusal. */
 export interface TurnReader {
   read(line: string): void;
   /** How the turn ended, once the command has exited. */
   finish(exit: CommandExit, ending: Ending): TurnEnd;
+}
+
+/** Where the reader sends what it reads. */
+export interface TurnSink {
+  emit(chunk: TurnChunk): void;
+  /** Plan usage from a `rate_limit_event`. */
+  usage(windows: readonly UsageWindow[]): void;
+  /** A control request the turn must answer on stdin. */
+  control(request: ControlRequest): void;
+  /** The `result` arrived: Claude Code asks nothing more, so stdin can close. */
+  done(): void;
 }
 
 export interface Ending {
@@ -15,9 +28,10 @@ export interface Ending {
   readonly cancelled: boolean;
 }
 
-export function createTurnReader(context: LineContext, emit: (chunk: TurnChunk) => void): TurnReader {
+export function createTurnReader(context: LineContext, sink: TurnSink): TurnReader {
   let model: string | null = null;
   let result: CliResult | undefined;
+  let rejected: RateLimit['rejected'] = null;
   return {
     read: (line) => {
       if (result !== undefined) return;
@@ -25,13 +39,21 @@ export function createTurnReader(context: LineContext, emit: (chunk: TurnChunk) 
       switch (parsed.kind) {
         case 'init':
           model = parsed.model;
-          for (const chunk of parsed.chunks) emit(chunk);
+          for (const chunk of parsed.chunks) sink.emit(chunk);
           return;
         case 'chunks':
-          for (const chunk of parsed.chunks) emit(chunk);
+          for (const chunk of parsed.chunks) sink.emit(chunk);
+          return;
+        case 'control':
+          sink.control(parsed.request);
+          return;
+        case 'rate-limit':
+          rejected = parsed.rateLimit.rejected;
+          if (parsed.rateLimit.windows.length > 0) sink.usage(parsed.rateLimit.windows);
           return;
         case 'result':
           result = parsed.result;
+          sink.done();
           return;
         case 'skip':
           return;
@@ -56,7 +78,7 @@ export function createTurnReader(context: LineContext, emit: (chunk: TurnChunk) 
           case 'success':
             return end({ kind: 'completed', finishReason: result.finishReason }, result.text === '' ? null : result.text);
           case 'error':
-            return end(failed(resultError(result.message)));
+            return end(failed(rejected === null ? resultError(result.message) : { kind: 'rate-limited', ...rejected }));
         }
       }
       switch (exit.kind) {

@@ -223,13 +223,12 @@ describe('parseCliLine', () => {
     `);
   });
 
-  it('flags malformed lines and skips blank lines, rate limit events and unknown event types', () => {
+  it('flags malformed lines, skips blank lines and unknown event types, and ends on a result it cannot read', () => {
     expect([
       parse('Warning: something printed to stdout'),
       parse('[1, 2]'),
       parse({ type: 'result', subtype: 'success' }),
       parse(''),
-      parse({ type: 'rate_limit_event', rate_limit_info: { status: 'allowed' } }),
       parse({
         type: 'stream_event',
         event: { type: 'message_delta', delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 5 } },
@@ -246,11 +245,14 @@ describe('parseCliLine', () => {
           "problem": "a JSON value without a "type"",
         },
         {
-          "kind": "malformed",
-          "problem": "a "result" line with an unexpected shape (is_error: Invalid input: expected boolean, received undefined)",
-        },
-        {
-          "kind": "skip",
+          "kind": "result",
+          "result": {
+            "kind": "error",
+            "message": "Claude Code ended with a "result" line with an unexpected shape (is_error: Invalid input: expected boolean, received undefined)",
+            "usage": {
+              "kind": "unavailable",
+            },
+          },
         },
         {
           "kind": "skip",

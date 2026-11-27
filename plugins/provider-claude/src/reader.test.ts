@@ -52,7 +52,15 @@ const EXITED: CommandExit = { kind: 'exited', code: 0, signal: null, stderr: '' 
 /** Feeds lines to the turn reader as the CLI would print them and returns what reaches the host, checked against the contract. */
 function replay(lines: readonly unknown[], exit: CommandExit = EXITED, cancelled = false) {
   const chunks: TurnChunk[] = [];
-  const reader = createTurnReader({ home: HOME }, (chunk) => chunks.push(TurnChunk.parse(chunk)));
+  const reader = createTurnReader(
+    { home: HOME },
+    {
+      emit: (chunk) => chunks.push(TurnChunk.parse(chunk)),
+      usage: () => undefined,
+      control: () => undefined,
+      done: () => undefined,
+    },
+  );
   for (const line of lines) reader.read(json(line));
   return { chunks, end: TurnEnd.parse(reader.finish(exit, { cliPath: 'claude', accountKey: 'key', cancelled })) };
 }
