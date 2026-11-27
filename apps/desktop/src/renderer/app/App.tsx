@@ -18,6 +18,21 @@ import { Shell } from './Shell.tsx';
 
 const NO_INFO: AppInfo = { appVersion: '', homeDir: '', userName: '', dataDir: '' };
 
+const FOCUS_WAIT_MS = 2_000;
+
+/**
+ * Keeps the chat's message box focused for up to two seconds while the chosen chat loads and its
+ * box mounts (possibly more than once). Stops as soon as focus is anywhere but the page or a box.
+ */
+function focusComposer(until = performance.now() + FOCUS_WAIT_MS): void {
+  requestAnimationFrame((now) => {
+    const active = document.activeElement;
+    if (active !== null && active !== document.body && !active.matches('.composer textarea')) return;
+    document.querySelector<HTMLTextAreaElement>('.composer textarea')?.focus();
+    if (now < until) focusComposer(until);
+  });
+}
+
 export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
   const models = useMemo(() => createModels(bridge), [bridge]);
   const [page, setPage] = useState<Page>({ kind: 'chat' });
@@ -78,7 +93,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
     models.agents.selectAgent(agentId);
     setPage({ kind: 'chat' });
     void models.agents.newThread(agentId).then(() => {
-      requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('.composer textarea')?.focus());
+      focusComposer();
     });
   };
   const copyChat = (threadId: string): void => {
@@ -150,7 +165,10 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
                   openSettings,
                   openExtensions: () => { setPage({ kind: 'plugins' }); },
                   toggleSidebar: chrome.showSidebar,
-                  openAgent,
+                  openAgent: (agentId, threadId) => {
+                    openAgent(agentId, threadId);
+                    focusComposer();
+                  },
                   recheck: (pluginId) => {
                     setPage({ kind: 'plugins' });
                     void models.plugins.recheck(pluginId);
