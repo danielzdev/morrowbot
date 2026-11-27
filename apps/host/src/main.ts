@@ -32,14 +32,6 @@ switch (result.kind) {
         console.error('MorrowBot host:', error);
       },
     });
-    for (const problem of host.plugins.problems) console.error(`MorrowBot host: skipped plugin ${problem}`);
-    const running = host.plugins.list().filter(({ status }) => status.kind === 'running').length;
-    console.log(
-      config.safeMode
-        ? 'MorrowBot host: safe mode, 0 plugins loaded'
-        : `MorrowBot host: ${String(running)} plugin(s) running`,
-    );
-    console.log(`MorrowBot host ${version} listening on ${host.url}`);
     let stopping = false;
     const stop = (): void => {
       if (stopping) return;
@@ -51,6 +43,14 @@ switch (result.kind) {
     };
     process.once('SIGINT', stop);
     process.once('SIGTERM', stop);
+    for (const problem of host.plugins.problems) console.error(`MorrowBot host: skipped plugin ${problem}`);
+    const running = host.plugins.list().filter(({ status }) => status.kind === 'running').length;
+    console.log(
+      config.safeMode
+        ? 'MorrowBot host: safe mode, 0 plugins loaded'
+        : `MorrowBot host: ${String(running)} plugin(s) running`,
+    );
+    console.log(`MorrowBot host ${version} listening on ${host.url}`);
     break;
   }
 }
