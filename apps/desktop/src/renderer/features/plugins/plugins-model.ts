@@ -41,6 +41,11 @@ export function createPluginsModel(options: PluginsModelOptions): PluginsModel {
   let blockedTimer: ReturnType<typeof setTimeout> | undefined;
   let loads = 0;
   let closed = false;
+  /** Bumped when one card is replaced, so a list load that started earlier keeps that card. */
+  const versions = new Map<string, number>();
+  const bump = (id: string): void => {
+    versions.set(id, (versions.get(id) ?? 0) + 1);
+  };
 
   const card = (id: string): PluginCard | undefined => {
     const current = cards.get();
@@ -74,13 +79,14 @@ export function createPluginsModel(options: PluginsModelOptions): PluginsModel {
 
   function watchBlocked(list: readonly PluginCard[]): void {
     clearTimeout(blockedTimer);
-    if (list.some(({ entry }) => entry.blockedGroups.length > 0)) {
+    if (list.some(({ entry }) => entry.blockedGroups.length > 0 || (entry.enabled && entry.status.kind === 'starting'))) {
       blockedTimer = setTimeout(() => void load(), options.blockedRefreshMs ?? 5_000);
     }
   }
 
   async function load(): Promise<void> {
     const mine = ++loads;
+    const started = new Map(versions);
     const result = await api.listPlugins();
     const fetched = result.kind === 'ok' ? await Promise.all(result.value.plugins.map(fetchCard)) : [];
     if (mine !== loads || closed) return;
@@ -88,8 +94,10 @@ export function createPluginsModel(options: PluginsModelOptions): PluginsModel {
       cards.set({ kind: 'failed', message: result.error.message });
       return;
     }
-    const list = fetched.map((next) => {
-      const live = card(next.entry.manifest.id);
+    const list = fetched.map((next): PluginCard => {
+      const id = next.entry.manifest.id;
+      const live = card(id);
+      if (live !== undefined && versions.get(id) !== started.get(id)) return live;
       return { ...next, busy: live?.busy ?? null, problem: live?.problem ?? null };
     });
     cards.set({ kind: 'loaded', value: list });
@@ -99,7 +107,7 @@ export function createPluginsModel(options: PluginsModelOptions): PluginsModel {
   /** Replaces one plugin's entry after a change, and fetches its info again. */
   async function reloadOne(entry: PluginEntry, problem: string | null): Promise<void> {
     const next = await fetchCard(entry);
-    loads++;
+    bump(entry.manifest.id);
     patch(entry.manifest.id, { ...next, busy: null, problem });
   }
 
@@ -127,7 +135,7 @@ export function createPluginsModel(options: PluginsModelOptions): PluginsModel {
         return;
       }
       const usage = await fetchUsage(id);
-      loads++;
+      bump(id);
       patch(id, { busy: null, info: { kind: 'loaded', value: result.value.info }, usage });
     },
     setConfig: async (id, config) => {

@@ -1,5 +1,5 @@
 import type { Agent, ProviderBinding, ProviderInfo } from '@morrowbot/contracts';
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { MorrowbotBridge } from '../bridge.ts';
 import { AgentSettings, Avatar, ChatTabs, createAgentsModel, NewAgent, Sidebar, type AgentsModel, type Page, type ProviderOption } from '../features/agents/index.ts';
 import { AccessNotes, AccessPicker, bindTo, ModelPicker, type BoundProvider } from '../features/binding/index.ts';
@@ -46,13 +46,14 @@ function createModels(bridge: MorrowbotBridge): Models {
     onFinished: (threadId, message) => {
       const state = agents.state.get();
       const agentId = Object.entries(state.threads).find(([, threads]) => threads.kind === 'loaded' && threads.value.some(({ id }) => id === threadId))?.[0];
+      const troubled = message.outcome.kind === 'failed' || message.outcome.kind === 'interrupted';
+      if (troubled) void plugins.load();
       if (agentId === undefined) return;
       const view = chats.session(threadId).screen.get().view;
       const first = view.kind === 'loaded' ? view.value.messages.find(({ kind }) => kind === 'user')?.text ?? null : null;
       void agents.touchThread(agentId, threadId, first);
       const agent = state.agents.kind === 'loaded' ? state.agents.value.find(({ id }) => id === agentId) : undefined;
-      if (message.outcome.kind === 'failed' || message.outcome.kind === 'interrupted') void plugins.load();
-      else if (agent?.provider.kind === 'bound' && infoOf(cardOf(plugins, agent.provider.pluginId))?.kind !== 'ready') {
+      if (!troubled && agent?.provider.kind === 'bound' && infoOf(cardOf(plugins, agent.provider.pluginId))?.kind !== 'ready') {
         void plugins.refreshInfo(agent.provider.pluginId);
       }
     },
@@ -80,11 +81,15 @@ function ChatPane(props: { readonly models: Models; readonly agent: Agent; reado
   const card = binding === null || cards.kind !== 'loaded' ? undefined : cards.value.find(({ entry }) => entry.manifest.id === binding.pluginId);
   const info = infoOf(card);
   const [saving, setSaving] = useState(false);
+  const inFlight = useRef(false);
   const [bindingProblem, setBindingProblem] = useState<string | null>(null);
   const rebind = (next: BoundProvider): void => {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setSaving(true);
     setBindingProblem(null);
     void models.agents.updateAgent(agent.id, { provider: next }).then((result) => {
+      inFlight.current = false;
       setSaving(false);
       if (result.kind === 'refused') setBindingProblem(`The change was not saved: ${result.message}`);
     });
@@ -112,7 +117,7 @@ function ChatPane(props: { readonly models: Models; readonly agent: Agent; reado
         </div>
       ) : (
         <>
-          <ChatView key={session.threadId} session={session} />
+          <ChatView key={session.threadId} session={session} locked={saving} />
           <Composer
             key={`composer-${session.threadId}`}
             session={session}
@@ -182,7 +187,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
           <AgentSettings key={agent.id} model={models.agents} agent={agent} providers={providers} bindingFor={bindingFor} onDeleted={() => { setPage({ kind: 'chat' }); }} />
         );
       case 'chat':
-        if (agent !== undefined) return <ChatPane models={models} agent={agent} onPage={setPage} />;
+        if (agent !== undefined) return <ChatPane key={agent.id} models={models} agent={agent} onPage={setPage} />;
         return (
           <div class="chat empty">
             <p>{state.agents.kind === 'loading' ? 'Loading…' : 'Create an agent to start chatting.'}</p>

@@ -127,11 +127,13 @@ function runApp(): void {
     checkSender(senderOf(event), RENDERER_URL);
     if (picking || window === undefined) return null;
     picking = true;
-    const options: OpenDialogOptions = { properties: ['openDirectory', 'createDirectory'] };
-    const picked = await dialog.showOpenDialog(window, options).finally(() => {
+    try {
+      const options: OpenDialogOptions = { properties: ['openDirectory', 'createDirectory'] };
+      const picked = await dialog.showOpenDialog(window, options);
+      return picked.canceled ? null : (picked.filePaths[0] ?? null);
+    } finally {
       picking = false;
-    });
-    return picked.canceled ? null : (picked.filePaths[0] ?? null);
+    }
   });
 
   ipcMain.handle(CHANNELS.copyText, (event, input: unknown) =>

@@ -57,6 +57,8 @@ export interface AgentsModelOptions {
 export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
   const { api } = options;
   let loads = 0;
+  let threadSeq = 0;
+  /** The latest thread-list request per agent; a reply to an older one, or one sent before a full load, is dropped. */
   const threadLoads = new Map<string, number>();
   const state = new Store<AgentsState>({ agents: { kind: 'loading' }, selectedAgentId: null, threads: {}, openThread: {}, problem: null });
   const patch = (change: Partial<AgentsState>): void => {
@@ -77,7 +79,7 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
   };
 
   async function loadThreads(agentId: string): Promise<void> {
-    const mine = (threadLoads.get(agentId) ?? 0) + 1;
+    const mine = ++threadSeq;
     threadLoads.set(agentId, mine);
     const result = await api.listThreads(agentId);
     if (threadLoads.get(agentId) !== mine) return;
@@ -98,6 +100,7 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
 
   async function load(): Promise<void> {
     const mine = ++loads;
+    threadLoads.clear();
     const result = await api.listAgents();
     if (mine !== loads) return;
     if (result.kind === 'failed') {
@@ -125,6 +128,7 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
       patch({ problem: result.error.message });
       return;
     }
+    threadLoads.set(agentId, ++threadSeq);
     setThreads(agentId, { kind: 'loaded', value: [result.value, ...threadsOf(agentId)] });
     setOpen(agentId, result.value.id);
   }
@@ -149,12 +153,14 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
       return saved(result, (agent) => agent);
     },
     deleteAgent: async (id) => {
-      const threadIds = threadsOf(id).map((thread) => thread.id);
+      const open = state.get().openThread[id];
+      const threadIds = [...threadsOf(id).map((thread) => thread.id), ...(open === undefined ? [] : [open])];
       const result = await api.deleteAgent(id);
       if (result.kind === 'failed') {
         patch({ problem: result.error.message });
         return;
       }
+      setOpen(id, undefined);
       options.onThreadsDeleted?.(threadIds);
       await load();
     },
@@ -171,6 +177,9 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
         patch({ problem: result.error.message });
         return;
       }
+      const remaining = threadsOf(agentId).filter(({ id }) => id !== threadId);
+      setThreads(agentId, { kind: 'loaded', value: remaining });
+      if (state.get().openThread[agentId] === threadId) setOpen(agentId, remaining[0]?.id);
       options.onThreadsDeleted?.([threadId]);
       await loadThreads(agentId);
     },

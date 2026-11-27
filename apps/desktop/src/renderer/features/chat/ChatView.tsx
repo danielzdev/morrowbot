@@ -100,7 +100,8 @@ function ActiveTurn(props: { readonly turn: ActiveTurnView; readonly answering: 
   );
 }
 
-export function ChatView({ session }: { readonly session: ThreadSession }) {
+/** The chat. `locked` holds Continue back, e.g. while the agent's provider settings save. */
+export function ChatView({ session, locked }: { readonly session: ThreadSession; readonly locked: boolean }) {
   const screen = useStore(session.screen);
   const bottom = useRef<HTMLDivElement>(null);
   const view = screen.view.kind === 'loaded' ? screen.view.value : null;
@@ -132,7 +133,7 @@ export function ChatView({ session }: { readonly session: ThreadSession }) {
       <div class="messages">
         {loaded.messages.length === 0 && loaded.activeTurn === null && <div class="hint">Send a message to start.</div>}
         {loaded.messages.map((message) => (
-          <MessageItem key={message.id} message={message} latest={message === last && idle} session={session} busy={!idle} />
+          <MessageItem key={message.id} message={message} latest={message === last && idle} session={session} busy={!idle || locked} />
         ))}
         {loaded.expiredApprovals.map((summary, index) => (
           <div key={index} class="note warning">

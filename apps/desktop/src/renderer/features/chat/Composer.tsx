@@ -2,8 +2,10 @@ import type { ComponentChildren } from 'preact';
 import { useStore } from '../../shared/use-store.ts';
 import type { ComposerProblem, ThreadSession } from './thread-session.ts';
 
-function Problem(props: { readonly problem: ComposerProblem; readonly session: ThreadSession; readonly busy: boolean }) {
+function Problem(props: { readonly problem: ComposerProblem; readonly session: ThreadSession; readonly draft: string; readonly busy: boolean }) {
   const { problem, session } = props;
+  const nothingToSend = problem.kind !== 'error' && problem.action.kind === 'send' && props.draft.trim() === '';
+  const held = props.busy || nothingToSend;
   switch (problem.kind) {
     case 'session-choice':
       return (
@@ -11,7 +13,7 @@ function Problem(props: { readonly problem: ComposerProblem; readonly session: T
           <div class="card-body">{problem.prompt}</div>
           <div class="card-actions">
             {problem.options.map((option) => (
-              <button key={option.choice.kind} class="primary" disabled={props.busy} onClick={() => void session.choose(option.choice)}>
+              <button key={option.choice.kind} class="primary" disabled={held} onClick={() => void session.choose(option.choice)}>
                 {option.label}
               </button>
             ))}
@@ -34,7 +36,7 @@ function Problem(props: { readonly problem: ComposerProblem; readonly session: T
         <div class="banner warning">
           <div class="banner-row">
             <span>{problem.message} Your message was kept.</span>
-            <button class="secondary" disabled={props.busy} onClick={() => void session.retry()}>
+            <button class="secondary" disabled={held} onClick={() => void session.retry()}>
               Retry
             </button>
           </div>
@@ -69,7 +71,7 @@ export function Composer(props: { readonly session: ThreadSession; readonly tool
   const canSend = view !== null && !running && !blocked && screen.busy === null && props.disabledReason === null && screen.draft.trim() !== '';
   return (
     <div class="composer">
-      {screen.problem !== null && <Problem problem={screen.problem} session={session} busy={screen.busy !== null} />}
+      {screen.problem !== null && <Problem problem={screen.problem} session={session} draft={screen.draft} busy={screen.busy !== null || props.disabledReason !== null} />}
       <div class="composer-box">
         <textarea
           aria-label="Message"
