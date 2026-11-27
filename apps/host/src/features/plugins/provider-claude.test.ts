@@ -32,11 +32,11 @@ afterEach(async () => {
   expect(host.errors).toEqual([]);
 });
 
-const binding = (selection: ModelSelection = { kind: 'default' }, access: 'read-only' | 'workspace-write' = 'read-only'): ProviderBinding => ({
+const binding = (selection: ModelSelection = { kind: 'default' }): ProviderBinding => ({
   kind: 'bound',
   pluginId: 'provider-claude',
   selection,
-  access,
+  access: 'read-only',
   vendorSettings: 'isolated',
 });
 
@@ -258,37 +258,6 @@ it('sends the whole thread so far with every turn, without asking for a session 
   `);
 });
 
-it('refuses a workspace-write agent with the reason and writes nothing, and admits a read-only one', async () => {
-  const writer = await thread(binding({ kind: 'default' }, 'workspace-write'));
-  const refused = await send(writer, 'hello');
-  const reader = await thread();
-  const admitted = await send(reader, 'hello');
-  expect({
-    refused: { status: refused.status, body: refused.body, history: await history(writer) },
-    admitted: { status: admitted.status, history: await history(reader) },
-  }).toMatchInlineSnapshot(`
-    {
-      "admitted": {
-        "history": [
-          "user: hello",
-          "assistant(completed): Hello",
-        ],
-        "status": 202,
-      },
-      "refused": {
-        "body": {
-          "error": {
-            "kind": "conflict",
-            "message": "This provider does not offer workspace-write access with isolated settings.",
-          },
-        },
-        "history": [],
-        "status": 409,
-      },
-    }
-  `);
-});
-
 it('sends no prompt when the signed-in account changed after the provider was checked', async () => {
   expect((await host.call('GET', '/api/plugins/provider-claude/info')).status).toBe(200);
   await mkdir(path.join(home, 'fake-claude'), { recursive: true });
@@ -331,6 +300,8 @@ it('keeps the CLI isolated from a hostile settings file in the Claude config fol
     {
       "args": [
         "-p",
+        "--input-format",
+        "stream-json",
         "--output-format",
         "stream-json",
         "--verbose",

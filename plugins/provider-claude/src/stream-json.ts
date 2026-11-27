@@ -1,4 +1,6 @@
 import { z, type FinishReason, type TurnChunk, type TurnUsage } from '@morrowbot/plugin-sdk';
+import { parseControlRequest, type ControlRequest } from './control.ts';
+import { parseRateLimit, type RateLimit } from './rate-limit.ts';
 import { toolInput } from './tool-input.ts';
 
 /** What one line of `claude --output-format stream-json --verbose --include-partial-messages` means for the turn. */
@@ -6,6 +8,8 @@ export type CliLine =
   | { readonly kind: 'chunks'; readonly chunks: readonly TurnChunk[] }
   | { readonly kind: 'init'; readonly model: string; readonly chunks: readonly TurnChunk[] }
   | { readonly kind: 'result'; readonly result: CliResult }
+  | { readonly kind: 'control'; readonly request: ControlRequest }
+  | { readonly kind: 'rate-limit'; readonly rateLimit: RateLimit }
   | { readonly kind: 'skip' }
   | { readonly kind: 'malformed'; readonly problem: string };
 
@@ -98,8 +102,19 @@ export function parseCliLine(line: string, context: LineContext): CliLine {
       return parse(AssistantLine, json, (value) => assistant(value, context));
     case 'user':
       return parse(UserLine, json, user);
-    case 'result':
-      return parse(ResultLine, json, result);
+    case 'result': {
+      const parsed = parse(ResultLine, json, result);
+      if (parsed.kind !== 'malformed') return parsed;
+      return { kind: 'result', result: { kind: 'error', message: `Claude Code ended with ${parsed.problem}`, usage: { kind: 'unavailable' } } };
+    }
+    case 'control_request': {
+      const request = parseControlRequest(json, context.home);
+      return request === null ? { kind: 'malformed', problem: 'a "control_request" line without a request id' } : { kind: 'control', request };
+    }
+    case 'rate_limit_event': {
+      const rateLimit = parseRateLimit(json);
+      return rateLimit === null ? { kind: 'malformed', problem: 'a "rate_limit_event" line with an unexpected shape' } : { kind: 'rate-limit', rateLimit };
+    }
     default:
       return SKIP;
   }

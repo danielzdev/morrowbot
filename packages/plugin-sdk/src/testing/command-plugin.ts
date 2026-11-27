@@ -13,6 +13,7 @@ const TurnSpec = z.discriminatedUnion('kind', [
     files: z.array(z.string()),
   }),
   z.strictObject({ kind: z.literal('throw'), message: z.string() }),
+  z.strictObject({ kind: z.literal('ask'), summary: z.string().min(1) }),
 ]);
 
 function fileArgs(args: readonly string[]): string[] {
@@ -34,6 +35,17 @@ if (process.argv[2] === 'tool') {
         const prompt: unknown = JSON.parse(request.prompt);
         const spec = TurnSpec.parse(prompt);
         if (spec.kind === 'throw') throw new Error(spec.message);
+        if (spec.kind === 'ask') {
+          const answer = await context.ask({ summary: spec.summary, choices: [{ id: 'allow', label: 'Allow' }] });
+          return {
+            outcome: signal.aborted ? { kind: 'cancelled' } : { kind: 'completed', finishReason: 'stop' },
+            usage: { kind: 'unavailable' },
+            actualModel: null,
+            accountKey: '',
+            sessionTouched: false,
+            finalText: JSON.stringify(answer),
+          };
+        }
         const exit = await openCommand(spec.command, {
           args: fileArgs(spec.args),
           cwd: request.cwd,

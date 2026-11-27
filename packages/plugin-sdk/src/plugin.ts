@@ -8,6 +8,7 @@ import type {
   TurnRequest,
   UsageResult,
 } from '@morrowbot/contracts';
+import type { ApprovalAnswer, ApprovalAsk } from './approvals.ts';
 
 export interface PluginContext {
   /** The plugin's settings, already checked against its manifest `settingsSchema`, with defaults filled in. */
@@ -31,6 +32,11 @@ export interface TurnContext {
   readonly signal: AbortSignal;
   /** Sends one piece of the turn to the host. Ignored once the turn has ended. */
   readonly emit: (chunk: TurnChunk) => void;
+  /**
+   * Shows the user an approval card and waits for their choice. A background turn is refused at
+   * once without asking; a pending approval is refused after 30 minutes or when the turn ends.
+   */
+  readonly ask: (request: ApprovalAsk) => Promise<ApprovalAnswer>;
 }
 
 export interface ToolPlugin extends LifecycleHooks {

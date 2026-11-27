@@ -13,7 +13,9 @@ function isKind<K extends PluginMessage['kind']>(message: PluginMessage, kind: K
 /** The command a fixture turn runs. `{fileN}` in `args` becomes the path of `files[N]`. */
 export type TurnSpec =
   | { readonly kind: 'command'; readonly command: string; readonly args: readonly string[]; readonly files: readonly string[] }
-  | { readonly kind: 'throw'; readonly message: string };
+  | { readonly kind: 'throw'; readonly message: string }
+  /** Asks for one approval and ends with the answer as `finalText`. */
+  | { readonly kind: 'ask'; readonly summary: string };
 
 /** The host side of the wire for one `command-plugin.ts` process. */
 export interface PluginUnderTest {

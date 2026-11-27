@@ -91,3 +91,17 @@ it('answers provider requests to a tool plugin as unsupported, and a throwing ho
     }
   `);
 });
+
+it('refuses a pending approval as soon as its turn is cancelled, and ignores a reply that comes after', async () => {
+  const plugin = start('provider');
+  plugin.send(turnFrame('turn-1', '/', { kind: 'ask', summary: 'Write .git/x' }));
+  const { chunk } = await plugin.next('turn-chunk');
+  const approvalId = chunk.kind === 'approval-request' ? chunk.approvalId : '';
+  plugin.send({ kind: 'cancel', turnId: 'turn-1' });
+  plugin.send({ kind: 'approval-reply', turnId: 'turn-1', approvalId, choiceId: 'allow' });
+  const end = await plugin.next('turn-end');
+  expect({ outcome: end.outcome, answer: end.finalText }).toEqual({
+    outcome: { kind: 'cancelled' },
+    answer: JSON.stringify({ kind: 'refused', reason: 'turn-ended' }),
+  });
+});

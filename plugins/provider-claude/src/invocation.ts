@@ -1,46 +1,82 @@
-import { commandFilePath, type TurnRequest } from '@morrowbot/plugin-sdk';
+import { commandFilePath, type TurnMode, type TurnRequest } from '@morrowbot/plugin-sdk';
+
+/** The access levels Claude Code runs in v1. There is no `full` (unsandboxed shell) profile. */
+export type ClaudeAccess = 'read-only' | 'workspace-write';
 
 export interface Invocation {
   readonly args: readonly string[];
-  /** The prompt, sent on stdin so it never shows up in the process list. */
-  readonly input: string;
+  /** The one stream-json user frame of the turn, sent on stdin so the prompt never shows up in the process list. */
+  readonly frame: string;
   /** The system prompt, if any, read by the CLI as a file for the same reason. */
   readonly files: readonly string[];
 }
 
 /**
- * The one profile v1 offers: read-only and isolated. `--safe-mode --strict-mcp-config --restricted`
- * turn off the user's CLAUDE.md, skills, plugins, hooks, MCP servers and settings files; the file
- * tools are only Read, Glob and Grep, and anything else is denied without asking.
+ * `--input-format stream-json` keeps stdin open after the prompt, so the CLI can ask for approvals
+ * there. `--no-session-persistence`: Claude is stateless in v1, and every turn sends the thread.
  */
-const READ_ONLY_ISOLATED = [
-  '--safe-mode',
-  '--strict-mcp-config',
-  '--restricted',
-  '--tools',
-  'Read,Glob,Grep',
-  '--permission-mode',
-  'dontAsk',
-  '--permission-prompts',
-  'none',
+const BASE = [
+  '-p',
+  '--input-format',
+  'stream-json',
+  '--output-format',
+  'stream-json',
+  '--verbose',
+  '--include-partial-messages',
+  '--no-session-persistence',
 ] as const;
 
-/** Builds the `claude` command line and stdin for one stateless turn. */
-export function buildInvocation(request: Pick<TurnRequest, 'selection' | 'system' | 'prompt'> & { readonly seed: string | null }): Invocation {
+/** MorrowBot owns the instructions: no CLAUDE.md, skills, plugins, hooks or MCP servers of the user's. */
+const ISOLATED = ['--safe-mode', '--strict-mcp-config'] as const;
+
+/**
+ * `--restricted` removes every tool that runs commands, ignores the user, project and local settings
+ * files, and confines the file tools to the working folder. `--tools` names the only tools offered.
+ */
+function accessFlags(access: ClaudeAccess, mode: TurnMode): readonly string[] {
+  switch (access) {
+    case 'read-only':
+      return ['--restricted', '--tools', 'Read,Glob,Grep', '--permission-mode', 'dontAsk', '--permission-prompts', 'none'];
+    case 'workspace-write':
+      return [
+        '--restricted',
+        '--tools',
+        'Read,Glob,Grep,Edit,Write',
+        '--permission-mode',
+        'acceptEdits',
+        ...approvalFlags(mode),
+      ];
+  }
+}
+
+/**
+ * Edits inside the folder go ahead; protected paths such as `.git/` would prompt. Interactive turns
+ * get those prompts as `can_use_tool` control requests on stdout (`--permission-prompt-tool stdio`,
+ * which `claude --help` does not list); background turns deny them without asking.
+ */
+function approvalFlags(mode: TurnMode): readonly string[] {
+  switch (mode) {
+    case 'interactive':
+      return ['--permission-prompts', 'host', '--permission-prompt-tool', 'stdio'];
+    case 'background':
+      return ['--permission-prompts', 'none'];
+  }
+}
+
+/** Builds the `claude` command line and stdin frame for one stateless turn. */
+export function buildInvocation(
+  request: Pick<TurnRequest, 'mode' | 'selection' | 'system' | 'prompt'> & { readonly access: ClaudeAccess; readonly seed: string | null },
+): Invocation {
   const { selection, system } = request;
   return {
     args: [
-      '-p',
-      '--output-format',
-      'stream-json',
-      '--verbose',
-      '--include-partial-messages',
-      '--no-session-persistence',
-      ...READ_ONLY_ISOLATED,
+      ...BASE,
+      ...ISOLATED,
+      ...accessFlags(request.access, request.mode),
       ...(selection.kind === 'model' ? ['--model', selection.id] : []),
       ...(system === null ? [] : ['--append-system-prompt-file', commandFilePath(0)]),
     ],
-    input: prompt(request.seed, request.prompt),
+    frame: `${JSON.stringify({ type: 'user', message: { role: 'user', content: prompt(request.seed, request.prompt) } })}\n`,
     files: system === null ? [] : [system],
   };
 }

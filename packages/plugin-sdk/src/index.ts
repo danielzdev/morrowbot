@@ -9,6 +9,7 @@ export type {
   TurnContext,
 } from './plugin.ts';
 export { defineProvider } from './plugin.ts';
+export type { ApprovalAnswer, ApprovalAsk } from './approvals.ts';
 export { commandFilePath, openCommand, runCommand } from './command.ts';
 export type { CommandExit, CommandOptions, OpenCommand, RunCommandOptions } from './command.ts';
 export { confinePath } from './confine.ts';
