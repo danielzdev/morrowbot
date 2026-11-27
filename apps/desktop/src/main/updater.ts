@@ -47,7 +47,10 @@ export function startUpdater({ env, appPath, onStatus, report }: UpdaterOptions)
   };
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
-  autoUpdater.on('checking-for-update', () => { set({ kind: 'checking' }); });
+  autoUpdater.on('checking-for-update', () => {
+    downloaded = null;
+    set({ kind: 'checking' });
+  });
   autoUpdater.on('update-not-available', () => { set({ kind: 'up-to-date' }); });
   autoUpdater.on('update-available', (info) => { set({ kind: 'downloading', version: info.version, percent: 0 }); });
   autoUpdater.on('download-progress', (progress) => {
@@ -59,6 +62,7 @@ export function startUpdater({ env, appPath, onStatus, report }: UpdaterOptions)
     if (downloaded !== null) set({ kind: 'ready', version: downloaded });
   });
   autoUpdater.on('error', (error) => {
+    downloaded = null;
     report(error);
     set({ kind: 'failed' });
   });
@@ -89,7 +93,8 @@ export function startUpdater({ env, appPath, onStatus, report }: UpdaterOptions)
       const result = await autoUpdater.checkForUpdates();
       await result?.downloadPromise;
     };
-    run().catch(() => {
+    run().catch((error: unknown) => {
+      report(error);
       set({ kind: 'failed' });
     });
     return status;

@@ -81,13 +81,24 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           GH_TOKEN: ${{ secrets.PRIVATE_RELEASES_TOKEN }}
         run: |
-          npm run build
           node scripts/build-app.ts
           npx electron-builder --mac --publish always \
             -c.forceCodeSigning=true \
             -c.publish.owner="${MORROWBOT_RELEASES_REPO%%/*}" \
             -c.publish.repo="${MORROWBOT_RELEASES_REPO#*/}"
-      - name: Publish the release once every file is uploaded
+      - name: Publish the draft once every file is uploaded; only a newer version becomes latest
         env:
           GH_TOKEN: ${{ secrets.PRIVATE_RELEASES_TOKEN }}
-        run: gh release edit "v$VERSION" --draft=false --latest --repo "$MORROWBOT_RELEASES_REPO"
+        run: |
+          draft="$(gh release view "v$VERSION" --repo "$MORROWBOT_RELEASES_REPO" --json isDraft --jq .isDraft)"
+          if [ "$draft" != "true" ]; then
+            echo "::notice::v$VERSION is already published; leaving it as it is"
+            exit 0
+          fi
+          latest="$(gh release view --repo "$MORROWBOT_RELEASES_REPO" --json tagName --jq .tagName 2>/dev/null || true)"
+          newest="$(printf '%s\n%s\n' "${latest#v}" "$VERSION" | sort -V | tail -n 1)"
+          if [ -z "$latest" ] || { [ "$newest" = "$VERSION" ] && [ "${latest#v}" != "$VERSION" ]; }; then
+            gh release edit "v$VERSION" --draft=false --latest --repo "$MORROWBOT_RELEASES_REPO"
+          else
+            gh release edit "v$VERSION" --draft=false --latest=false --repo "$MORROWBOT_RELEASES_REPO"
+          fi

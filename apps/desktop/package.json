@@ -12,7 +12,7 @@
     "build": "node scripts/build-renderer.ts",
     "start": "npm run build && electron .",
     "typecheck": "tsc -p tsconfig.json && tsc -p src/renderer/tsconfig.json",
-    "package:mac": "npm run build && node scripts/build-app.ts && electron-builder --mac --publish never"
+    "package:mac": "node scripts/build-app.ts && electron-builder --mac --publish never"
   },
   "devDependencies": {
     "@types/ws": "^8.18.2",

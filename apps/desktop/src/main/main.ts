@@ -179,7 +179,7 @@ function runApp(profile: UsableProfile): void {
     return appInfoOf(app.getVersion(), dataDir);
   });
 
-  const loginItems = app.isPackaged && (process.platform === 'darwin' || process.platform === 'win32');
+  const loginItems = profile.kind === 'installed' && (process.platform === 'darwin' || process.platform === 'win32');
   const loginItem = () => loginItemOf(loginItems ? app.getLoginItemSettings().openAtLogin : null);
   ipcMain.handle(CHANNELS.loginItem, (event) => {
     checkSender(senderOf(event), RENDERER_URL);
@@ -240,7 +240,15 @@ function runApp(profile: UsableProfile): void {
   void app.whenReady().then(() => {
     openWindow();
     if (profile.kind === 'installed') {
-      updater = startUpdater({ env: process.env, appPath: app.getAppPath(), onStatus: (status) => window?.webContents.send(CHANNELS.updateChanged, status), report });
+      updater = startUpdater({
+        env: process.env,
+        appPath: app.getAppPath(),
+        onStatus: (status) => {
+          window?.webContents.send(CHANNELS.updateChanged, status);
+          if (status.kind === 'failed' && lifetime === 'host-stopped') app.quit();
+        },
+        report,
+      });
     }
   });
 }
