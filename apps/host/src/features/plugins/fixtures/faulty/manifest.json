@@ -1,0 +1,11 @@
+{
+  "id": "faulty",
+  "name": "Faulty",
+  "version": "1.0.0",
+  "kind": "tool",
+  "main": "index.ts",
+  "permissions": ["shell"],
+  "settingsSchema": {
+    "failure": { "kind": "select", "label": "Failure", "options": ["none", "crash-on-health", "hang-on-health"] }
+  }
+}
