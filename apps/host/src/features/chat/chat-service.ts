@@ -173,11 +173,12 @@ export function createChatService(options: ChatServiceOptions): ChatService {
     },
     recheck: async (pluginId) => {
       if (core.rechecking.has(pluginId)) return { kind: 'unavailable', reason: 'This provider is already being rechecked.' };
-      if ([...core.active.values()].some((turn) => turn.pluginId === pluginId)) return { kind: 'busy' };
+      if ([...core.active.values()].some((turn) => turn.pluginId === pluginId && turn.state !== 'settled')) return { kind: 'busy' };
       core.rechecking.add(pluginId);
-      core.liveUsage.delete(pluginId);
       try {
-        return await options.plugins.recheck(pluginId);
+        const result = await options.plugins.recheck(pluginId);
+        if (result.kind !== 'blocked' && result.kind !== 'busy') core.liveUsage.delete(pluginId);
+        return result;
       } finally {
         core.rechecking.delete(pluginId);
       }

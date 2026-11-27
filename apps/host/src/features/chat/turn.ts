@@ -168,7 +168,6 @@ function persistSettlement(core: ChatCore, turn: Turn, message: AssistantMessage
       store.threads.touch(turn.threadId, createdAt);
       store.generations.settle(turn.generationId, message.id);
       if (!turn.dispatched) return;
-      core.options.plugins.unlinkDaemon(turn.generationId);
       store.generations.insertUsage({
         generationId: turn.generationId,
         agentId: turn.agentId,
@@ -181,6 +180,7 @@ function persistSettlement(core: ChatCore, turn: Turn, message: AssistantMessage
         createdAt,
       });
       applySessionEffect(core, turn, result);
+      core.options.plugins.unlinkDaemon(turn.generationId);
     });
     return true;
   } catch (error) {

@@ -223,11 +223,11 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
     });
     slot.retired = retired.then(({ exit, current, clean }) => {
       if (!current) return;
-      const restart = slot.restartAfterExit;
+      const restarting = slot.restartAfterExit;
       slot.restartAfterExit = false;
-      if (restart) {
+      if (restarting) {
         setStatus(slot, { kind: 'stopped' });
-        if (clean && stopping === undefined && !safeMode) void enqueue(slot, async () => start(slot, await store.read(manifest.id)));
+        if (clean && stopping === undefined && !safeMode) void restart(slot);
         return;
       }
       switch (exit.kind) {
@@ -251,10 +251,23 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
     }
   }
 
+  /** Starts the worker again unless one is already running by the time the queue gets to it. */
+  function restart(slot: Slot): Promise<void> {
+    return enqueue(slot, async () => {
+      if (slot.process === undefined) await start(slot, await store.read(slot.plugin.manifest.id));
+    });
+  }
+
+  /** Its daemons end with the worker: a turn settling meanwhile keeps its link, so its thread stays held until they are checked. */
+  function endDaemons(slot: Slot): void {
+    for (const row of groups.daemons(slot.plugin.manifest.id)) groups.markEnding(row.pgid);
+  }
+
   /** Kills the worker through its handle, then waits until its groups were checked and its restart (if clean) ran. */
   async function killWorker(slot: Slot, child: PluginProcess): Promise<void> {
     if (slot.process !== child) return;
     slot.restartAfterExit = true;
+    endDaemons(slot);
     child.kill();
     await slot.retired;
     await slot.queue;
@@ -265,6 +278,7 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
     const child = slot.process;
     slot.process = undefined;
     slot.info = undefined;
+    endDaemons(slot);
     await child?.stop();
     if (stopping === undefined) await slot.retired;
   }
@@ -283,9 +297,7 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
     const before = statusOf(slot);
     slot.quarantine = undefined;
     announce(slot, before);
-    if (slot.process === undefined && stopping === undefined && !safeMode) {
-      void enqueue(slot, async () => start(slot, await store.read(row.pluginId)));
-    }
+    if (slot.process === undefined && stopping === undefined && !safeMode) void restart(slot);
   });
 
   function stopAll(): Promise<void> {
@@ -321,7 +333,7 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
     }
   }
 
-  const requests = providerRequests({ slotOf, statusOf, isServing: serving, groups, timeouts, retire: (slot, row) => daemons.retire(slot, row) });
+  const requests = providerRequests({ slotOf, statusOf, isServing: serving, groups, timeouts, retire: (slot, row) => daemons.retire(slot, row), killWorker });
 
   return {
     ...requests,

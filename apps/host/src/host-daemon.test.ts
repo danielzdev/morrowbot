@@ -83,22 +83,28 @@ it('registers the daemon through provider-info before the first turn, and a clea
   `);
 });
 
-it('stops a daemon that ignores interrupt with kill-child-group, then a worker kill, then ESRCH, and settles each of its turns once', async () => {
+it('stops a daemon that ignores interrupt with kill-child-group, then a worker kill, then ESRCH, settles each of its turns once, and starts no new daemon before', async () => {
   const sticky = stickyProbe();
   chat = await startDaemonFixture({ probe: sticky.probe, timeouts: { ...DEFAULT_PLUGIN_TIMEOUTS, turnStopMs: 300 } });
   const fixture = chat;
   const agent = await fixture.agent();
-  const ignoring = await fixture.thread(agent, 'A');
-  const sharing = await fixture.thread(agent, 'B');
+  const [ignoring, sharing, other] = [await fixture.thread(agent, 'A'), await fixture.thread(agent, 'B'), await fixture.thread(agent, 'C')];
   const first = await start(fixture, ignoring.id, 'ignore-interrupt');
   const second = await start(fixture, sharing.id, 'stall');
   await until(async () => (await turnsSeen(fixture)) === 2);
   const worker = await fixture.workerPid();
   sticky.stick(fixture.daemonPgid(), () => isRunning(worker));
-  const stopped = StopGenerationResponse.parse((await fixture.host.call('POST', `/api/threads/${ignoring.id}/stop`)).body);
+  const stopping = fixture.host.call('POST', `/api/threads/${ignoring.id}/stop`);
+  await until(async () => (await fixture.signals()).length > 0);
+  const meanwhile = fixture.host.call('POST', `/api/threads/${other.id}/messages`, { text: 'meanwhile' });
+  await sleep(1_000);
+  const startedDuringRetire = (await fixture.daemonEvents()).filter((line) => line.startsWith('info true') || line.includes('d2'));
+  const stopped = StopGenerationResponse.parse((await stopping).body);
   await fixture.events.finished(second);
+  await fixture.events.finished(SendMessageResponse.parse((await meanwhile).body).generationId);
   const next = await fixture.send(ignoring, 'after');
   expect({
+    startedDuringRetire,
     stopped: stopped.kind === 'stopped' ? stopped.message.outcome : stopped,
     finishedOnce: [finishedCount(fixture, first), finishedCount(fixture, second)],
     probe: sticky.seen,
@@ -107,7 +113,7 @@ it('stops a daemon that ignores interrupt with kill-child-group, then a worker k
     oldWorkerRunning: isRunning(worker),
     next: next.status,
     events: await fixture.daemonEvents(),
-    histories: [await fixture.history(ignoring), await fixture.history(sharing)],
+    histories: [await fixture.history(ignoring), await fixture.history(sharing), await fixture.history(other)],
   }).toMatchInlineSnapshot(`
     {
       "events": [
@@ -118,6 +124,7 @@ it('stops a daemon that ignores interrupt with kill-child-group, then a worker k
         "daemon-exit d1",
         "daemon-start d2",
         "info true d2",
+        "turn d2 meanwhile",
         "turn d2 after",
       ],
       "finishedOnce": [
@@ -135,6 +142,10 @@ it('stops a daemon that ignores interrupt with kill-child-group, then a worker k
           "user: stall",
           "assistant(interrupted): ",
         ],
+        [
+          "user: meanwhile",
+          "assistant(completed): d2: meanwhile",
+        ],
       ],
       "next": 202,
       "oldWorkerRunning": false,
@@ -145,6 +156,7 @@ it('stops a daemon that ignores interrupt with kill-child-group, then a worker k
       "signals": [
         "d1 SIGTERM",
       ],
+      "startedDuringRetire": [],
       "stopped": {
         "kind": "interrupted",
       },
@@ -228,6 +240,51 @@ it('on an unexpected daemon exit settles its turns once, holds new work until th
         "turn d1 exit",
         "daemon-exit d1",
       ],
+    }
+  `);
+});
+
+it('disabling the plugin mid-turn keeps the daemon link, so the thread stays held until the daemon is confirmed gone', async () => {
+  const sticky = stickyProbe();
+  let holding = true;
+  chat = await startDaemonFixture({ probe: sticky.probe });
+  const fixture = chat;
+  const thread = await fixture.thread(await fixture.agent());
+  const generationId = await start(fixture, thread.id, 'stall');
+  await until(async () => (await turnsSeen(fixture)) === 1);
+  sticky.stick(fixture.daemonPgid(), () => holding);
+  const disabled = (await fixture.host.call('PUT', '/api/plugins/daemon/enabled', { enabled: false })).status;
+  await fixture.events.finished(generationId);
+  const rows = fixture.daemonRows().map((row) => ({ state: row.state, linked: row.generationIds.includes(generationId) }));
+  const send = async () => (await fixture.host.call('POST', `/api/threads/${thread.id}/messages`, { text: 'again' })).body;
+  const whileHeld = await send();
+  holding = false;
+  await until(() => fixture.daemonRows().length === 0);
+  expect({ disabled, rows, whileHeld, afterRelease: await send(), history: await fixture.history(thread) }).toMatchInlineSnapshot(`
+    {
+      "afterRelease": {
+        "error": {
+          "kind": "conflict",
+          "message": "Provider plugin daemon is not available: Plugin "daemon" is not running (disabled)",
+        },
+      },
+      "disabled": 200,
+      "history": [
+        "user: stall",
+        "assistant(cancelled): ",
+      ],
+      "rows": [
+        {
+          "linked": true,
+          "state": "blocked",
+        },
+      ],
+      "whileHeld": {
+        "error": {
+          "kind": "conflict",
+          "message": "This thread is already generating a reply. Stop it first.",
+        },
+      },
     }
   `);
 });

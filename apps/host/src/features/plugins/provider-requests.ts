@@ -2,6 +2,7 @@ import type { PluginStatus, ProviderInfo, TurnRequest, UsageResult } from '@morr
 import type { ChildGroupRegistry, ChildGroupRow } from './child-groups.ts';
 import { ask } from './info-cache.ts';
 import { PluginTimeoutError, type PluginTimeouts } from './plugin-process.ts';
+import type { PluginProcess } from './plugin-process.ts';
 import type { Slot, TurnSink } from './slot.ts';
 
 /** `superseded`: Recheck or a daemon exit moved the daemon revision while it was asked; its answer was discarded. */
@@ -60,13 +61,14 @@ export interface RequestDeps {
   readonly isServing: (slot: Slot) => boolean;
   readonly groups: ChildGroupRegistry;
   readonly timeouts: PluginTimeouts;
-  readonly retire: (slot: Slot, row: ChildGroupRow) => Promise<boolean>;
+  readonly retire: (slot: Slot, row: ChildGroupRow) => Promise<void>;
+  readonly killWorker: (slot: Slot, child: PluginProcess) => Promise<void>;
 }
 
 /** How long a worker's provider-info is shown before it is asked again (it is never used to pin a turn). */
 const INFO_DISPLAY_MS = 60_000;
 
-export function providerRequests({ slotOf, statusOf, isServing, groups, timeouts, retire }: RequestDeps): ProviderRequests {
+export function providerRequests({ slotOf, statusOf, isServing, groups, timeouts, retire, killWorker }: RequestDeps): ProviderRequests {
   function unavailable(slot: Slot): string | undefined {
     if (slot.plugin.manifest.kind !== 'provider') return `Plugin "${slot.plugin.manifest.id}" is not a provider`;
     if (groups.blockedRows(slot.plugin.manifest.id).some((row) => row.kind === 'daemon')) return 'daemon-blocked';
@@ -80,12 +82,15 @@ export function providerRequests({ slotOf, statusOf, isServing, groups, timeouts
   /**
    * The one daemon path: a cold call (no answer for this worker and daemon revision) or a call after
    * the daemon went away asks provider-info, which starts and registers the daemon. Concurrent calls
-   * share one request; it waits for a worker start, or an exited daemon's check, in progress.
+   * share one request; it waits for a worker start, a daemon retire or an exited daemon's check in progress.
    */
   async function info(pluginId: string, refresh: boolean): Promise<InfoResult> {
     const slot = slotOf(pluginId);
-    if (statusOf(slot).kind === 'starting') await slot.queue;
-    await slot.daemonExit;
+    for (;;) {
+      if (statusOf(slot).kind === 'starting') await slot.queue;
+      else if (slot.daemonGone !== undefined) await slot.daemonGone;
+      else break;
+    }
     const reason = unavailable(slot);
     const child = slot.process;
     const worker = slot.worker;
@@ -93,8 +98,7 @@ export function providerRequests({ slotOf, statusOf, isServing, groups, timeouts
     const current = slot.info?.worker === worker && slot.info.revision === slot.daemonRevision ? slot.info : undefined;
     const fresh = refresh || slot.daemonLost;
     const reuse =
-      current !== undefined &&
-      (current.done ? !fresh && current.settled !== undefined && performance.now() - current.askedAt <= INFO_DISPLAY_MS : current.refresh || !fresh);
+      current !== undefined && (!current.done || (!fresh && current.settled !== undefined && performance.now() - current.askedAt <= INFO_DISPLAY_MS));
     const entry = reuse ? current : ask(slot, child, worker, fresh, current?.settled);
     try {
       const value = await entry.value;
@@ -126,6 +130,7 @@ export function providerRequests({ slotOf, statusOf, isServing, groups, timeouts
       const slot = slotOf(pluginId);
       const child = slot.process;
       if (child === undefined || slot.worker !== ready.worker) return { kind: 'unavailable', reason: 'The plugin restarted' };
+      if (slot.rechecking || slot.daemonRevision !== ready.daemonRevision) return { kind: 'unavailable', reason: 'The provider was rechecked meanwhile. Try again.' };
       try {
         const usage = await child.usage(refresh);
         if (slot.daemonRevision !== ready.daemonRevision) return { kind: 'unavailable', reason: 'The provider was rechecked meanwhile. Try again.' };
@@ -196,8 +201,7 @@ export function providerRequests({ slotOf, statusOf, isServing, groups, timeouts
           void retire(slot, daemon);
           return;
         }
-        slot.restartAfterExit = true;
-        child.kill();
+        void killWorker(slot, child);
       }, timeouts.turnStopMs);
     },
   };

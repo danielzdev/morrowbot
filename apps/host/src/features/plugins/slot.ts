@@ -50,8 +50,8 @@ export interface Slot {
   daemonRevision: number;
   /** The plugin's daemon went away: the next provider-info asks `refresh: true`, which starts a new one. */
   daemonLost: boolean;
-  /** Set while an exited daemon is checked: provider-info waits, so no replacement starts before it is gone. */
-  daemonExit: Promise<void> | undefined;
+  /** Set while a daemon is retired or an exited one is checked: provider-info and Recheck wait, so no replacement starts before it is gone. */
+  daemonGone: Promise<void> | undefined;
   /** During Recheck only Recheck asks provider-info (and so starts a daemon). */
   rechecking: boolean;
   /** Daemon groups being retired, each resolved when the plugin reports the group's guard gone. */
@@ -76,7 +76,7 @@ export function newSlot(plugin: DiscoveredPlugin, status: PluginStatus): Slot {
     info: undefined,
     daemonRevision: 0,
     daemonLost: false,
-    daemonExit: undefined,
+    daemonGone: undefined,
     rechecking: false,
     retiring: new Map(),
     turns: new Map(),

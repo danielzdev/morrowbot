@@ -29,9 +29,9 @@ export interface Daemons {
   groupExited(slot: Slot, child: PluginProcess, worker: number, pgid: number): void;
   /**
    * Stops one daemon group: `kill-child-group`, then the worker through its handle if the group is
-   * not gone 2 s later. Its open turns are settled once, as interrupted. True once it is confirmed gone.
+   * not gone 2 s later. Its open turns are settled once, as interrupted. Provider-info waits until it ends.
    */
-  retire(slot: Slot, row: ChildGroupRow): Promise<boolean>;
+  retire(slot: Slot, row: ChildGroupRow): Promise<void>;
   /** Recheck with no turns: retire every daemon, then start a fresh one through `provider-info {refresh:true}`. */
   recheck(slot: Slot): Promise<RecheckAnswer>;
 }
@@ -48,6 +48,18 @@ export function daemons(deps: DaemonDeps): Daemons {
     return turn;
   }
 
+  /** Holds provider-info and Recheck until the returned release is called (and every earlier hold released). */
+  function hold(slot: Slot): () => void {
+    const gone = Promise.withResolvers<undefined>();
+    const barrier: Promise<void> = Promise.all([slot.daemonGone, gone.promise]).then(() => {
+      if (slot.daemonGone === barrier) slot.daemonGone = undefined;
+    });
+    slot.daemonGone = barrier;
+    return () => {
+      gone.resolve(undefined);
+    };
+  }
+
   function groupExited(slot: Slot, child: PluginProcess, worker: number, pgid: number): void {
     const retiring = slot.retiring.get(pgid);
     if (retiring !== undefined) {
@@ -56,19 +68,20 @@ export function daemons(deps: DaemonDeps): Daemons {
     }
     const row = groups.row(pgid);
     if (row?.kind === 'daemon' && slot.process === child && !deps.stopping()) {
-      // An unexpected daemon exit: nothing more is dispatched to it, its turns end now, and their
-      // links hold their threads until the group is confirmed gone. The next provider-info starts a new one.
       log(`daemon group ${String(pgid)} exited`);
       slot.daemonRevision += 1;
       slot.info = undefined;
       slot.daemonLost = true;
       groups.markEnding(pgid);
+      const release = hold(slot);
       const lost = row.generationIds.flatMap((id) => take(slot, child, worker, id) ?? []);
       for (const turn of lost) turn.sink.onLost();
-      slot.daemonExit = groups.verify(pgid).then((released) => {
-        slot.daemonExit = undefined;
-        if (!released && !deps.stopping()) deps.quarantine(slot, [pgid]);
-      });
+      void groups
+        .verify(pgid)
+        .then((released) => {
+          if (!released && !deps.stopping()) deps.quarantine(slot, [pgid]);
+        })
+        .finally(release);
       return;
     }
     void groups.verify(pgid).then((released) => {
@@ -78,33 +91,42 @@ export function daemons(deps: DaemonDeps): Daemons {
     });
   }
 
-  async function retire(slot: Slot, row: ChildGroupRow): Promise<boolean> {
+  async function retire(slot: Slot, row: ChildGroupRow): Promise<void> {
     const child = slot.process;
     const worker = slot.worker;
     slot.daemonRevision += 1;
     slot.info = undefined;
     slot.daemonLost = true;
+    const release = hold(slot);
     const reported = Promise.withResolvers<undefined>();
     slot.retiring.set(row.pgid, reported);
     groups.markEnding(row.pgid);
     const lost = child === undefined || worker === null ? [] : row.generationIds.flatMap((id) => take(slot, child, worker, id) ?? []);
     try {
+      if (child === undefined) {
+        await slot.retired;
+        return;
+      }
       log(`stopping daemon group ${String(row.pgid)}`);
-      child?.killChildGroup(row.pgid);
+      child.killChildGroup(row.pgid);
       const deadline = performance.now() + DAEMON_STOP_MS;
       const exited = await Promise.race([reported.promise.then(() => true), delay(DAEMON_STOP_MS, false, { ref: false })]);
-      if (exited && (await groups.awaitGone(row.pgid, Math.max(0, deadline - performance.now())))) return true;
-      if (child !== undefined && slot.process === child) {
+      if (exited && (await groups.awaitGone(row.pgid, Math.max(0, deadline - performance.now())))) return;
+      if (slot.process === child) {
         log(`daemon group ${String(row.pgid)} did not stop; killing the worker`);
         await deps.killWorker(slot, child);
       } else {
         await slot.retired;
       }
-      return groups.row(row.pgid)?.regId !== row.regId;
     } finally {
       slot.retiring.delete(row.pgid);
       for (const turn of lost) turn.sink.onLost();
+      release();
     }
+  }
+
+  async function settled(slot: Slot): Promise<void> {
+    while (slot.daemonGone !== undefined) await slot.daemonGone;
   }
 
   function blockedDetail(slot: Slot): string | undefined {
@@ -114,13 +136,13 @@ export function daemons(deps: DaemonDeps): Daemons {
   }
 
   async function recheck(slot: Slot): Promise<RecheckAnswer> {
-    const blocked = blockedDetail(slot);
-    if (blocked !== undefined) return { kind: 'blocked', detail: blocked };
-    if (slot.rechecking) return { kind: 'busy' };
+    if (slot.rechecking) return { kind: 'unavailable', reason: 'This provider is already being rechecked.' };
     slot.rechecking = true;
-    slot.daemonRevision += 1;
     try {
-      // An older start is drained (its answer is discarded); one that never answers is cancelled with its worker.
+      await settled(slot);
+      const blocked = blockedDetail(slot);
+      if (blocked !== undefined) return { kind: 'blocked', detail: blocked };
+      slot.daemonRevision += 1;
       const older = slot.info;
       slot.info = undefined;
       if (older !== undefined && !older.done) {
@@ -128,7 +150,8 @@ export function daemons(deps: DaemonDeps): Daemons {
           () => false,
           (error: unknown) => error instanceof PluginTimeoutError,
         );
-        if (timedOut && slot.process !== undefined) await deps.killWorker(slot, slot.process);
+        const child = slot.process;
+        if (timedOut && child !== undefined && slot.worker === older.worker) await deps.killWorker(slot, child);
       }
       for (const row of groups.daemons(slot.plugin.manifest.id)) await retire(slot, row);
       const stillBlocked = blockedDetail(slot);
@@ -145,17 +168,20 @@ export function daemons(deps: DaemonDeps): Daemons {
     if (child === undefined || worker === null || !deps.isServing(slot)) {
       return { kind: 'unavailable', reason: `Plugin "${slot.plugin.manifest.id}" is not running (${slot.status.kind})` };
     }
+    const entry = ask(slot, child, worker, true, undefined);
     try {
-      return { kind: 'ok', info: await ask(slot, child, worker, true, undefined).value };
+      const info = await entry.value;
+      if (slot.daemonRevision === entry.revision) return { kind: 'ok', info };
+      await settled(slot);
+      const blocked = blockedDetail(slot);
+      return blocked === undefined ? { kind: 'unavailable', reason: "The provider's daemon exited during Recheck. Recheck again." } : { kind: 'blocked', detail: blocked };
     } catch (error) {
       if (!(error instanceof PluginTimeoutError)) return { kind: 'unavailable', reason: error instanceof Error ? error.message : String(error) };
-      // The attempt cannot be called back: invalidate it and cancel it with its worker, whose groups are then checked.
       slot.daemonRevision += 1;
       await deps.killWorker(slot, child);
       const blocked = blockedDetail(slot);
       if (blocked !== undefined) return { kind: 'blocked', detail: blocked };
       const info: ProviderInfo = { kind: 'error', message: 'The provider did not finish starting in time. Recheck to try again.' };
-      // Turns now gate on this answer until it expires or is refreshed; the restarted worker has no daemon to replace.
       if (slot.worker !== null) slot.info = settledEntry(slot.worker, slot.daemonRevision, info);
       slot.daemonLost = false;
       return { kind: 'ok', info };

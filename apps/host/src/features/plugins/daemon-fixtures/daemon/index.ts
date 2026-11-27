@@ -6,9 +6,10 @@ import { defineProvider, openCommand, runPlugin, z, type AccessProfile, type Ope
 
 /**
  * A test provider backed by one shared daemon (`fake-daemon.ts`), started from provider-info as a
- * `daemon` process group and kept across turns. Files in its data folder steer it: `pause-info`
- * holds provider-info until removed, `hang-info` makes it never answer, `signed-out` reports
- * signed-out. It writes its pid to `worker.pid`. Everything it does is appended to `events.jsonl`; daemons are named d1, d2, … in start order.
+ * `daemon` process group and kept across turns. Files in its data folder steer it: `pause-info`,
+ * `pause-route` and `pause-usage` hold those requests until removed, `hang-info` makes provider-info
+ * never answer, `signed-out` reports signed-out, `sessions` reports session support. A route-info
+ * whose daemon was replaced while it was held fails. It writes its pid to `worker.pid`. Everything it does is appended to `events.jsonl`; daemons are named d1, d2, … in start order.
  */
 const DAEMON_SCRIPT = fileURLToPath(new URL('./fake-daemon.ts', import.meta.url));
 const PROFILE: AccessProfile = { access: 'read-only', vendorSettings: 'isolated', modes: ['interactive', 'background'], readsOutsideCwd: false };
@@ -86,14 +87,18 @@ async function startDaemon(): Promise<Daemon> {
   return started;
 }
 
-function ready(): ProviderInfo {
+async function held(flag: string): Promise<void> {
+  while (existsSync(file(flag))) await sleep(20);
+}
+
+function ready(name: string): ProviderInfo {
   return {
     kind: 'ready',
     version: '1.0.0',
     accountKey: 'acct-d',
-    accountLabel: null,
+    accountLabel: name,
     models: [{ id: 'tiny', label: 'Tiny', isDefault: true, options: [] }],
-    capabilities: { profiles: [PROFILE], approvals: false, sessions: false, usage: 'live', withheld: [] },
+    capabilities: { profiles: [PROFILE], approvals: false, sessions: existsSync(file('sessions')), usage: 'live', withheld: [] },
     warning: null,
   };
 }
@@ -115,17 +120,25 @@ runPlugin(
         });
         daemon = await starting;
       }
-      record({ event: 'info', refresh, daemon: daemon.name });
-      while (existsSync(file('pause-info'))) await sleep(20);
+      const { name } = daemon;
+      record({ event: 'info', refresh, daemon: name });
+      await held('pause-info');
       if (existsSync(file('hang-info'))) return new Promise<ProviderInfo>(() => undefined);
       if (existsSync(file('signed-out'))) return { kind: 'signed-out', signIn: { kind: 'run-in-terminal', argv: ['daemon', 'login'] } };
-      return ready();
+      return ready(name);
     },
-    usage: () => {
+    usage: async () => {
       record({ event: 'usage', daemon: daemon?.name ?? null });
+      await held('pause-usage');
       return { kind: 'unavailable', observedAt: '2026-01-01T00:00:00.000Z', accountKey: 'acct-d', reason: 'not-yet-observed' };
     },
-    routeInfo: () => ({ kind: 'known', accountKey: 'acct-d', routeKey: '' }),
+    routeInfo: async () => {
+      const target = daemon;
+      record({ event: 'route', daemon: target?.name ?? null });
+      await held('pause-route');
+      if (target === undefined || daemon !== target) return { kind: 'failed', reason: 'the daemon went away' };
+      return { kind: 'known', accountKey: 'acct-d', routeKey: '' };
+    },
     turn: async ({ request, signal, emit }) => {
       const target = daemon;
       if (target === undefined) return { ...end({ kind: 'failed', error: { kind: 'other', message: 'no daemon' } }), sessionTouched: false };

@@ -60,9 +60,10 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
   let routeKey = '';
   if (capabilities.sessions) {
     const route = await plugins.routeInfo(pluginId, cwd);
+    const moved = plugins.revision(pluginId);
+    if (moved.worker !== info.worker || moved.daemonRevision !== info.daemonRevision) return { kind: 'binding_changed' };
     switch (route.kind) {
       case 'known':
-        if (route.worker !== info.worker) return { kind: 'binding_changed' };
         accountKey = route.accountKey;
         routeKey = route.routeKey;
         break;

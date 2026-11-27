@@ -19,7 +19,7 @@ export const DAEMON: Extract<ProviderBinding, { kind: 'bound' }> = {
   vendorSettings: 'isolated',
 };
 
-export type DaemonFlag = 'pause-info' | 'hang-info' | 'signed-out';
+export type DaemonFlag = 'pause-info' | 'pause-route' | 'pause-usage' | 'hang-info' | 'signed-out' | 'sessions';
 
 export interface DaemonFixture extends ChatFixture {
   /** What the plugin did, from its `events.jsonl`, one short line each. */
