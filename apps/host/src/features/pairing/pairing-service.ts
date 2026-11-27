@@ -2,9 +2,13 @@ import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto
 import type { ClaimPairingRequest, PairedDevice } from '@morrowbot/contracts';
 
 export const CODE_LIFETIME_MS = 5 * 60_000;
-/** Wrong codes allowed per window before claims pause and the current code is cancelled. */
+/** Wrong codes one source may send per window before its claims pause. */
 export const MAX_FAILED_CLAIMS = 5;
 export const FAILED_CLAIM_WINDOW_MS = 60_000;
+/** Wrong codes, from any sources, after which the open code is cancelled: at most this many guesses per code. */
+export const MAX_GUESSES_PER_CODE = 20;
+/** How often a device's `lastSeenAt` is written at most. */
+export const LAST_SEEN_EVERY_MS = 60_000;
 
 /** Where paired devices are kept (the storage feature provides one). */
 export interface DeviceRecords {
@@ -29,8 +33,9 @@ export type ClaimResult =
 export interface PairingService {
   /** Starts a new code and cancels any earlier one, so at most one code is ever open. */
   createCode(): { readonly code: string; readonly expiresAt: string };
-  claim(request: ClaimPairingRequest): ClaimResult;
-  /** The active device holding `token`, marked as seen now. */
+  /** `source` is the peer's address. A claim while no code is open is refused without counting as a guess. */
+  claim(request: ClaimPairingRequest, source: string): ClaimResult;
+  /** The active device holding `token`, marked as seen (written at most once a minute). */
   authenticate(token: string): string | undefined;
   list(): PairedDevice[];
   revoke(deviceId: string): boolean;
@@ -38,23 +43,34 @@ export interface PairingService {
 
 export function createPairingService(options: PairingServiceOptions): PairingService {
   const { records, now } = options;
-  let open: { readonly code: string; readonly expiresAtMs: number } | undefined;
-  let failures: number[] = [];
+  let open: { readonly code: string; readonly expiresAtMs: number; guesses: number } | undefined;
+  const failures = new Map<string, number[]>();
+  const lastWritten = new Map<string, number>();
   return {
     createCode: () => {
       const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
       const expiresAtMs = Date.parse(now()) + CODE_LIFETIME_MS;
-      open = { code, expiresAtMs };
+      open = { code, expiresAtMs, guesses: 0 };
       return { code, expiresAt: new Date(expiresAtMs).toISOString() };
     },
-    claim: (request) => {
+    claim: (request, source) => {
       const at = now();
       const atMs = Date.parse(at);
-      failures = failures.filter((failedAt) => atMs - failedAt < FAILED_CLAIM_WINDOW_MS);
-      if (failures.length >= MAX_FAILED_CLAIMS) return { kind: 'rate-limited' };
-      if (open === undefined || atMs >= open.expiresAtMs || !sameCode(open.code, request.code)) {
-        failures.push(atMs);
-        if (failures.length >= MAX_FAILED_CLAIMS) open = undefined;
+      for (const [key, times] of failures) {
+        const recent = times.filter((failedAt) => atMs - failedAt < FAILED_CLAIM_WINDOW_MS);
+        if (recent.length === 0) failures.delete(key);
+        else failures.set(key, recent);
+      }
+      const recent = failures.get(source) ?? [];
+      if (recent.length >= MAX_FAILED_CLAIMS) return { kind: 'rate-limited' };
+      if (open === undefined || atMs >= open.expiresAtMs) {
+        open = undefined;
+        return { kind: 'wrong-code' };
+      }
+      if (!sameCode(open.code, request.code)) {
+        failures.set(source, [...recent, atMs]);
+        open.guesses += 1;
+        if (open.guesses >= MAX_GUESSES_PER_CODE) open = undefined;
         return { kind: 'wrong-code' };
       }
       open = undefined;
@@ -73,7 +89,14 @@ export function createPairingService(options: PairingServiceOptions): PairingSer
     authenticate: (token) => {
       if (token === '') return undefined;
       const deviceId = records.activeByTokenHash(hashToken(token));
-      if (deviceId !== undefined) records.touch(deviceId, now());
+      if (deviceId === undefined) return undefined;
+      const at = now();
+      const atMs = Date.parse(at);
+      const written = lastWritten.get(deviceId);
+      if (written === undefined || atMs - written >= LAST_SEEN_EVERY_MS) {
+        records.touch(deviceId, at);
+        lastWritten.set(deviceId, atMs);
+      }
       return deviceId;
     },
     list: () => records.list(),

@@ -14,6 +14,15 @@ import { matchPath, type Params, type Route } from './route.ts';
 import { threadRoutes } from './thread-routes.ts';
 
 export const EVENTS_PATH = '/api/events';
+/** How long an unpaired device's socket gets to finish the close handshake before it is cut. */
+const UNPAIRED_CLOSE_MS = 1000;
+/** A public route's body (the pairing claim) is tiny, so a stranger cannot make the host buffer much. */
+const PUBLIC_BODY_BYTES = 4096;
+
+/** Node stops listening for errors on a socket it hands to `upgrade`; a peer resetting it must not crash the host. */
+function ignoreSocketError(): void {
+  return;
+}
 
 export interface ApiServerOptions {
   /** `127.0.0.1` unless the user opted in to a LAN or Tailscale address. */
@@ -52,7 +61,12 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
       remoteUrl: () =>
         isLoopback(listener.hostname) || isWildcard(listener.hostname) ? undefined : new URL(`http://${authority(listener)}`).origin,
       closeDeviceSockets: (deviceId) => {
-        for (const ws of deviceSockets.get(deviceId) ?? []) ws.close(1008, 'This device was unpaired');
+        for (const ws of deviceSockets.get(deviceId) ?? []) {
+          ws.close(1008, 'This device was unpaired');
+          setTimeout(() => {
+            ws.terminate();
+          }, UNPAIRED_CLOSE_MS).unref();
+        }
       },
     }),
   ];
@@ -88,6 +102,7 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
   });
 
   server.on('upgrade', (request: IncomingMessage, socket: Duplex, head: Buffer) => {
+    socket.on('error', ignoreSocketError);
     const screened = screen(request, listener);
     const caller: Caller | undefined = screened === undefined ? identifyOrReport(request, options) : { kind: 'anonymous' };
     const rejection = screened ?? (caller === undefined ? failure('internal', 'Authentication failed') : admit('token', caller));
@@ -104,7 +119,7 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
 
   await listen(server, options.address);
   listener = { hostname: options.address.hostname, port: boundPort(server) };
-  const local = isWildcard(listener.hostname) ? { ...listener, hostname: '127.0.0.1' } : listener;
+  const local = isWildcard(listener.hostname) ? { ...listener, hostname: listener.hostname === '::' ? '::1' : '127.0.0.1' } : listener;
   return {
     url: `http://${authority(local)}`,
     close: async () => {
@@ -152,6 +167,7 @@ function serveEvents(ws: WebSocket, options: ApiServerOptions): void {
     if (event.kind === 'usage.updated' || threads.has(event.threadId)) sendFrame(event);
   });
   ws.on('message', (data, isBinary) => {
+    if (ws.readyState !== ws.OPEN) return;
     const frame = isBinary ? undefined : EventClientFrame.safeParse(parseJson(textOf(data)));
     if (frame?.success !== true) {
       ws.close(1008, 'Expected a subscribe or unsubscribe frame');
@@ -214,7 +230,12 @@ async function route(routes: readonly Route[], path: string, request: IncomingMe
   if (denied !== undefined) return denied;
   if (found.kind === 'reply') return found.reply;
   const query = URL.parse(request.url ?? '/', 'http://127.0.0.1')?.searchParams ?? new URLSearchParams();
-  return found.route.handle({ params: found.params, query, body: () => readJson(request) });
+  return found.route.handle({
+    params: found.params,
+    query,
+    source: request.socket.remoteAddress ?? '',
+    body: () => readJson(request, access === 'public' ? PUBLIC_BODY_BYTES : undefined),
+  });
 }
 
 type Found = { readonly kind: 'route'; readonly route: Route; readonly params: Params } | { readonly kind: 'reply'; readonly reply: Reply };

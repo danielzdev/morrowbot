@@ -130,8 +130,10 @@ export interface ApiPlugins {
 
 export interface ApiPairing {
   createCode(): { readonly code: string; readonly expiresAt: string };
+  /** `source` is the peer's address: wrong codes are throttled per source. */
   claim(
     request: ClaimPairingRequest,
+    source: string,
   ):
     | { readonly kind: 'claimed'; readonly deviceId: string; readonly token: string }
     | { readonly kind: 'wrong-code' }

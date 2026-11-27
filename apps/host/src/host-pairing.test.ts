@@ -179,9 +179,14 @@ it('pairs a device whose token works over HTTP and /api/events, survives a resta
   otherReconnected.close();
 });
 
-it('keeps codes short-lived and single-use, and pauses claims after five wrong codes', async () => {
+it('keeps codes short-lived and single-use, pauses a source after five wrong codes, and cancels a code after twenty', async () => {
   const claim = async (code: string) => (await as(undefined, 'POST', '/api/pairing/claim', { code, deviceName: 'Pocket Phone', platform: 'ios' })).status;
   const wrong = (code: string) => (code === '000000' ? '000001' : '000000');
+  const burst = async (code: string, count: number) => {
+    const statuses = [];
+    for (let attempt = 0; attempt < count; attempt++) statuses.push(await claim(code));
+    return statuses;
+  };
 
   const used = await newCode();
   const first = await claim(used);
@@ -189,6 +194,7 @@ it('keeps codes short-lived and single-use, and pauses claims after five wrong c
   const raced = await newCode();
   const together = (await Promise.all([claim(raced), claim(raced)])).sort();
   const devicesAfterRace = PairedDeviceList.parse((await host.call('GET', '/api/pairing/devices')).body).devices.length;
+  const whileNoCodeIsOpen = await burst('000000', 6);
 
   const expiring = await newCode();
   nowMs += 5 * 60_000;
@@ -200,20 +206,37 @@ it('keeps codes short-lived and single-use, and pauses claims after five wrong c
   nowMs += 60_000;
 
   const guessed = await newCode();
-  const guesses = [];
-  for (let attempt = 0; attempt < 5; attempt++) guesses.push(await claim(wrong(guessed)));
+  const guesses = await burst(wrong(guessed), 5);
   const rightCodeWhilePaused = await claim(guessed);
   nowMs += 60_000;
-  const cancelledAfterPause = await claim(guessed);
-  const freshAfterPause = await claim(await newCode());
+  const rightCodeAfterPause = await claim(guessed);
 
-  expect({ first, reused, together, devicesAfterRace, expired, replacedByNewer, guesses, rightCodeWhilePaused, cancelledAfterPause, freshAfterPause }).toMatchInlineSnapshot(`
+  const capped = await newCode();
+  const rounds = [];
+  for (let round = 0; round < 4; round++) {
+    rounds.push(await burst(wrong(capped), 5));
+    nowMs += 60_000;
+  }
+  const rightCodeAfterTwentyGuesses = await claim(capped);
+
+  expect({
+    first,
+    reused,
+    together,
+    devicesAfterRace,
+    whileNoCodeIsOpen,
+    expired,
+    replacedByNewer,
+    guesses,
+    rightCodeWhilePaused,
+    rightCodeAfterPause,
+    rounds,
+    rightCodeAfterTwentyGuesses,
+  }).toMatchInlineSnapshot(`
     {
-      "cancelledAfterPause": 401,
       "devicesAfterRace": 2,
       "expired": 401,
       "first": 201,
-      "freshAfterPause": 201,
       "guesses": [
         401,
         401,
@@ -223,9 +246,49 @@ it('keeps codes short-lived and single-use, and pauses claims after five wrong c
       ],
       "replacedByNewer": 401,
       "reused": 401,
+      "rightCodeAfterPause": 201,
+      "rightCodeAfterTwentyGuesses": 401,
       "rightCodeWhilePaused": 429,
+      "rounds": [
+        [
+          401,
+          401,
+          401,
+          401,
+          401,
+        ],
+        [
+          401,
+          401,
+          401,
+          401,
+          401,
+        ],
+        [
+          401,
+          401,
+          401,
+          401,
+          401,
+        ],
+        [
+          401,
+          401,
+          401,
+          401,
+          401,
+        ],
+      ],
       "together": [
         201,
+        401,
+      ],
+      "whileNoCodeIsOpen": [
+        401,
+        401,
+        401,
+        401,
+        401,
         401,
       ],
     }
@@ -247,12 +310,14 @@ it('lets only the desktop token mint codes and manage devices, and needs a url t
         body: JSON.stringify({ code: await newCode(), deviceName: 'Pocket Phone', platform: 'ios' }),
       })
     ).status,
+    claimTooLarge: (await as(undefined, 'POST', '/api/pairing/claim', { code: '000000', deviceName: 'x'.repeat(5000), platform: 'ios' })).status,
     claimWithBadBody: await as(undefined, 'POST', '/api/pairing/claim', { code: '12345', deviceName: '', platform: 'toaster' }),
     mintWithoutUrl: await host.call('POST', '/api/pairing/codes', {}),
     mintWithPathUrl: await host.call('POST', '/api/pairing/codes', { url: `${URL_FOR_DEVICES}/api` }),
   }).toMatchInlineSnapshot(`
     {
       "claimFromBrowserPage": 403,
+      "claimTooLarge": 413,
       "claimWithBadBody": {
         "body": {
           "error": {

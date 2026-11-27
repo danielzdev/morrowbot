@@ -31,21 +31,33 @@ export function authority({ hostname, port }: Listener): string {
  * route, and the public claim refuses any Origin.
  */
 export function screen(request: IncomingMessage, listener: Listener): Reply | undefined {
-  const host = request.headers.host?.toLowerCase() ?? '';
-  const loopbackHosts = new Set([authority(listener), `127.0.0.1:${String(listener.port)}`, `localhost:${String(listener.port)}`]);
-  if (host === '' || (isLoopback(listener.hostname) && !loopbackHosts.has(host))) return failure('forbidden', 'Unexpected Host header');
-  const origin = request.headers.origin?.toLowerCase();
-  if (origin !== undefined && origin !== `http://${host}` && origin !== `https://${host}`) {
-    return failure('forbidden', 'Browser origins may not use the host API');
+  const host = hostOf(request.headers.host ?? '');
+  const port = String(listener.port);
+  const loopbackHosts = new Set([authority(listener), `127.0.0.1:${port}`, `localhost:${port}`].map((value) => hostOf(value)));
+  if (host === undefined || (isLoopback(listener.hostname) && !loopbackHosts.has(host))) return failure('forbidden', 'Unexpected Host header');
+  const origin = request.headers.origin;
+  if (origin !== undefined) {
+    const given = URL.parse(origin);
+    const allowed = [new URL(`http://${host}`).origin, new URL(`https://${host}`).origin];
+    if (given === null || !allowed.includes(given.origin)) return failure('forbidden', 'Browser origins may not use the host API');
   }
   return undefined;
 }
 
+/** A Host header in one spelling (lowercase, compressed IPv6, no default port), or undefined when it is not a bare host. */
+function hostOf(header: string): string | undefined {
+  const url = URL.parse(`http://${header}`);
+  if (url === null || url.host === '' || url.username !== '' || url.password !== '' || url.pathname !== '/' || url.search !== '' || url.hash !== '') {
+    return undefined;
+  }
+  return url.host;
+}
+
 export function identify(request: IncomingMessage, token: string, pairing: ApiPairing): Caller {
-  const header = request.headers.authorization ?? '';
-  if (sameSecret(header, `Bearer ${token}`)) return { kind: 'host' };
-  const given = /^Bearer ([\w-]+)$/.exec(header)?.[1];
-  const deviceId = given === undefined ? undefined : pairing.authenticate(given);
+  const given = /^Bearer ([\w-]+)$/i.exec(request.headers.authorization ?? '')?.[1];
+  if (given === undefined) return { kind: 'anonymous' };
+  if (sameSecret(given, token)) return { kind: 'host' };
+  const deviceId = pairing.authenticate(given);
   return deviceId === undefined ? { kind: 'anonymous' } : { kind: 'device', deviceId };
 }
 

@@ -9,6 +9,8 @@ export interface Params {
 export interface RouteContext {
   readonly params: Params;
   readonly query: URLSearchParams;
+  /** The peer's IP address, which the pairing claim throttles by. */
+  readonly source: string;
   readonly body: () => Promise<Body>;
 }
 

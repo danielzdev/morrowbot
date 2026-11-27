@@ -14,7 +14,7 @@ npm start -w apps/desktop               # builds the window, then starts Electro
 
 Data lives in `~/.morrowbot` (`MORROWBOT_DATA_DIR` moves it). The Claude, Codex and Antigravity providers are built in; other plugins load from its `plugins` folder (`MORROWBOT_PLUGINS_DIR`).
 
-By default the host listens only on `127.0.0.1`. To let a paired phone reach it over Tailscale or your LAN, set `MORROWBOT_HOST_BIND` to that interface's address (for example your Tailscale `100.x.y.z`). Every route needs the desktop's token or a paired device's token, except the rate-limited pairing claim a phone uses to trade a one-time code for its token. Unpairing a device cuts it off at once.
+By default the host listens only on `127.0.0.1`. To let a paired phone reach it over Tailscale or your LAN, set `MORROWBOT_HOST_BIND` to that interface's address (for example your Tailscale `100.x.y.z`). Every route needs the desktop's token or a paired device's token, except the rate-limited pairing claim a phone uses to trade a one-time code for its token. Unpairing a device cuts it off at once. Prefer the Tailscale address: the host speaks plain HTTP, so on an ordinary LAN the pairing code and device tokens cross the network unencrypted.
 
 ## License
 

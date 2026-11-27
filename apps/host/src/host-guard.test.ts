@@ -1,5 +1,6 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { request } from 'node:http';
+import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, it } from 'vitest';
@@ -128,6 +129,7 @@ it('serves only loopback clients that are not browser pages and hold this launch
     stillServing: await raw({}),
     browserOrigin: await raw({ origin: 'https://evil.example' }),
     noToken: await raw({ authorization: '' }),
+    lowercaseScheme: await raw({ authorization: `bearer ${host.host.token}` }),
     wrongToken: await raw({ authorization: `Bearer ${'x'.repeat(host.host.token.length)}` }),
     healthWithoutToken: await raw({ authorization: '' }, '/health'),
     socket: await socket({}),
@@ -141,6 +143,7 @@ it('serves only loopback clients that are not browser pages and hold this launch
       "health": 200,
       "healthWithoutToken": 401,
       "loopback": 200,
+      "lowercaseScheme": 200,
       "malformedTarget": 404,
       "noToken": 401,
       "rebindingHost": 403,
@@ -152,4 +155,23 @@ it('serves only loopback clients that are not browser pages and hold this launch
       "wrongToken": 401,
     }
   `);
+});
+
+it('survives peers that reset a refused /api/events upgrade', async () => {
+  const { port } = new URL(host.url);
+  const refusals = Array.from({ length: 50 }, () =>
+    new Promise<void>((resolve) => {
+      const peer = connect(Number(port), '127.0.0.1', () => {
+        peer.write(`GET /api/events HTTP/1.1\r\nhost: 127.0.0.1:${port}\r\nupgrade: websocket\r\nconnection: upgrade\r\nsec-websocket-version: 13\r\nsec-websocket-key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n`);
+        peer.resetAndDestroy();
+        resolve();
+      });
+      peer.on('error', () => {
+        resolve();
+      });
+    }),
+  );
+  await Promise.all(refusals);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  expect((await host.call('GET', '/health')).status).toBe(200);
 });

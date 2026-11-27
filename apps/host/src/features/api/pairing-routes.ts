@@ -45,10 +45,10 @@ export function pairingRoutes(options: PairingRouteOptions): Route[] {
       handle: async (context) => {
         const request = await parseBody(context, ClaimPairingRequest);
         if (request.kind === 'rejected') return request.reply;
-        const result = pairing.claim(request.value);
+        const result = pairing.claim(request.value, context.source);
         switch (result.kind) {
           case 'rate-limited':
-            return failure('forbidden', 'Too many wrong codes. Wait a minute, then pair with a new code.', 429);
+            return failure('forbidden', 'Too many wrong codes from this device. Wait a minute, then try again.', 429);
           case 'wrong-code':
             return failure('unauthorized', 'Wrong or expired pairing code');
           case 'claimed': {
