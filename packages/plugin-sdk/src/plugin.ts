@@ -3,6 +3,8 @@ import type { FinishReason, PluginConfig, PluginHealth, ProviderStreamRequest, S
 export interface PluginContext {
   /** The plugin's settings, already checked against its manifest `settingsSchema`, with defaults filled in. */
   readonly config: PluginConfig;
+  /** A folder only this plugin uses. The host creates it; it is kept between runs. */
+  readonly dataDir: string;
 }
 
 export interface LifecycleHooks {

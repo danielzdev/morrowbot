@@ -29,7 +29,10 @@ export const PluginManifest = z.strictObject({
   permissions: z.array(PluginPermission).refine((list) => new Set(list).size === list.length, {
     error: 'List each permission once',
   }),
-  /** Host environment variables the plugin process receives besides `PATH`. Unset ones are left out. */
+  /**
+   * Host environment variables the plugin process receives besides `PATH`; unset ones are left out.
+   * This keeps the host's environment out of plugins by default. It is not a sandbox: plugins are trusted code.
+   */
   env: z
     .array(EnvName)
     .refine((list) => new Set(list).size === list.length, { error: 'List each variable once' })

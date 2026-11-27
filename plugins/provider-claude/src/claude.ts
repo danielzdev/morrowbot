@@ -21,12 +21,13 @@ export async function streamReply(
   settings: Settings,
   sink: StreamSink,
 ): Promise<FinishReason> {
-  const { args, input } = buildInvocation(request, settings);
+  const { args, input, files } = buildInvocation(request, settings);
   let result: CliResult | undefined;
   const exit = await runCommand(settings.cliPath, {
     args,
-    cwd: workingDirectory(),
+    cwd: settings.cwd,
     input,
+    files,
     signal: sink.signal,
     onLine: (line) => {
       if (result !== undefined) return;
@@ -65,8 +66,9 @@ export async function checkHealth(settings: Settings): Promise<PluginHealth> {
   let output = '';
   const exit = await runCommand(settings.cliPath, {
     args: ['auth', 'status', '--json'],
-    cwd: workingDirectory(),
+    cwd: settings.cwd,
     input: '',
+    files: [],
     signal,
     onLine: (line) => {
       output += `${line}\n`;
@@ -84,9 +86,12 @@ export async function checkHealth(settings: Settings): Promise<PluginHealth> {
   }
   const status = AuthStatus.safeParse(parseJson(output));
   if (!status.success) {
+    const stderr = exit.stderr.trim();
     return {
       kind: 'degraded',
-      detail: `"${settings.cliPath} auth status" did not report whether you are signed in. Update Claude Code and try again.`,
+      detail:
+        `"${settings.cliPath} auth status" did not report whether you are signed in (exit code ${String(exit.code)}` +
+        `${stderr === '' ? '' : `: ${stderr}`}). Update Claude Code and try again.`,
     };
   }
   if (!status.data.loggedIn) {
@@ -115,8 +120,4 @@ function parseJson(text: string): unknown {
   } catch {
     return undefined;
   }
-}
-
-function workingDirectory(): string {
-  return process.env.HOME ?? process.cwd();
 }

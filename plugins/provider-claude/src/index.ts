@@ -11,8 +11,8 @@ function current(): Settings {
 
 runPlugin({
   kind: 'provider',
-  init: ({ config }) => {
-    settings = parseSettings(config);
+  init: (context) => {
+    settings = parseSettings(context);
   },
   health: () => checkHealth(current()),
   stream: (request, sink) => streamReply(request, current(), sink),

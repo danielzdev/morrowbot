@@ -130,6 +130,8 @@ describe('parseCliLine', () => {
       }),
       parse({ type: 'result', subtype: 'error_during_execution', is_error: true, errors: ['tool crashed', 'gave up'] }),
       parse({ type: 'result', subtype: 'error_max_turns', is_error: true }),
+      parse({ type: 'result', subtype: 'error_during_execution', is_error: true, result: '', errors: ['', 'rate limited'] }),
+      parse({ type: 'result', subtype: 'error_during_execution', is_error: true, result: null }),
     ]).toMatchInlineSnapshot(`
       [
         {
@@ -169,6 +171,20 @@ describe('parseCliLine', () => {
             "message": "Claude Code stopped (error_max_turns)",
           },
         },
+        {
+          "kind": "result",
+          "result": {
+            "kind": "error",
+            "message": "rate limited",
+          },
+        },
+        {
+          "kind": "result",
+          "result": {
+            "kind": "error",
+            "message": "Claude Code stopped (error_during_execution)",
+          },
+        },
       ]
     `);
   });
@@ -189,7 +205,7 @@ describe('parseCliLine', () => {
       [
         {
           "kind": "malformed",
-          "problem": "not JSON: Warning: something printed to stdout",
+          "problem": "a 36-character line that is not JSON",
         },
         {
           "kind": "malformed",

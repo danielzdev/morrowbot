@@ -28,8 +28,10 @@ plus its own files. `npm run lint` enforces this.
 
 A setting without a `default` must be filled in before the plugin starts. The
 plugin process gets only `PATH` from the host's environment, plus any variable
-named in the optional `"env"` list (for example `"env": ["HOME"]`). The entry
-file serves the plugin over IPC with `runPlugin`:
+named in the optional `"env"` list (for example `"env": ["HOME"]`). This keeps
+the host's environment out of plugins by default; it is not a sandbox, since
+plugins are trusted code. Each plugin also gets its own data folder
+(`init`'s `dataDir`). The entry file serves the plugin over IPC with `runPlugin`:
 
 ```ts
 import { runPlugin } from '@morrowbot/plugin-sdk';
@@ -47,9 +49,11 @@ runPlugin({
 
 A stream emits `text` deltas, and may also emit `status` lines, `tool-start` and
 `tool-end` events, and the `final` reply text. The SDK also gives plugins `z`
-(Zod) to parse outside data, and `runCommand` to run a program; aborting its
-signal stops the program's whole process group, and commands still running when
-the plugin stops are stopped with it.
+(Zod) to parse outside data, and `runCommand` to run a program. A small guard
+process runs each program in its own process group: aborting stops the whole
+group (SIGTERM, then SIGKILL), anything the program leaves behind is killed when it
+exits, and everything is killed if the plugin process dies, even by SIGKILL.
+`runCommand` needs macOS or Linux.
 
 `provider-claude/` is the first real plugin. Small examples live in
 `apps/host/src/features/plugins/fixtures/`.

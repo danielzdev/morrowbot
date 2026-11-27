@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 /**
- * A stand-in for the `claude` CLI that prints recorded-shape stream-json lines.
- * The last line of the prompt picks the behavior: hello, env, stall, fail, crash.
+ * A stand-in for the `claude` CLI that prints stream-json lines shaped like the real ones.
+ * The last line of the prompt picks the behavior.
  */
+import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+
 const args = process.argv.slice(2);
 
 function line(value: unknown): void {
@@ -21,9 +24,22 @@ function finish(text: string): void {
   line({ type: 'result', subtype: 'success', is_error: false, result: text, stop_reason: 'end_turn', session_id: 'fake' });
 }
 
+function flag(name: string): string | undefined {
+  return args.includes(name) ? args[args.indexOf(name) + 1] : undefined;
+}
+
+/** Starts a process that ignores SIGTERM and holds stdout open, like a stuck tool. */
+function stall(ignoreTerm: boolean): void {
+  if (ignoreTerm) process.on('SIGTERM', () => undefined);
+  const tool = spawn(process.execPath, ['-e', "process.on('SIGTERM', () => {}); setInterval(() => {}, 1000)"], {
+    stdio: ['ignore', 'inherit', 'inherit'],
+  });
+  delta(`pids ${String(process.pid)} ${String(tool.pid)} guard ${String(process.ppid)}`);
+  setInterval(() => undefined, 1_000);
+}
+
 function reply(prompt: string): void {
-  const model = args.includes('--model') ? args[args.indexOf('--model') + 1] : 'claude-default';
-  line({ type: 'system', subtype: 'init', model, tools: ['Read'] });
+  line({ type: 'system', subtype: 'init', model: flag('--model') ?? 'claude-default', tools: ['Read'] });
   line({ type: 'system', subtype: 'status', status: 'requesting' });
   const command = prompt.trim().split('\n').at(-1) ?? '';
   switch (command) {
@@ -47,14 +63,19 @@ function reply(prompt: string): void {
       streamEvent({ type: 'message_delta', delta: { stop_reason: 'end_turn', stop_sequence: null } });
       finish('Hello');
       return;
-    case 'env':
-      delta(`cwd=${process.cwd()} env=${Object.keys(process.env).sort().join(',')} args=${args.join(' ')}`);
+    case 'env': {
+      const systemFile = flag('--append-system-prompt-file');
+      const system = systemFile === undefined ? 'none' : readFileSync(systemFile, 'utf8');
+      const env = Object.keys(process.env).filter((name) => !name.startsWith('__CF')).sort();
+      delta(`cwd=${process.cwd()}\nenv=${env.join(',')}\nargs=${args.join(' ')}\nsystem=${system}`);
       finish('env');
       return;
+    }
     case 'stall':
-      process.on('SIGTERM', () => undefined);
-      delta(`pid ${String(process.pid)}`);
-      setInterval(() => undefined, 1_000);
+      stall(true);
+      return;
+    case 'stall-polite':
+      stall(false);
       return;
     case 'fail':
       line({ type: 'result', subtype: 'success', is_error: true, result: 'Not logged in · Please run /login' });

@@ -44,7 +44,7 @@ export interface PluginProcess {
   readonly pid: number | undefined;
   /** Settles once, when the process is gone. */
   readonly exited: Promise<PluginExit>;
-  init(config: PluginConfig): Promise<PluginKind>;
+  init(config: PluginConfig, dataDir: string): Promise<PluginKind>;
   health(): Promise<PluginHealth>;
   stream(request: ProviderStreamRequest, onChunk: (chunk: StreamChunk) => void, signal?: AbortSignal): Promise<FinishReason>;
   /** Asks the plugin to shut down, then kills it if it has not exited within the shutdown timeout. */
@@ -225,9 +225,9 @@ export function spawnPluginProcess({ entryPath, cwd, envNames, timeouts }: Spawn
   return {
     pid: child.pid,
     exited: exit.promise,
-    init: (config) =>
+    init: (config, dataDir) =>
       new Promise((resolve, reject) => {
-        request({ kind: 'init', resolve }, reject, timeouts.initMs, (id) => ({ kind: 'init', id, config }));
+        request({ kind: 'init', resolve }, reject, timeouts.initMs, (id) => ({ kind: 'init', id, config, dataDir }));
       }),
     health: () =>
       new Promise((resolve, reject) => {

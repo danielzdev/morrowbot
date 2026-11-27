@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import { buildInvocation } from './invocation.ts';
 
-const settings = { model: 'opus', cliPath: 'claude' };
+const settings = { model: 'opus', cliPath: 'claude', cwd: '/data' };
 
 it('passes the model and system prompt as flags and the conversation on stdin', () => {
   expect(
@@ -27,7 +27,10 @@ it('passes the model and system prompt as flags and the conversation on stdin', 
         "--no-session-persistence",
         "--model",
         "opus",
-        "--append-system-prompt",
+        "--append-system-prompt-file",
+        "/dev/fd/4",
+      ],
+      "files": [
         "Be brief.",
       ],
       "input": "Continue this conversation. Reply to the last user message.
@@ -68,6 +71,7 @@ it('sends a single message as is and refuses a conversation that does not end wi
           "--include-partial-messages",
           "--no-session-persistence",
         ],
+        "files": [],
         "input": "hi",
       },
     }

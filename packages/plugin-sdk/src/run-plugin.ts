@@ -42,7 +42,7 @@ async function handle(
   try {
     switch (message.kind) {
       case 'init':
-        await plugin.init?.({ config: message.config });
+        await plugin.init?.({ config: message.config, dataDir: message.dataDir });
         send({ kind: 'init-result', id, pluginKind: plugin.kind });
         return;
       case 'health':

@@ -55,7 +55,7 @@ const UserLine = z.looseObject({
 const ResultLine = z.looseObject({
   subtype: z.string(),
   is_error: z.boolean(),
-  result: z.string().optional(),
+  result: z.string().nullish(),
   errors: z.array(z.string()).optional(),
   stop_reason: z.string().nullish(),
 });
@@ -68,7 +68,7 @@ export function parseCliLine(line: string): CliLine {
   try {
     json = JSON.parse(line);
   } catch {
-    return { kind: 'malformed', problem: `not JSON: ${line.slice(0, 80)}` };
+    return { kind: 'malformed', problem: `a ${String(line.length)}-character line that is not JSON` };
   }
   const envelope = Envelope.safeParse(json);
   if (!envelope.success) return { kind: 'malformed', problem: 'a JSON value without a "type"' };
@@ -101,7 +101,7 @@ function chunks(list: readonly StreamChunk[]): CliLine {
 }
 
 function system(line: z.infer<typeof SystemLine>): CliLine {
-  if (line.subtype !== 'init' || line.model === undefined) return SKIP;
+  if (line.subtype !== 'init' || !line.model) return SKIP;
   return chunks([{ kind: 'status', text: `Started ${line.model}` }]);
 }
 
@@ -140,7 +140,7 @@ function user({ parent_tool_use_id, message }: z.infer<typeof UserLine>): CliLin
 
 function result(line: z.infer<typeof ResultLine>): CliLine {
   if (line.is_error || line.subtype !== 'success') {
-    const message = line.result ?? line.errors?.join('; ') ?? '';
+    const message = line.result?.trim() || (line.errors ?? []).filter((error) => error.trim() !== '').join('; ');
     return {
       kind: 'result',
       result: { kind: 'error', message: message === '' ? `Claude Code stopped (${line.subtype})` : message },

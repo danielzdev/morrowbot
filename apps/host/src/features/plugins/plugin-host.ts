@@ -1,3 +1,5 @@
+import { mkdir } from 'node:fs/promises';
+import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import type {
   FinishReason,
@@ -18,6 +20,8 @@ const HEALTH_INTERVAL_MS = 30_000;
 export interface PluginHostOptions {
   readonly pluginsDir: string;
   readonly store: PluginStore;
+  /** Each plugin gets its own folder `<dataDir>/<plugin id>`. */
+  readonly dataDir: string;
   /** Starts no plugin processes. Enable and config changes are still saved for the next normal start. */
   readonly safeMode: boolean;
   /** Hears every status change, including the ones during startup. */
@@ -105,8 +109,10 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
       return;
     }
     setStatus(slot, { kind: 'starting' });
+    const dataDir = path.join(options.dataDir, manifest.id);
     let child: PluginProcess;
     try {
+      await mkdir(dataDir, { recursive: true });
       child = spawnPluginProcess({ entryPath, cwd: dir, envNames: manifest.env, timeouts });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -126,7 +132,7 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
       }
     });
     try {
-      const kind = await child.init(resolved.config);
+      const kind = await child.init(resolved.config, dataDir);
       if (kind === manifest.kind) {
         setStatus(slot, { kind: 'running' });
         return;

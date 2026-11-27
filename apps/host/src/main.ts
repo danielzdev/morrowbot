@@ -23,6 +23,7 @@ switch (result.kind) {
     const plugins = await startPluginHost({
       pluginsDir: config.pluginsDir,
       safeMode: config.safeMode,
+      dataDir: path.join(config.dataDir, 'plugin-data'),
       store: createJsonPluginStore(path.join(config.dataDir, 'plugins.json')),
       onStatus: ({ pluginId, status }) => {
         console.log(`MorrowBot host: plugin ${pluginId} is ${status.kind}`);

@@ -1,14 +1,15 @@
+import { execFileSync } from 'node:child_process';
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
-import type { PluginConfig, StreamChunk } from '@morrowbot/contracts';
+import type { ChatMessage, PluginConfig, StreamChunk } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createJsonPluginStore, startPluginHost, type PluginHost } from './index.ts';
 
 const PLUGINS = fileURLToPath(new URL('../../../../../plugins', import.meta.url));
-const FAKE_CLAUDE = path.join(PLUGINS, 'provider-claude/test/fake-claude.ts');
+const FAKE_CLAUDE = fileURLToPath(new URL('./fixtures/fake-claude.ts', import.meta.url));
 
 let home = '';
 const hosts: PluginHost[] = [];
@@ -30,17 +31,28 @@ afterEach(async () => {
 async function boot(config: PluginConfig = { cliPath: FAKE_CLAUDE }, options = { safeMode: false, enabled: true }) {
   const store = createJsonPluginStore(path.join(home, 'plugins.json'));
   await store.write('provider-claude', { enabled: options.enabled, config });
-  const host = await startPluginHost({ pluginsDir: PLUGINS, store, safeMode: options.safeMode });
+  const host = await startPluginHost({
+    pluginsDir: PLUGINS,
+    store,
+    safeMode: options.safeMode,
+    dataDir: path.join(home, 'plugin-data'),
+  });
   hosts.push(host);
   return host;
 }
 
-async function ask(host: PluginHost, content: string, signal?: AbortSignal, onChunk?: (chunk: StreamChunk) => void) {
+async function ask(
+  host: PluginHost,
+  content: string | ChatMessage[],
+  signal?: AbortSignal,
+  onChunk?: (chunk: StreamChunk) => void,
+) {
   const chunks: StreamChunk[] = [];
+  const messages: ChatMessage[] = typeof content === 'string' ? [{ role: 'user', content }] : content;
   const finish = await host
     .stream(
       'provider-claude',
-      { messages: [{ role: 'user', content }] },
+      { messages },
       (chunk) => {
         chunks.push(chunk);
         onChunk?.(chunk);
@@ -97,43 +109,85 @@ it('streams text, status, tool events, and the final reply through the plugin ho
   `);
 });
 
-it('runs the CLI in the home folder with only the declared environment and the structured-output flags', async () => {
+it('runs the CLI in the plugin data folder with only the declared environment and a private system prompt', async () => {
   const host = await boot();
-  const { chunks } = await ask(host, 'env');
-  const text = chunks.flatMap((chunk) => (chunk.kind === 'text' ? [chunk.text.replace(home, '$HOME').replace(',__CF_USER_TEXT_ENCODING', '')] : []));
-  expect(text.join('')).toMatchInlineSnapshot(
-    `"cwd=$HOME env=CLAUDE_CONFIG_DIR,HOME,PATH,USER args=--print --output-format stream-json --verbose --include-partial-messages --no-session-persistence"`,
-  );
+  const { chunks } = await ask(host, [
+    { role: 'system', content: 'Be brief.' },
+    { role: 'user', content: 'env' },
+  ]);
+  const text = chunks.flatMap((chunk) => (chunk.kind === 'text' ? [chunk.text] : [])).join('');
+  expect(text.replace(home, '$HOME')).toMatchInlineSnapshot(`
+    "cwd=$HOME/plugin-data/provider-claude
+    env=CLAUDE_CONFIG_DIR,HOME,PATH,USER
+    args=--print --output-format stream-json --verbose --include-partial-messages --no-session-persistence --append-system-prompt-file /dev/fd/4
+    system=Be brief."
+  `);
 });
 
-it('stops the CLI process when the stream is cancelled, even if it ignores SIGTERM', async () => {
+/** Starts a stalled reply and resolves with the CLI's pid, its stuck tool's pid, and the plugin's pid. */
+async function stallReply(host: PluginHost, mode: 'stall' | 'stall-polite', controller = new AbortController()) {
+  const pids = Promise.withResolvers<{ cli: number; tool: number; plugin: number }>();
+  const reply = ask(host, mode, controller.signal, (chunk) => {
+    const match = chunk.kind === 'text' ? /pids (\d+) (\d+) guard (\d+)/.exec(chunk.text) : null;
+    if (match === null) return;
+    const plugin = Number(execFileSync('ps', ['-o', 'ppid=', '-p', String(match[3])], { encoding: 'utf8' }).trim());
+    pids.resolve({ cli: Number(match[1]), tool: Number(match[2]), plugin });
+  });
+  return { pids: await pids.promise, reply };
+}
+
+async function stillAlive(pids: Record<string, number>): Promise<string[]> {
+  for (let waitedMs = 0; waitedMs < 5_000 && Object.values(pids).some(isAlive); waitedMs += 50) await sleep(50);
+  return Object.entries(pids).flatMap(([name, pid]) => (isAlive(pid) ? [name] : []));
+}
+
+it('stops the CLI and anything it started when the stream is cancelled, even if they ignore SIGTERM', async () => {
   const host = await boot();
   const controller = new AbortController();
-  let pid = 0;
-  const cancelled = await ask(host, 'stall', controller.signal, (chunk) => {
-    if (chunk.kind !== 'text') return;
-    pid = Number(/pid (\d+)/.exec(chunk.text)?.[1]);
-    controller.abort();
-  });
-  const aliveAfterCancel = isAlive(pid);
-  let waitedMs = 0;
-  while (isAlive(pid) && waitedMs < 5_000) {
-    await sleep(50);
-    waitedMs += 50;
-  }
+  const { pids, reply } = await stallReply(host, 'stall', controller);
+  controller.abort();
   expect({
-    finish: cancelled.finish,
-    aliveAfterCancel,
-    aliveLater: isAlive(pid),
+    finish: (await reply).finish,
+    aliveRightAway: [isAlive(pids.cli), isAlive(pids.tool)],
+    aliveLater: await stillAlive({ cli: pids.cli, tool: pids.tool }),
     next: (await ask(host, 'hello')).finish,
   }).toMatchInlineSnapshot(`
     {
-      "aliveAfterCancel": true,
-      "aliveLater": false,
+      "aliveLater": [],
+      "aliveRightAway": [
+        true,
+        true,
+      ],
       "finish": "cancelled",
       "next": "stop",
     }
   `);
+});
+
+it('stops a running CLI and its leftovers when the host stops', async () => {
+  const host = await boot();
+  const { pids, reply } = await stallReply(host, 'stall-polite');
+  await host.stop();
+  expect({ reply: (await reply).finish, aliveLater: await stillAlive(pids) }).toMatchInlineSnapshot(`
+    {
+      "aliveLater": [],
+      "reply": "cancelled",
+    }
+  `);
+});
+
+it('stops a running CLI when the plugin process is killed outright', async () => {
+  const host = await boot();
+  const { pids, reply } = await stallReply(host, 'stall');
+  process.kill(pids.plugin, 'SIGKILL');
+  expect({ reply: (await reply).finish, aliveLater: await stillAlive(pids), status: status(host)?.kind })
+    .toMatchInlineSnapshot(`
+      {
+        "aliveLater": [],
+        "reply": "PluginGoneError: The plugin process stopped before it answered",
+        "status": "crashed",
+      }
+    `);
 });
 
 it('reports CLI errors, crashes, a missing CLI, and a signed-out CLI clearly', async () => {

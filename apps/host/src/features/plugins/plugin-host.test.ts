@@ -43,6 +43,7 @@ async function boot({ safeMode = false, records = {}, healthMs }: BootOptions = 
     pluginsDir: FIXTURES,
     store,
     safeMode,
+    dataDir: path.join(dataDir, 'plugin-data'),
     onStatus: (event) => events.push(event),
     timeouts: { ...DEFAULT_PLUGIN_TIMEOUTS, healthMs: healthMs ?? DEFAULT_PLUGIN_TIMEOUTS.healthMs },
   });

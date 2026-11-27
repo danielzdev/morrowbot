@@ -18,7 +18,10 @@ export type ChatMessage = z.infer<typeof ChatMessage>;
 export const ProviderStreamRequest = z.strictObject({ messages: z.array(ChatMessage) });
 export type ProviderStreamRequest = z.infer<typeof ProviderStreamRequest>;
 
-/** One piece of a streamed reply: a text delta, a status line, a tool call starting or ending, or the final reply text. */
+/**
+ * One piece of a streamed reply: a text delta, a status line, a tool call starting or
+ * ending, or `final`, the whole reply text, which replaces the text deltas shown so far.
+ */
 export const StreamChunk = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('text'), text: z.string() }),
   z.strictObject({ kind: z.literal('status'), text: z.string().min(1) }),
@@ -38,7 +41,7 @@ export const PluginHealth = z.discriminatedUnion('kind', [
 export type PluginHealth = z.infer<typeof PluginHealth>;
 
 export const HostMessage = z.discriminatedUnion('kind', [
-  z.strictObject({ kind: z.literal('init'), id: RequestId, config: PluginConfig }),
+  z.strictObject({ kind: z.literal('init'), id: RequestId, config: PluginConfig, dataDir: z.string().min(1) }),
   z.strictObject({ kind: z.literal('health'), id: RequestId }),
   z.strictObject({ kind: z.literal('shutdown'), id: RequestId }),
   z.strictObject({ kind: z.literal('stream'), id: RequestId, request: ProviderStreamRequest }),

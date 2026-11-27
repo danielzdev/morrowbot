@@ -1,4 +1,4 @@
-import type { ChatMessage, ProviderStreamRequest } from '@morrowbot/plugin-sdk';
+import { commandFilePath, type ChatMessage, type ProviderStreamRequest } from '@morrowbot/plugin-sdk';
 import type { Settings } from './settings.ts';
 
 /** The `model` setting that leaves the choice to Claude Code's own default. */
@@ -8,6 +8,8 @@ export interface Invocation {
   readonly args: readonly string[];
   /** The prompt, sent on stdin so it never shows up in the process list. */
   readonly input: string;
+  /** The system prompt, if any, read by the CLI as a file for the same reason. */
+  readonly files: readonly string[];
 }
 
 /** Builds the `claude` command line for one reply. Throws when the request does not end with a user message. */
@@ -24,9 +26,10 @@ export function buildInvocation(request: ProviderStreamRequest, settings: Settin
       '--include-partial-messages',
       '--no-session-persistence',
       ...(settings.model === DEFAULT_MODEL ? [] : ['--model', settings.model]),
-      ...(system.length === 0 ? [] : ['--append-system-prompt', system.join('\n\n')]),
+      ...(system.length === 0 ? [] : ['--append-system-prompt-file', commandFilePath(0)]),
     ],
     input: prompt(turns),
+    files: system.length === 0 ? [] : [system.join('\n\n')],
   };
 }
 
