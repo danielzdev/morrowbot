@@ -11,6 +11,7 @@ import type { ApiServices } from './ports.ts';
 import { failure, readJson, send, type Reply } from './reply.ts';
 import { matchPath, type Route } from './route.ts';
 import { threadRoutes } from './thread-routes.ts';
+import { usageRoutes } from './usage-routes.ts';
 
 export const EVENTS_PATH = '/api/events';
 
@@ -36,6 +37,7 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
     ...folderRoutes(options.services),
     ...threadRoutes(options.services),
     ...pluginRoutes(options.services),
+    ...usageRoutes(options.services),
   ];
   const sockets = new WebSocketServer({ noServer: true });
   let port = options.address.port;

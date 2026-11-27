@@ -10,20 +10,22 @@ const press = (key: string, mods: Partial<Omit<KeyPress, 'key'>> = {}): KeyPress
   ...mods,
 });
 
-it('maps ⌘N, ⇧⌘N, ⌘, ⌘B, ⇧⌘F and ⇧⌘X on macOS, and the Ctrl forms elsewhere', () => {
+it('maps ⌘K, ⌘N, ⇧⌘N, ⌘, ⌘U, ⌘B, ⇧⌘F and ⇧⌘X on macOS, and the Ctrl forms elsewhere', () => {
   expect({
     mac: [
+      shortcutOf(press('k', { metaKey: true }), 'mac'),
       shortcutOf(press('n', { metaKey: true }), 'mac'),
       shortcutOf(press('N', { metaKey: true, shiftKey: true }), 'mac'),
       shortcutOf(press(',', { metaKey: true }), 'mac'),
+      shortcutOf(press('u', { metaKey: true }), 'mac'),
       shortcutOf(press('b', { metaKey: true }), 'mac'),
       shortcutOf(press('F', { metaKey: true, shiftKey: true }), 'mac'),
       shortcutOf(press('X', { metaKey: true, shiftKey: true }), 'mac'),
     ],
-    other: [shortcutOf(press('n', { ctrlKey: true }), 'other'), shortcutOf(press('B', { ctrlKey: true }), 'other')],
+    other: [shortcutOf(press('K', { ctrlKey: true }), 'other'), shortcutOf(press('n', { ctrlKey: true }), 'other'), shortcutOf(press('B', { ctrlKey: true }), 'other')],
   }).toEqual({
-    mac: ['new-chat', 'new-agent', 'settings', 'toggle-sidebar', 'filter-agents', 'extensions'],
-    other: ['new-chat', 'toggle-sidebar'],
+    mac: ['palette', 'new-chat', 'new-agent', 'settings', 'usage', 'toggle-sidebar', 'filter-agents', 'extensions'],
+    other: ['palette', 'new-chat', 'toggle-sidebar'],
   });
 });
 
@@ -62,6 +64,11 @@ it('labels every shortcut for tooltips and aria-keyshortcuts', () => {
         "Ctrl+N",
         "Meta+N",
       ],
+      "palette": [
+        "⌘K",
+        "Ctrl+K",
+        "Meta+K",
+      ],
       "settings": [
         "⌘,",
         "Ctrl+,",
@@ -71,6 +78,11 @@ it('labels every shortcut for tooltips and aria-keyshortcuts', () => {
         "⌘B",
         "Ctrl+B",
         "Meta+B",
+      ],
+      "usage": [
+        "⌘U",
+        "Ctrl+U",
+        "Meta+U",
       ],
     }
   `);
