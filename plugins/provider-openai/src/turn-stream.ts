@@ -42,6 +42,8 @@ export interface StreamOptions {
   readonly tokens: TokenCounter;
   /** Hears an `account/rateLimits/updated` notification: a hint to read the plan usage again. */
   readonly onRateLimitHint: () => void;
+  /** Hears the first `turn/started` for this thread before the turn is named. */
+  readonly onAnnounced: (turnId: string) => void;
 }
 
 /** Turns one vendor turn's notifications into turn chunks, its final text and how it ended. */
@@ -65,6 +67,17 @@ export function createTurnStream(options: StreamOptions): TurnStream {
   const ours = (params: unknown): boolean => {
     const scoped = ThreadScoped.safeParse(params);
     return scoped.success && scoped.data.threadId === threadId;
+  };
+
+  const relevant = (event: DaemonEvent): boolean => {
+    switch (event.kind) {
+      case 'exited':
+        return true;
+      case 'declined':
+        return ours(event.params);
+      case 'notification':
+        return event.method === 'account/rateLimits/updated' || ours(event.params);
+    }
   };
 
   const handle = (event: DaemonEvent): void => {
@@ -156,10 +169,13 @@ export function createTurnStream(options: StreamOptions): TurnStream {
       if (done) return;
       if (turnId === null && event.kind === 'notification' && event.method === 'turn/started') {
         const started = TurnStarted.safeParse(event.params);
-        if (started.success && started.data.threadId === threadId) announced ??= started.data.turn.id;
+        if (started.success && started.data.threadId === threadId && announced === null) {
+          announced = started.data.turn.id;
+          options.onAnnounced(announced);
+        }
       }
-      if (turnId === null && event.kind !== 'exited') early.push(event);
-      else handle(event);
+      if (turnId !== null || event.kind === 'exited') handle(event);
+      else if (relevant(event)) early.push(event);
     },
     begin: (id) => {
       turnId = id;

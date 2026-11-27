@@ -204,6 +204,7 @@ it('streams a new thread, binds it to the account, counts its tokens, then reuse
           "features.code_mode_host": false,
           "features.computer_use": false,
           "features.hooks": false,
+          "features.image_generation": false,
           "features.in_app_browser": false,
           "features.multi_agent": false,
           "features.multi_agent_v2": false,

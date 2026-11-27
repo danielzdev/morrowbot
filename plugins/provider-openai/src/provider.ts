@@ -165,29 +165,36 @@ export function createCodexProvider(): ProviderPlugin {
     }
     const { accountKey } = seen;
     if (refresh && daemon?.alive() === true) {
+      const seenBefore = seen;
       const read = await readQuota(daemon, current().probeCwd);
+      if (seen !== seenBefore) return unavailable('probe-failed');
+      /** The read saw another account than provider-info did: forget both until provider-info looks again. */
+      const moved = (next: Seen): void => {
+        see(next);
+        infoCache = undefined;
+      };
       switch (read.kind) {
         case 'available':
           if (read.accountKey !== accountKey) {
-            see({ kind: 'nothing' });
+            moved({ kind: 'nothing' });
             return unavailable('probe-failed');
           }
           snapshot.observe(accountKey, read.observedAt, read.windows);
           break;
         case 'failed':
           if (read.accountKey !== null && read.accountKey !== accountKey) {
-            see({ kind: 'nothing' });
+            moved({ kind: 'nothing' });
             return unavailable('probe-failed');
           }
           return unavailable('probe-failed', accountKey);
         case 'api-key-route':
-          see({ kind: 'stateless' });
+          moved({ kind: 'stateless' });
           return unavailable('api-key-route');
         case 'signed-out':
-          see({ kind: 'signed-out' });
+          moved({ kind: 'signed-out' });
           return unavailable('signed-out');
         case 'unidentified':
-          see({ kind: 'unidentified' });
+          moved({ kind: 'unidentified' });
           return unavailable('not-yet-observed');
       }
     } else if (refresh) {

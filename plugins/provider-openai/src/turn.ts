@@ -53,25 +53,23 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
   const opened = await unlessStopped(opening);
   if (opened === 'stopped') {
     void opening.then((late) => {
-      if (late.kind === 'opened' && ephemeral) releaseThread(daemon, late.threadId);
+      if (late.kind === 'opened' && (ephemeral || late.isNew)) releaseThread(daemon, late.threadId);
     });
     return cancelled();
   }
   if (opened.kind === 'refused') return refuse(opened.error);
   const { threadId, isNew, model } = opened;
   let ended = false;
+  const session = { bound: false };
   try {
     const again = await unlessStopped(resolve(daemon, request.cwd));
     if (again === 'stopped') return cancelled();
     const changed = mismatch(request, again);
-    if (changed !== null) {
-      releaseThread(daemon, threadId);
-      return refuse(changed);
-    }
+    if (changed !== null) return refuse(changed);
     return await prompt();
   } finally {
     ended = true;
-    if (ephemeral) releaseThread(daemon, threadId);
+    if (ephemeral || !session.bound) releaseThread(daemon, threadId);
   }
 
   async function prompt(): Promise<TurnEnd> {
@@ -85,6 +83,9 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
       home: deps.home,
       emit: context.emit,
       tokens,
+      onAnnounced: (id) => {
+        if (stopped()) interrupt(id);
+      },
       onRateLimitHint: () => {
         if (!subscription || quota.pending !== null) return;
         quota.pending = readQuota(daemon, request.cwd)
@@ -98,10 +99,22 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
           });
       },
     });
+    const interrupted = new Set<string>();
+    const interrupt = (turnId: string): void => {
+      if (interrupted.has(turnId)) return;
+      interrupted.add(turnId);
+      void daemon.call('turn/interrupt', { threadId, turnId }, Ignored, INTERRUPT_MS);
+    };
+    const onStop = (): void => {
+      const turnId = vendorTurn ?? stream.startedTurn();
+      if (turnId !== null) interrupt(turnId);
+    };
     const unlisten = daemon.listen((event) => {
       stream.hear(event);
     });
+    signal.addEventListener('abort', onStop, { once: true });
     try {
+      session.bound = true;
       if (isNew && !ephemeral) context.emit({ kind: 'session-bound', ref: threadId, accountKey, routeKey });
       const started = await daemon.call('turn/start', turnStart(request, threadId), TurnStartResponse, START_MS);
       if (started.kind === 'error') {
@@ -111,18 +124,13 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
       const turnId = started.kind === 'ok' ? started.value.turn.id : stream.startedTurn();
       if (turnId === null) {
         // Codex may still run a prompt whose turn/start it never answered; only ending the daemon makes sure it does not.
-        void daemon.close();
+        await daemon.close();
         return refuse({ kind: 'transient', retryAfterMs: null }, true);
       }
       vendorTurn = turnId;
       stream.begin(turnId);
-      const interrupt = (): void => {
-        void daemon.call('turn/interrupt', { threadId, turnId }, Ignored, INTERRUPT_MS);
-      };
-      if (stopped()) interrupt();
-      else signal.addEventListener('abort', interrupt, { once: true });
+      if (stopped()) interrupt(turnId);
       const finish: Finish = await stream.finished;
-      signal.removeEventListener('abort', interrupt);
       if (!stopped() && finish.kind !== 'exited' && quota.pending !== null) await settleWithin(quota.pending, QUOTA_WAIT_MS);
       return {
         outcome: outcomeOf(finish, stopped()),
@@ -133,6 +141,7 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
         finalText: stream.finalText(),
       };
     } finally {
+      signal.removeEventListener('abort', onStop);
       unlisten();
     }
   }

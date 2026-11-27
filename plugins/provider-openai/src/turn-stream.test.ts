@@ -29,7 +29,7 @@ async function replay(turnId: string, baseline: Baseline): Promise<unknown> {
   const chunks: TurnChunk[] = [];
   let hints = 0;
   const tokens = countTokens(baseline, () => turnId);
-  const stream = createTurnStream({ threadId: 'thread-1', home: '/Users/user', emit: (chunk) => chunks.push(chunk), tokens, onRateLimitHint: () => (hints += 1) });
+  const stream = createTurnStream({ threadId: 'thread-1', home: '/Users/user', emit: (chunk) => chunks.push(chunk), tokens, onRateLimitHint: () => (hints += 1), onAnnounced: () => undefined });
   const events = segment(turnId);
   const started = events.findIndex((event) => event.kind === 'notification' && event.method === 'turn/started');
   for (const event of events.slice(0, started + 1)) stream.hear(event);
@@ -116,8 +116,18 @@ it('replays a real cold resume: the replayed total of the last turn sets the bas
   `);
 });
 
-it('names the turn from turn/started when turn/start was never answered', () => {
-  const stream = createTurnStream({ threadId: 'thread-1', home: null, emit: () => undefined, tokens: countTokens({ kind: 'new-thread' }, () => null), onRateLimitHint: () => undefined });
+it('names the turn from turn/started when turn/start was never answered, announcing it once', () => {
+  const announced: string[] = [];
+  const stream = createTurnStream({ threadId: 'thread-1', home: null, emit: () => undefined, tokens: countTokens({ kind: 'new-thread' }, () => null), onRateLimitHint: () => undefined, onAnnounced: (id) => announced.push(id) });
+  for (const event of [...segment('turn-2'), ...segment('turn-2')]) stream.hear(event);
+  expect({ startedTurn: stream.startedTurn(), announced }).toEqual({ startedTurn: 'turn-2', announced: ['turn-2'] });
+});
+
+it('drops another thread\'s events heard before the turn is named', async () => {
+  const chunks: TurnChunk[] = [];
+  const stream = createTurnStream({ threadId: 'thread-2', home: null, emit: (chunk) => chunks.push(chunk), tokens: countTokens({ kind: 'new-thread' }, () => null), onRateLimitHint: () => undefined, onAnnounced: () => undefined });
   for (const event of segment('turn-2')) stream.hear(event);
-  expect(stream.startedTurn()).toBe('turn-2');
+  stream.begin('turn-2');
+  stream.hear({ kind: 'exited' });
+  expect({ chunks, finish: await stream.finished }).toEqual({ chunks: [], finish: { kind: 'exited' } });
 });

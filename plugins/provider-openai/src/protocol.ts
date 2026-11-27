@@ -43,7 +43,7 @@ export const ConfigReadResponse = z.looseObject({
     profile: z.string().nullish(),
     openai_base_url: Url,
     chatgpt_base_url: Url,
-    model_providers: z.record(z.string(), z.looseObject({ base_url: Url })).nullish(),
+    model_providers: z.record(z.string(), z.looseObject({ base_url: Url, auth: z.looseObject({ command: z.unknown().optional() }).nullish(), aws: z.unknown().optional() })).nullish(),
     mcp_servers: z.record(z.string(), z.unknown()).nullish(),
   }),
 });

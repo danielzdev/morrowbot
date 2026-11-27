@@ -15,10 +15,11 @@ answers also ends the daemon, unless a `turn/started` named the turn.
 
 **Access.** One profile: read-only with your own Codex settings (`personal`). Every
 thread starts or resumes with Codex's read-only sandbox, approvals `never`, the model
-provider the route check saw, and every 0.171 feature that runs code or reaches out
-turned off (`TOOL_FEATURES` in `src/lockdown.ts`: the shell and its login-shell
-snapshot, unified exec, apps, plugins, hooks, sub-agents, browser and computer use,
-code mode) plus each configured MCP server. Before the prompt goes out, the plugin
+provider the route check saw, and every 0.171 feature that runs code, writes files or
+acts on the desktop turned off (`TOOL_FEATURES` in `src/lockdown.ts`: the shell and its
+login-shell snapshot, unified exec, apps, plugins, hooks, sub-agents, browser and
+computer use, code mode, image generation) plus each configured MCP server. Web search
+stays as your Codex config sets it: it runs on OpenAI's side. Before the prompt goes out, the plugin
 checks Codex's own report of the thread (sandbox and network, approval policy,
 permission profile, model provider, `mcpServerStatus/list`, `hooks/list`), then reads
 the account and route again, and refuses the turn if anything differs. An approval
@@ -29,6 +30,8 @@ workspace (`readsOutsideCwd`).
 
 - everything, when an administrator manages Codex (`configRequirements/read` is not
   empty): managed rules apply after MorrowBot's and can turn tools back on;
+- a model provider that gets its credentials by running a command (`auth.command`) or
+  from AWS: the command would run outside the sandbox;
 - workspace-write: a shell command that calls `setsid` keeps running after Stop;
 - `isolated` instructions: Codex always loads your `~/.codex/AGENTS.md`;
 - other systems than macOS, and Codex outside `>=0.171.0 <0.172.0`.
@@ -40,7 +43,7 @@ workspace, and its threads are saved. Any other route (an API key, another provi
 a custom `openai_base_url`, `chatgpt_base_url` or `model_providers.openai.base_url`,
 a Codex `profile`, or an unknown workspace) runs each
 turn on a new ephemeral thread with no plan usage. A changed account or route ends the
-turn before the prompt (`account-changed`, `route-changed`, `signed-out`).
+turn before the prompt, and again after the thread opens (`account-changed`, `route-changed`, `signed-out`).
 
 **Sessions.** A thread already loaded in the daemon is reused only when it was loaded
 with the same route and policy; otherwise it is unloaded (`thread/unsubscribe`, checked

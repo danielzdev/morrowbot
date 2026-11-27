@@ -35,10 +35,12 @@ export type Resolution =
       readonly modelProvider: string;
       /** The config this snapshot read, for the per-thread lockdown. */
       readonly config: CodexConfig;
-      /** Why MorrowBot cannot run turns because an administrator manages Codex, or null. */
-      readonly managed: string | null;
+      /** Why MorrowBot cannot run Codex turns on this setup (managed rules, a credential command), or null. */
+      readonly blocked: string | null;
     };
 
+const COMMAND_AUTH_REASON =
+  'Codex gets this model provider\'s credentials by running a command (auth.command or an AWS credential process), outside its sandbox, so MorrowBot does not run read-only Codex turns on it.';
 const MANAGED_REASON =
   'An administrator manages Codex on this computer (requirements.toml or a device profile), and its rules can turn tools back on, so MorrowBot does not run Codex turns.';
 
@@ -54,7 +56,7 @@ export async function resolve(daemon: CodexDaemon, cwd: string): Promise<Resolut
   if (requirements.kind !== 'ok') return { kind: 'failed', reason: describeFailure('read its managed requirements', requirements) };
   const judged = await judgeRoute(account.value, config.value.config);
   const managed = (requirements.value.requirements ?? null) === null ? null : MANAGED_REASON;
-  return judged.kind === 'resolved' ? { ...judged, managed } : judged;
+  return judged.kind === 'resolved' ? { ...judged, blocked: managed ?? judged.blocked } : judged;
 }
 
 function describeFailure(what: string, call: { readonly kind: 'error'; readonly message: string } | { readonly kind: 'unanswered'; readonly reason: string }): string {
@@ -71,6 +73,9 @@ export async function judgeRoute(account: GetAccountResponse, config: CodexConfi
   const explicitInference = builtInUrl(config);
   const defaultInference = explicitInference === null || normalizeUrl(explicitInference) === normalizeUrl(DEFAULT_CHATGPT_INFERENCE_URL);
   const profile = config.profile ?? null;
+  const selected = config.model_providers?.[providerId];
+  const command = selected?.auth?.command ?? selected?.aws ?? null;
+  const blocked = command === null ? null : COMMAND_AUTH_REASON;
   const workspaceBound = providerId === BUILT_IN_PROVIDER && authClass === 'chatgpt' && defaultBase && defaultInference && profile === null;
   const routing = workspaceBound ? (account.workspaceRouting ?? null) : null;
   const effective = routing === null ? bootstrap : withOrigin(bootstrap, routing.backendOrigin);
@@ -92,7 +97,7 @@ export async function judgeRoute(account: GetAccountResponse, config: CodexConfi
     accountLabel: label,
     modelProvider: providerId,
     config,
-    managed: null,
+    blocked,
   });
   if (account.account === null) {
     if (account.requiresOpenaiAuth) return { kind: 'signed-out', routeKey };
@@ -106,7 +111,7 @@ export async function judgeRoute(account: GetAccountResponse, config: CodexConfi
       routing === null
         ? 'Codex has not found your ChatGPT workspace, so chats run without saved sessions and plan usage. Recheck to try again.'
         : 'Codex did not report who is signed in, so chats run without saved sessions and plan usage.';
-    return { kind: 'resolved', accountKey: '', routeKey, route: { kind: 'unidentified', reason }, accountLabel: label, modelProvider: providerId, config, managed: null };
+    return { kind: 'resolved', accountKey: '', routeKey, route: { kind: 'unidentified', reason }, accountLabel: label, modelProvider: providerId, config, blocked };
   }
   const accountKey = await sha256(['codex-account', identity, routing.chatgptAccountId]);
   return {
@@ -117,7 +122,7 @@ export async function judgeRoute(account: GetAccountResponse, config: CodexConfi
     accountLabel: label,
     modelProvider: providerId,
     config,
-    managed: null,
+    blocked,
   };
 }
 

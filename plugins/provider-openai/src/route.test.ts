@@ -33,7 +33,13 @@ async function judgeAll(cases: Readonly<Record<string, readonly [GetAccountRespo
         out[name] = { kind: 'signed-out', routeKey: `route ${short(judged.routeKey)}` };
         break;
       case 'resolved':
-        out[name] = { route: judged.route.kind, account: `account ${short(judged.accountKey)}`, routeKey: `route ${short(judged.routeKey)}`, label: judged.accountLabel };
+        out[name] = {
+          route: judged.route.kind,
+          account: `account ${short(judged.accountKey)}`,
+          routeKey: `route ${short(judged.routeKey)}`,
+          label: judged.accountLabel,
+          ...(judged.blocked === null ? {} : { blocked: true }),
+        };
         break;
     }
   }
@@ -59,6 +65,7 @@ it('keys the account by user and workspace, and the route by everything that dec
       profileSet: [account({}), config({ profile: 'work' })],
       builtInProviderUrl: [account({}), config({ model_providers: { openai: { base_url: 'https://proxy.example.com/v1' } } })],
       emptyUserIdFallsBackToEmail: [account({}, { userId: '' }), config()],
+      credentialCommand: [account({}), config({ model_provider: 'corp', model_providers: { corp: { base_url: 'https://llm.example.com/v1', auth: { command: '/usr/bin/false' } } } })],
     }),
   ).toMatchInlineSnapshot(`
     {
@@ -73,6 +80,13 @@ it('keys the account by user and workspace, and the route by everything that dec
         "label": "ChatGPT Plus",
         "route": "stateless",
         "routeKey": "route N",
+      },
+      "credentialCommand": {
+        "account": "account ''",
+        "blocked": true,
+        "label": "ChatGPT Plus",
+        "route": "stateless",
+        "routeKey": "route P",
       },
       "customProvider": {
         "account": "account ''",

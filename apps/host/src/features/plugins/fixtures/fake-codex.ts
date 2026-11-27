@@ -9,7 +9,8 @@
  * is appended to `log.jsonl`. The prompt picks a turn's behavior: `stall` waits for `turn/interrupt`,
  * `ignore-interrupt` never ends, `tool` runs a command item, `ask` sends an approval request,
  * `fail-limit` fails on the usage limit, `hint` sends a rate-limit notification, `close-thread` replies
- * and then unloads the thread with `thread/closed`; anything else replies.
+ * and then unloads the thread with `thread/closed`, `garbled` answers `turn/start` in an unknown shape
+ * after a `turn/started` (with `silent`, without one and without running the turn); anything else replies.
  */
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -260,10 +261,14 @@ function answer(method: string, raw: unknown): unknown {
       if (entry === undefined) throw new Error(`thread ${threadId} is not loaded`);
       const turnId = `turn-${String(process.pid)}-${String(++turns)}`;
       const prompt = (params.input ?? []).map((part) => part.text ?? '').join('\n');
+      if (prompt.includes('garbled')) {
+        if (prompt.includes('silent')) return { turn: null };
+        notify('turn/started', { threadId, turn: { id: turnId, items: [], status: 'inProgress', error: null } });
+      }
       setImmediate(() => {
         runTurn(threadId, turnId, entry, prompt);
       });
-      return { turn: { id: turnId, items: [], status: 'inProgress', error: null } };
+      return prompt.includes('garbled') ? { turn: null } : { turn: { id: turnId, items: [], status: 'inProgress', error: null } };
     }
     case 'turn/interrupt': {
       const stop = stalled.get(params.turnId ?? '');

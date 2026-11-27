@@ -4,9 +4,9 @@ import { HooksList, McpServerStatusList, type CodexConfig, type ThreadOpened } f
 const CHECK_MS = 10_000;
 
 /**
- * Every Codex 0.171 feature that is on by default and gives the model a way to run code, reach the
- * desktop or a browser, spawn other agents or run hooks; `shell_snapshot` runs the login shell when a
- * thread opens. The list is checked against `codex features list` whenever the tested range moves.
+ * Every Codex 0.171 feature that is on by default and gives the model a way to run code, write files,
+ * reach the desktop or a browser, spawn other agents or run hooks; `shell_snapshot` runs the login shell when a
+ * thread opens; `image_generation` saves files outside the sandbox. The list is checked against `codex features list` whenever the tested range moves.
  */
 const TOOL_FEATURES = [
   'shell_tool',
@@ -23,6 +23,7 @@ const TOOL_FEATURES = [
   'in_app_browser',
   'code_mode_host',
   'skill_mcp_dependency_install',
+  'image_generation',
 ] as const;
 
 /**

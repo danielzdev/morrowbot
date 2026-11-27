@@ -40,7 +40,7 @@ export async function preflight(request: TurnRequest, deps: PreflightDeps, daemo
   const problem = mismatch(request, resolution);
   if (problem !== null) return refused(problem);
   if (resolution.kind !== 'resolved') return refused({ kind: 'transient', retryAfterMs: null });
-  if (resolution.managed !== null) return refused({ kind: 'access-not-supported', reason: resolution.managed });
+  if (resolution.blocked !== null) return refused({ kind: 'access-not-supported', reason: resolution.blocked });
   return {
     kind: 'ok',
     daemon,
@@ -68,7 +68,7 @@ export function mismatch(request: TurnRequest, resolution: Resolution): Provider
     return { kind: 'route-changed' };
   }
   if (routeKey !== request.expectedRouteKey) return { kind: 'route-changed' };
-  if (resolution.managed !== null) return { kind: 'access-not-supported', reason: resolution.managed };
+  if (resolution.blocked !== null) return { kind: 'access-not-supported', reason: resolution.blocked };
   return null;
 }
 

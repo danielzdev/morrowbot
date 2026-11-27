@@ -150,3 +150,27 @@ it('after a workspace switch, a usage refresh does not serve the earlier workspa
     }
   `);
 });
+
+it('adopts the turn a turn/started named when Codex garbles the turn/start reply, and ends the daemon when nothing named it', async () => {
+  const agent = await codex.agent();
+  const [named, unnamed] = [await codex.thread(agent, 'A'), await codex.thread(agent, 'B')];
+  await sendAndWait(named, 'garbled');
+  const [pgid] = codex.daemonPgids();
+  await sendAndWait(unnamed, 'garbled silent');
+  const afterSilent = codex.daemonPgids();
+  expect({ histories: [await codex.history(named), await codex.history(unnamed)], daemonEnded: !afterSilent.includes(pgid ?? -1) }).toMatchInlineSnapshot(`
+    {
+      "daemonEnded": true,
+      "histories": [
+        [
+          "user: garbled",
+          "assistant(completed): Echo: garbled",
+        ],
+        [
+          "user: garbled silent",
+          "assistant(interrupted): ",
+        ],
+      ],
+    }
+  `);
+});

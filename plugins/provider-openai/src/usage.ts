@@ -70,7 +70,7 @@ export async function readQuota(daemon: CodexDaemon, cwd: string): Promise<Quota
   const again = subscription(after);
   if (again.kind !== 'ok') return again.read;
   if (again.accountKey !== route.accountKey || again.routeKey !== route.routeKey) {
-    return { kind: 'failed', reason: 'The Codex account or route changed while usage was read.', accountKey: null };
+    return { kind: 'failed', reason: 'The Codex account or route changed while usage was read.', accountKey: again.accountKey };
   }
   if (read.kind !== 'ok') return { kind: 'failed', reason: read.kind === 'error' ? read.message : read.reason, accountKey: route.accountKey };
   const accountId = read.value.accountId ?? null;

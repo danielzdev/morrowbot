@@ -22,13 +22,14 @@ const ROOTS = [
   'ThreadResumeParams', 'ThreadResumeResponse', 'TurnStartParams', 'TurnStartResponse', 'TurnInterruptParams', 'ThreadUnsubscribeParams',
   'ThreadUnsubscribeResponse', 'ThreadLoadedListResponse', 'ListMcpServerStatusResponse', 'HooksListResponse', 'ThreadTokenUsageUpdatedNotification',
   'TurnCompletedNotification', 'AgentMessageDeltaNotification', 'ItemStartedNotification', 'ItemCompletedNotification', 'ErrorNotification',
-  'ModelReroutedNotification', 'AccountRateLimitsUpdatedNotification',
+  'ModelReroutedNotification', 'AccountRateLimitsUpdatedNotification', 'ConfigReadResponse', 'ConfigRequirementsReadResponse',
+  'TurnStartedNotification', 'ThreadClosedNotification', 'ThreadStatusChangedNotification',
 ];
 
 /** A copy of `TOOL_FEATURES` in `plugins/provider-openai/src/lockdown.ts`, which a host test cannot import. */
 const LOCKDOWN_FEATURES = [
   'shell_tool', 'unified_exec', 'shell_snapshot', 'apps', 'plugins', 'hooks', 'multi_agent', 'multi_agent_v2', 'browser_use',
-  'browser_use_external', 'computer_use', 'in_app_browser', 'code_mode_host', 'skill_mcp_dependency_install',
+  'browser_use_external', 'computer_use', 'in_app_browser', 'code_mode_host', 'skill_mcp_dependency_install', 'image_generation',
 ];
 
 const Bundle = z.looseObject({ definitions: z.record(z.string(), z.unknown()) });
