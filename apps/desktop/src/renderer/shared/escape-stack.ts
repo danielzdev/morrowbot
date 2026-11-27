@@ -6,7 +6,7 @@ export interface Focusable {
 
 /** An open popover, menu or modal. */
 export interface Layer {
-  /** Closes the layer; the stack then returns focus. */
+  /** Asks the layer to close. It may decline (a form asking "Discard?"): a layer leaves the stack only when it is removed. */
   readonly close: () => void;
   /** Where focus goes when the layer closes. */
   readonly returnFocus: Focusable | null;
@@ -15,11 +15,11 @@ export interface Layer {
 }
 
 export interface EscapeStack {
-  /** Opens a layer on top; the returned function removes it without closing (for unmounts). */
+  /** Opens a layer on top; the returned function removes it (call it on unmount) and returns focus if it was on top. */
   push(layer: Layer): () => void;
-  /** Esc: closes only the topmost layer. Returns whether a layer took the key. */
+  /** Esc: asks only the topmost layer to close. Returns whether a layer took the key. */
   escape(): boolean;
-  /** A pointer press: closes the topmost layer when the press is outside it. */
+  /** A pointer press: asks the topmost layer to close when the press is outside it. */
   pointerDown(target: unknown): boolean;
   readonly depth: number;
 }
@@ -36,7 +36,6 @@ export function createEscapeStack(): EscapeStack {
   const closeTop = (): boolean => {
     const top = layers.at(-1);
     if (top === undefined) return false;
-    remove(top);
     top.close();
     return true;
   };

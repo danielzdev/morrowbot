@@ -2,6 +2,9 @@ import { z } from 'zod';
 import { EntityId, PluginId, Timestamp } from './ids.ts';
 import { AccessLevel, ModelSelection, VendorSettings } from './provider.ts';
 
+/** A saved copy's file name: its UTC time with `-` for `:`, then a counter. */
+export const INSTRUCTIONS_COPY_NAME = /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.\d{3}Z-\d{1,6}\.md$/;
+
 /** POSIX (`/x`), Windows drive (`C:\x`) or UNC (`\\server\share`) absolute paths. */
 const AbsolutePath = z.string().regex(/^(\/|[A-Za-z]:[\\/]|\\\\)/, 'Use an absolute path');
 
@@ -63,6 +66,8 @@ export type CreateFolderRequest = z.infer<typeof CreateFolderRequest>;
 export const UpdateFolderRequest = z.strictObject({ name: FolderName });
 export type UpdateFolderRequest = z.infer<typeof UpdateFolderRequest>;
 
+const InstructionsText = z.string().max(1_000_000);
+
 const AgentName = z.string().trim().min(1).max(200);
 const AgentDescription = z.string().max(2000);
 
@@ -86,6 +91,8 @@ export const CreateAgentRequest = z.strictObject({
   avatar: AgentAvatar.default(DEFAULT_AVATAR),
   provider: ProviderBinding.default({ kind: 'unbound' }),
   folderId: EntityId.nullable().default(null),
+  /** Written to the new workspace's `AGENTS.md` only if no file or symlink is there yet. */
+  initialInstructions: InstructionsText.nullable().default(null),
 });
 export type CreateAgentRequest = z.infer<typeof CreateAgentRequest>;
 
@@ -109,6 +116,30 @@ export const LastMessage = z.strictObject({
 });
 export type LastMessage = z.infer<typeof LastMessage>;
 
-/** The contents of the agent's `AGENTS.md` instruction file. */
-export const AgentInstructions = z.strictObject({ content: z.string().max(1_000_000) });
-export type AgentInstructions = z.infer<typeof AgentInstructions>;
+/**
+ * The agent's `AGENTS.md` as the host found it. `revision` is null only for a missing entry; `content`
+ * is null when the text can't be read (missing, a dangling symlink, unreadable), and `readError` then
+ * says why for an entry that is there. `canReplace` is false until the host can replace a file safely.
+ */
+export const AgentInstructionsView = z.strictObject({
+  content: InstructionsText.nullable(),
+  revision: z.string().min(1).nullable(),
+  canReplace: z.boolean(),
+  readError: z.string().min(1).optional(),
+});
+export type AgentInstructionsView = z.infer<typeof AgentInstructionsView>;
+
+/** Creates a missing `AGENTS.md` (`expectedRevision: null`). The host never replaces an existing one yet. */
+export const PutInstructionsRequest = z.strictObject({ content: InstructionsText, expectedRevision: z.string().min(1).nullable() });
+export type PutInstructionsRequest = z.infer<typeof PutInstructionsRequest>;
+
+export const PutInstructionsReply = z.strictObject({ revision: z.string().min(1) });
+export type PutInstructionsReply = z.infer<typeof PutInstructionsReply>;
+
+/** Keeps a draft in the data folder; the live `AGENTS.md` is not touched. */
+export const InstructionsCopyRequest = z.strictObject({ content: InstructionsText });
+export type InstructionsCopyRequest = z.infer<typeof InstructionsCopyRequest>;
+
+/** `revealId` names the saved copy for Reveal in Finder; it is a file name, never a path. */
+export const InstructionsCopyReply = z.strictObject({ revealId: z.string().regex(INSTRUCTIONS_COPY_NAME) });
+export type InstructionsCopyReply = z.infer<typeof InstructionsCopyReply>;

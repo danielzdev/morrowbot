@@ -4,6 +4,7 @@ import type { MorrowbotBridge } from '../../bridge.ts';
 import type { Api, ApiResult } from '../../shared/api.ts';
 import { Store, type Loadable } from '../../shared/store.ts';
 import { mainThread } from '../../shared/main-thread.ts';
+import { createInstructionsEditor, type InstructionsEditor } from './instructions-editor.ts';
 
 export interface AgentsState {
   readonly agents: Loadable<readonly Agent[]>;
@@ -42,8 +43,8 @@ export interface AgentsModel {
   markFinished(agentId: string, threadId: string): void;
   /** Moves the chat to the front after activity, and names an untitled chat after its first message. */
   touchThread(agentId: string, threadId: string, firstText: string | null): Promise<void>;
-  instructions(id: string): Promise<Saved<string>>;
-  saveInstructions(id: string, content: string): Promise<Saved<string>>;
+  /** The AGENTS.md editor of one agent; each call starts a fresh one. */
+  instructionsEditor(agentId: string): InstructionsEditor;
   dismissProblem(): void;
   close(): void;
 }
@@ -319,8 +320,7 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
       }
       await loadThreads(agentId);
     },
-    instructions: async (id) => saved(await api.instructions(id), ({ content }) => content),
-    saveInstructions: async (id, content) => saved(await api.saveInstructions(id, content), (value) => value.content),
+    instructionsEditor: (agentId) => createInstructionsEditor(api, agentId),
     dismissProblem: () => {
       patch({ problem: null });
     },

@@ -78,6 +78,7 @@ it('offers both profiles, with approvals and live usage, only on a tested versio
           "opus",
           "sonnet",
           "haiku",
+          "claude-haiku-4-5-20251001",
         ],
         "version": "2.2.1",
         "warning": "untested CLI version",
@@ -117,6 +118,7 @@ it('offers both profiles, with approvals and live usage, only on a tested versio
           "opus",
           "sonnet",
           "haiku",
+          "claude-haiku-4-5-20251001",
         ],
         "version": "2.1.332",
         "warning": null,
@@ -215,6 +217,7 @@ it('offers each alias the efforts Claude Code 2.1.332 reports for it, high by de
     .parse(JSON.parse((await readOptionalFile(decodeURIComponent(new URL('./fixtures/2.1.332/initialize-models.json', import.meta.url).pathname), { maxBytes: 100_000 })) ?? 'null'));
   const offered = MODELS.map(({ id, options }) => ({ id, options: options.map((option) => ({ ...option, choices: option.choices.map((choice) => choice.id) })) }));
   expect({
+    recommended: MODELS.filter(({ isDefault }) => isDefault).map(({ id }) => id),
     matchesRecording: offered.every(({ id, options }) => JSON.stringify(options[0]?.choices) === JSON.stringify(recorded.models.find((model) => model.value === id)?.supportedEffortLevels)),
     offered,
   }).toMatchInlineSnapshot(`
@@ -289,6 +292,13 @@ it('offers each alias the efforts Claude Code 2.1.332 reports for it, high by de
             },
           ],
         },
+        {
+          "id": "claude-haiku-4-5-20251001",
+          "options": [],
+        },
+      ],
+      "recommended": [
+        "opus",
       ],
     }
   `);

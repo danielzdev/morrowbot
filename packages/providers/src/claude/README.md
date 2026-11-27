@@ -61,11 +61,12 @@ replayed by `wire.test.ts`. `apps/host/src/features/providers/provider-claude-li
 runs the same checks on your real CLI with `MORROWBOT_LIVE_CLAUDE=1` (it spends a little
 of your plan).
 
-The model comes from the chat's model picker (`default`, `fable`, `opus`, `sonnet`,
-`haiku`). Each alias offers an **Effort** option (low, medium, high, extra high, max;
-high by default), the levels Claude Code 2.1.332 reports for it in its `initialize`
-response (`fixtures/2.1.332/initialize-models.json`), and the turn passes
-`--effort <level>`. A level the model does not offer refuses the turn before the CLI
+The model comes from the chat's model picker (`fable`, `opus`, `sonnet`, `haiku`, and
+`claude-haiku-4-5-20251001` shown as Haiku 4.5; `opus` is marked Recommended, and an agent bound
+before models were pinned keeps `default`, Claude Code's own choice). Each alias but Haiku 4.5
+offers an **Effort** option (low, medium, high, extra high, max; high by default), the levels Claude
+Code 2.1.332 reports for it in its `initialize` response (`fixtures/2.1.332/initialize-models.json`),
+and the turn passes `--effort <level>`; Haiku 4.5 reports none, so it gets no `--effort`. A level the model does not offer refuses the turn before the CLI
 starts. The CLI gets the host's `cli-runtime` environment (home, user, locale,
 proxy and `CLAUDE_CONFIG_DIR`, see `manifest` in `index.ts`); macOS needs `USER` to read the
 sign-in from the keychain. The prompt goes on stdin and the system prompt through a
