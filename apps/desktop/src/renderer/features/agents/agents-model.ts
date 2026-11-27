@@ -42,6 +42,27 @@ function saved<T, U>(result: ApiResult<T>, pick: (value: T) => U): Saved<U> {
   return result.kind === 'ok' ? { kind: 'saved', value: pick(result.value) } : { kind: 'refused', message: result.error.message };
 }
 
+const updateKey = (id: string, request: UpdateAgentRequest): string =>
+  [id, request.name !== undefined, request.description !== undefined, request.avatar !== undefined, request.provider !== undefined].join('|');
+
+/** The agent as `request` asks for it. */
+const applied = (agent: Agent, request: UpdateAgentRequest): Agent => ({
+  ...agent,
+  name: request.name ?? agent.name,
+  description: request.description ?? agent.description,
+  avatar: request.avatar ?? agent.avatar,
+  provider: request.provider ?? agent.provider,
+});
+
+/** `agent` with the fields `request` names taken from `source`; other fields, maybe still saving, stay. */
+const withFields = (agent: Agent, request: UpdateAgentRequest, source: Agent): Agent => ({
+  ...agent,
+  name: request.name === undefined ? agent.name : source.name,
+  description: request.description === undefined ? agent.description : source.description,
+  avatar: request.avatar === undefined ? agent.avatar : source.avatar,
+  provider: request.provider === undefined ? agent.provider : source.provider,
+});
+
 export function titleFrom(text: string): string {
   const line = text.trim().split('\n')[0]?.trim() ?? '';
   return line.length <= 48 ? line : `${line.slice(0, 47)}…`;
@@ -60,6 +81,11 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
   let threadSeq = 0;
   /** The latest thread-list request per agent; a reply to an older one, or one sent before a full load, is dropped. */
   const threadLoads = new Map<string, number>();
+  /**
+   * Updates show at once. Updates of the same fields of an agent go to the host one at a time, in
+   * order; only the last one's reply is shown, and a refused one shows what the host kept.
+   */
+  const updates = new Map<string, Promise<unknown>>();
   const state = new Store<AgentsState>({ agents: { kind: 'loading' }, selectedAgentId: null, threads: {}, openThread: {}, problem: null });
   const patch = (change: Partial<AgentsState>): void => {
     state.update((current) => ({ ...current, ...change }));
@@ -115,6 +141,19 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
     else selectAgent(keep.id);
   }
 
+  const agentOf = (id: string): Agent | undefined => {
+    const agents = state.get().agents;
+    return agents.kind === 'loaded' ? agents.value.find((each) => each.id === id) : undefined;
+  };
+  /** Replaces an agent the list still has; an agent deleted meanwhile stays gone. */
+  const changeAgent = (agent: Agent): void => {
+    if (agentOf(agent.id) !== undefined) replaceAgent(agent);
+  };
+  async function hostAgent(id: string): Promise<Agent | undefined> {
+    const result = await api.listAgents();
+    return result.kind === 'ok' ? result.value.agents.find((each) => each.id === id) : undefined;
+  }
+
   const replaceAgent = (agent: Agent): void => {
     const current = state.get().agents;
     if (current.kind !== 'loaded') return;
@@ -147,10 +186,26 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
       }
       return saved(result, (agent) => agent);
     },
-    updateAgent: async (id, request) => {
-      const result = await api.updateAgent(id, request);
-      if (result.kind === 'ok') replaceAgent(result.value);
-      return saved(result, (agent) => agent);
+    updateAgent: (id, request) => {
+      const key = updateKey(id, request);
+      const before = agentOf(id);
+      if (before !== undefined) changeAgent(withFields(before, request, applied(before, request)));
+      const run = async (): Promise<Saved<Agent>> => {
+        const result = await api.updateAgent(id, request);
+        if (updates.get(key) === next) {
+          const host = result.kind === 'ok' ? result.value : await hostAgent(id);
+          const now = agentOf(id);
+          if (host !== undefined && now !== undefined) changeAgent(withFields(now, request, host));
+        }
+        return saved(result, (agent) => agent);
+      };
+      const next = (updates.get(key) ?? Promise.resolve()).then(run, run);
+      updates.set(key, next);
+      const clear = (): void => {
+        if (updates.get(key) === next) updates.delete(key);
+      };
+      void next.then(clear, clear);
+      return next;
     },
     deleteAgent: async (id) => {
       const open = state.get().openThread[id];

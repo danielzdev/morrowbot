@@ -52,7 +52,9 @@ it('keeps agents, threads, messages and AGENTS.md across a host restart', async 
           {
             "avatar": {
               "color": "#6b7280",
-              "kind": "initials",
+              "finish": "flat",
+              "kind": "bot",
+              "shape": "chat",
             },
             "createdAt": "2026-01-01T00:00:00.000Z",
             "description": "",
@@ -147,7 +149,9 @@ it('creates, updates and deletes agents and threads', async () => {
             {
               "avatar": {
                 "color": "#6b7280",
-                "kind": "initials",
+                "finish": "flat",
+                "kind": "bot",
+                "shape": "chat",
               },
               "createdAt": "2026-01-01T00:00:00.000Z",
               "description": "Own folder",
@@ -197,7 +201,9 @@ it('creates, updates and deletes agents and threads', async () => {
         "body": {
           "avatar": {
             "color": "#6b7280",
-            "kind": "initials",
+            "finish": "flat",
+            "kind": "bot",
+            "shape": "chat",
           },
           "createdAt": "2026-01-01T00:00:00.000Z",
           "description": "Own folder",

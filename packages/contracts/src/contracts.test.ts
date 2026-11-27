@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { z } from 'zod';
-import { HealthResponse, PluginManifest } from './index.ts';
+import { AgentAvatar, CreateAgentRequest, HealthResponse, PluginManifest } from './index.ts';
 
 function issues(result: z.ZodSafeParseResult<unknown>) {
   return result.success
@@ -105,6 +105,51 @@ describe('PluginManifest env', () => {
         ],
         "none",
         "cli-runtime",
+      ]
+    `);
+  });
+});
+
+describe('AgentAvatar', () => {
+  it('gives a new agent a flat gray chat bot, and keeps a chosen one', () => {
+    const avatar = { kind: 'bot', shape: 'sprout', color: '#10B981', finish: 'fluffy' };
+    expect([CreateAgentRequest.parse({ name: 'Planner' }).avatar, CreateAgentRequest.parse({ name: 'Planner', avatar }).avatar]).toMatchInlineSnapshot(`
+      [
+        {
+          "color": "#6b7280",
+          "finish": "flat",
+          "kind": "bot",
+          "shape": "chat",
+        },
+        {
+          "color": "#10B981",
+          "finish": "fluffy",
+          "kind": "bot",
+          "shape": "sprout",
+        },
+      ]
+    `);
+  });
+
+  it('rejects unknown shapes and finishes, bad colors, missing fields and the old initials avatar', () => {
+    expect([
+      issues(AgentAvatar.safeParse({ kind: 'bot', shape: 'robot', color: 'red', finish: 'glass' })),
+      issues(AgentAvatar.safeParse({ kind: 'bot', color: '#112233' })),
+      issues(AgentAvatar.safeParse({ kind: 'initials', color: '#112233' })),
+    ]).toMatchInlineSnapshot(`
+      [
+        [
+          "shape: Invalid option: expected one of "chat"|"controller"|"barbell"|"mug"|"lightbulb"|"sprout"|"watering-can"",
+          "color: Use a #rrggbb color",
+          "finish: Invalid option: expected one of "flat"|"fluffy"|"matte"|"metallic"",
+        ],
+        [
+          "shape: Invalid option: expected one of "chat"|"controller"|"barbell"|"mug"|"lightbulb"|"sprout"|"watering-can"",
+          "finish: Invalid option: expected one of "flat"|"fluffy"|"matte"|"metallic"",
+        ],
+        [
+          "kind: Invalid discriminator value. Expected 'bot'",
+        ],
       ]
     `);
   });

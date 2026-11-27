@@ -17,3 +17,5 @@ Data lives in `~/.morrowbot` (`MORROWBOT_DATA_DIR` moves it); plugins load from 
 ## License
 
 Licensed under the [Apache License 2.0](LICENSE).
+
+Agent avatars are drawn with [open-bot-avatar](https://github.com/DominikScholz/open-bot-avatar) by Dominik Scholz (MIT); see [`THIRD_PARTY_LICENSES/open-bot-avatar-MIT.txt`](THIRD_PARTY_LICENSES/open-bot-avatar-MIT.txt).

@@ -1,9 +1,20 @@
 import type { Agent, ProviderBinding, ProviderInfo } from '@morrowbot/contracts';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { MorrowbotBridge } from '../bridge.ts';
-import { AgentSettings, Avatar, ChatTabs, createAgentsModel, NewAgent, Sidebar, type AgentsModel, type Page, type ProviderOption } from '../features/agents/index.ts';
+import {
+  AgentSettings,
+  ChatTabs,
+  createAgentsModel,
+  NewAgent,
+  Sidebar,
+  type AgentsModel,
+  type AvatarEditor,
+  type Page,
+  type ProviderOption,
+} from '../features/agents/index.ts';
+import { AvatarPicker, BotAvatar, combineActivity, freshAvatar, motionOf, type AvatarMotion } from '../features/avatar/index.ts';
 import { AccessNotes, AccessPicker, bindTo, ModelPicker, type BoundProvider } from '../features/binding/index.ts';
-import { ChatView, Composer, createChatHub, type ChatHub } from '../features/chat/index.ts';
+import { ChatView, Composer, createChatHub, type ChatHub, type ThreadActivity } from '../features/chat/index.ts';
 import { createPluginsModel, PluginsPage, summarize, type PluginCard, type PluginsModel } from '../features/plugins/index.ts';
 import { createApi } from '../shared/api.ts';
 import { useStore } from '../shared/use-store.ts';
@@ -61,6 +72,13 @@ function createModels(bridge: MorrowbotBridge): Models {
   return { agents, plugins, chats };
 }
 
+/** How an agent's avatar moves: by what the busiest of its open chats is doing. */
+function motionOfAgent(activity: Readonly<Record<string, ThreadActivity>>, agentId: string): AvatarMotion {
+  return motionOf(combineActivity(Object.values(activity).filter((each) => each.agentId === agentId).map((each) => each.activity)));
+}
+
+const avatarEditor: AvatarEditor = (value, onChange) => <AvatarPicker value={value} onChange={onChange} />;
+
 function ProviderChip(props: { readonly card: PluginCard | undefined; readonly onPlugins: () => void }) {
   if (props.card === undefined) return <span class="chip warning">Provider not installed</span>;
   const summary = summarize(props.card.entry, props.card.info);
@@ -76,6 +94,7 @@ function ChatPane(props: { readonly models: Models; readonly agent: Agent; reado
   const { models, agent } = props;
   const state = useStore(models.agents.state);
   const cards = useStore(models.plugins.cards);
+  const activity = useStore(models.chats.activity);
   const threadId = state.openThread[agent.id];
   const binding = agent.provider.kind === 'bound' ? agent.provider : null;
   const card = binding === null || cards.kind !== 'loaded' ? undefined : cards.value.find(({ entry }) => entry.manifest.id === binding.pluginId);
@@ -98,7 +117,7 @@ function ChatPane(props: { readonly models: Models; readonly agent: Agent; reado
   return (
     <div class="main">
       <header class="main-header">
-        <Avatar agent={agent} />
+        <BotAvatar avatar={agent.avatar} motion={motionOfAgent(activity, agent.id)} size={40} />
         <div class="title">
           <strong>{agent.name}</strong>
           {agent.description !== '' && <span class="muted">{agent.description}</span>}
@@ -149,6 +168,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
   const [page, setPage] = useState<Page>({ kind: 'chat' });
   const state = useStore(models.agents.state);
   const cards = useStore(models.plugins.cards);
+  const activity = useStore(models.chats.activity);
   useEffect(() => {
     void models.agents.load();
     void models.plugins.load();
@@ -177,6 +197,8 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
             bridge={bridge}
             providers={providers}
             bindingFor={bindingFor}
+            avatarEditor={avatarEditor}
+            newAvatar={freshAvatar}
             onCreated={() => {
               setPage({ kind: 'chat' });
             }}
@@ -184,7 +206,15 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
         );
       case 'agent-settings':
         return agent === undefined ? null : (
-          <AgentSettings key={agent.id} model={models.agents} agent={agent} providers={providers} bindingFor={bindingFor} onDeleted={() => { setPage({ kind: 'chat' }); }} />
+          <AgentSettings
+            key={agent.id}
+            model={models.agents}
+            agent={agent}
+            providers={providers}
+            bindingFor={bindingFor}
+            avatarEditor={avatarEditor}
+            onDeleted={() => { setPage({ kind: 'chat' }); }}
+          />
         );
       case 'chat':
         if (agent !== undefined) return <ChatPane key={agent.id} models={models} agent={agent} onPage={setPage} />;
@@ -203,7 +233,12 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
 
   return (
     <div class="app">
-      <Sidebar model={models.agents} page={page} onPage={setPage} />
+      <Sidebar
+        model={models.agents}
+        page={page}
+        onPage={setPage}
+        avatar={(each) => <BotAvatar avatar={each.avatar} motion={motionOfAgent(activity, each.id)} size={28} />}
+      />
       <div class="content">
         {state.problem !== null && (
           <div class="banner error">
