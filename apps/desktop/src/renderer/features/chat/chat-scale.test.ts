@@ -27,6 +27,7 @@ const CTX: TimelineContext = {
   actions: { openLink: () => undefined, copy: () => undefined },
   onAction: () => undefined,
   onAnswer: () => undefined,
+  peers: { name: () => 'Peer', color: () => '#6b7280', avatar: () => null },
 };
 
 const render = (view: ThreadView, start: number): string =>

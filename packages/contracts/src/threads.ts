@@ -17,3 +17,10 @@ export type CreateThreadRequest = z.infer<typeof CreateThreadRequest>;
 
 export const UpdateThreadRequest = z.strictObject({ title: ThreadTitle });
 export type UpdateThreadRequest = z.infer<typeof UpdateThreadRequest>;
+
+const earlier = (a: Thread, b: Thread): boolean => a.createdAt < b.createdAt || (a.createdAt === b.createdAt && a.id < b.id);
+
+/** An agent's main chat: its first by creation time (then id, so ties never flip). It receives new messages from other agents. */
+export function mainThread(threads: readonly Thread[]): Thread | null {
+  return threads.reduce<Thread | null>((first, thread) => (first === null || earlier(thread, first) ? thread : first), null);
+}

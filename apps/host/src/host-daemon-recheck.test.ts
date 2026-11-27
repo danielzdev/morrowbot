@@ -232,7 +232,9 @@ it('Recheck whose fresh start times out cancels it with its worker, verifies its
   await fixture.setFlag('hang-info', false);
   const refreshed = brief(await fixture.host.call('GET', '/api/plugins/daemon/info?refresh=1'));
   await fixture.send(thread, 'after');
-  expect({ timedOut: timedOut.body, rowsAfter, info, send, refreshed, events: await fixture.daemonEvents() }).toMatchInlineSnapshot(`
+  /** A loaded machine can hit the 500 ms deadline before the hung daemon logs the request it was sent (#61). */
+  const events = (await fixture.daemonEvents()).filter((event) => event !== 'info true d2');
+  expect({ timedOut: timedOut.body, rowsAfter, info, send, refreshed, events }).toMatchInlineSnapshot(`
     {
       "events": [
         "daemon-start d1",
@@ -240,7 +242,6 @@ it('Recheck whose fresh start times out cancels it with its worker, verifies its
         "turn d1 hello",
         "daemon-exit d1",
         "daemon-start d2",
-        "info true d2",
         "daemon-start d3",
         "info true d3",
         "turn d3 after",

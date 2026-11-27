@@ -1,10 +1,10 @@
-import type { Agent } from '@morrowbot/contracts';
+import { DEFAULT_AVATAR, type Agent } from '@morrowbot/contracts';
 import { useMemo, useRef, useState } from 'preact/hooks';
 import type { MorrowbotBridge } from '../bridge.ts';
 import { BotAvatar, combineActivity, motionOf } from '../features/avatar/index.ts';
 import type { AgentSection } from '../features/agents/index.ts';
 import { BindingControl, BindingWarnings, sendBlock, type BoundProvider } from '../features/binding/index.ts';
-import { chatDisplay, ChatView, Composer } from '../features/chat/index.ts';
+import { chatDisplay, ChatView, Composer, type PeerDirectory } from '../features/chat/index.ts';
 import { ThreadHeader } from '../features/thread/index.ts';
 import { profileName } from '../shared/binding-ui/access-copy.ts';
 import { displayPath, type AppInfo } from '../shared/privacy.ts';
@@ -60,6 +60,16 @@ export function ChatPane(props: {
     return result.kind === 'refused' ? result.message : null;
   };
   const session = threadId === null ? undefined : models.chats.session(threadId);
+  const everyone = state.agents.kind === 'loaded' ? state.agents.value : null;
+  const peers = useMemo<PeerDirectory>(() => {
+    const byId = new Map((everyone ?? []).map((each) => [each.id, each]));
+    const avatarOf = (id: string) => byId.get(id)?.avatar ?? DEFAULT_AVATAR;
+    return {
+      name: (id) => byId.get(id)?.name ?? 'Unknown agent',
+      color: (id) => avatarOf(id).color,
+      avatar: (id, size) => <BotAvatar avatar={avatarOf(id)} size={size} reducedMotion={props.reducedMotion} />,
+    };
+  }, [everyone, props.reducedMotion]);
   const motion = motionOf(combineActivity(Object.values(activity).filter((each) => each.agentId === agent.id).map((each) => each.activity)));
   return (
     <div class="main">
@@ -105,6 +115,7 @@ export function ChatPane(props: {
             onApprovalFocused={props.onApprovalFocused}
             announce="status"
             onOpenProviders={props.onOpenProviders}
+            peers={peers}
             hero={
               <>
                 <BotAvatar avatar={agent.avatar} motion={motion} size={64} reducedMotion={props.reducedMotion} />

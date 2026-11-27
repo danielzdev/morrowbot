@@ -1,10 +1,10 @@
-import type { ApiError, AssistantMessage, EventServerFrame, SessionChoice, SessionChoiceReason } from '@morrowbot/contracts';
+import type { AgentMessage, ApiError, AssistantMessage, EventServerFrame, SessionChoice, SessionChoiceReason, ThreadState } from '@morrowbot/contracts';
 import type { MorrowbotBridge } from '../../bridge.ts';
-import type { Api } from '../../shared/api.ts';
+import type { Api, ApiResult } from '../../shared/api.ts';
 import { Store, type Loadable } from '../../shared/store.ts';
 import { memoryDrafts, type DraftStore } from './drafts.ts';
 import type { BannerReason } from './outcome-copy.ts';
-import { applyEvent, endApproval, pendingApprovals, viewOf, type ThreadView } from './thread-model.ts';
+import { applyEvent, endApproval, pendingApprovals, viewOf, withAgentMessages, type ThreadView } from './thread-model.ts';
 
 /** Something the composer asked the host to start. Kept so it can be retried exactly. */
 export type PendingAction =
@@ -112,13 +112,24 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
   let loading = false;
   let closed = false;
   let blockedTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Agent messages announced while a load is in flight, so none falls between its fetch and live delivery. */
+  let heard: AgentMessage[] = [];
+
+  /** The chat's `/state` and its agent messages: both, or the first failure. */
+  async function snapshot(): Promise<ApiResult<{ readonly state: ThreadState; readonly agentMessages: readonly AgentMessage[] }>> {
+    const state = await api.threadState(threadId);
+    if (state.kind === 'failed') return state;
+    const exchanged = await api.agentMessages(state.value.thread.agentId, threadId);
+    return exchanged.kind === 'failed' ? exchanged : { kind: 'ok', value: { state: state.value, agentMessages: exchanged.value.messages } };
+  }
 
   async function load(): Promise<void> {
     const mine = ++loads;
     loading = true;
     clearTimeout(blockedTimer);
     bridge.unsubscribe(threadId);
-    const result = await api.threadState(threadId);
+    heard = [];
+    const result = await snapshot();
     if (mine !== loads || closed) return;
     loading = false;
     const before = screen.get().view;
@@ -131,9 +142,11 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
       patch({ connection: streamUp ? 'live' : 'reconnecting', view: { kind: 'failed', message: result.status === 404 ? 'This chat no longer exists.' : result.error.message } });
       return;
     }
-    const view = viewOf(result.value, before.kind === 'loaded' ? before.value : null);
+    const previous = before.kind === 'loaded' ? before.value : null;
+    const view = withAgentMessages(viewOf(result.value.state, previous, result.value.agentMessages), heard);
+    heard = [];
     patch({ connection: streamUp ? 'live' : 'reconnecting', view: { kind: 'loaded', value: view } });
-    bridge.subscribe(threadId, result.value.cursor);
+    bridge.subscribe(threadId, result.value.state.cursor);
     if (view.blockedGroups.length > 0) {
       blockedTimer = setTimeout(() => void load(), options.blockedRefreshMs ?? 5_000);
     }
@@ -145,8 +158,19 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
     void load();
   }
 
+  function hear(message: AgentMessage): void {
+    const current = screen.get().view;
+    if (loading || current.kind !== 'loaded') heard.push(message);
+    else patch({ view: { kind: 'loaded', value: withAgentMessages(current.value, [message]) } });
+  }
+
   function handle(frame: EventServerFrame): void {
-    if (closed || frame.kind === 'usage.updated' || frame.threadId !== threadId) return;
+    if (closed || frame.kind === 'usage.updated') return;
+    if (frame.kind === 'agent-message.posted') {
+      hear(frame.message);
+      return;
+    }
+    if (frame.threadId !== threadId) return;
     if (frame.kind === 'resync') {
       resync();
       return;

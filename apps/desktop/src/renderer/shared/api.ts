@@ -1,5 +1,6 @@
 import {
   Agent,
+  AgentMessageList,
   AgentInstructionsView,
   InstructionsCopyReply,
   PutInstructionsReply,
@@ -58,6 +59,8 @@ export interface Api {
   renameThread(id: string, title: string): Promise<ApiResult<Thread>>;
   deleteThread(id: string): Promise<ApiResult<null>>;
   threadState(id: string): Promise<ApiResult<ThreadState>>;
+  /** The agent messages shown in one of the agent's chats, oldest first. */
+  agentMessages(agentId: string, threadId: string): Promise<ApiResult<AgentMessageList>>;
   send(threadId: string, text: string, sessionChoice: SessionChoice): Promise<ApiResult<SendMessageResponse>>;
   continueTurn(threadId: string, failedMessageId: string, sessionChoice: SessionChoice): Promise<ApiResult<ContinueResponse>>;
   stop(threadId: string): Promise<ApiResult<StopGenerationResponse>>;
@@ -112,6 +115,8 @@ export function createApi(bridge: MorrowbotBridge): Api {
     renameThread: (id, title) => call(Thread, 'PATCH', at('threads', id), { title }),
     deleteThread: (id) => call(NoContent, 'DELETE', at('threads', id)),
     threadState: (id) => call(ThreadState, 'GET', at('threads', id, 'state')),
+    agentMessages: (agentId, threadId) =>
+      call(AgentMessageList, 'GET', `${at('agents', agentId, 'messages')}?${new URLSearchParams({ threadId }).toString()}`),
     send: (threadId, text, sessionChoice) => call(SendMessageResponse, 'POST', at('threads', threadId, 'messages'), { text, sessionChoice }),
     continueTurn: (threadId, failedMessageId, sessionChoice) =>
       call(ContinueResponse, 'POST', at('threads', threadId, 'continue'), { failedMessageId, sessionChoice }),
