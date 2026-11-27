@@ -21,6 +21,14 @@ export function statusText(status: AgentStatus): { readonly text: string; readon
   }
 }
 
+const PREVIEW_CHARS = 160;
+
+/** One line of an already redacted preview: whitespace collapsed, at most 160 characters. */
+export function shortPreview(redacted: string): string {
+  const line = redacted.replaceAll(/\s+/g, ' ').trim();
+  return line.length <= PREVIEW_CHARS ? line : `${line.slice(0, PREVIEW_CHARS).trimEnd()}…`;
+}
+
 export interface AgentRowProps {
   readonly entry: AgentEntry;
   readonly avatar: ComponentChildren;
@@ -44,7 +52,7 @@ export function AgentRow(props: AgentRowProps) {
   const shown = statusText(status);
   const unread = status.kind === 'unread';
   const role = agent.description.split('\n')[0]?.trim() ?? '';
-  const preview = lastMessage === null ? null : `${lastMessage.kind === 'user' ? 'You: ' : ''}${props.redact(lastMessage.preview)}`;
+  const preview = lastMessage === null ? null : `${lastMessage.kind === 'user' ? 'You: ' : ''}${shortPreview(props.redact(lastMessage.preview))}`;
   const main = (
     <button
       type="button"

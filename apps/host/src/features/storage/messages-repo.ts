@@ -24,8 +24,7 @@ const MessageRow = z
 
 const PREVIEW_LENGTH = 400;
 const FETCH_LENGTH = 1000;
-const CANDIDATES = 3;
-const BLANKS = "' ' || char(9, 10, 11, 12, 13)";
+const BLANKS = 'char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279)';
 
 const LastMessageRow = z
   .object({ agent_id: z.string(), thread_id: z.string(), kind: z.string(), text: z.string(), longer: z.number(), created_at: z.string() })
@@ -33,10 +32,9 @@ const LastMessageRow = z
   .pipe(LastMessage);
 
 function preview(text: string, longer: boolean): string {
-  const collapsed = text.replaceAll(/\s+/g, ' ').trim();
-  if (!longer && collapsed.length <= PREVIEW_LENGTH) return collapsed;
-  const head = collapsed.slice(0, PREVIEW_LENGTH + 1);
-  const end = head.lastIndexOf(' ');
+  if (!longer && text.length <= PREVIEW_LENGTH) return text;
+  const head = text.slice(0, PREVIEW_LENGTH + 1);
+  const end = head.search(/\s\S*$/);
   return `${end > 0 ? head.slice(0, end) : ''}…`;
 }
 
@@ -61,7 +59,7 @@ export function messageRepository(db: DatabaseSync): MessageRepository {
          row_number() OVER (PARTITION BY t.agent_id ORDER BY m.seq DESC) AS rank
        FROM messages m JOIN threads t ON t.id = m.thread_id
        WHERE trim(m.text, ${BLANKS}) <> ''
-     ) WHERE rank <= ${String(CANDIDATES)} ORDER BY seq DESC`,
+     ) WHERE rank = 1 ORDER BY seq DESC`,
   );
   return {
     insert: (message) => {
@@ -85,13 +83,6 @@ export function messageRepository(db: DatabaseSync): MessageRepository {
       return row === undefined ? undefined : MessageRow.parse(row);
     },
     listByThread: (threadId) => listByThread.all(threadId).map((row) => MessageRow.parse(row)),
-    lastByAgent: () => {
-      const found = new Map<string, LastMessage>();
-      for (const row of lastByAgent.all()) {
-        const message = LastMessageRow.parse(row);
-        if (message.preview !== '' && !found.has(message.agentId)) found.set(message.agentId, message);
-      }
-      return [...found.values()];
-    },
+    lastByAgent: () => lastByAgent.all().map((row) => LastMessageRow.parse(row)),
   };
 }

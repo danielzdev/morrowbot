@@ -196,7 +196,7 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
       return;
     }
     threadLoads.set(agentId, ++threadSeq);
-    setThreads(agentId, { kind: 'loaded', value: [result.value, ...threadsOf(agentId)] });
+    setThreads(agentId, { kind: 'loaded', value: [result.value, ...threadsOf(agentId).filter(({ id }) => id !== result.value.id)] });
   }
 
   /** Refreshes last messages only, so agent and folder edits still saving are not undone. */

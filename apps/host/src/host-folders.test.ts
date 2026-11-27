@@ -84,7 +84,9 @@ it('files agents into folders, previews their last message, and unfiles them whe
             "agentId": "id-1",
             "at": "2026-01-01T00:00:07.000Z",
             "kind": "assistant",
-            "preview": "hello from pid <pid>: water the ferns",
+            "preview": "hello from pid <pid>:   water
+
+      the   ferns	",
             "threadId": "id-4",
           },
         ],
@@ -127,7 +129,9 @@ it('files agents into folders, previews their last message, and unfiles them whe
             "agentId": "id-1",
             "at": "2026-01-01T00:00:07.000Z",
             "kind": "assistant",
-            "preview": "hello from pid <pid>: water the ferns",
+            "preview": "hello from pid <pid>:   water
+
+      the   ferns	",
             "threadId": "id-4",
           },
         ],
