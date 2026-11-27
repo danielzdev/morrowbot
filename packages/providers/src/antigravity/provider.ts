@@ -41,7 +41,7 @@ export function createAntigravityProvider(runtime: PluginRuntime): ProviderPlugi
     starting ??= startDaemon(runtime.jsonRpcProcess, { cliPath: settings.cliPath, cwd: probeCwd, geminiDir, home: runtime.env.HOME ?? null, onBreach })
       .then((result) => {
         if (result.kind === 'failed') return result.reason;
-        const fresh: Live = { daemon: result.daemon, catalog: createModelCatalog(), tier: null, signedOut: false };
+        const fresh: Live = { daemon: result.client, catalog: createModelCatalog(), tier: null, signedOut: false };
         live = fresh;
         fresh.daemon.exited
           .then(() => {

@@ -7,7 +7,8 @@ signed in with your own Google plan. It runs one shared daemon,
 agy acp --gemini-dir <plugin data>/gemini
 ```
 
-speaking the Agent Client Protocol (ACP v1) through the SDK's `jsonRpcProcess`. Provider-info
+speaking the Agent Client Protocol (ACP v1) through the SDK's read-only ACP client
+(`acp.startAcpClient`, shared with OpenCode). Provider-info
 starts it and registers it with the host before any turn uses it. `--gemini-dir` gives MorrowBot its own
 Antigravity settings, permission grants, hooks, plugins and MCP servers, apart from your
 `~/.gemini`. The sign-in is still yours: agy keeps it in the system keychain.

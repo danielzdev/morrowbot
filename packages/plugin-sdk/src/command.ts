@@ -25,6 +25,8 @@ export interface CommandOptions {
    * where the command expects a path.
    */
   readonly files: readonly string[];
+  /** Variables this command gets on top of the runtime's environment, replacing any of the same name. The guard that starts it runs without them. */
+  readonly env?: Readonly<Record<string, string>>;
   /**
    * What the command's process group belongs to: a turn (by its `turnId`), a short probe, or the
    * plugin's shared daemon (started from `providerInfo`, kept across turns, stopped by the host's
@@ -227,7 +229,7 @@ function openCommand(command: string, options: CommandOptions, owner: Owner): Op
     owner.link
       .register(message.pgid, message.leaderStart, options.scope, terminate)
       .then(() => {
-        if (!killed) tell({ kind: 'spawn' });
+        if (!killed) tell({ kind: 'spawn', env: { ...options.env } });
       })
       .catch((error: unknown) => {
         console.error(`MorrowBot plugin: could not register a command's process group: ${describe(error)}`);

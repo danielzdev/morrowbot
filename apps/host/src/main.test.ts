@@ -73,6 +73,7 @@ it('boots in safe mode with 0 plugins and stops cleanly on SIGTERM', async () =>
       MorrowBot host: plugin provider-claude is stopped
       MorrowBot host: plugin provider-openai is stopped
       MorrowBot host: plugin provider-antigravity is stopped
+      MorrowBot host: plugin provider-opencode is stopped
       MorrowBot host: plugin echo is stopped
       MorrowBot host: plugin faulty is stopped
       ",
@@ -81,7 +82,7 @@ it('boots in safe mode with 0 plugins and stops cleanly on SIGTERM', async () =>
   });
 });
 
-it('runs the built-in Claude, Codex and Antigravity providers with no plugins folder configured', async () => {
+it('runs the built-in Claude, Codex, Antigravity and OpenCode providers with no plugins folder configured', async () => {
   await withDataDir(async (dataDir) => {
     const env = { PATH: process.env.PATH, HOME: dataDir, MORROWBOT_HOST_PORT: '0', MORROWBOT_DATA_DIR: path.join(dataDir, 'data') };
     const host = spawn(process.execPath, [MAIN], { env, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -99,10 +100,11 @@ it('runs the built-in Claude, Codex and Antigravity providers with no plugins fo
         "code": 0,
         "lines": [
           "MorrowBot host 0.0.0 listening on http://127.0.0.1:PORT",
-          "MorrowBot host: 3 plugin(s) running",
+          "MorrowBot host: 4 plugin(s) running",
           "MorrowBot host: plugin provider-antigravity is running",
           "MorrowBot host: plugin provider-claude is running",
           "MorrowBot host: plugin provider-openai is running",
+          "MorrowBot host: plugin provider-opencode is running",
         ],
       }
     `);

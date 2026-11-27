@@ -12,6 +12,8 @@ export interface JsonRpcProcessOptions {
   readonly cwd: string;
   /** Extra inputs read as files, as in `CommandOptions.files`. */
   readonly files: readonly string[];
+  /** Variables the daemon gets on top of the runtime's environment, as in `CommandOptions.env`. */
+  readonly env?: Readonly<Record<string, string>>;
   /** Aborting stops the daemon (its guard sends SIGTERM to the group, then SIGKILL a second later). */
   readonly signal: AbortSignal;
   /** A message from the daemon without an `id`. Parse `params` with `z.looseObject`. */
@@ -127,6 +129,7 @@ export const jsonRpcProcessOver = (open: CommandRunner['open']): StartJsonRpcPro
     args: options.args,
     cwd: options.cwd,
     files: options.files,
+    ...(options.env === undefined ? {} : { env: options.env }),
     scope: { kind: 'daemon' },
     signal: AbortSignal.any([options.signal, stop.signal]),
     onLine: read,

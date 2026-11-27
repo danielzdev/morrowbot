@@ -1,4 +1,4 @@
-import type { TurnChunk } from '@morrowbot/plugin-sdk';
+import type { TurnChunk } from '@morrowbot/contracts';
 
 type ToolInput = Extract<TurnChunk, { kind: 'tool-start' }>['input'];
 

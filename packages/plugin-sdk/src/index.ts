@@ -21,6 +21,7 @@ export { listDirectory, readOptionalFile } from './files.ts';
 export type { Executable } from './files.ts';
 export { checkVersion } from './version.ts';
 export type { CliVersion, RangeCheck, VersionRange } from './version.ts';
+export * as acp from './acp/index.ts';
 export { runPlugin } from './run-plugin.ts';
 export { servePlugin } from './serve.ts';
 export type { PluginTransport, ServedPlugin } from './serve.ts';
