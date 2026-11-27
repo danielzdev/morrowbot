@@ -3,18 +3,17 @@ import { closeSync, mkdtempSync, openSync, rmSync, writeSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { FIRST_FILE_FD, GuardMessage } from './command-protocol.ts';
+import type { ChildGroupScope } from '@morrowbot/contracts';
+import { FIRST_FILE_FD, GuardMessage, type OwnerMessage } from './command-protocol.ts';
+import { groupExited, registerGroup } from './host-link.ts';
 
 const GUARD_PATH = fileURLToPath(new URL('./command-guard.ts', import.meta.url));
-const STOP_GRACE_MS = 1_000;
 const DRAIN_MS = 250;
 const STDERR_LIMIT = 4_000;
 
 export interface CommandOptions {
   readonly args: readonly string[];
   readonly cwd: string;
-  /** Written to the command's stdin, which is then closed. */
-  readonly input: string;
   /**
    * Extra inputs the command reads as files, kept out of the process list. Each goes in a
    * private (0600) temporary file whose name is removed before its contents are written, so
@@ -22,10 +21,17 @@ export interface CommandOptions {
    * where the command expects a path.
    */
   readonly files: readonly string[];
-  /** Aborting stops the command (or keeps it from starting): SIGTERM to all its processes, then SIGKILL if any are left a second later. */
+  /** What the command's process group belongs to: a turn (by its `turnId`) or a short probe. */
+  readonly scope: ChildGroupScope;
+  /** Aborting stops the command (or keeps it from starting): its guard sends SIGTERM to the group, then SIGKILL a second later. */
   readonly signal: AbortSignal;
   /** Hears each line the command prints to stdout, without the line break. */
   readonly onLine: (line: string) => void;
+}
+
+export interface RunCommandOptions extends CommandOptions {
+  /** Written to the command's stdin, which is then closed. */
+  readonly input: string;
 }
 
 export type CommandExit =
@@ -39,20 +45,30 @@ export type CommandExit =
   | { readonly kind: 'not-found' }
   | { readonly kind: 'failed'; readonly message: string };
 
+/** A started command whose stdin stays open until `end`. */
+export interface OpenCommand {
+  /** Settles once the command and its guard have exited. Never rejects. */
+  readonly exited: Promise<CommandExit>;
+  write(text: string): void;
+  end(): void;
+}
+
 /** The path that reads `files[index]` inside the command. */
 export function commandFilePath(index: number): string {
   return `/dev/fd/${String(FIRST_FILE_FD + index)}`;
 }
 
-const running = new Set<() => Promise<CommandExit>>();
+/** Each running command's stop, with what its group belongs to. */
+const running = new Map<() => Promise<CommandExit>, ChildGroupScope>();
 
 /**
- * Runs a program (found on `PATH` unless given as a path) and settles when it has exited.
- * Never rejects. The program runs in its own process group: when it exits, whatever it
- * left running in that group is killed, and so is the whole group if the plugin process dies.
+ * Starts a program (found on `PATH` unless given as a path) through a guard process that leads its
+ * own process group. The guard reports the group to the host and waits for the host's
+ * acknowledgement before it starts the program. When the program exits, whatever it left running
+ * in the group is killed; the whole group is killed if the plugin process dies. macOS and Linux only.
  */
-export function runCommand(command: string, options: CommandOptions): Promise<CommandExit> {
-  if (options.signal.aborted) return Promise.resolve({ kind: 'exited', code: null, signal: null, stderr: '' });
+export function openCommand(command: string, options: CommandOptions): OpenCommand {
+  if (options.signal.aborted) return closedCommand({ kind: 'exited', code: null, signal: null, stderr: '' });
   const fileFds: number[] = [];
   let guard;
   try {
@@ -61,38 +77,40 @@ export function runCommand(command: string, options: CommandOptions): Promise<Co
     guard = fork(GUARD_PATH, [String(options.files.length), command, ...options.args], {
       cwd: options.cwd,
       detached: true,
+      env: guardEnv(),
       execArgv: [],
       serialization: 'json',
       stdio,
     });
   } catch (error) {
-    return Promise.resolve({ kind: 'failed', message: describe(error) });
+    return closedCommand({ kind: 'failed', message: describe(error) });
   } finally {
     for (const fd of fileFds) closeSync(fd);
   }
   const exit = Promise.withResolvers<CommandExit>();
-  const { pid, stdin, stdout, stderr } = guard;
+  const { stdin, stdout, stderr } = guard;
   let settled = false;
+  let killed = false;
+  let pgid: number | undefined;
   let report: GuardMessage | undefined;
   let lineError: unknown;
   let errorOutput = '';
   let partial = '';
-  let escalation: NodeJS.Timeout | undefined;
 
-  const signalAll = (signal: NodeJS.Signals): void => {
-    if (settled || pid === undefined) return;
+  const tell = (message: OwnerMessage): void => {
+    if (!guard.connected) return;
     try {
-      process.kill(-pid, signal);
+      guard.send(message, (error) => {
+        if (error) guard.disconnect();
+      });
     } catch {
-      guard.kill(signal);
+      guard.disconnect();
     }
   };
   const terminate = (): void => {
-    if (escalation !== undefined) return;
-    signalAll('SIGTERM');
-    escalation = setTimeout(() => {
-      signalAll('SIGKILL');
-    }, STOP_GRACE_MS);
+    if (killed || settled) return;
+    killed = true;
+    tell({ kind: 'kill' });
   };
   const stop = (): Promise<CommandExit> => {
     terminate();
@@ -101,9 +119,9 @@ export function runCommand(command: string, options: CommandOptions): Promise<Co
   const finish = (result: CommandExit): void => {
     if (settled) return;
     settled = true;
-    clearTimeout(escalation);
     running.delete(stop);
     options.signal.removeEventListener('abort', terminate);
+    if (pgid !== undefined) groupExited(pgid);
     exit.resolve(result);
   };
   const emit = (line: string): void => {
@@ -116,13 +134,23 @@ export function runCommand(command: string, options: CommandOptions): Promise<Co
     }
   };
 
-  running.add(stop);
+  running.set(stop, options.scope);
   guard.on('error', (error) => {
-    if (pid === undefined) finish({ kind: 'failed', message: `Could not start in ${options.cwd}: ${error.message}` });
+    if (guard.pid === undefined) finish({ kind: 'failed', message: `Could not start in ${options.cwd}: ${error.message}` });
   });
   guard.on('message', (raw: unknown) => {
     const parsed = GuardMessage.safeParse(raw);
-    if (parsed.success) report = parsed.data;
+    if (!parsed.success) return;
+    const message = parsed.data;
+    if (message.kind !== 'started') {
+      report = message;
+      return;
+    }
+    if (pgid !== undefined) return;
+    pgid = message.pgid;
+    void registerGroup(message.pgid, message.leaderStart, options.scope, terminate).then(() => {
+      if (!killed) tell({ kind: 'spawn' });
+    });
   });
   const complete = (code: number | null, signal: string | null): void => {
     if (partial !== '') emit(partial);
@@ -148,14 +176,44 @@ export function runCommand(command: string, options: CommandOptions): Promise<Co
     errorOutput = (errorOutput + text).slice(-STDERR_LIMIT);
   });
   stdin?.on('error', () => undefined);
-  stdin?.end(options.input);
   options.signal.addEventListener('abort', terminate, { once: true });
-  return exit.promise;
+  return {
+    exited: exit.promise,
+    write: (text) => {
+      if (stdin?.writable === true) stdin.write(text);
+    },
+    end: () => {
+      stdin?.end();
+    },
+  };
+}
+
+/** Runs a program to completion with `input` on stdin: the one-shot form of `openCommand`. */
+export function runCommand(command: string, options: RunCommandOptions): Promise<CommandExit> {
+  const opened = openCommand(command, options);
+  opened.write(options.input);
+  opened.end();
+  return opened.exited;
 }
 
 /** Stops every running command and waits until they have exited. */
 export async function stopAllCommands(): Promise<void> {
-  await Promise.all([...running].map((stop) => stop()));
+  await Promise.all([...running.keys()].map((stop) => stop()));
+}
+
+/** Stops the commands a turn started and waits until they have exited, so no turn group outlives its turn. */
+export async function stopTurnCommands(turnId: string): Promise<void> {
+  const owned = [...running].filter(([, scope]) => scope.kind === 'turn' && scope.turnId === turnId);
+  await Promise.all(owned.map(([stop]) => stop()));
+}
+
+/** Under Electron the guard runs on the Electron binary, which must act as plain Node. The guard removes it again for the command. */
+function guardEnv(): NodeJS.ProcessEnv {
+  return process.versions.electron === undefined ? process.env : { ...process.env, ELECTRON_RUN_AS_NODE: '1' };
+}
+
+function closedCommand(result: CommandExit): OpenCommand {
+  return { exited: Promise.resolve(result), write: () => undefined, end: () => undefined };
 }
 
 function outcome(
@@ -166,6 +224,8 @@ function outcome(
   if (lineError !== undefined) return { kind: 'failed', message: `onLine threw: ${describe(lineError)}` };
   if (report === undefined) return guardExit;
   switch (report.kind) {
+    case 'started':
+      return guardExit;
     case 'exit':
       return { ...guardExit, code: report.code, signal: report.signal };
     case 'spawn-error':

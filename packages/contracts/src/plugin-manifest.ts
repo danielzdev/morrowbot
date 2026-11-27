@@ -18,9 +18,18 @@ const RelativeEntry = z
     { error: 'Use a path inside the plugin folder' },
   );
 
-const EnvName = z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, 'Use an environment variable name');
+/**
+ * The host environment a plugin process gets. `none`: only `PATH`. `cli-runtime`: what a vendor CLI
+ * needs to find its login and config (HOME, USER, SHELL, TMPDIR, LANG, TZ, XDG_*, proxy variables,
+ * DBUS_SESSION_BUS_ADDRESS, CLAUDE_CONFIG_DIR, CODEX_HOME, and the Windows equivalents).
+ * It is not a sandbox: plugins are trusted code.
+ */
+export const EnvPreset = z.enum(['none', 'cli-runtime']);
+export type EnvPreset = z.infer<typeof EnvPreset>;
 
 export const PluginManifest = z.strictObject({
+  /** The plugin wire protocol the plugin speaks. */
+  protocolVersion: z.literal(1),
   id: z.string().regex(/^[a-z][a-z0-9-]*$/, 'Use lowercase letters, digits, and dashes'),
   name: z.string().min(1),
   version: z.string().regex(/^\d+\.\d+\.\d+$/, 'Use a MAJOR.MINOR.PATCH version'),
@@ -29,14 +38,7 @@ export const PluginManifest = z.strictObject({
   permissions: z.array(PluginPermission).refine((list) => new Set(list).size === list.length, {
     error: 'List each permission once',
   }),
-  /**
-   * Host environment variables the plugin process receives besides `PATH`; unset ones are left out.
-   * This keeps the host's environment out of plugins by default. It is not a sandbox: plugins are trusted code.
-   */
-  env: z
-    .array(EnvName)
-    .refine((list) => new Set(list).size === list.length, { error: 'List each variable once' })
-    .default([]),
+  envPreset: EnvPreset.default('none'),
   settingsSchema: PluginSettingsSchema,
 });
 

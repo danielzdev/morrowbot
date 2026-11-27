@@ -1,30 +1,32 @@
 import { expect, it } from 'vitest';
 import { buildInvocation } from './invocation.ts';
 
-const settings = { model: 'opus', cliPath: 'claude', cwd: '/data' };
-
-it('passes the model and system prompt as flags and the conversation on stdin', () => {
+it('runs read-only and isolated, with the model, system prompt file and seeded conversation', () => {
   expect(
-    buildInvocation(
-      {
-        messages: [
-          { role: 'system', content: 'Be brief.' },
-          { role: 'user', content: 'Name a fish.' },
-          { role: 'assistant', content: 'Koi.' },
-          { role: 'user', content: 'Another?' },
-        ],
-      },
-      settings,
-    ),
+    buildInvocation({
+      selection: { kind: 'model', id: 'opus', choices: {} },
+      system: 'Be brief.',
+      seed: '<user>\nName a fish.\n</user>\n<assistant>\nKoi.\n</assistant>',
+      prompt: 'Another?',
+    }),
   ).toMatchInlineSnapshot(`
     {
       "args": [
-        "--print",
+        "-p",
         "--output-format",
         "stream-json",
         "--verbose",
         "--include-partial-messages",
         "--no-session-persistence",
+        "--safe-mode",
+        "--strict-mcp-config",
+        "--restricted",
+        "--tools",
+        "Read,Glob,Grep",
+        "--permission-mode",
+        "dontAsk",
+        "--permission-prompts",
+        "none",
         "--model",
         "opus",
         "--append-system-prompt-file",
@@ -50,30 +52,28 @@ it('passes the model and system prompt as flags and the conversation on stdin', 
   `);
 });
 
-it('sends a single message as is and refuses a conversation that does not end with the user', () => {
-  const single = buildInvocation({ messages: [{ role: 'user', content: 'hi' }] }, { ...settings, model: 'default' });
-  const refused = (() => {
-    try {
-      return buildInvocation({ messages: [{ role: 'assistant', content: 'hi' }] }, settings);
-    } catch (error) {
-      return String(error);
-    }
-  })();
-  expect({ single, refused }).toMatchInlineSnapshot(`
+it('sends an unseeded prompt as is, with no model or system flags', () => {
+  expect(buildInvocation({ selection: { kind: 'default' }, system: null, seed: null, prompt: 'hi' })).toMatchInlineSnapshot(`
     {
-      "refused": "Error: The last message must come from the user",
-      "single": {
-        "args": [
-          "--print",
-          "--output-format",
-          "stream-json",
-          "--verbose",
-          "--include-partial-messages",
-          "--no-session-persistence",
-        ],
-        "files": [],
-        "input": "hi",
-      },
+      "args": [
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--verbose",
+        "--include-partial-messages",
+        "--no-session-persistence",
+        "--safe-mode",
+        "--strict-mcp-config",
+        "--restricted",
+        "--tools",
+        "Read,Glob,Grep",
+        "--permission-mode",
+        "dontAsk",
+        "--permission-prompts",
+        "none",
+      ],
+      "files": [],
+      "input": "hi",
     }
   `);
 });

@@ -1,18 +1,13 @@
 {
+  "protocolVersion": 1,
   "id": "provider-claude",
   "name": "Claude (subscription)",
   "version": "0.1.0",
   "kind": "provider",
   "main": "src/index.ts",
   "permissions": ["shell", "network"],
-  "env": ["HOME", "USER", "CLAUDE_CONFIG_DIR"],
+  "envPreset": "cli-runtime",
   "settingsSchema": {
-    "model": {
-      "kind": "select",
-      "label": "Model",
-      "options": ["default", "fable", "opus", "sonnet", "haiku"],
-      "default": "default"
-    },
     "cliPath": { "kind": "string", "label": "Claude Code CLI path", "default": "claude" }
   }
 }

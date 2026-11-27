@@ -1,15 +1,22 @@
-import { z, type FinishReason, type StreamChunk } from '@morrowbot/plugin-sdk';
+import { z, type FinishReason, type TurnChunk, type TurnUsage } from '@morrowbot/plugin-sdk';
+import { toolInput } from './tool-input.ts';
 
-/** What one line of `claude --output-format stream-json --verbose --include-partial-messages` means for the reply. */
+/** What one line of `claude --output-format stream-json --verbose --include-partial-messages` means for the turn. */
 export type CliLine =
-  | { readonly kind: 'chunks'; readonly chunks: readonly StreamChunk[] }
+  | { readonly kind: 'chunks'; readonly chunks: readonly TurnChunk[] }
+  | { readonly kind: 'init'; readonly model: string; readonly chunks: readonly TurnChunk[] }
   | { readonly kind: 'result'; readonly result: CliResult }
   | { readonly kind: 'skip' }
   | { readonly kind: 'malformed'; readonly problem: string };
 
 export type CliResult =
-  | { readonly kind: 'success'; readonly text: string; readonly finishReason: FinishReason }
-  | { readonly kind: 'error'; readonly message: string };
+  | { readonly kind: 'success'; readonly text: string; readonly finishReason: FinishReason; readonly usage: TurnUsage }
+  | { readonly kind: 'error'; readonly message: string; readonly usage: TurnUsage };
+
+/** What the parser needs from the machine: the home folder, shown as `~` in tool input. */
+export interface LineContext {
+  readonly home: string | null;
+}
 
 const Envelope = z.looseObject({ type: z.string() });
 
@@ -58,11 +65,21 @@ const ResultLine = z.looseObject({
   result: z.string().nullish(),
   errors: z.array(z.string()).optional(),
   stop_reason: z.string().nullish(),
+  usage: z.unknown().optional(),
+});
+
+const Tokens = z.number().int().nonnegative();
+
+const ResultUsage = z.looseObject({
+  input_tokens: Tokens,
+  output_tokens: Tokens,
+  cache_read_input_tokens: Tokens.nullish(),
+  cache_creation_input_tokens: Tokens.nullish(),
 });
 
 const SKIP: CliLine = { kind: 'skip' };
 
-export function parseCliLine(line: string): CliLine {
+export function parseCliLine(line: string, context: LineContext): CliLine {
   if (line.trim() === '') return SKIP;
   let json: unknown;
   try {
@@ -78,7 +95,7 @@ export function parseCliLine(line: string): CliLine {
     case 'stream_event':
       return parse(StreamEventLine, json, streamEvent);
     case 'assistant':
-      return parse(AssistantLine, json, assistant);
+      return parse(AssistantLine, json, (value) => assistant(value, context));
     case 'user':
       return parse(UserLine, json, user);
     case 'result':
@@ -96,13 +113,13 @@ function parse<T>(schema: z.ZodType<T>, json: unknown, read: (value: T) => CliLi
   return { kind: 'malformed', problem: `a "${type}" line with an unexpected shape (${issues.join('; ')})` };
 }
 
-function chunks(list: readonly StreamChunk[]): CliLine {
+function chunks(list: readonly TurnChunk[]): CliLine {
   return list.length === 0 ? SKIP : { kind: 'chunks', chunks: list };
 }
 
 function system(line: z.infer<typeof SystemLine>): CliLine {
   if (line.subtype !== 'init' || !line.model) return SKIP;
-  return chunks([{ kind: 'status', text: `Started ${line.model}` }]);
+  return { kind: 'init', model: line.model, chunks: [{ kind: 'status', text: `Started ${line.model}` }] };
 }
 
 function streamEvent({ parent_tool_use_id, event }: z.infer<typeof StreamEventLine>): CliLine {
@@ -116,12 +133,12 @@ function streamEvent({ parent_tool_use_id, event }: z.infer<typeof StreamEventLi
   return SKIP;
 }
 
-function assistant({ parent_tool_use_id, message }: z.infer<typeof AssistantLine>): CliLine {
+function assistant({ parent_tool_use_id, message }: z.infer<typeof AssistantLine>, context: LineContext): CliLine {
   if (parent_tool_use_id) return SKIP;
   return chunks(
-    message.content.flatMap((block): StreamChunk[] =>
+    message.content.flatMap((block): TurnChunk[] =>
       block.type === 'tool_use' && block.id && block.name
-        ? [{ kind: 'tool-start', toolUseId: block.id, name: block.name, input: block.input ?? null }]
+        ? [{ kind: 'tool-start', toolUseId: block.id, name: block.name, input: toolInput(block.input ?? null, context.home) }]
         : [],
     ),
   );
@@ -130,7 +147,7 @@ function assistant({ parent_tool_use_id, message }: z.infer<typeof AssistantLine
 function user({ parent_tool_use_id, message }: z.infer<typeof UserLine>): CliLine {
   if (parent_tool_use_id || typeof message.content === 'string') return SKIP;
   return chunks(
-    message.content.flatMap((block): StreamChunk[] =>
+    message.content.flatMap((block): TurnChunk[] =>
       block.type === 'tool_result' && block.tool_use_id
         ? [{ kind: 'tool-end', toolUseId: block.tool_use_id, outcome: block.is_error === true ? 'error' : 'ok' }]
         : [],
@@ -139,13 +156,28 @@ function user({ parent_tool_use_id, message }: z.infer<typeof UserLine>): CliLin
 }
 
 function result(line: z.infer<typeof ResultLine>): CliLine {
+  const usage = turnUsage(line.usage);
   if (line.is_error || line.subtype !== 'success') {
     const message = line.result?.trim() || (line.errors ?? []).filter((error) => error.trim() !== '').join('; ');
     return {
       kind: 'result',
-      result: { kind: 'error', message: message === '' ? `Claude Code stopped (${line.subtype})` : message },
+      result: { kind: 'error', message: message === '' ? `Claude Code stopped (${line.subtype})` : message, usage },
     };
   }
   const finishReason: FinishReason = line.stop_reason === 'max_tokens' ? 'length' : 'stop';
-  return { kind: 'result', result: { kind: 'success', text: line.result ?? '', finishReason } };
+  return { kind: 'result', result: { kind: 'success', text: line.result ?? '', finishReason, usage } };
+}
+
+function turnUsage(raw: unknown): TurnUsage {
+  const parsed = ResultUsage.safeParse(raw);
+  if (!parsed.success) return { kind: 'unavailable' };
+  const usage = parsed.data;
+  return {
+    kind: 'reported',
+    inputTokens: usage.input_tokens,
+    cachedInputTokens: usage.cache_read_input_tokens ?? null,
+    cacheWriteTokens: usage.cache_creation_input_tokens ?? null,
+    outputTokens: usage.output_tokens,
+    reasoningTokens: null,
+  };
 }

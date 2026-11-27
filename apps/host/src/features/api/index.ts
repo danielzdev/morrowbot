@@ -1,3 +1,3 @@
 export { EVENTS_PATH, startApiServer } from './server.ts';
 export type { ApiServer, ApiServerOptions } from './server.ts';
-export type { ApiAgents, ApiChat, ApiCreateAgentResult, ApiPlugins, ApiSendResult, ApiServices } from './ports.ts';
+export type { ApiAdmitResult, ApiAgents, ApiChat, ApiCreateAgentResult, ApiPlugins, ApiReplay, ApiServices } from './ports.ts';

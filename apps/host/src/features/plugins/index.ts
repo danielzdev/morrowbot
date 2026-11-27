@@ -3,3 +3,11 @@ export type { PluginHost, PluginHostOptions, PluginSummary } from './plugin-host
 export { createJsonPluginStore } from './plugin-store.ts';
 export type { PluginRecord, PluginStore } from './plugin-store.ts';
 export type { ConfigResult } from './settings.ts';
+export { ChildGroupRegistry, RELEASE_AFTER_MS } from './child-groups.ts';
+export type { ChildGroupClock, ChildGroupRow, ChildGroupStore, ReleaseResult } from './child-groups.ts';
+export type { InfoResult, PluginRevision, ProviderRequests, RouteAnswer, UsageAnswer } from './provider-requests.ts';
+export type { TurnSink } from './slot.ts';
+export { isGroupGone, systemProbe } from './release-probe.ts';
+export type { GroupSignal, Leader, ProcessProbe } from './release-probe.ts';
+export { pluginEnv, resolvePluginPath } from './plugin-env.ts';
+export type { PluginTimeouts } from './plugin-process.ts';

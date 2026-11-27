@@ -1,11 +1,11 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { ChatProvider } from '@morrowbot/contracts';
-import { ChatEvent } from '@morrowbot/contracts';
-import { pluginProviders } from '../features/chat/index.ts';
+import { EventServerFrame, ThreadState, type ChatEvent, type Cursor } from '@morrowbot/contracts';
+import WebSocket, { type RawData } from 'ws';
+import type { ChildGroupClock, PluginTimeouts, ProcessProbe } from '../features/plugins/index.ts';
 import { startHost, type Host } from '../host.ts';
 
-/** The plugin host's own fixture plugins (`echo` is a provider that can stall). */
+/** The plugin host's own fixture plugins (`echo` is a provider with scripted prompts). */
 export const PLUGIN_FIXTURES = fileURLToPath(new URL('../features/plugins/fixtures', import.meta.url));
 
 export interface Sequence {
@@ -25,11 +25,12 @@ export function sequence(): Sequence {
 
 export interface TestHostOptions {
   readonly dataDir: string;
-  /** Stub providers by plugin id, or 'plugins' to chat through the real plugin host. Defaults to none. */
-  readonly providers?: Readonly<Record<string, ChatProvider>> | 'plugins';
   /** Defaults to an empty folder in `dataDir`. */
   readonly pluginsDir?: string;
   readonly sequence?: Sequence;
+  readonly timeouts?: PluginTimeouts;
+  readonly probe?: ProcessProbe;
+  readonly clock?: ChildGroupClock;
 }
 
 export interface Reply {
@@ -42,12 +43,12 @@ export interface TestHost {
   readonly url: string;
   readonly errors: unknown[];
   call(method: string, path: string, body?: unknown): Promise<Reply>;
-  events(): Promise<EventLog>;
+  /** A new `/api/events` socket. */
+  events(): Promise<EventClient>;
   close(): Promise<void>;
 }
 
 export async function startTestHost(options: TestHostOptions): Promise<TestHost> {
-  const providers = options.providers ?? {};
   const errors: unknown[] = [];
   const sockets: WebSocket[] = [];
   const host = await startHost({
@@ -59,33 +60,35 @@ export async function startTestHost(options: TestHostOptions): Promise<TestHost>
       pluginsDir: options.pluginsDir ?? path.join(options.dataDir, 'plugins'),
     },
     version: '0.0.0-test',
-    providers: (plugins) =>
-      providers === 'plugins' ? pluginProviders(plugins) : { provider: (pluginId) => providers[pluginId] },
     onPluginStatus: () => undefined,
     ...(options.sequence ?? sequence()),
     report: (error) => errors.push(error),
+    pluginPath: process.env.PATH ?? '/usr/bin:/bin',
+    ...(options.timeouts === undefined ? {} : { timeouts: options.timeouts }),
+    ...(options.probe === undefined ? {} : { probe: options.probe }),
+    ...(options.clock === undefined ? {} : { clock: options.clock }),
   });
+  const call = async (method: string, route: string, body?: unknown): Promise<Reply> => {
+    const headers: Record<string, string> = { authorization: `Bearer ${host.token}` };
+    if (body !== undefined) headers['content-type'] = 'application/json';
+    const response = await fetch(`${host.url}${route}`, { method, headers, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    const text = await response.text();
+    const parsed: unknown = text === '' ? null : JSON.parse(text);
+    return { status: response.status, body: parsed };
+  };
   return {
     host,
     url: host.url,
     errors,
-    call: async (method, path, body) => {
-      const response = await fetch(`${host.url}${path}`, {
-        method,
-        ...(body === undefined ? {} : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
-      });
-      const text = await response.text();
-      const parsed: unknown = text === '' ? null : JSON.parse(text);
-      return { status: response.status, body: parsed };
-    },
+    call,
     events: async () => {
-      const socket = new WebSocket(`${host.url.replace('http:', 'ws:')}/api/events`);
+      const socket = new WebSocket(`${host.url.replace('http:', 'ws:')}/api/events`, { headers: { authorization: `Bearer ${host.token}` } });
       sockets.push(socket);
       await new Promise((resolve, reject) => {
-        socket.addEventListener('open', resolve, { once: true });
-        socket.addEventListener('error', reject, { once: true });
+        socket.once('open', resolve);
+        socket.once('error', reject);
       });
-      return new EventLog(socket);
+      return new EventClient(socket, call);
     },
     close: async () => {
       for (const socket of sockets) socket.close();
@@ -94,21 +97,41 @@ export async function startTestHost(options: TestHostOptions): Promise<TestHost>
   };
 }
 
-/** Every event received on one `/api/events` socket, parsed with the contract. */
-export class EventLog {
+/** Every frame received on one `/api/events` socket, parsed with the contract. */
+export class EventClient {
   readonly received: ChatEvent[] = [];
+  readonly resyncs: string[] = [];
   private readonly waiters: { readonly match: (event: ChatEvent) => boolean; readonly resolve: () => void }[] = [];
+  private readonly socket: WebSocket;
+  private readonly call: (method: string, path: string) => Promise<Reply>;
 
-  constructor(socket: WebSocket) {
-    socket.addEventListener('message', (message) => {
-      if (typeof message.data !== 'string') throw new Error('Expected a text frame');
-      const event = ChatEvent.parse(JSON.parse(message.data));
-      this.received.push(event);
-      for (const waiter of this.waiters.filter((candidate) => candidate.match(event))) {
+  constructor(socket: WebSocket, call: (method: string, path: string) => Promise<Reply>) {
+    this.socket = socket;
+    this.call = call;
+    socket.on('message', (data) => {
+      const frame = EventServerFrame.parse(JSON.parse(textOf(data)));
+      if (frame.kind === 'resync') {
+        this.resyncs.push(frame.threadId);
+        return;
+      }
+      this.received.push(frame);
+      for (const waiter of this.waiters.filter((candidate) => candidate.match(frame))) {
         this.waiters.splice(this.waiters.indexOf(waiter), 1);
         waiter.resolve();
       }
     });
+  }
+
+  /** Subscribes to a thread from `since` (null: from now on). */
+  subscribe(threadId: string, since: Cursor | null): void {
+    this.socket.send(JSON.stringify({ kind: 'subscribe', threadId, since }));
+  }
+
+  /** Subscribes at the thread's current `/state` cursor, so no event after it can be missed. */
+  async watch(threadId: string): Promise<ThreadState> {
+    const state = ThreadState.parse((await this.call('GET', `/api/threads/${threadId}/state`)).body);
+    this.subscribe(threadId, state.cursor);
+    return state;
   }
 
   /** Resolves once an event matching `match` has arrived (including ones already received). */
@@ -117,7 +140,23 @@ export class EventLog {
     return new Promise((resolve) => this.waiters.push({ match, resolve }));
   }
 
-  finished(threadId: string): Promise<void> {
-    return this.until((event) => event.kind === 'generation.finished' && event.threadId === threadId);
+  finished(generationId: string): Promise<void> {
+    return this.until((event) => event.kind === 'generation.finished' && event.generationId === generationId);
   }
+
+  /** The thread events of one generation, without cursors. */
+  of(generationId: string): unknown[] {
+    return this.received
+      .filter((event) => event.kind !== 'usage.updated' && event.generationId === generationId)
+      .map((event) => {
+        if (event.kind === 'usage.updated') return event;
+        return Object.fromEntries(Object.entries(event).filter(([key]) => key !== 'cursor'));
+      });
+  }
+}
+
+function textOf(data: RawData): string {
+  if (Array.isArray(data)) return Buffer.concat(data).toString('utf8');
+  if (data instanceof ArrayBuffer) return Buffer.from(data).toString('utf8');
+  return data.toString('utf8');
 }

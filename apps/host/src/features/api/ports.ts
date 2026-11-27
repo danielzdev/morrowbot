@@ -1,15 +1,23 @@
 import type {
   Agent,
+  BlockedGroup,
   ChatEvent,
   CreateAgentRequest,
   CreateThreadRequest,
+  Cursor,
   Message,
   PluginConfig,
   PluginManifest,
   PluginStatus,
+  ProviderInfo,
+  ProviderUnavailableReason,
+  SessionChoice,
+  SessionChoiceReason,
   StopGenerationResponse,
   Thread,
+  ThreadState,
   UpdateAgentRequest,
+  UsageResponse,
   UserMessage,
 } from '@morrowbot/contracts';
 
@@ -26,11 +34,18 @@ export type ApiCreateAgentResult =
   | { readonly kind: 'created'; readonly agent: Agent }
   | { readonly kind: 'invalid'; readonly reason: string };
 
-export type ApiSendResult =
-  | { readonly kind: 'started'; readonly generationId: string; readonly userMessage: UserMessage }
+/** How a send or Continue was admitted, or why nothing was written. */
+export type ApiAdmitResult =
+  | { readonly kind: 'started'; readonly generationId: string; readonly userMessage: UserMessage | null }
   | { readonly kind: 'thread_not_found' }
   | { readonly kind: 'busy' }
-  | { readonly kind: 'no_provider'; readonly reason: string };
+  | { readonly kind: 'no_provider'; readonly reason: string }
+  | { readonly kind: 'provider_unavailable'; readonly reason: ProviderUnavailableReason }
+  | { readonly kind: 'binding_changed' }
+  | { readonly kind: 'session_choice_required'; readonly reason: SessionChoiceReason }
+  | { readonly kind: 'not_continuable'; readonly reason: string };
+
+export type ApiReplay = { readonly kind: 'events'; readonly events: readonly ChatEvent[] } | { readonly kind: 'resync' };
 
 export interface ApiChat {
   listThreads(agentId: string): Thread[] | undefined;
@@ -40,20 +55,42 @@ export interface ApiChat {
   deleteThread(id: string): Promise<boolean>;
   deleteAgent(id: string): Promise<boolean>;
   listMessages(threadId: string): Message[] | undefined;
-  send(threadId: string, text: string): ApiSendResult;
-  stop(threadId: string): Promise<StopGenerationResponse>;
+  state(threadId: string): ThreadState | undefined;
+  send(threadId: string, text: string, choice: SessionChoice): Promise<ApiAdmitResult>;
+  continueTurn(threadId: string, failedMessageId: string, choice: SessionChoice): Promise<ApiAdmitResult>;
+  stop(threadId: string): Promise<StopGenerationResponse | { readonly kind: 'not_stored' }>;
+  replyApproval(
+    threadId: string,
+    generationId: string,
+    approvalId: string,
+    choiceId: string,
+  ): { readonly kind: 'replied' } | { readonly kind: 'not_found' };
+  recheck(
+    pluginId: string,
+  ): Promise<{ readonly kind: 'ok'; readonly info: ProviderInfo } | { readonly kind: 'busy' } | { readonly kind: 'unavailable'; readonly reason: string }>;
+  usage(
+    pluginId: string,
+    refresh: boolean,
+  ): Promise<{ readonly kind: 'ok'; readonly response: UsageResponse } | { readonly kind: 'unavailable'; readonly reason: string }>;
+  replay(threadId: string, since: Cursor): ApiReplay;
   subscribe(listener: (event: ChatEvent) => void): () => void;
 }
 
 /** The plugin host, plus the settings it saved. */
 export interface ApiPlugins {
   list(): readonly { readonly manifest: PluginManifest; readonly status: PluginStatus }[];
+  blockedGroups(pluginId: string): BlockedGroup[];
   saved(pluginId: string): Promise<{ readonly enabled: boolean; readonly config: PluginConfig } | undefined>;
   setEnabled(pluginId: string, enabled: boolean): Promise<void>;
   setConfig(
     pluginId: string,
     config: PluginConfig,
   ): Promise<{ readonly kind: 'ok' } | { readonly kind: 'invalid'; readonly problems: readonly string[] }>;
+  info(
+    pluginId: string,
+    refresh: boolean,
+  ): Promise<{ readonly kind: 'ok'; readonly info: ProviderInfo } | { readonly kind: 'unavailable'; readonly reason: string }>;
+  releaseGroup(regId: string): 'released' | 'not-found' | 'not-blocked' | 'too-early';
 }
 
 export interface ApiServices {

@@ -1,7 +1,8 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { Agent, PluginList, SendMessageResponse, Thread } from '@morrowbot/contracts';
+import { Agent, PluginList, Thread } from '@morrowbot/contracts';
+import { ECHO } from './testing/chat-fixture.ts';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { PLUGIN_FIXTURES, sequence, startTestHost, type TestHost } from './testing/test-host.ts';
 
@@ -18,43 +19,16 @@ afterEach(async () => {
 });
 
 const start = (ids = sequence()) =>
-  startTestHost({ dataDir, providers: 'plugins', pluginsDir: PLUGIN_FIXTURES, sequence: ids });
+  startTestHost({ dataDir, pluginsDir: PLUGIN_FIXTURES, sequence: ids });
 
 async function echoThread(running: TestHost): Promise<Thread> {
   const agent = Agent.parse(
-    (await running.call('POST', '/api/agents', { name: 'E', provider: { kind: 'bound', pluginId: 'echo', model: 'm' } }))
+    (await running.call('POST', '/api/agents', { name: 'E', provider: ECHO }))
       .body,
   );
   await running.call('PUT', `/api/agents/${agent.id}/instructions`, { content: 'Be kind.' });
   return Thread.parse((await running.call('POST', `/api/agents/${agent.id}/threads`, {})).body);
 }
-
-const withoutPid = (text: string) => text.replace(/pid \d+/, 'pid N');
-
-it('streams a reply from a provider plugin process and stops a stalled one', async () => {
-  host = await start();
-  const thread = await echoThread(host);
-  const events = await host.events();
-
-  const first = SendMessageResponse.parse((await host.call('POST', `/api/threads/${thread.id}/messages`, { text: 'hi' })).body);
-  await events.until((event) => event.kind === 'generation.finished' && event.generationId === first.generationId);
-  const stalled = SendMessageResponse.parse(
-    (await host.call('POST', `/api/threads/${thread.id}/messages`, { text: 'stall' })).body,
-  );
-  await events.until((event) => event.kind === 'generation.delta' && event.generationId === stalled.generationId);
-  await host.call('POST', `/api/threads/${thread.id}/stop`);
-  await events.finished(thread.id);
-
-  const replies = events.received.flatMap((event) =>
-    event.kind === 'generation.finished' ? [`${event.message.outcome.kind}: ${withoutPid(event.message.text)}`] : [],
-  );
-  expect(replies).toMatchInlineSnapshot(`
-    [
-      "completed: hello from pid N: hi",
-      "stopped: hello from pid N:",
-    ]
-  `);
-});
 
 it('switches plugins and saves their settings through the plugin host', async () => {
   const ids = sequence();
@@ -104,7 +78,7 @@ it('switches plugins and saves their settings through the plugin host', async ()
       "sendWhileDisabled": {
         "error": {
           "kind": "conflict",
-          "message": "Provider plugin echo is not available.",
+          "message": "Provider plugin echo is not available: Plugin "echo" is not running (disabled)",
         },
       },
       "unknown": 404,

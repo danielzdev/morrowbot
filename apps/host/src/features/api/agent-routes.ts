@@ -12,7 +12,7 @@ export function agentRoutes({ agents, chat }: ApiServices): Route[] {
   return [
     {
       method: 'GET',
-      path: /^\/api\/agents$/,
+      path: '/api/agents',
       handle: () => {
         const body: AgentList = { agents: agents.list() };
         return json(200, body);
@@ -20,7 +20,7 @@ export function agentRoutes({ agents, chat }: ApiServices): Route[] {
     },
     {
       method: 'POST',
-      path: /^\/api\/agents$/,
+      path: '/api/agents',
       handle: async (context) => {
         const request = await parseBody(context, CreateAgentRequest);
         if (request.kind === 'rejected') return request.reply;
@@ -35,32 +35,32 @@ export function agentRoutes({ agents, chat }: ApiServices): Route[] {
     },
     {
       method: 'GET',
-      path: /^\/api\/agents\/([^/]+)$/,
-      handle: ({ id }) => {
-        const agent = agents.get(id);
+      path: '/api/agents/:id',
+      handle: ({ params }) => {
+        const agent = agents.get(params.get('id'));
         return agent === undefined ? notFound('Agent') : json(200, agent);
       },
     },
     {
       method: 'PATCH',
-      path: /^\/api\/agents\/([^/]+)$/,
+      path: '/api/agents/:id',
       handle: async (context) => {
         const request = await parseBody(context, UpdateAgentRequest);
         if (request.kind === 'rejected') return request.reply;
-        const agent = agents.update(context.id, request.value);
+        const agent = agents.update(context.params.get('id'), request.value);
         return agent === undefined ? notFound('Agent') : json(200, agent);
       },
     },
     {
       method: 'DELETE',
-      path: /^\/api\/agents\/([^/]+)$/,
-      handle: async ({ id }) => ((await chat.deleteAgent(id)) ? noContent() : notFound('Agent')),
+      path: '/api/agents/:id',
+      handle: async ({ params }) => ((await chat.deleteAgent(params.get('id'))) ? noContent() : notFound('Agent')),
     },
     {
       method: 'GET',
-      path: /^\/api\/agents\/([^/]+)\/instructions$/,
-      handle: async ({ id }) => {
-        const content = await agents.readInstructions(id);
+      path: '/api/agents/:id/instructions',
+      handle: async ({ params }) => {
+        const content = await agents.readInstructions(params.get('id'));
         if (content === undefined) return notFound('Agent');
         const body: AgentInstructions = { content };
         return json(200, body);
@@ -68,11 +68,11 @@ export function agentRoutes({ agents, chat }: ApiServices): Route[] {
     },
     {
       method: 'PUT',
-      path: /^\/api\/agents\/([^/]+)\/instructions$/,
+      path: '/api/agents/:id/instructions',
       handle: async (context) => {
         const request = await parseBody(context, AgentInstructions);
         if (request.kind === 'rejected') return request.reply;
-        const saved = await agents.writeInstructions(context.id, request.value.content);
+        const saved = await agents.writeInstructions(context.params.get('id'), request.value.content);
         return saved ? json(200, request.value) : notFound('Agent');
       },
     },

@@ -1,78 +1,128 @@
+import { randomBytes, randomUUID } from 'node:crypto';
+import { mkdir, realpath } from 'node:fs/promises';
 import path from 'node:path';
-import type { PluginStatusEvent, ProviderRegistry } from '@morrowbot/contracts';
+import type { PluginStatusEvent } from '@morrowbot/contracts';
 import { createAgentService } from './features/agents/index.ts';
 import { startApiServer } from './features/api/index.ts';
-import { createChatService } from './features/chat/index.ts';
+import { createChatService, type ProviderPlugins } from './features/chat/index.ts';
 import type { HostConfig } from './features/config/index.ts';
 import { healthListener } from './features/health/index.ts';
-import { startPluginHost, type PluginHost } from './features/plugins/index.ts';
-import { openStorage } from './features/storage/index.ts';
-import { createWorkspaceTools } from './features/tools/index.ts';
+import {
+  resolvePluginPath,
+  startPluginHost,
+  type ChildGroupClock,
+  type PluginHost,
+  type PluginTimeouts,
+  type ProcessProbe,
+} from './features/plugins/index.ts';
+import { lockDataDir, openStorage, type Storage } from './features/storage/index.ts';
+
+export { DataDirLockedError as HostLockedError } from './features/storage/index.ts';
 
 export interface HostOptions {
   readonly config: HostConfig;
   readonly version: string;
-  /** Chooses the chat providers. The app serves the plugin host's provider plugins (`pluginProviders`). */
-  readonly providers: (plugins: PluginHost) => ProviderRegistry;
   readonly onPluginStatus: (event: PluginStatusEvent) => void;
   readonly newId: () => string;
   readonly now: () => string;
   readonly report: (error: unknown) => void;
+  /** Aborts startup; once started, the caller closes the host. */
+  readonly signal?: AbortSignal;
+  /** The `PATH` plugins get. Resolved from the login shell when left out. */
+  readonly pluginPath?: string;
+  readonly timeouts?: PluginTimeouts;
+  readonly probe?: ProcessProbe;
+  readonly clock?: ChildGroupClock;
+  readonly platform?: NodeJS.Platform;
 }
 
 export interface Host {
   readonly url: string;
+  /** This launch's API token. It lives only in memory and is never logged. */
+  readonly token: string;
   readonly plugins: PluginHost;
   close(): Promise<void>;
 }
 
 /**
- * Opens storage, starts the plugins, and serves the local API.
- * Closing stops active generations (saving their partial replies), then the plugins, then storage.
+ * Takes the data folder's lock, opens storage, starts the plugins, and serves the local API.
+ * Closing stops active turns (saving their replies), then the plugins, then storage, then the lock.
  */
 export async function startHost(options: HostOptions): Promise<Host> {
   const { config, newId, now, report } = options;
-  const storage = openStorage(path.join(config.dataDir, 'morrowbot.sqlite'), now);
-  let plugins: PluginHost;
+  await mkdir(config.dataDir, { recursive: true });
+  const dataDir = await realpath(config.dataDir);
+  options.signal?.throwIfAborted();
+  const lock = lockDataDir(path.join(dataDir, 'host.lock.db'), dataDir);
+  const undo: (() => Promise<void> | void)[] = [
+    () => {
+      lock.release();
+    },
+  ];
+  const unwind = async (): Promise<void> => {
+    for (const step of undo.reverse()) await step();
+  };
   try {
-    plugins = await startPluginHost({
+    const storage = openStorage(path.join(dataDir, 'morrowbot.sqlite'), now);
+    undo.push(() => {
+      storage.close();
+    });
+    const pluginPath = options.pluginPath ?? (await resolvePluginPath());
+    options.signal?.throwIfAborted();
+    const plugins = await startPluginHost({
       pluginsDir: config.pluginsDir,
       safeMode: config.safeMode,
-      dataDir: path.join(config.dataDir, 'plugin-data'),
+      dataDir: path.join(dataDir, 'plugin-data'),
       store: storage.plugins,
+      groups: {
+        insert: (row) => {
+          storage.childGroups.insert(row);
+        },
+        delete: (pgid) => {
+          storage.childGroups.delete(pgid);
+        },
+        list: () => storage.childGroups.list(),
+        transaction: (work) => storage.transaction(work),
+      },
+      pluginPath,
       onStatus: options.onPluginStatus,
+      ...(options.timeouts === undefined ? {} : { timeouts: options.timeouts }),
+      ...(options.probe === undefined ? {} : { probe: options.probe }),
+      ...(options.clock === undefined ? {} : { clock: options.clock }),
+      ...(options.platform === undefined ? {} : { platform: options.platform }),
+      newId: randomUUID,
     });
-  } catch (error) {
-    storage.close();
-    throw error;
-  }
-  const agents = createAgentService({
-    records: storage.agents,
-    workspacesDir: path.join(config.dataDir, 'workspaces'),
-    newId,
-    now,
-  });
-  const chat = createChatService({
-    threads: storage.threads,
-    messages: storage.messages,
-    agents,
-    providers: options.providers(plugins),
-    toolsFor: createWorkspaceTools,
-    newId,
-    now,
-    report,
-  });
-  try {
+    undo.push(() => plugins.stop());
+    options.signal?.throwIfAborted();
+    const agents = createAgentService({ records: storage.agents, workspacesDir: path.join(dataDir, 'workspaces'), newId, now });
+    const chat = createChatService({
+      store: chatStore(storage),
+      agents,
+      plugins: providerPlugins(plugins),
+      newId,
+      now,
+      hostEpoch: randomUUID(),
+      report,
+    });
+    undo.push(() => chat.close());
+    const token = randomBytes(32).toString('base64url');
     const api = await startApiServer({
       address: { hostname: config.hostname, port: config.port },
+      token,
       services: {
         agents,
         chat,
         plugins: {
           list: () => plugins.list(),
+          blockedGroups: (pluginId) => plugins.groups.blocked(pluginId),
           saved: (pluginId) => storage.plugins.read(pluginId),
           setEnabled: (pluginId, enabled) => plugins.setEnabled(pluginId, enabled),
           setConfig: (pluginId, input) => plugins.setConfig(pluginId, input),
+          info: async (pluginId, refresh) => {
+            const result = await plugins.info(pluginId, refresh);
+            return result.kind === 'ok' ? { kind: 'ok', info: result.info } : result;
+          },
+          releaseGroup: (regId) => plugins.releaseGroup(regId),
         },
       },
       fallback: healthListener(options.version),
@@ -80,20 +130,60 @@ export async function startHost(options: HostOptions): Promise<Host> {
     });
     return {
       url: api.url,
+      token,
       plugins,
       close: async () => {
-        try {
-          await api.close();
-          await chat.close();
-          await plugins.stop();
-        } finally {
-          storage.close();
-        }
+        await api.close();
+        await unwind();
       },
     };
   } catch (error) {
-    await plugins.stop();
-    storage.close();
+    await unwind();
     throw error;
   }
+}
+
+function chatStore(storage: Storage): Parameters<typeof createChatService>[0]['store'] {
+  return {
+    threads: storage.threads,
+    messages: storage.messages,
+    generations: storage.generations,
+    sessions: storage.sessions,
+    usage: storage.usage,
+    heldThreads: () => storage.childGroups.heldThreads(),
+    transaction: (work) => storage.transaction(work),
+  };
+}
+
+function providerPlugins(plugins: PluginHost): ProviderPlugins {
+  return {
+    isProvider: (pluginId) => plugins.list().some(({ manifest }) => manifest.id === pluginId && manifest.kind === 'provider'),
+    revision: (pluginId) => plugins.revision(pluginId),
+    info: (pluginId, refresh) => plugins.info(pluginId, refresh),
+    cachedInfo: (pluginId) => plugins.cachedInfo(pluginId),
+    usage: (pluginId, refresh) => plugins.usage(pluginId, refresh),
+    routeInfo: (pluginId, cwd) => plugins.routeInfo(pluginId, cwd),
+    startTurn: (pluginId, worker, request, sink) => plugins.startTurn(pluginId, worker, request, sink),
+    canStart: (pluginId, worker) => plugins.canStart(pluginId, worker),
+    cancelTurn: (pluginId, turnId) => {
+      plugins.cancelTurn(pluginId, turnId);
+    },
+    replyApproval: (pluginId, turnId, approvalId, choiceId) => {
+      plugins.replyApproval(pluginId, turnId, approvalId, choiceId);
+    },
+    holdsGeneration: (generationId) => plugins.groups.groupsOf(new Set([generationId])).length > 0,
+    cleaningUp: (generationId) => plugins.groups.groupsOf(new Set([generationId])).some((row) => !plugins.groups.isBlocked(row.pgid)),
+    blockedGroups: (generationIds) => {
+      const held = new Set(plugins.groups.groupsOf(generationIds).map((row) => row.regId));
+      return plugins.groups.blocked().filter((group) => held.has(group.regId));
+    },
+    onGroupReleased: (listener) =>
+      plugins.groups.onReleased((row) => {
+        listener(row.generationIds);
+      }),
+    onGroupBlocked: (listener) =>
+      plugins.groups.onBlocked((row) => {
+        listener(row.generationIds);
+      }),
+  };
 }

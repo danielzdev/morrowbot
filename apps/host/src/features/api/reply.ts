@@ -1,15 +1,16 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { ApiError } from '@morrowbot/contracts';
+import type { ApiError, ProviderUnavailableReason, SessionChoiceReason } from '@morrowbot/contracts';
 import type { z } from 'zod';
 
 export type Reply =
   | { readonly kind: 'json'; readonly status: number; readonly body: unknown }
   | { readonly kind: 'empty'; readonly status: number };
 
-type ErrorKind = ApiError['error']['kind'];
+type ErrorKind = Exclude<ApiError['error']['kind'], 'provider-unavailable' | 'binding-changed' | 'session-choice-required'>;
 
 const STATUS: Record<ErrorKind, number> = {
   invalid_request: 400,
+  unauthorized: 401,
   forbidden: 403,
   not_found: 404,
   conflict: 409,
@@ -27,6 +28,35 @@ export function noContent(): Reply {
 export function failure(kind: ErrorKind, message: string, status = STATUS[kind]): Reply {
   const body: ApiError = { error: { kind, message } };
   return json(status, body);
+}
+
+/** Nothing was written: the provider cannot take a send right now (503). */
+export function providerUnavailable(reason: ProviderUnavailableReason): Reply {
+  const messages: Record<ProviderUnavailableReason, string> = {
+    'route-info-timeout': 'The provider took too long to say which account it uses. Try again.',
+    'route-info-failed': 'The provider could not say which account it uses. Try again.',
+    'daemon-blocked': "A provider process from before is still running. Release it on the Plugins page first.",
+    rechecking: 'The provider is being rechecked. Try again in a moment.',
+  };
+  const body: ApiError = { error: { kind: 'provider-unavailable', reason, message: messages[reason] } };
+  return json(503, body);
+}
+
+export function bindingChanged(): Reply {
+  const body: ApiError = {
+    error: { kind: 'binding-changed', message: "The agent's provider settings changed while sending. Nothing was sent; try again." },
+  };
+  return json(409, body);
+}
+
+export function sessionChoiceRequired(reason: SessionChoiceReason): Reply {
+  const messages: Record<SessionChoiceReason, string> = {
+    diverged: 'The last turn in the saved session did not finish. Continue it anyway, or start a new session seeded from this thread.',
+    'instructions-changed': "The agent's instructions changed since the session started. Start a new session seeded from this thread.",
+    'unseeded-history': 'This thread has history the provider has not seen. Start a new session seeded from this thread.',
+  };
+  const body: ApiError = { error: { kind: 'session-choice-required', reason, message: messages[reason] } };
+  return json(409, body);
 }
 
 export function notFound(what: string): Reply {

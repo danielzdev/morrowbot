@@ -1,18 +1,15 @@
-import { access, lstat, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { access, lstat, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { Agent, type ChatProvider, type ProviderEvent, Thread } from '@morrowbot/contracts';
+import { Agent, SendMessageResponse, Thread } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it } from 'vitest';
-import { sequence, startTestHost, type TestHost } from './testing/test-host.ts';
-
-const hello: ChatProvider = {
-  generate: () => ReadableStream.from<ProviderEvent>([{ kind: 'text', text: 'hi there' }]),
-};
+import { ECHO, hidePid } from './testing/chat-fixture.ts';
+import { PLUGIN_FIXTURES, sequence, startTestHost, type TestHost } from './testing/test-host.ts';
 
 let dataDir: string;
 let host: TestHost | undefined;
 beforeEach(async () => {
-  dataDir = await mkdtemp(path.join(tmpdir(), 'morrowbot-api-'));
+  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'morrowbot-api-')));
 });
 afterEach(async () => {
   await host?.close();
@@ -21,25 +18,26 @@ afterEach(async () => {
 });
 
 function redact(value: unknown): unknown {
-  const redacted: unknown = JSON.parse(JSON.stringify(value).replaceAll(dataDir, '<data>'));
+  const redacted: unknown = JSON.parse(hidePid(JSON.stringify(value).replaceAll(dataDir, '<data>')));
   return redacted;
 }
 
 it('keeps agents, threads, messages and AGENTS.md across a host restart', async () => {
   const ids = sequence();
-  const first = await startTestHost({ dataDir, providers: { hello }, sequence: ids });
+  const first = await startTestHost({ dataDir, pluginsDir: PLUGIN_FIXTURES, sequence: ids });
   const agent = Agent.parse(
-    (await first.call('POST', '/api/agents', { name: 'Keeper', provider: { kind: 'bound', pluginId: 'hello', model: 'm' } }))
+    (await first.call('POST', '/api/agents', { name: 'Keeper', provider: ECHO }))
       .body,
   );
   await first.call('PUT', `/api/agents/${agent.id}/instructions`, { content: '# Keeper\nRemember.' });
   const thread = Thread.parse((await first.call('POST', `/api/agents/${agent.id}/threads`, {})).body);
   const events = await first.events();
-  await first.call('POST', `/api/threads/${thread.id}/messages`, { text: 'remember me' });
-  await events.finished(thread.id);
+  await events.watch(thread.id);
+  const sent = SendMessageResponse.parse((await first.call('POST', `/api/threads/${thread.id}/messages`, { text: 'remember me' })).body);
+  await events.finished(sent.generationId);
   await first.close();
 
-  host = await startTestHost({ dataDir, providers: { hello }, sequence: ids });
+  host = await startTestHost({ dataDir, pluginsDir: PLUGIN_FIXTURES, sequence: ids });
   expect(
     redact({
       agents: (await host.call('GET', '/api/agents')).body,
@@ -61,9 +59,13 @@ it('keeps agents, threads, messages and AGENTS.md across a host restart', async 
             "id": "id-1",
             "name": "Keeper",
             "provider": {
+              "access": "read-only",
               "kind": "bound",
-              "model": "m",
-              "pluginId": "hello",
+              "pluginId": "echo",
+              "selection": {
+                "kind": "default",
+              },
+              "vendorSettings": "isolated",
             },
             "updatedAt": "2026-01-01T00:00:00.000Z",
             "workspace": {
@@ -81,19 +83,20 @@ it('keeps agents, threads, messages and AGENTS.md across a host restart', async 
         "messages": [
           {
             "createdAt": "2026-01-01T00:00:02.000Z",
-            "id": "id-4",
+            "id": "id-5",
             "kind": "user",
             "text": "remember me",
             "threadId": "id-3",
           },
           {
-            "createdAt": "2026-01-01T00:00:03.000Z",
+            "createdAt": "2026-01-01T00:00:04.000Z",
             "id": "id-6",
             "kind": "assistant",
             "outcome": {
+              "finishReason": "stop",
               "kind": "completed",
             },
-            "text": "hi there",
+            "text": "hello from pid <pid>: remember me",
             "threadId": "id-3",
           },
         ],
@@ -105,7 +108,7 @@ it('keeps agents, threads, messages and AGENTS.md across a host restart', async 
             "createdAt": "2026-01-01T00:00:01.000Z",
             "id": "id-3",
             "title": "New chat",
-            "updatedAt": "2026-01-01T00:00:03.000Z",
+            "updatedAt": "2026-01-01T00:00:04.000Z",
           },
         ],
       },
@@ -127,7 +130,7 @@ it('creates, updates and deletes agents and threads', async () => {
   const steps = {
     renamedAgent: await host.call('PATCH', `/api/agents/${dedicated.id}`, {
       name: 'Solo 2',
-      provider: { kind: 'bound', pluginId: 'hello', model: 'big' },
+      provider: { ...ECHO, selection: { kind: 'model', id: 'big', choices: {} } },
     }),
     renamedThread: await host.call('PATCH', `/api/threads/${thread.id}`, { title: 'New' }),
     missingInstructions: await host.call('GET', `/api/agents/${sharing.id}/instructions`),
@@ -151,9 +154,15 @@ it('creates, updates and deletes agents and threads', async () => {
               "id": "id-1",
               "name": "Solo 2",
               "provider": {
+                "access": "read-only",
                 "kind": "bound",
-                "model": "big",
-                "pluginId": "hello",
+                "pluginId": "echo",
+                "selection": {
+                  "choices": {},
+                  "id": "big",
+                  "kind": "model",
+                },
+                "vendorSettings": "isolated",
               },
               "updatedAt": "2026-01-01T00:00:03.000Z",
               "workspace": {
@@ -195,9 +204,15 @@ it('creates, updates and deletes agents and threads', async () => {
           "id": "id-1",
           "name": "Solo 2",
           "provider": {
+            "access": "read-only",
             "kind": "bound",
-            "model": "big",
-            "pluginId": "hello",
+            "pluginId": "echo",
+            "selection": {
+              "choices": {},
+              "id": "big",
+              "kind": "model",
+            },
+            "vendorSettings": "isolated",
           },
           "updatedAt": "2026-01-01T00:00:03.000Z",
           "workspace": {

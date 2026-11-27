@@ -1,8 +1,4 @@
-import { commandFilePath, type ChatMessage, type ProviderStreamRequest } from '@morrowbot/plugin-sdk';
-import type { Settings } from './settings.ts';
-
-/** The `model` setting that leaves the choice to Claude Code's own default. */
-export const DEFAULT_MODEL = 'default';
+import { commandFilePath, type TurnRequest } from '@morrowbot/plugin-sdk';
 
 export interface Invocation {
   readonly args: readonly string[];
@@ -12,30 +8,45 @@ export interface Invocation {
   readonly files: readonly string[];
 }
 
-/** Builds the `claude` command line for one reply. Throws when the request does not end with a user message. */
-export function buildInvocation(request: ProviderStreamRequest, settings: Settings): Invocation {
-  const system = request.messages.filter((message) => message.role === 'system').map((message) => message.content);
-  const turns = request.messages.filter((message) => message.role !== 'system');
-  if (turns.at(-1)?.role !== 'user') throw new Error('The last message must come from the user');
+/**
+ * The one profile v1 offers: read-only and isolated. `--safe-mode --strict-mcp-config --restricted`
+ * turn off the user's CLAUDE.md, skills, plugins, hooks, MCP servers and settings files; the file
+ * tools are only Read, Glob and Grep, and anything else is denied without asking.
+ */
+const READ_ONLY_ISOLATED = [
+  '--safe-mode',
+  '--strict-mcp-config',
+  '--restricted',
+  '--tools',
+  'Read,Glob,Grep',
+  '--permission-mode',
+  'dontAsk',
+  '--permission-prompts',
+  'none',
+] as const;
+
+/** Builds the `claude` command line and stdin for one stateless turn. */
+export function buildInvocation(request: Pick<TurnRequest, 'selection' | 'system' | 'prompt'> & { readonly seed: string | null }): Invocation {
+  const { selection, system } = request;
   return {
     args: [
-      '--print',
+      '-p',
       '--output-format',
       'stream-json',
       '--verbose',
       '--include-partial-messages',
       '--no-session-persistence',
-      ...(settings.model === DEFAULT_MODEL ? [] : ['--model', settings.model]),
-      ...(system.length === 0 ? [] : ['--append-system-prompt-file', commandFilePath(0)]),
+      ...READ_ONLY_ISOLATED,
+      ...(selection.kind === 'model' ? ['--model', selection.id] : []),
+      ...(system === null ? [] : ['--append-system-prompt-file', commandFilePath(0)]),
     ],
-    input: prompt(turns),
-    files: system.length === 0 ? [] : [system.join('\n\n')],
+    input: prompt(request.seed, request.prompt),
+    files: system === null ? [] : [system],
   };
 }
 
-function prompt(turns: readonly ChatMessage[]): string {
-  const [only] = turns;
-  if (turns.length === 1 && only !== undefined) return only.content;
-  const transcript = turns.map(({ role, content }) => `<${role}>\n${content}\n</${role}>`).join('\n');
-  return `Continue this conversation. Reply to the last user message.\n\n<conversation>\n${transcript}\n</conversation>`;
+/** The host renders `seed` as `<user>` / `<assistant>` blocks; the new prompt is the last user block. */
+function prompt(seed: string | null, text: string): string {
+  if (seed === null || seed === '') return text;
+  return `Continue this conversation. Reply to the last user message.\n\n<conversation>\n${seed}\n<user>\n${text}\n</user>\n</conversation>`;
 }

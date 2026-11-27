@@ -27,6 +27,7 @@ describe('HealthResponse', () => {
 
 describe('PluginManifest', () => {
   const valid = {
+    protocolVersion: 1,
     id: 'web-search',
     name: 'Web Search',
     version: '1.2.3',
@@ -51,7 +52,8 @@ describe('PluginManifest', () => {
           kind: 'theme',
           main: '../outside.ts',
           permissions: ['network', 'network'],
-          env: ['HOME', 'NOT-A-NAME'],
+          protocolVersion: 2,
+          envPreset: 'everything',
           settingsSchema: {
             'bad key': { kind: 'boolean', label: 'x' },
             engine: { kind: 'select', label: 'Engine', options: ['a'], default: 'z' },
@@ -63,17 +65,46 @@ describe('PluginManifest', () => {
       [
         "valid",
         [
+          "protocolVersion: Invalid input: expected 1",
           "id: Use lowercase letters, digits, and dashes",
           "name: Too small: expected string to have >=1 characters",
           "version: Use a MAJOR.MINOR.PATCH version",
           "kind: Invalid option: expected one of "provider"|"tool"",
           "main: Use a path inside the plugin folder",
           "permissions: List each permission once",
-          "env.1: Use an environment variable name",
+          "envPreset: Invalid option: expected one of "none"|"cli-runtime"",
           "settingsSchema.bad key: Invalid key in record",
           "settingsSchema.engine.default: The default must be one of the options",
           "settingsSchema.limit.default: The default must be between min and max",
         ],
+      ]
+    `);
+  });
+});
+
+describe('PluginManifest env', () => {
+  it('rejects the old env list: plugins pick an envPreset instead', () => {
+    const manifest = {
+      protocolVersion: 1,
+      id: 'cli',
+      name: 'CLI',
+      version: '1.0.0',
+      kind: 'provider',
+      main: 'index.ts',
+      permissions: [],
+      settingsSchema: {},
+    };
+    expect([
+      issues(PluginManifest.safeParse({ ...manifest, env: ['HOME'] })),
+      PluginManifest.parse(manifest).envPreset,
+      PluginManifest.parse({ ...manifest, envPreset: 'cli-runtime' }).envPreset,
+    ]).toMatchInlineSnapshot(`
+      [
+        [
+          "(root): Unrecognized key: "env"",
+        ],
+        "none",
+        "cli-runtime",
       ]
     `);
   });

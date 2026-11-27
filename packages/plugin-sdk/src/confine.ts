@@ -4,11 +4,11 @@ import path from 'node:path';
 export type Confined = { readonly kind: 'inside'; readonly path: string } | { readonly kind: 'outside' };
 
 /**
- * Resolves `requested` against `root` and checks that it, and every symlink on the way to it, stays inside `root`.
+ * Resolves `requested` against `root` (an agent workspace) and checks that it, and every symlink on the way to it, stays inside `root`.
  * Absolute paths may name the root either as given or by its real path. The target itself may not exist yet.
  * A dangling symlink counts as outside.
  */
-export async function confine(root: string, requested: string): Promise<Confined> {
+export async function confinePath(root: string, requested: string): Promise<Confined> {
   const givenRoot = path.resolve(root);
   const realRoot = await realpath(givenRoot);
   const lexical = path.resolve(givenRoot, requested);
