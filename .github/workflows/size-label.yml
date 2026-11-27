@@ -1,0 +1,51 @@
+name: Size label
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  pull-requests: write
+
+concurrency:
+  group: size-label-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  size-label:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v9
+        with:
+          script: |
+            const IGNORED = new Set(['package-lock.json']);
+            const SIZES = [
+              ['size:XS', 10],
+              ['size:S', 50],
+              ['size:M', 200],
+              ['size:L', 500],
+              ['size:XL', Infinity],
+            ];
+            const pr = context.payload.pull_request;
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              ...context.repo,
+              pull_number: pr.number,
+              per_page: 100,
+            });
+            const changed = files
+              .filter((file) => !IGNORED.has(file.filename.split('/').pop()))
+              .reduce((sum, file) => sum + file.additions + file.deletions, 0);
+            const [label] = SIZES.find(([, limit]) => changed < limit);
+            const labels = await github.paginate(github.rest.issues.listLabelsOnIssue, {
+              ...context.repo,
+              issue_number: pr.number,
+              per_page: 100,
+            });
+            const current = labels.map((l) => l.name).filter((name) => name.startsWith('size:'));
+            for (const name of current.filter((name) => name !== label)) {
+              await github.rest.issues.removeLabel({ ...context.repo, issue_number: pr.number, name });
+            }
+            if (!current.includes(label)) {
+              await github.rest.issues.addLabels({ ...context.repo, issue_number: pr.number, labels: [label] });
+            }
+            core.info(`${changed} changed lines (lockfiles ignored) -> ${label}`);

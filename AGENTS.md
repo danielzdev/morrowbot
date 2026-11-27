@@ -11,7 +11,7 @@ Do not preserve complexity just because it already exists. YAGNI: do not build w
 ## Layout
 - One feature, one folder (`features/<name>/`) holding its UI, logic, types, tests, and recorded outputs. Each plugin is one folder in `plugins/<name>/`.
 - Separate the always-on host/main process from the Electron renderer window.
-- A feature imports only from itself and shared contract packages—never from another feature. Renderer/window code never imports host/main code. Plugins import only the plugin SDK.
+- A feature imports only from itself and shared contract packages—never from another feature. Renderer/window code never imports host/main code. Plugins import only `@morrowbot/plugin-sdk` and `@morrowbot/contracts`.
 - No file over **400 lines**. Do not append to a large file; split into focused files inside the feature folder.
 - Each piece of state has one owner; each task has one supported way. Delete the old way in the same change.
 
@@ -61,10 +61,10 @@ The second time the same kind of mistake happens, fix it at the highest level th
 
 | Rule | Enforced by |
 |---|---|
-| Features do not import each other | `lint` import-boundary rule *(wire in Milestone 1)* |
-| Renderer does not import host/main | `lint` import-boundary rule *(wire in Milestone 1)* |
-| Plugins import only the plugin SDK | `lint` import-boundary rule *(wire in Milestone 1)* |
-| No file over 400 lines | `lint` `max-lines` rule *(wire in Milestone 1)* |
-| No `any`, no `as`, exhaustive switches | `typescript-eslint` + `tsc` *(wire in Milestone 1)* |
-| PR size awareness (`size:XS`–`size:XL`) | `.github/workflows/size-label.yml` *(add once `workflow` token scope is enabled)* |
+| Features do not import each other | `lint` (`morrowbot/import-boundaries`) |
+| Renderer does not import host/main | `lint` (`morrowbot/import-boundaries`) |
+| Plugins import only the plugin SDK and contracts | `lint` (`morrowbot/import-boundaries`) |
+| No file over 400 lines | `lint` (`max-lines`) |
+| No `any`, no `as`, exhaustive switches | `typescript-eslint` + `tsc` |
+| PR size awareness (`size:XS`–`size:XL`) | `.github/workflows/size-label.yml` |
 | No direct pushes or force pushes to `main` | GitHub `Protect Main` ruleset |
