@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Feature ideas
+    url: https://github.com/danielzdev/morrowbot/discussions/categories/ideas
+    about: Propose a new feature or plugin idea in GitHub Discussions.

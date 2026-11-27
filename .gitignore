@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+out/
+release/
+*.tsbuildinfo
+
+# Local data & env
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
+
+# Logs & caches
+*.log
+npm-debug.log*
+pnpm-debug.log*
+.cache/
+.turbo/
+coverage/
+__pycache__/
+*.pyc
+
+# OS & editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Agent scratch & worktrees
+.claude/work/
+.claude/worktrees/
