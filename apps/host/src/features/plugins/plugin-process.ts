@@ -44,7 +44,7 @@ export interface PluginProcess {
   readonly pid: number | undefined;
   /** Settles once, when the process is gone. */
   readonly exited: Promise<PluginExit>;
-  init(config: PluginConfig): Promise<PluginKind>;
+  init(config: PluginConfig, dataDir: string): Promise<PluginKind>;
   health(): Promise<PluginHealth>;
   stream(request: ProviderStreamRequest, onChunk: (chunk: StreamChunk) => void, signal?: AbortSignal): Promise<FinishReason>;
   /** Asks the plugin to shut down, then kills it if it has not exited within the shutdown timeout. */
@@ -71,15 +71,17 @@ type Pending = Waiter & Variant;
 export interface SpawnOptions {
   readonly entryPath: string;
   readonly cwd: string;
+  /** Host environment variables to pass on besides `PATH` (the manifest's `env`). */
+  readonly envNames: readonly string[];
   readonly timeouts: PluginTimeouts;
 }
 
 /** Starts a plugin in its own Node process and talks to it over IPC. */
-export function spawnPluginProcess({ entryPath, cwd, timeouts }: SpawnOptions): PluginProcess {
+export function spawnPluginProcess({ entryPath, cwd, envNames, timeouts }: SpawnOptions): PluginProcess {
   const child = fork(entryPath, [], {
     cwd,
     execArgv: [],
-    env: { PATH: process.env.PATH ?? '' },
+    env: pluginEnv(envNames),
     serialization: 'json',
     stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
   });
@@ -223,9 +225,9 @@ export function spawnPluginProcess({ entryPath, cwd, timeouts }: SpawnOptions): 
   return {
     pid: child.pid,
     exited: exit.promise,
-    init: (config) =>
+    init: (config, dataDir) =>
       new Promise((resolve, reject) => {
-        request({ kind: 'init', resolve }, reject, timeouts.initMs, (id) => ({ kind: 'init', id, config }));
+        request({ kind: 'init', resolve }, reject, timeouts.initMs, (id) => ({ kind: 'init', id, config, dataDir }));
       }),
     health: () =>
       new Promise((resolve, reject) => {
@@ -272,4 +274,13 @@ export function spawnPluginProcess({ entryPath, cwd, timeouts }: SpawnOptions): 
       clearTimeout(killer);
     },
   };
+}
+
+function pluginEnv(names: readonly string[]): Record<string, string> {
+  const env: Record<string, string> = { PATH: process.env.PATH ?? '' };
+  for (const name of names) {
+    const value = process.env[name];
+    if (value !== undefined) env[name] = value;
+  }
+  return env;
 }

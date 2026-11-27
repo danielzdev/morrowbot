@@ -51,6 +51,7 @@ describe('PluginManifest', () => {
           kind: 'theme',
           main: '../outside.ts',
           permissions: ['network', 'network'],
+          env: ['HOME', 'NOT-A-NAME'],
           settingsSchema: {
             'bad key': { kind: 'boolean', label: 'x' },
             engine: { kind: 'select', label: 'Engine', options: ['a'], default: 'z' },
@@ -68,6 +69,7 @@ describe('PluginManifest', () => {
           "kind: Invalid option: expected one of "provider"|"tool"",
           "main: Use a path inside the plugin folder",
           "permissions: List each permission once",
+          "env.1: Use an environment variable name",
           "settingsSchema.bad key: Invalid key in record",
           "settingsSchema.engine.default: The default must be one of the options",
           "settingsSchema.limit.default: The default must be between min and max",

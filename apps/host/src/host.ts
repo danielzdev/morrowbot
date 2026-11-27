@@ -38,6 +38,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
     plugins = await startPluginHost({
       pluginsDir: config.pluginsDir,
       safeMode: config.safeMode,
+      dataDir: path.join(config.dataDir, 'plugin-data'),
       store: storage.plugins,
       onStatus: options.onPluginStatus,
     });

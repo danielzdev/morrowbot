@@ -54,8 +54,17 @@ function streamingProvider(plugins: ProviderPlugins, pluginId: string): ChatProv
         wake?.();
       };
       plugins.stream(pluginId, { messages: toChatMessages(instructions, messages) }, (chunk) => {
-        chunks.push(chunk.text);
-        notify();
+        switch (chunk.kind) {
+          case 'text':
+            chunks.push(chunk.text);
+            notify();
+            return;
+          case 'status':
+          case 'tool-start':
+          case 'tool-end':
+          case 'final':
+            return;
+        }
       }, signal).then(
         () => {
           settled = { kind: 'done' };
