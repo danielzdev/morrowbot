@@ -103,6 +103,7 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
       info: undefined,
       turns: new Map(),
       restartAfterExit: false,
+      retired: Promise.resolve(),
     });
   }
 
@@ -157,7 +158,8 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
       child.forgetTurn(turnId);
       turn.sink.onLost();
     }
-    const holding = blocked.filter((row) => row.kind !== 'probe');
+    // Re-read now: a row checked as blocked may have been released while another was still checked.
+    const holding = blocked.filter((row) => row.kind !== 'probe' && groups.isBlocked(row.pgid));
     if (holding.length > 0 && stopping === undefined) quarantine(slot, holding.map((row) => row.pgid));
     return holding.length === 0;
   }
@@ -207,7 +209,7 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
                 slot.turns.delete(turnId);
                 turn.sink.onLost();
               }
-              if (row.kind !== 'probe') quarantine(slot, [pgid]);
+              if (row.kind !== 'probe' && groups.isBlocked(pgid)) quarantine(slot, [pgid]);
             });
           },
         },
@@ -220,13 +222,16 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
     slot.process = child;
     slot.worker = worker;
     slot.info = undefined;
-    void child.exited.then(async (exit) => {
+    const retired = child.exited.then(async (exit) => {
       const current = slot.process === child;
       if (current) {
         slot.process = undefined;
         slot.info = undefined;
       }
-      const clean = await workerGone(slot, child, worker);
+      return { exit, current, clean: await workerGone(slot, child, worker) };
+    });
+    slot.retired = retired.then(() => undefined);
+    void retired.then(({ exit, current, clean }) => {
       if (!current) return;
       const restart = slot.restartAfterExit;
       slot.restartAfterExit = false;
@@ -256,11 +261,13 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
     }
   }
 
+  /** Stops the worker and, unless the host is stopping, waits until its groups were checked. */
   async function stopProcess(slot: Slot): Promise<void> {
     const child = slot.process;
     slot.process = undefined;
     slot.info = undefined;
     await child?.stop();
+    if (stopping === undefined) await slot.retired;
   }
 
   async function stopFailed(slot: Slot, message: string): Promise<void> {

@@ -125,7 +125,9 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
       handle: async ({ params }) => {
         const id = params.get('id');
         if (chat.getThread(id) === undefined) return notFound('Thread');
-        return json(200, await chat.stop(id));
+        const stopped = await chat.stop(id);
+        if (stopped.kind === 'not_stored') return failure('internal', 'The reply could not be saved. Restart MorrowBot to finish this turn.');
+        return json(200, stopped);
       },
     },
   ];

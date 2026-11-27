@@ -1,5 +1,5 @@
 import { HostMessage, PROTOCOL_VERSION, type PluginMessage, type TurnEnd, type TurnRequest } from '@morrowbot/contracts';
-import { stopAllCommands } from './command.ts';
+import { stopAllCommands, stopTurnCommands } from './command.ts';
 import { ackGroup, connectHost, killGroup } from './host-link.ts';
 import type { PluginDefinition, ProviderPlugin } from './plugin.ts';
 
@@ -159,6 +159,7 @@ async function runTurn(
     ended = true;
     turns.delete(turnId);
   }
+  await stopTurnCommands(turnId);
   send({ kind: 'turn-end', turnId, ...end });
 }
 

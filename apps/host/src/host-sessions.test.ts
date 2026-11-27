@@ -127,6 +127,32 @@ it('marks the session needs-seed on route-changed even when the plugin did not t
   `);
 });
 
+it('keeps a signed-out turn that reports no account as signed-out, and resumes the untouched session after', async () => {
+  await chat.configure({ sessions: true });
+  const agent = await chat.agent();
+  const thread = await chat.thread(agent);
+  const sends = [
+    outcome(await chat.send(thread, 'describe')),
+    outcome(await chat.send(thread, 'signed-out-blank')),
+    outcome(await chat.send(thread, 'describe')),
+  ];
+  expect({ sends, history: (await chat.history(thread)).slice(2) }).toMatchInlineSnapshot(`
+    {
+      "history": [
+        "user: signed-out-blank",
+        "assistant(failed signed-out): hello from pid <pid>:",
+        "user: describe",
+        "assistant(completed): hello from pid <pid>: {"session":{"kind":"resume","ref":"ref-id-3"},"system":"","selection":{"kind":"default"},"expectedAccountKey":"acct-a"}",
+      ],
+      "sends": [
+        "202",
+        "202",
+        "202",
+      ],
+    }
+  `);
+});
+
 it("treats an unknown account ('') as stateless: full seed every turn, never a session choice", async () => {
   await chat.configure({ sessions: true, accountKey: '' });
   const agent = await chat.agent();

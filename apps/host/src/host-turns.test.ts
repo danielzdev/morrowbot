@@ -240,3 +240,23 @@ it('refuses a provider recheck while it has a turn, and runs it once the turn is
     }
   `);
 });
+
+it('ends a command the plugin left running when its turn ends, so the thread is free at once', async () => {
+  chat = await startChatFixture();
+  const agent = await chat.agent();
+  const thread = await chat.thread(agent);
+  const left = await chat.send(thread, 'leave-running');
+  const next = await chat.send(thread, 'after');
+  expect({ left: left.status, next: next.status, history: await chat.history(thread) }).toMatchInlineSnapshot(`
+    {
+      "history": [
+        "user: leave-running",
+        "assistant(completed): hello from pid <pid>: leave-running",
+        "user: after",
+        "assistant(completed): hello from pid <pid>: after",
+      ],
+      "left": 202,
+      "next": 202,
+    }
+  `);
+});

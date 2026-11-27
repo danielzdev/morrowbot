@@ -98,8 +98,12 @@ export class ChildGroupRegistry {
     return (this.groups.get(pgid)?.blockedSince ?? null) !== null;
   }
 
-  /** Records a group a guard reported, in one transaction (releasing a stale row with the same pgid first). */
+  /**
+   * Records a group a guard reported, in one transaction (releasing a stale row with the same pgid first).
+   * Throws once the registry is closed, so the guard is never acknowledged and never starts its program.
+   */
   register(pluginId: string, worker: number, pgid: number, leaderStart: string, scope: ChildGroupScope): ChildGroupRow {
+    if (this.closed) throw new Error(`refused process group ${String(pgid)}: the plugin host is stopping`);
     const row: ChildGroupRow = {
       pgid,
       regId: this.options.newRegId(),

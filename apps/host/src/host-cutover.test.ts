@@ -53,7 +53,7 @@ async function buildV1(dataDir: string, workspace: string): Promise<void> {
 
 const Invocation = z.object({ args: z.array(z.string()), stdin: z.string().nullable() });
 
-it('upgrades a #4 data folder and answers the next message through the bundled Claude plugin with the saved model', async () => {
+it('upgrades a #4 data folder and answers the next two messages through the bundled Claude plugin with the saved model', async () => {
   home = await realpath(await mkdtemp(path.join(tmpdir(), 'morrowbot-cutover-')));
   vi.stubEnv('HOME', home);
   vi.stubEnv('CLAUDE_CONFIG_DIR', path.join(home, '.claude'));
@@ -65,21 +65,22 @@ it('upgrades a #4 data folder and answers the next message through the bundled C
   host = await startTestHost({ dataDir, pluginsDir: PLUGINS });
   const events = await host.events();
   events.subscribe('t1', null);
-  const reply = await host.call('POST', '/api/threads/t1/messages', { text: 'next step?', sessionChoice: { kind: 'auto' } });
-  const { generationId } = SendMessageResponse.parse(reply.body);
-  await events.finished(generationId);
+  for (const text of ['next step?', 'and then?']) {
+    const reply = await host.call('POST', '/api/threads/t1/messages', { text, sessionChoice: { kind: 'auto' } });
+    await events.finished(SendMessageResponse.parse(reply.body).generationId);
+  }
   const agent = (await host.call('GET', '/api/agents/a1')).body;
   const { messages } = MessageList.parse((await host.call('GET', '/api/threads/t1/messages')).body);
   const log = await readFile(path.join(home, 'fake-claude', 'log.jsonl'), 'utf8');
-  const turn = log
+  const turns = log
     .split('\n')
     .filter((line) => line !== '')
     .map((line) => Invocation.parse(JSON.parse(line)))
-    .find(({ args }) => args[0] === '-p');
+    .filter(({ args }) => args[0] === '-p');
   expect({
     binding: typeof agent === 'object' && agent !== null && 'provider' in agent ? agent.provider : null,
-    model: turn?.args[turn.args.indexOf('--model') + 1],
-    stdin: turn?.stdin,
+    models: turns.map(({ args }) => args[args.indexOf('--model') + 1]),
+    lastStdin: turns.at(-1)?.stdin,
     history: messages.map((message) => (message.kind === 'user' ? `user: ${message.text}` : `assistant(${message.outcome.kind}): ${message.text}`)),
   }).toMatchInlineSnapshot(`
     {
@@ -99,9 +100,10 @@ it('upgrades a #4 data folder and answers the next message through the bundled C
         "assistant(cancelled): hal",
         "user: next step?",
         "assistant(completed): You said: next step?",
+        "user: and then?",
+        "assistant(completed): You said: and then?",
       ],
-      "model": "opus",
-      "stdin": "Continue this conversation. Reply to the last user message.
+      "lastStdin": "Continue this conversation. Reply to the last user message.
 
     <conversation>
     <user>
@@ -113,7 +115,17 @@ it('upgrades a #4 data folder and answers the next message through the bundled C
     <user>
     next step?
     </user>
+    <assistant>
+    You said: next step?
+    </assistant>
+    <user>
+    and then?
+    </user>
     </conversation>",
+      "models": [
+        "opus",
+        "opus",
+      ],
     }
   `);
 });

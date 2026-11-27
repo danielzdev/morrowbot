@@ -58,7 +58,8 @@ export function commandFilePath(index: number): string {
   return `/dev/fd/${String(FIRST_FILE_FD + index)}`;
 }
 
-const running = new Set<() => Promise<CommandExit>>();
+/** Each running command's stop, with what its group belongs to. */
+const running = new Map<() => Promise<CommandExit>, ChildGroupScope>();
 
 /**
  * Starts a program (found on `PATH` unless given as a path) through a guard process that leads its
@@ -133,7 +134,7 @@ export function openCommand(command: string, options: CommandOptions): OpenComma
     }
   };
 
-  running.add(stop);
+  running.set(stop, options.scope);
   guard.on('error', (error) => {
     if (guard.pid === undefined) finish({ kind: 'failed', message: `Could not start in ${options.cwd}: ${error.message}` });
   });
@@ -197,7 +198,13 @@ export function runCommand(command: string, options: RunCommandOptions): Promise
 
 /** Stops every running command and waits until they have exited. */
 export async function stopAllCommands(): Promise<void> {
-  await Promise.all([...running].map((stop) => stop()));
+  await Promise.all([...running.keys()].map((stop) => stop()));
+}
+
+/** Stops the commands a turn started and waits until they have exited, so no turn group outlives its turn. */
+export async function stopTurnCommands(turnId: string): Promise<void> {
+  const owned = [...running].filter(([, scope]) => scope.kind === 'turn' && scope.turnId === turnId);
+  await Promise.all(owned.map(([stop]) => stop()));
 }
 
 /** Under Electron the guard runs on the Electron binary, which must act as plain Node. The guard removes it again for the command. */

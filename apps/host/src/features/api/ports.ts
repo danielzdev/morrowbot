@@ -58,7 +58,7 @@ export interface ApiChat {
   state(threadId: string): ThreadState | undefined;
   send(threadId: string, text: string, choice: SessionChoice): Promise<ApiAdmitResult>;
   continueTurn(threadId: string, failedMessageId: string, choice: SessionChoice): Promise<ApiAdmitResult>;
-  stop(threadId: string): Promise<StopGenerationResponse>;
+  stop(threadId: string): Promise<StopGenerationResponse | { readonly kind: 'not_stored' }>;
   replyApproval(
     threadId: string,
     generationId: string,

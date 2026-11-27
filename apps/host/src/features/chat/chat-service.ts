@@ -14,10 +14,13 @@ import { admit, type AdmitResult } from './admission.ts';
 import { dispatch } from './dispatch.ts';
 import { EventLog, type Replay } from './event-log.ts';
 import type { ChatListener, ChatServiceOptions } from './ports.ts';
-import { laneOf, localSettlement, queueNote, settle, type ChatCore, type Turn } from './turn.ts';
+import { laneOf, localSettlement, queueNote, settle, type ChatCore, type StoredReply, type Turn } from './turn.ts';
 import { readUsage, type UsageAnswer } from './usage.ts';
 
 export type ApprovalResult = { readonly kind: 'replied' } | { readonly kind: 'not_found' };
+
+/** Stop's answer; `not_stored` when the reply could not be saved (the thread stays busy until restart). */
+export type StopResult = StopGenerationResponse | { readonly kind: 'not_stored' };
 
 export type RecheckResult =
   | { readonly kind: 'ok'; readonly info: ProviderInfo }
@@ -39,7 +42,7 @@ export interface ChatService {
   send(threadId: string, text: string, choice: SessionChoice): Promise<AdmitResult>;
   continueTurn(threadId: string, failedMessageId: string, choice: SessionChoice): Promise<AdmitResult>;
   /** Stops the thread's turn and resolves once its reply is stored and its processes are gone. */
-  stop(threadId: string): Promise<StopGenerationResponse>;
+  stop(threadId: string): Promise<StopResult>;
   replyApproval(threadId: string, generationId: string, approvalId: string, choiceId: string): ApprovalResult;
   /** Refreshes a provider's info with no new sends admitted meanwhile. Refused while it has turns. */
   recheck(pluginId: string): Promise<RecheckResult>;
@@ -67,8 +70,8 @@ export function createChatService(options: ChatServiceOptions): ChatService {
   };
   recover(options);
 
-  /** Stops a turn the way its state allows. Resolves with its stored reply. */
-  const stopTurn = (turn: Turn): Promise<AssistantMessage> => {
+  /** Stops a turn the way its state allows. Resolves once cleanup is over (see `Turn.quiet`), with its reply. */
+  const stopTurn = async (turn: Turn): Promise<StoredReply> => {
     switch (turn.state) {
       case 'queued': {
         const lane = laneOf(core, turn);
@@ -86,15 +89,16 @@ export function createChatService(options: ChatServiceOptions): ChatService {
       case 'settled':
         break;
     }
-    return turn.settled.promise;
+    const reply = await turn.settled.promise;
+    await turn.quiet.promise;
+    return reply;
   };
 
-  const stop = async (threadId: string): Promise<StopGenerationResponse> => {
+  const stop = async (threadId: string): Promise<StopResult> => {
     const turn = core.active.get(threadId);
     if (turn === undefined) return { kind: 'idle' };
-    const message = await stopTurn(turn);
-    await turn.quiet.promise;
-    return { kind: 'stopped', message };
+    const reply = await stopTurn(turn);
+    return reply.kind === 'stored' ? { kind: 'stopped', message: reply.message } : { kind: 'not_stored' };
   };
 
   /** Runs `remove` with no turn running, and none able to start, in the threads it removes. */

@@ -116,7 +116,7 @@ async function readTurnInputs(core: ChatCore, turn: Turn): Promise<TurnInputs> {
 function accountMoved(turn: Turn, info: ProviderInfo): boolean {
   if (turn.plan.kind !== 'stateless' || turn.accountKey === '') return false;
   if (info.kind !== 'ready' && info.kind !== 'ready-models-later') return false;
-  return !info.capabilities.sessions && info.accountKey !== turn.accountKey;
+  return !info.capabilities.sessions && info.accountKey !== '' && info.accountKey !== turn.accountKey;
 }
 
 function seedFor(turn: Turn): Seed {
@@ -215,22 +215,16 @@ function mergeLiveUsage(core: ChatCore, turn: Turn, observedAt: string, windows:
 }
 
 function onEnd(core: ChatCore, turn: Turn, end: TurnEnd): void {
-  const fenced = turn.fenced;
-  if (!fenced && turn.accountKey !== '' && end.accountKey !== turn.accountKey) {
-    // Output that claims another account is never stored as this turn's reply.
+  // A fenced turn, or one that ends on another known account, keeps nothing the plugin said but whether it touched the session.
+  const otherAccount = turn.accountKey !== '' && end.accountKey !== '' && end.accountKey !== turn.accountKey;
+  if (turn.fenced || otherAccount) {
     turn.text = '';
     settle(core, turn, { ...localSettlement({ kind: 'failed', error: { kind: 'account-changed' } }), sessionTouched: end.sessionTouched });
-    accountChanged(core, turn.pluginId, turn.accountKey);
+    if (otherAccount && !turn.fenced) accountChanged(core, turn.pluginId, turn.accountKey);
     return;
   }
-  settle(core, turn, {
-    outcome: end.outcome,
-    usage: fenced ? { kind: 'unavailable' } : end.usage,
-    actualModel: end.actualModel,
-    finalText: fenced ? null : end.finalText,
-    sessionTouched: end.sessionTouched,
-  });
-  if (fenced || end.outcome.kind !== 'failed') return;
+  settle(core, turn, { outcome: end.outcome, usage: end.usage, actualModel: end.actualModel, finalText: end.finalText, sessionTouched: end.sessionTouched });
+  if (end.outcome.kind !== 'failed') return;
   const { kind } = end.outcome.error;
   if (kind === 'account-changed') accountChanged(core, turn.pluginId, turn.accountKey);
   else if (kind === 'route-changed' || kind === 'signed-out') void core.options.plugins.info(turn.pluginId, true);

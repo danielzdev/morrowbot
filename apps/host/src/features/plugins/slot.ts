@@ -29,9 +29,11 @@ export interface Slot {
   health: Promise<PluginStatus> | undefined;
   /** Set while a process group of this plugin cannot be confirmed gone: no new work runs. */
   quarantine: string | undefined;
-  /** The current worker's last provider-info, and a fetch in flight. */
-  info: { readonly worker: number; readonly value: Promise<ProviderInfo>; settled: ProviderInfo | undefined } | undefined;
+  /** The current worker's last provider-info, and a fetch in flight; `askedAt` is on the monotonic clock. */
+  info: { readonly worker: number; readonly askedAt: number; readonly value: Promise<ProviderInfo>; settled: ProviderInfo | undefined } | undefined;
   readonly turns: Map<string, OpenTurn>;
   /** Set when the host kills the worker itself (Stop on a hung turn): restart it once its groups are gone. */
   restartAfterExit: boolean;
+  /** Settles once the last worker has exited and its groups were checked (a worker never starts before). */
+  retired: Promise<void>;
 }

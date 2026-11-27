@@ -1,6 +1,6 @@
 import type { PluginStatus, ProviderInfo, TurnRequest, UsageResult } from '@morrowbot/contracts';
 import type { ChildGroupRegistry } from './child-groups.ts';
-import { PluginTimeoutError, type PluginTimeouts } from './plugin-process.ts';
+import { PluginTimeoutError, type PluginProcess, type PluginTimeouts } from './plugin-process.ts';
 import type { Slot, TurnSink } from './slot.ts';
 
 export type InfoResult =
@@ -53,6 +53,9 @@ export interface RequestDeps {
   readonly timeouts: PluginTimeouts;
 }
 
+/** How long a worker's provider-info is shown before it is asked again (it is never used to pin a turn). */
+const INFO_DISPLAY_MS = 60_000;
+
 export function providerRequests({ slotOf, statusOf, isServing, groups, timeouts }: RequestDeps): ProviderRequests {
   function unavailable(slot: Slot): string | undefined {
     if (slot.plugin.manifest.kind !== 'provider') return `Plugin "${slot.plugin.manifest.id}" is not a provider`;
@@ -63,6 +66,22 @@ export function providerRequests({ slotOf, statusOf, isServing, groups, timeouts
     return undefined;
   }
 
+  /** Starts a provider-info request as the slot's entry; a failure puts back the last good answer. */
+  function ask(slot: Slot, child: PluginProcess, worker: number, refresh: boolean, previous: ProviderInfo | undefined): NonNullable<Slot['info']> {
+    const entry: NonNullable<Slot['info']> = { worker, askedAt: performance.now(), value: child.providerInfo(refresh), settled: previous };
+    slot.info = entry;
+    entry.value.then(
+      (value) => {
+        entry.settled = value;
+      },
+      () => {
+        if (slot.info !== entry) return;
+        slot.info = previous === undefined ? undefined : { worker, askedAt: entry.askedAt, value: Promise.resolve(previous), settled: previous };
+      },
+    );
+    return entry;
+  }
+
   async function info(pluginId: string, refresh: boolean): Promise<InfoResult> {
     const slot = slotOf(pluginId);
     if (statusOf(slot).kind === 'starting') await slot.queue;
@@ -70,21 +89,9 @@ export function providerRequests({ slotOf, statusOf, isServing, groups, timeouts
     const child = slot.process;
     const worker = slot.worker;
     if (reason !== undefined || child === undefined || worker === null) return { kind: 'unavailable', reason: reason ?? 'not running' };
-    if (refresh || slot.info?.worker !== worker) {
-      const previous = slot.info?.worker === worker ? slot.info.settled : undefined;
-      const entry: NonNullable<Slot['info']> = { worker, value: child.providerInfo(refresh), settled: previous };
-      slot.info = entry;
-      entry.value.then(
-        (value) => {
-          entry.settled = value;
-        },
-        () => {
-          if (slot.info !== entry) return;
-          slot.info = previous === undefined ? undefined : { worker, value: Promise.resolve(previous), settled: previous };
-        },
-      );
-    }
-    const entry = slot.info;
+    const current = slot.info?.worker === worker ? slot.info : undefined;
+    const expired = current?.settled !== undefined && performance.now() - current.askedAt > INFO_DISPLAY_MS;
+    const entry = refresh || current === undefined || expired ? ask(slot, child, worker, refresh, current?.settled) : current;
     try {
       const value = await entry.value;
       return slot.worker === worker ? { kind: 'ok', info: value, worker } : { kind: 'unavailable', reason: 'The plugin restarted' };
@@ -109,8 +116,9 @@ export function providerRequests({ slotOf, statusOf, isServing, groups, timeouts
     usage: async (pluginId, refresh) => {
       const ready = await info(pluginId, false);
       if (ready.kind === 'unavailable') return ready;
-      const child = slotOf(pluginId).process;
-      if (child === undefined) return { kind: 'unavailable', reason: 'The plugin stopped' };
+      const slot = slotOf(pluginId);
+      const child = slot.process;
+      if (child === undefined || slot.worker !== ready.worker) return { kind: 'unavailable', reason: 'The plugin restarted' };
       try {
         return { kind: 'ok', usage: await child.usage(refresh), worker: ready.worker };
       } catch (error) {

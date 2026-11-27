@@ -92,6 +92,12 @@ runPlugin(
           emit({ kind: 'text', text: ` ${JSON.stringify({ session: request.session })}` });
           return end({ kind: 'completed', finishReason: 'stop' }, current);
         }
+        case 'signed-out-blank':
+          return end({ kind: 'failed', error: { kind: 'signed-out' } }, '', { sessionTouched: false });
+        case 'leave-running':
+          openCommand('/bin/sleep', { args: ['30'], cwd: request.cwd, files: [], scope: { kind: 'turn', turnId: request.turnId }, signal, onLine: () => undefined }).end();
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          break;
         case 'route-changed':
           return end({ kind: 'failed', error: { kind: 'route-changed' } }, current, { sessionTouched: false });
         case 'session-lost':

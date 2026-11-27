@@ -58,12 +58,15 @@ export interface Turn {
   fenced: boolean;
   stopRequested: boolean;
   readonly approvals: Map<string, PendingApproval>;
-  readonly settled: PromiseWithResolvers<AssistantMessage>;
+  readonly settled: PromiseWithResolvers<StoredReply>;
   /** Resolves once the turn's process groups are all gone: the thread and its slot are free. */
   readonly released: PromiseWithResolvers<void>;
   /** Resolves once cleanup is over: groups gone, or the rest blocked (the thread stays busy until they go). */
   readonly quiet: PromiseWithResolvers<void>;
 }
+
+/** A settled turn's reply, or `not-stored` when the database refused it (the next boot settles it as interrupted). */
+export type StoredReply = { readonly kind: 'stored'; readonly message: AssistantMessage } | { readonly kind: 'not-stored' };
 
 /** Turns that share a concurrency slot pool: one plugin and account. */
 export interface Lane {
@@ -134,9 +137,8 @@ export function settle(core: ChatCore, turn: Turn, result: Settlement): Assistan
   const base: AssistantMessage = { kind: 'assistant', id: newId(), threadId: turn.threadId, text, outcome: result.outcome, createdAt };
   const message: AssistantMessage = turn.seedTruncated ? { ...base, seedTruncated: true } : base;
   if (!persistSettlement(core, turn, message, result, createdAt)) {
-    // Nothing was stored: the thread stays busy and the next boot settles the turn as interrupted.
-    turn.settled.resolve(message);
-    turn.quiet.resolve();
+    turn.settled.resolve({ kind: 'not-stored' });
+    releaseWhenGone(core, turn, { keepThreadBusy: true });
     return undefined;
   }
   for (const approval of turn.approvals.values()) {
@@ -149,26 +151,20 @@ export function settle(core: ChatCore, turn: Turn, result: Settlement): Assistan
     });
   }
   turn.approvals.clear();
-  turn.settled.resolve(message);
+  turn.settled.resolve({ kind: 'stored', message });
   core.events.publish({ kind: 'generation.finished', threadId: turn.threadId, generationId: turn.generationId, message });
-  releaseWhenGone(core, turn);
+  releaseWhenGone(core, turn, { keepThreadBusy: false });
   return message;
 }
 
-/**
- * Writes the reply, usage, settled generation and session effect in one transaction. If that fails,
- * at least the reply and the settled generation; false when even that fails.
- */
+/** Writes the reply, usage, settled generation and session effect in one transaction; false when it fails. */
 function persistSettlement(core: ChatCore, turn: Turn, message: AssistantMessage, result: Settlement, createdAt: string): boolean {
   const { store } = core.options;
-  const reply = (): void => {
-    store.messages.insert(message);
-    store.threads.touch(turn.threadId, createdAt);
-    store.generations.settle(turn.generationId, message.id);
-  };
   try {
     store.transaction(() => {
-      reply();
+      store.messages.insert(message);
+      store.threads.touch(turn.threadId, createdAt);
+      store.generations.settle(turn.generationId, message.id);
       if (!turn.dispatched) return;
       store.generations.insertUsage({
         generationId: turn.generationId,
@@ -183,12 +179,6 @@ function persistSettlement(core: ChatCore, turn: Turn, message: AssistantMessage
       });
       applySessionEffect(core, turn, result);
     });
-    return true;
-  } catch (error) {
-    core.options.report(error);
-  }
-  try {
-    store.transaction(reply);
     return true;
   } catch (error) {
     core.options.report(error);
@@ -225,13 +215,14 @@ function cleanAfterCompletion(turn: Turn): boolean {
 }
 
 /**
- * A thread stays busy until its turn is settled and every process group of the turn is confirmed gone.
- * Stop returns earlier, once the remaining groups are blocked (shown in `/state`) rather than still being checked.
+ * A thread stays busy until its turn is settled and every process group of the turn is confirmed gone
+ * (for good when its reply could not be stored). Stop returns earlier, once the remaining groups are
+ * blocked (shown in `/state`) rather than still being checked.
  */
-function releaseWhenGone(core: ChatCore, turn: Turn): void {
+function releaseWhenGone(core: ChatCore, turn: Turn, { keepThreadBusy }: { readonly keepThreadBusy: boolean }): void {
   const { plugins } = core.options;
   const release = (): void => {
-    if (core.active.get(turn.threadId) === turn) core.active.delete(turn.threadId);
+    if (!keepThreadBusy && core.active.get(turn.threadId) === turn) core.active.delete(turn.threadId);
     const lane = laneOf(core, turn);
     lane.running.delete(turn);
     turn.quiet.resolve();

@@ -25,11 +25,11 @@ export async function readUsage(core: ChatCore, pluginId: string, refresh: boole
     const usage: UsageResult = { kind: 'available', observedAt, accountKey: '', windows: entries.map((entry) => entry.window) };
     return { kind: 'ok', response: { usage, stale: false, persisted: false } };
   }
-  const fenced = core.fenced.has(laneKey(pluginId, live.accountKey));
-  if (live.kind === 'available' && !fenced) store.usage.merge(pluginId, live.accountKey, live.observedAt, live.windows);
+  if (core.fenced.has(laneKey(pluginId, live.accountKey))) return { kind: 'unavailable', reason: 'The signed-in account changed. Checking the provider again.' };
+  if (live.kind === 'available') store.usage.merge(pluginId, live.accountKey, live.observedAt, live.windows);
   const info = plugins.cachedInfo(pluginId);
   const validated = info?.worker === answer.worker && (info.info.kind === 'ready' || info.info.kind === 'ready-models-later') && info.info.accountKey === live.accountKey;
-  if (fenced || !validated || !servesSnapshot(live)) return { kind: 'ok', response: { usage: live, stale: false, persisted: false } };
+  if (!validated || !servesSnapshot(live)) return { kind: 'ok', response: { usage: live, stale: false, persisted: false } };
   const saved = store.usage.read(pluginId, live.accountKey);
   if (saved === undefined) return { kind: 'ok', response: { usage: live, stale: false, persisted: false } };
   const age = Date.parse(core.options.now()) - Date.parse(saved.observedAt);
