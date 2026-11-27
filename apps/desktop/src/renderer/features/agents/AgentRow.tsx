@@ -1,9 +1,8 @@
-import type { Agent } from '@morrowbot/contracts';
 import type { ComponentChildren } from 'preact';
-import { useState } from 'preact/hooks';
 import { relativeTime } from '../../shared/format.ts';
 import { MenuButton, type MenuItem } from '../../shared/ui/Menu.tsx';
 import { IconButton, Tooltip } from '../../shared/ui/Tooltip.tsx';
+import { RowRename } from './RowRename.tsx';
 import type { AgentEntry, AgentStatus } from './sidebar-groups.ts';
 
 /** The one status a row shows on its right (spec §3.1), as words; null shows nothing. */
@@ -24,29 +23,6 @@ export function statusText(status: AgentStatus, now: number): { readonly text: s
     case 'unknown':
       return null;
   }
-}
-
-function Rename(props: { readonly agent: Agent; readonly onDone: (name: string | null) => void }) {
-  const [name, setName] = useState(props.agent.name);
-  return (
-    <input
-      class="row-rename"
-      aria-label={`Rename ${props.agent.name}`}
-      value={name}
-      ref={(input) => input?.focus()}
-      onInput={(event) => {
-        setName(event.currentTarget.value);
-      }}
-      onBlur={() => {
-        props.onDone(name.trim() === '' || name.trim() === props.agent.name ? null : name.trim());
-      }}
-      onKeyDown={(event) => {
-        event.stopPropagation();
-        if (event.key === 'Escape') props.onDone(null);
-        if (event.key === 'Enter') event.currentTarget.blur();
-      }}
-    />
-  );
 }
 
 export interface AgentRowProps {
@@ -109,7 +85,7 @@ export function AgentRow(props: AgentRowProps) {
     return (
       <div class="agent-row renaming">
         {props.avatar}
-        <Rename agent={agent} onDone={props.onRenamed} />
+        <RowRename agent={agent} onDone={props.onRenamed} />
       </div>
     );
   }

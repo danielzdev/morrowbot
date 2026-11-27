@@ -46,7 +46,7 @@
 .menu-item:hover {
   background: var(--hover);
 }
-.menu-item.danger {
+.menu-item.destructive {
   color: var(--danger);
 }
 .menu-icon {
@@ -54,7 +54,7 @@
   width: 16px;
   color: var(--text-2);
 }
-.menu-item.danger .menu-icon {
+.menu-item.destructive .menu-icon {
   color: var(--danger);
 }
 .menu-label {

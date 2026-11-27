@@ -49,7 +49,9 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
   const newChat = (agentId: string): void => {
     models.agents.selectAgent(agentId);
     setPage({ kind: 'chat' });
-    void models.agents.newThread(agentId);
+    void models.agents.newThread(agentId).then(() => {
+      requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('.composer textarea')?.focus());
+    });
   };
   const copyChat = (threadId: string): void => {
     const view = models.chats.session(threadId).screen.get().view;
@@ -97,7 +99,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
                 <button class="btn ghost" onClick={() => { models.agents.dismissProblem(); }}>Dismiss</button>
               </div>
             )}
-            <Pages page={page} onPage={setPage} models={models} bridge={bridge} agent={agent} chrome={chrome} info={info} reducedMotion={appearance.reducedMotion} onCopy={copyChat} />
+            <Pages page={page} onPage={setPage} models={models} bridge={bridge} agent={agent} chrome={chrome} info={info} reducedMotion={appearance.reducedMotion} onCopy={copyChat} onNewChat={newChat} />
           </>
         )}
       />

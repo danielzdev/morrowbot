@@ -26,6 +26,7 @@ export function Pages(props: {
   readonly info: AppInfo | null;
   readonly reducedMotion: boolean;
   readonly onCopy: (threadId: string) => void;
+  readonly onNewChat: (agentId: string) => void;
 }) {
   const { models, bridge, agent, chrome, info, page } = props;
   const state = useStore(models.agents.state);
@@ -62,7 +63,7 @@ export function Pages(props: {
     case 'chat':
       if (agent !== undefined) {
         return (
-          <ChatPane key={agent.id} models={models} agent={agent} chrome={chrome} reducedMotion={props.reducedMotion} onAgentSettings={() => { setPage({ kind: 'agent-settings' }); }} onPlugins={() => { setPage({ kind: 'plugins' }); }} onCopy={props.onCopy} />
+          <ChatPane key={agent.id} models={models} agent={agent} chrome={chrome} reducedMotion={props.reducedMotion} onAgentSettings={() => { setPage({ kind: 'agent-settings' }); }} onPlugins={() => { setPage({ kind: 'plugins' }); }} onCopy={props.onCopy} onNewChat={() => { props.onNewChat(agent.id); }} />
         );
       }
       return (

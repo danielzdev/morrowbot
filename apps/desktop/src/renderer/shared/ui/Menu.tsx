@@ -62,7 +62,7 @@ export function Menu(props: {
                   role="menuitem"
                   data-roving={item.label}
                   tabIndex={tabIndex}
-                  class={`menu-item ${item.danger === true ? 'danger' : ''}`}
+                  class={`menu-item${item.danger === true ? ' destructive' : ''}`}
                   onClick={() => {
                     props.onClose();
                     item.onSelect();

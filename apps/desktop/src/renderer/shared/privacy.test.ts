@@ -21,7 +21,7 @@ it('redacts the home path, emails and the user name as a whole word, keeping oth
   ]);
 });
 
-it('shows MorrowBot folders and the workspace in full, and only the last two segments of any other path', () => {
+it('shows MorrowBot folders and the workspace in full under home, and only the last two segments of any other path', () => {
   expect({
     data: displayPath('/Users/sam/.morrowbot/workspaces/agent-1', INFO),
     workspace: displayPath('/Users/sam/Projects/garden/notes', INFO, '/Users/sam/Projects/garden'),
@@ -30,6 +30,7 @@ it('shows MorrowBot folders and the workspace in full, and only the last two seg
     short: displayPath('/Users/sam/notes', INFO),
     userInTail: displayPath('/Volumes/backup/sam/plan.md', INFO),
     customData: displayPath('/Volumes/data/mb/plugins', { ...INFO, dataDir: '/Volumes/data/mb' }),
+    workspaceOutsideHome: displayPath('/srv/work/garden/notes', INFO, '/srv/work/garden'),
   }).toEqual({
     data: '~/.morrowbot/workspaces/agent-1',
     workspace: '~/Projects/garden/notes',
@@ -37,7 +38,8 @@ it('shows MorrowBot folders and the workspace in full, and only the last two seg
     outside: '…/bin/claude',
     short: '~/notes',
     userInTail: '…/<user>/plan.md',
-    customData: '/Volumes/data/mb/plugins',
+    customData: '…/mb/plugins',
+    workspaceOutsideHome: '…/garden/notes',
   });
 });
 

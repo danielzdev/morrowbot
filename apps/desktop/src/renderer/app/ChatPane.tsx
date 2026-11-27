@@ -34,6 +34,7 @@ export function ChatPane(props: {
   readonly onAgentSettings: () => void;
   readonly onPlugins: () => void;
   readonly onCopy: (threadId: string) => void;
+  readonly onNewChat: () => void;
 }) {
   const { models, agent } = props;
   const state = useStore(models.agents.state);
@@ -71,7 +72,7 @@ export function ChatPane(props: {
         sidebarButton={props.chrome.sidebarButton}
         onShowSidebar={props.chrome.showSidebar}
         onAgentSettings={props.onAgentSettings}
-        onNewChat={() => void models.agents.newThread(agent.id)}
+        onNewChat={props.onNewChat}
         onOpen={(id) => {
           models.agents.openThread(agent.id, id);
         }}
@@ -83,7 +84,7 @@ export function ChatPane(props: {
       {session === undefined ? (
         <div class="chat empty">
           <p>No chats yet.</p>
-          <button class="btn primary" onClick={() => void models.agents.newThread(agent.id)}>
+          <button class="btn primary" onClick={props.onNewChat}>
             New chat
           </button>
         </div>

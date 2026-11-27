@@ -1,17 +1,17 @@
 import type { Agent } from '@morrowbot/contracts';
 import type { ComponentChildren } from 'preact';
-import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { PLATFORM, shortcutLabel, type ShortcutId } from '../../shared/keys.ts';
-import { rovingTarget, typeAheadTarget } from '../../shared/roving.ts';
+import { useEffect, useRef, useState } from 'preact/hooks';
+import { PLATFORM, shortcutLabel } from '../../shared/keys.ts';
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog.tsx';
 import { Icon } from '../../shared/ui/Icon.tsx';
 import { Menu, type MenuItem } from '../../shared/ui/Menu.tsx';
-import { IconButton, Tooltip } from '../../shared/ui/Tooltip.tsx';
 import { useStore } from '../../shared/use-store.ts';
 import type { AgentsModel, AgentsState } from './agents-model.ts';
 import { AgentRow } from './AgentRow.tsx';
 import { GROUP_LABEL, groupAgents, type AgentEntry, type AgentFacts } from './sidebar-groups.ts';
-import { itemsOf, ROW_PX, windowOf } from './sidebar-window.ts';
+import { SidebarBottom, SidebarTop } from './SidebarChrome.tsx';
+import { itemsOf } from './sidebar-window.ts';
+import { useAgentList } from './use-agent-list.ts';
 
 /** What the app knows about an agent beyond its chats list: provider readiness and its open chats' activity. */
 export type LiveFacts = Pick<AgentFacts, 'providerReady' | 'approvalChats' | 'failed' | 'working'>;
@@ -54,16 +54,11 @@ export function Sidebar(props: SidebarProps) {
   const rail = props.mode === 'rail';
   const [filter, setFilter] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
-  const [focusId, setFocusId] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<Agent | null>(null);
   const [chooser, setChooser] = useState<{ readonly agentId: string; readonly anchor: HTMLElement } | null>(null);
-  const [scroll, setScroll] = useState({ top: 0, height: 600 });
   const [now, setNow] = useState(Date.now);
-  const list = useRef<HTMLDivElement>(null);
   const filterInput = useRef<HTMLInputElement>(null);
-  const pendingFocus = useRef(false);
-  const listHasFocus = useRef(false);
   const agents = state.agents.kind === 'loaded' ? state.agents.value : [];
   const unreadAgents = new Set(Object.values(state.unread));
   const showFilter = !rail && (agents.length >= FILTER_FROM || filterOpen);
@@ -73,9 +68,8 @@ export function Sidebar(props: SidebarProps) {
     showFilter ? filter : '',
   );
   const items = itemsOf(groups, rail);
-  const entries = items.flatMap((item) => (item.kind === 'agent' ? [item.entry] : []));
-  const shown = windowOf(items, scroll.top, scroll.height, entries.length);
-  const tabStop = entries.find(({ agent }) => agent.id === focusId)?.agent.id ?? entries.find(({ agent }) => agent.id === state.selectedAgentId)?.agent.id ?? entries[0]?.agent.id;
+  const view = useAgentList(items, state.selectedAgentId);
+  const { entries, shown } = view;
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -90,49 +84,6 @@ export function Sidebar(props: SidebarProps) {
     setFilterOpen(true);
     requestAnimationFrame(() => filterInput.current?.focus());
   }, [props.filterRequest]);
-  useEffect(() => {
-    const element = list.current;
-    if (element === null) return;
-    const observer = new ResizeObserver(() => {
-      setScroll({ top: element.scrollTop, height: element.clientHeight });
-    });
-    observer.observe(element);
-    return () => {
-      observer.disconnect();
-    };
-  }, []);
-  useLayoutEffect(() => {
-    const lost = listHasFocus.current && (document.activeElement === document.body || document.activeElement === null);
-    if ((!pendingFocus.current && !lost) || tabStop === undefined) return;
-    pendingFocus.current = false;
-    list.current?.querySelector<HTMLElement>(`[data-agent="${tabStop}"]`)?.focus();
-  });
-
-  const moveTo = (index: number): void => {
-    const entry = entries[index];
-    const element = list.current;
-    if (entry === undefined || element === null) return;
-    const top = shown.tops[items.findIndex((item) => item.key === entry.agent.id)] ?? 0;
-    if (top < element.scrollTop) element.scrollTop = top;
-    else if (top + ROW_PX > element.scrollTop + element.clientHeight) element.scrollTop = top + ROW_PX - element.clientHeight;
-    setScroll({ top: element.scrollTop, height: element.clientHeight });
-    pendingFocus.current = true;
-    setFocusId(entry.agent.id);
-  };
-  const typed = useRef({ text: '', at: 0 });
-  const onListKey = (event: KeyboardEvent): void => {
-    if (!(event.target instanceof HTMLElement) || !event.target.classList.contains('agent-main')) return;
-    const current = entries.findIndex(({ agent }) => agent.id === tabStop);
-    let next = rovingTarget(event.key, current, entries.length);
-    if (next === null && event.key.length === 1 && event.key !== ' ' && !event.metaKey && !event.ctrlKey && !event.altKey) {
-      typed.current = { text: event.timeStamp - typed.current.at < 700 ? typed.current.text + event.key : event.key, at: event.timeStamp };
-      const found = typeAheadTarget(entries.map(({ agent }) => agent.name), typed.current.text, typed.current.text.length > 1 ? current - 1 : current);
-      next = found === -1 ? null : found;
-    }
-    if (next === null) return;
-    event.preventDefault();
-    moveTo(next);
-  };
 
   const menuFor = (agent: Agent): readonly MenuItem[] => [
     { kind: 'action', id: 'settings', label: 'Agent settings', icon: 'settings', onSelect: () => { props.onAgentSettings(agent.id); } },
@@ -147,21 +98,7 @@ export function Sidebar(props: SidebarProps) {
 
   return (
     <nav class={`sidebar ${props.mode}`} aria-label="Agents">
-      <div class="sidebar-top drag">
-        {!rail && (
-          <>
-            <span class="spacer" />
-            <IconButton icon="sidebar" label={props.mode === 'overlay' ? 'Close sidebar' : 'Collapse sidebar'} shortcut="toggle-sidebar" onClick={props.onToggle} />
-            <IconButton icon="plus" label="New agent" shortcut="new-agent" onClick={props.onNewAgent} />
-          </>
-        )}
-      </div>
-      {rail && (
-        <div class="rail-tools">
-          <IconButton icon="sidebar" label="Expand sidebar" shortcut="toggle-sidebar" side="right" onClick={props.onToggle} />
-          <IconButton icon="plus" label="New agent" shortcut="new-agent" side="right" onClick={props.onNewAgent} />
-        </div>
-      )}
+      <SidebarTop mode={props.mode} onToggle={props.onToggle} onNewAgent={props.onNewAgent} />
       {showFilter && (
         <div class="sidebar-filter">
           <Icon name="search" />
@@ -183,26 +120,13 @@ export function Sidebar(props: SidebarProps) {
               }
               if (event.key === 'ArrowDown' && entries.length > 0) {
                 event.preventDefault();
-                moveTo(0);
+                view.moveTo(0);
               }
             }}
           />
         </div>
       )}
-      <div
-        ref={list}
-        class="agent-list"
-        onKeyDown={onListKey}
-        onFocusIn={() => {
-          listHasFocus.current = true;
-        }}
-        onFocusOut={(event) => {
-          if (event.relatedTarget instanceof Node && !list.current?.contains(event.relatedTarget)) listHasFocus.current = false;
-        }}
-        onScroll={(event) => {
-          setScroll({ top: event.currentTarget.scrollTop, height: event.currentTarget.clientHeight });
-        }}
-      >
+      <div ref={view.list} class="agent-list" onKeyDown={view.onKeyDown} onFocusIn={view.onFocusIn} onFocusOut={view.onFocusOut} onScroll={view.onScroll}>
         {state.agents.kind === 'loading' && <div class="sidebar-note">Loading…</div>}
         {state.agents.kind === 'failed' && <div class="sidebar-note danger">{state.agents.message}</div>}
         {state.agents.kind === 'loaded' && agents.length === 0 && !rail && <div class="sidebar-note">No agents yet.</div>}
@@ -219,12 +143,12 @@ export function Sidebar(props: SidebarProps) {
               entry={item.entry}
               avatar={props.avatar(item.entry.agent, 24)}
               selected={item.entry.agent.id === state.selectedAgentId}
-              tabbable={item.entry.agent.id === tabStop}
+              tabbable={item.entry.agent.id === view.tabStop}
               rail={rail}
               renaming={renaming === item.entry.agent.id}
               now={now}
               onFocus={() => {
-                setFocusId(item.entry.agent.id);
+                view.setFocusId(item.entry.agent.id);
               }}
               onOpen={(row) => {
                 const { agent, status } = item.entry;
@@ -244,10 +168,7 @@ export function Sidebar(props: SidebarProps) {
         )}
         <div style={{ height: `${String(shown.after)}px` }} />
       </div>
-      <div class="sidebar-bottom">
-        <BottomButton rail={rail} icon="settings" label="Settings" shortcut="settings" onClick={props.onSettings} />
-        <BottomButton rail={rail} icon="plugins" label={props.plugins?.label ?? 'Plugins'} text="Plugins" dot={props.plugins?.tone ?? null} onClick={props.onPlugins} />
-      </div>
+      <SidebarBottom rail={rail} plugins={props.plugins} onSettings={props.onSettings} onPlugins={props.onPlugins} />
       {chooser !== null && (
         <Menu
           anchor={{ current: chooser.anchor }}
@@ -278,25 +199,5 @@ export function Sidebar(props: SidebarProps) {
         />
       )}
     </nav>
-  );
-}
-
-function BottomButton(props: {
-  readonly rail: boolean;
-  readonly icon: 'settings' | 'plugins';
-  readonly label: string;
-  readonly text?: string;
-  readonly shortcut?: ShortcutId;
-  readonly dot?: 'warn' | 'danger' | null;
-  readonly onClick: () => void;
-}) {
-  return (
-    <Tooltip label={props.label} {...(props.shortcut === undefined ? {} : { shortcut: props.shortcut })} side={props.rail ? 'right' : 'top'}>
-      <button type="button" class="bottom-btn" aria-label={props.label} onClick={props.onClick}>
-        <Icon name={props.icon} />
-        {!props.rail && <span>{props.text ?? props.label}</span>}
-        {props.dot != null && <span class={`status-dot ${props.dot}`} aria-hidden="true" />}
-      </button>
-    </Tooltip>
   );
 }

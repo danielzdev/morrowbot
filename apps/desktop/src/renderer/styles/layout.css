@@ -25,6 +25,8 @@
   min-height: 0;
 }
 .page-scroll {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -90,6 +92,7 @@
 }
 .sidebar.rail .agent-list {
   padding: 0 var(--s-2) var(--s-2);
+  scrollbar-width: none;
 }
 .group-label {
   display: flex;

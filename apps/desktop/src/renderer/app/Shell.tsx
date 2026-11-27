@@ -1,11 +1,12 @@
 import type { ComponentChildren } from 'preact';
-import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { z } from 'zod';
 import type { SidebarMode } from '../features/agents/index.ts';
 import { escapeStack } from '../shared/escape-stack.ts';
 import { PLATFORM, shortcutOf, type ShortcutId } from '../shared/keys.ts';
 import { readPref, writePref } from '../shared/local-pref.ts';
 import type { Chrome } from './ChatPane.tsx';
+import { Overlay } from './Overlay.tsx';
 
 const NARROW = '(max-width: 759px)';
 const WIDTH = { min: 200, max: 320, initial: 240 };
@@ -31,26 +32,6 @@ function useNarrow(): boolean {
     };
   }, []);
   return narrow;
-}
-
-/** The sidebar as a dismissible drawer below 760px: on the Escape stack, closed by a press outside it. */
-function Overlay(props: { readonly onClose: () => void; readonly children: ComponentChildren }) {
-  const drawer = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    const element = drawer.current;
-    if (element === null) return;
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    element.querySelector<HTMLElement>('.agent-main[tabindex="0"]')?.focus();
-    return escapeStack.push({ close: props.onClose, returnFocus: opener, contains: (target) => target instanceof Node && element.contains(target) });
-  }, []);
-  return (
-    <>
-      <div class="scrim" aria-hidden="true" />
-      <div ref={drawer} class="sidebar-overlay">
-        {props.children}
-      </div>
-    </>
-  );
 }
 
 /**
@@ -143,7 +124,7 @@ export function Shell(props: {
           }}
         />
       )}
-      <main class="content">{props.main({ sidebarButton: mode !== 'docked', showSidebar: toggle })}</main>
+      <main class="content">{props.main({ sidebarButton: mode === 'overlay', showSidebar: toggle })}</main>
       {mode === 'overlay' && overlayOpen && (
         <Overlay
           onClose={() => {
