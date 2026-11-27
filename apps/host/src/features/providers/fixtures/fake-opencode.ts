@@ -9,9 +9,9 @@
  * read `$HOME/outside.txt`; `write` asks to edit a file; a denial ends the prompt as `cancelled`, as
  * opencode does. `sneaky` reports an edit it never asked for, and `switch-mode` leaves the build mode,
  * both then ignoring `session/cancel`; `fs-write` asks the client to write a file; `stall` waits for
- * `session/cancel`; `ignore-cancel` never ends; `quota` fails on a rate limit; `spawn` starts a
- * long-lived child process first (to prove it is cleaned up); anything else replies with
- * "Echo: <the last user message>" in two chunks.
+ * `session/cancel`; `ignore-cancel` never ends; `quota` fails as opencode 2.4.1 does once the free
+ * models' usage limit is reached; `spawn` starts a long-lived child process first (to prove it is
+ * cleaned up); anything else replies with "Echo: <the last user message>" in two chunks.
  */
 import { spawn } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
@@ -143,7 +143,7 @@ async function permitted(sessionId: string, call: { readonly id: string; readonl
 
 async function prompt(sessionId: string, session: Session, sent: string): Promise<unknown> {
   const text = lastUserMessage(sent);
-  if (text.includes('quota')) throw new Error('Rate limit exceeded: too many requests (429)');
+  if (text.includes('quota')) throw new Error('Free usage limit reached. Connect a provider or subscribe to OpenCode Go to keep going, or switch models.');
   if (text.includes('think')) update(sessionId, { sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: 'Hmm.' } });
   if (text.includes('spawn')) {
     const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });

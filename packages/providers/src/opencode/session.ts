@@ -59,7 +59,7 @@ export function closeSession(client: acp.AcpClient, sessionId: string): void {
 
 /** An error opencode answered a request with, as the contract's error. */
 export function vendorError(message: string): ProviderError {
-  if (/quota|rate.?limit|resource.?exhausted|too many requests|\b429\b/i.test(message)) return { kind: 'rate-limited', resetsAt: null, windowId: null };
+  if (/quota|usage limit|rate.?limit|resource.?exhausted|too many requests|\b429\b/i.test(message)) return { kind: 'rate-limited', resetsAt: null, windowId: null };
   if (/context (window|length)|too long|maximum context|token limit/i.test(message)) return { kind: 'context-too-long' };
   if (/model\b.*\b(not found|unavailable|unknown|not supported|invalid)/i.test(message)) return { kind: 'invalid-model' };
   if (/overloaded|unavailable|\b50[23]\b|timed? ?out|network|connection/i.test(message)) return { kind: 'transient', retryAfterMs: null };

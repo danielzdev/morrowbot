@@ -62,6 +62,8 @@ workspace's plugins and MCP servers), background turns (a read outside the works
 other systems than macOS, and opencode outside `>=2.4.1 <2.5.0`.
 
 **Usage.** None: quota is `unsupported`. Tokens per turn come from the `session/prompt` result.
+The free models have a usage limit; once it is reached, opencode fails each prompt and the turn
+fails as `rate-limited`. Near the limit a turn can also wait a long time with no output; Stop ends it.
 
 Settings:
 
