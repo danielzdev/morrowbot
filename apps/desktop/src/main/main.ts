@@ -1,12 +1,12 @@
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { app, BrowserWindow, dialog, ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, type IpcMainEvent, type IpcMainInvokeEvent, type OpenDialogOptions } from 'electron';
 import type { BridgeChannels } from '../renderer/bridge.ts';
 import { APP_ID, PRODUCT_NAME } from './app-identity.ts';
 import { openEventStream, type EventStream } from './event-stream.ts';
 import { superviseHost } from './host-supervisor.ts';
-import { IpcRefusedError, parseSubscription, proxyRequest, type IpcSender } from './ipc-proxy.ts';
+import { checkSender, IpcRefusedError, parseCopyText, parseSubscription, proxyRequest, type IpcSender } from './ipc-proxy.ts';
 
-const RENDERER_URL = pathToFileURL(fileURLToPath(new URL('../renderer/index.html', import.meta.url))).href;
+const RENDERER_URL = pathToFileURL(fileURLToPath(new URL('../../dist/renderer/index.html', import.meta.url))).href;
 const PRELOAD = fileURLToPath(new URL('../preload/preload.cjs', import.meta.url));
 const HOST_MAIN = fileURLToPath(new URL('../../../host/src/main.ts', import.meta.url));
 
@@ -14,7 +14,9 @@ const CHANNELS: BridgeChannels = {
   request: 'morrowbot:request',
   event: 'morrowbot:event',
   subscribe: 'morrowbot:subscribe',
-  hostRestarted: 'morrowbot:host-restarted',
+  hostReady: 'morrowbot:host-ready',
+  pickFolder: 'morrowbot:pick-folder',
+  copyText: 'morrowbot:copy-text',
 };
 
 type Lifetime = 'running' | 'stopping-host' | 'host-stopped';
@@ -35,8 +37,10 @@ function runApp(): void {
       return;
     }
     const opened = new BrowserWindow({
-      width: 960,
-      height: 640,
+      width: 1200,
+      height: 800,
+      minWidth: 720,
+      minHeight: 480,
       title: PRODUCT_NAME,
       webPreferences: { preload: PRELOAD, contextIsolation: true, sandbox: true, nodeIntegration: false },
     });
@@ -62,10 +66,10 @@ function runApp(): void {
   }
 
   const host = superviseHost(HOST_MAIN, {
-    ready: (target, restarted) => {
+    ready: (target) => {
       events?.close();
       events = openEventStream(target, (event) => window?.webContents.send(CHANNELS.event, event), report);
-      if (restarted) window?.webContents.send(CHANNELS.hostRestarted);
+      window?.webContents.send(CHANNELS.hostReady);
     },
     alreadyRunning: () => {
       void dialog
@@ -98,6 +102,17 @@ function runApp(): void {
       else report(error);
     }
   });
+
+  ipcMain.handle(CHANNELS.pickFolder, async (event) => {
+    checkSender(senderOf(event), RENDERER_URL);
+    const options: OpenDialogOptions = { properties: ['openDirectory', 'createDirectory'] };
+    const picked = window === undefined ? await dialog.showOpenDialog(options) : await dialog.showOpenDialog(window, options);
+    return picked.canceled ? null : (picked.filePaths[0] ?? null);
+  });
+
+  ipcMain.handle(CHANNELS.copyText, (event, input: unknown) =>
+    clipboard.writeText(parseCopyText({ sender: senderOf(event), rendererUrl: RENDERER_URL, input })),
+  );
 
   app.on('second-instance', openWindow);
   app.on('activate', openWindow);

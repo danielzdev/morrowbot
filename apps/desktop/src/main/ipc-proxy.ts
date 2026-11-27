@@ -93,6 +93,14 @@ export function parseSubscription(options: { readonly sender: IpcSender; readonl
   return parsed.data;
 }
 
+/** Checks an IPC `copy-text` message: only the app page may write to the clipboard. */
+export function parseCopyText(options: { readonly sender: IpcSender; readonly rendererUrl: string; readonly input: unknown }): string {
+  checkSender(options.sender, options.rendererUrl);
+  const parsed = z.string().max(100_000).safeParse(options.input);
+  if (!parsed.success) throw new IpcRefusedError('Malformed clipboard text');
+  return parsed.data;
+}
+
 function parseJson(text: string): unknown {
   try {
     const value: unknown = JSON.parse(text);

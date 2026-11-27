@@ -7,15 +7,18 @@
   "author": "Legendary Koi",
   "main": "src/main/main.ts",
   "scripts": {
-    "start": "electron .",
-    "typecheck": "tsc -p tsconfig.json"
+    "build": "node scripts/build-renderer.ts",
+    "start": "npm run build && electron .",
+    "typecheck": "tsc -p tsconfig.json && tsc -p src/renderer/tsconfig.json"
   },
   "devDependencies": {
     "@types/ws": "^8.18.2",
-    "electron": "^45.5.0"
+    "electron": "^45.5.0",
+    "rolldown": "^1.3.4"
   },
   "dependencies": {
     "@morrowbot/contracts": "^0.0.0",
+    "preact": "^11.2.0",
     "ws": "^8.23.0",
     "zod": "^4.6.7"
   }
