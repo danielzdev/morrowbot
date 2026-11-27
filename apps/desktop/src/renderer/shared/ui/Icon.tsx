@@ -28,7 +28,9 @@ export type IconName =
   | 'send'
   | 'stop'
   | 'keyboard'
-  | 'palette';
+  | 'palette'
+  | 'gauge'
+  | 'refresh';
 
 const dot = (cx: number, cy: number, r = 1.1) => <circle cx={cx} cy={cy} r={r} fill="currentColor" stroke="none" />;
 
@@ -150,6 +152,14 @@ const SHAPES: Readonly<Record<IconName, ComponentChildren>> = {
       {dot(10.2, 5.4, 0.9)}
     </>
   ),
+  gauge: (
+    <>
+      <path d="M2.5 11.5a5.5 5.5 0 1 1 11 0" />
+      <path d="M8 11.5l2.5-3.5" />
+      {dot(8, 11.5, 0.9)}
+    </>
+  ),
+  refresh: <path d="M13 4.5V7.5H10M3 11.5V8.5H6M12.6 7.5A5 5 0 0 0 3.8 5.5M3.4 8.5a5 5 0 0 0 8.8 2" />,
 };
 
 /** A decorative icon; the control around it carries the accessible name. */

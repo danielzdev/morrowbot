@@ -38,6 +38,7 @@ const SECTIONS: Readonly<Record<SettingsSection, () => string>> = {
   appearance: () => renderToString(h(AppearanceSection, { appearance: APPEARANCE, onChange: ignore })),
   chat: () => renderToString(h(ChatSection, { prefs: PREFS, onChange: ignore, platform: 'mac' })),
   keyboard: () => renderToString(h(KeyboardSection, { platform: 'mac', sendWith: 'enter' })),
+  usage: () => '',
   about: () => renderToString(h(AboutSection, { info: INFO, update: { kind: 'up-to-date' }, onRevealData: ignore, onCheckForUpdates: ignore, onRestartToUpdate: ignore })),
 };
 
@@ -56,6 +57,7 @@ function modal(link: SettingsLink): { readonly breadcrumb: string; readonly curr
       info: INFO,
       updates: UPDATES,
       bridge: BRIDGE,
+      usage: h('p', { class: 'usage-stub' }, 'usage'),
     }),
   );
   return {
@@ -70,11 +72,13 @@ it('opens each deep link at its section, with the nav and breadcrumb pointing th
     general: modal('general'),
     appearance: modal('appearance/reduce-motion'),
     keyboard: modal('keyboard/key-escape'),
+    usage: modal('usage'),
     about: modal('about'),
   }).toEqual({
     general: { breadcrumb: 'Settings / General', current: 'General', firstRow: 'open-at-login' },
     appearance: { breadcrumb: 'Settings / Appearance', current: 'Appearance', firstRow: 'theme' },
-    keyboard: { breadcrumb: 'Settings / Keyboard', current: 'Keyboard', firstRow: 'key-new-chat' },
+    keyboard: { breadcrumb: 'Settings / Keyboard', current: 'Keyboard', firstRow: 'key-palette' },
+    usage: { breadcrumb: 'Settings / Usage', current: 'Usage', firstRow: undefined },
     about: { breadcrumb: 'Settings / About', current: 'About', firstRow: 'version' },
   });
 });

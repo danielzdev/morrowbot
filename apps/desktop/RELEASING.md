@@ -10,7 +10,8 @@
 
 So a dev run can stay open beside the installed app without sharing its chats, settings, lock or port.
 A host started by hand (`npm start -w apps/host`) also defaults to `~/.morrowbot-dev` and a free port.
-`MORROWBOT_HOST_PORT` sets the port for any run. Only the installed app checks for updates.
+`MORROWBOT_HOST_PORT` sets the port for any run; set it when pairing a device with a dev host, so the
+paired address survives a restart. Only the installed app checks for updates.
 `src/main/profile.ts` decides this, and `src/main/profile.test.ts` records it.
 
 ## Build the app locally

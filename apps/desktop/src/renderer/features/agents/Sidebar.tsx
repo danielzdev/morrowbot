@@ -32,6 +32,7 @@ export interface SidebarProps {
   readonly onAgentSettings: (agentId: string) => void;
   readonly onNewAgent: () => void;
   readonly onSettings: () => void;
+  readonly onUsage: () => void;
   readonly onExtensions: () => void;
   readonly onToggle: () => void;
   readonly alert: { readonly tone: 'warn' | 'danger'; readonly label: string } | null;
@@ -170,7 +171,7 @@ export function Sidebar(props: SidebarProps) {
         })}
         <div style={{ height: `${String(shown.after)}px` }} />
       </div>
-      <SidebarBottom rail={rail} alert={props.alert} onSettings={props.onSettings} onExtensions={props.onExtensions} />
+      <SidebarBottom rail={rail} alert={props.alert} onSettings={props.onSettings} onUsage={props.onUsage} onExtensions={props.onExtensions} />
       <SidebarPopups
         popup={popup}
         folders={state.folders}

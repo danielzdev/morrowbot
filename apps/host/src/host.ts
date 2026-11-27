@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { mkdir, realpath } from 'node:fs/promises';
+import { hostname } from 'node:os';
 import path from 'node:path';
 import type { PluginStatusEvent } from '@morrowbot/contracts';
 import { createAgentService, createFolderService } from './features/agents/index.ts';
@@ -7,6 +8,7 @@ import { startApiServer } from './features/api/index.ts';
 import { createChatService, type ProviderPlugins } from './features/chat/index.ts';
 import type { HostConfig } from './features/config/index.ts';
 import { healthListener } from './features/health/index.ts';
+import { createPairingService } from './features/pairing/index.ts';
 import {
   resolvePluginPath,
   startPluginHost,
@@ -36,6 +38,8 @@ export interface HostOptions {
   readonly clock?: ChildGroupClock;
   /** The OS the host and its built-in providers act on (tests may pretend). */
   readonly platform?: NodeJS.Platform;
+  /** The name paired devices show for this host. Defaults to the computer's name. */
+  readonly hostName?: string;
 }
 
 export interface Host {
@@ -127,10 +131,13 @@ export async function startHost(options: HostOptions): Promise<Host> {
     const api = await startApiServer({
       address: { hostname: config.hostname, port: config.port },
       token,
+      hostName: options.hostName ?? hostname(),
+      hostVersion: options.version,
       services: {
         agents: { ...agents, lastMessages: () => storage.messages.lastByAgent() },
         folders,
         chat,
+        usage: { tokens: (range) => storage.tokens.read(range) },
         plugins: {
           list: () => plugins.list(),
           blockedGroups: (pluginId) => plugins.groups.blocked(pluginId),
@@ -150,6 +157,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
           },
           releaseGroup: (regId) => plugins.releaseGroup(regId),
         },
+        pairing: createPairingService({ records: storage.devices, newId, now }),
       },
       fallback: healthListener(options.version),
       report,

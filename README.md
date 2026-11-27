@@ -22,6 +22,8 @@ npm run package:mac -w apps/desktop      # Apple Silicon .dmg and .zip in apps/d
 
 Signing, notarization, private releases and auto-updates: [`apps/desktop/RELEASING.md`](apps/desktop/RELEASING.md).
 
+By default the host listens only on `127.0.0.1`. To let a paired phone reach it over Tailscale or your LAN, set `MORROWBOT_HOST_BIND` to that interface's address (for example your Tailscale `100.x.y.z`). Every route needs the desktop's token or a paired device's token, except the rate-limited pairing claim a phone uses to trade a one-time code for its token. Unpairing a device cuts it off at once. Prefer the Tailscale address: the host speaks plain HTTP, so on an ordinary LAN the pairing code and device tokens cross the network unencrypted.
+
 ## License
 
 Licensed under the [Apache License 2.0](LICENSE).

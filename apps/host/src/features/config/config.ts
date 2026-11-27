@@ -1,3 +1,4 @@
+import { isIP } from 'node:net';
 import path from 'node:path';
 import { DEV_DATA_DIR } from '@morrowbot/contracts';
 import { z } from 'zod';
@@ -10,17 +11,26 @@ const PortString = z
   .transform((value) => Number(value))
   .pipe(z.number().int().min(0).max(65_535));
 
+/** One spelling per address (IPv6 compressed and lowercased), so loopback and wildcard checks see a single form. */
+const BindAddress = z
+  .string()
+  .refine((value) => isIP(value) !== 0 && !value.includes('%'), 'Expected an IPv4 or IPv6 address, such as 100.64.0.1 or 0.0.0.0')
+  .transform((value) => (isIP(value) === 6 ? new URL(`http://[${value}]`).hostname.slice(1, -1) : value))
+  .refine((value) => !value.startsWith('::ffff:'), 'Use the IPv4 form of an IPv4-mapped address');
+
 const AbsolutePath = z.string().refine((value) => path.isAbsolute(value), 'Expected an absolute path');
 
 const HostEnv = z.object({
   MORROWBOT_HOST_PORT: PortString.optional(),
+  MORROWBOT_HOST_BIND: BindAddress.optional(),
   MORROWBOT_SAFE_MODE: z.enum(['0', '1', 'true', 'false']).optional(),
   MORROWBOT_DATA_DIR: AbsolutePath.optional(),
   MORROWBOT_PLUGINS_DIR: AbsolutePath.optional(),
 });
 
 export interface HostConfig {
-  readonly hostname: '127.0.0.1';
+  /** `127.0.0.1` unless the user opts in to a LAN or Tailscale address with `MORROWBOT_HOST_BIND`. */
+  readonly hostname: string;
   /** `MORROWBOT_HOST_PORT`, else a free port. The installed app passes its fixed port itself. */
   readonly port: number;
   /** Start with every plugin turned off. */
@@ -53,7 +63,7 @@ export function parseHostConfig({ env, args, homeDir }: HostConfigInput): HostCo
   return {
     kind: 'ok',
     config: {
-      hostname: '127.0.0.1',
+      hostname: parsed.data.MORROWBOT_HOST_BIND ?? '127.0.0.1',
       port: parsed.data.MORROWBOT_HOST_PORT ?? 0,
       safeMode: args.includes(SAFE_MODE_FLAG) || safeModeEnv === '1' || safeModeEnv === 'true',
       dataDir,

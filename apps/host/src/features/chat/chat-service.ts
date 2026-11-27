@@ -25,6 +25,8 @@ export type RecheckResult = RecheckAnswer;
 
 export interface ChatService {
   listThreads(agentId: string): Thread[] | undefined;
+  /** Every agent's threads, most recently changed first (for ⌘K). */
+  listAllThreads(): Thread[];
   createThread(agentId: string, request: CreateThreadRequest): Thread | undefined;
   getThread(id: string): Thread | undefined;
   renameThread(id: string, title: string): Thread | undefined;
@@ -125,6 +127,7 @@ export function createChatService(options: ChatServiceOptions): ChatService {
 
   return {
     listThreads: (agentId) => (agents.get(agentId) === undefined ? undefined : store.threads.listByAgent(agentId)),
+    listAllThreads: () => store.threads.listAll(),
     createThread: (agentId, request) => {
       if (agents.get(agentId) === undefined) return undefined;
       const at = options.now();

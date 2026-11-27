@@ -1,5 +1,6 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { request } from 'node:http';
+import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, it } from 'vitest';
@@ -128,10 +129,12 @@ it('serves only loopback clients that are not browser pages and hold this launch
     stillServing: await raw({}),
     browserOrigin: await raw({ origin: 'https://evil.example' }),
     noToken: await raw({ authorization: '' }),
+    lowercaseScheme: await raw({ authorization: `bearer ${host.host.token}` }),
     wrongToken: await raw({ authorization: `Bearer ${'x'.repeat(host.host.token.length)}` }),
     healthWithoutToken: await raw({ authorization: '' }, '/health'),
     socket: await socket({}),
     browserSocket: await socket({ origin: 'https://evil.example' }),
+    sameOriginSocket: await socket({ origin: `http://127.0.0.1:${port}` }),
     socketWithoutToken: await socket({ authorization: '' }),
   }).toMatchInlineSnapshot(`
     {
@@ -140,14 +143,61 @@ it('serves only loopback clients that are not browser pages and hold this launch
       "health": 200,
       "healthWithoutToken": 401,
       "loopback": 200,
+      "lowercaseScheme": 200,
       "malformedTarget": 404,
       "noToken": 401,
       "rebindingHost": 403,
+      "sameOriginSocket": "open",
       "socket": "open",
       "socketWithoutToken": "refused 401",
       "stillServing": 200,
       "upperCaseHost": 200,
       "wrongToken": 401,
+    }
+  `);
+});
+
+it('survives peers that reset a refused /api/events upgrade', async () => {
+  const { port } = new URL(host.url);
+  const refusals = Array.from({ length: 50 }, () =>
+    new Promise<void>((resolve) => {
+      const peer = connect(Number(port), '127.0.0.1', () => {
+        peer.write(`GET /api/events HTTP/1.1\r\nhost: 127.0.0.1:${port}\r\nupgrade: websocket\r\nconnection: upgrade\r\nsec-websocket-version: 13\r\nsec-websocket-key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n`);
+        peer.resetAndDestroy();
+        resolve();
+      });
+      peer.on('error', () => {
+        resolve();
+      });
+    }),
+  );
+  await Promise.all(refusals);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  expect((await host.call('GET', '/health')).status).toBe(200);
+});
+
+it('cuts a refused /api/events upgrade even when the peer keeps its side open, so closing the host does not hang', async () => {
+  const { port } = new URL(host.url);
+  const peer = connect({ port: Number(port), host: '127.0.0.1', allowHalfOpen: true });
+  const refused = new Promise<string>((resolve) => {
+    peer.once('data', (data) => {
+      resolve(data.toString('utf8').split('\r\n')[0] ?? '');
+    });
+  });
+  peer.write(`GET /api/events HTTP/1.1\r\nhost: 127.0.0.1:${port}\r\nupgrade: websocket\r\nconnection: upgrade\r\nsec-websocket-version: 13\r\nsec-websocket-key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n`);
+  const status = await refused;
+  const closed = await Promise.race([
+    host.close().then(() => 'closed'),
+    new Promise<string>((resolve) => setTimeout(() => {
+      resolve('still open after 2 s');
+    }, 2000)),
+  ]);
+  peer.destroy();
+  host = await startTestHost({ dataDir });
+  expect({ status, closed }).toMatchInlineSnapshot(`
+    {
+      "closed": "closed",
+      "status": "HTTP/1.1 401 Unauthorized",
     }
   `);
 });

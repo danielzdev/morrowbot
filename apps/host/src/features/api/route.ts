@@ -9,6 +9,8 @@ export interface Params {
 export interface RouteContext {
   readonly params: Params;
   readonly query: URLSearchParams;
+  /** The peer's IP address, which the pairing claim throttles by. */
+  readonly source: string;
   readonly body: () => Promise<Body>;
 }
 
@@ -16,6 +18,8 @@ export interface Route {
   readonly method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   /** A path such as `/api/threads/:id/approvals/:approvalId`. */
   readonly path: string;
+  /** Who may call it: anyone (`public`), only the desktop's launch token (`host`), or by default any valid token. */
+  readonly access?: 'public' | 'host';
   readonly handle: (context: RouteContext) => Promise<Reply> | Reply;
 }
 
