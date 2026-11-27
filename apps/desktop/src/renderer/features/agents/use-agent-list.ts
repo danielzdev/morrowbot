@@ -42,9 +42,9 @@ export function useAgentList(items: readonly SidebarItem[], selectedId: string |
   }, []);
   useLayoutEffect(() => {
     const lost = listHasFocus.current && (document.activeElement === document.body || document.activeElement === null);
-    if ((!pendingFocus.current && !lost) || tabStop === undefined) return;
+    if ((!pendingFocus.current && !lost) || preferred === undefined) return;
     pendingFocus.current = false;
-    list.current?.querySelector<HTMLElement>(`[data-agent="${tabStop}"]`)?.focus();
+    list.current?.querySelector<HTMLElement>(`[data-agent="${preferred}"]`)?.focus({ preventScroll: true });
   });
 
   const moveTo = (index: number): void => {

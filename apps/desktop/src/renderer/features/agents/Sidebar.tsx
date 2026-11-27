@@ -9,7 +9,7 @@ import { NameInput } from '../../shared/ui/NameInput.tsx';
 import { SectionHeader } from './SectionHeader.tsx';
 import { groupAgents, sectionKey, type AgentEntry, type AgentFacts } from './sidebar-groups.ts';
 import { SidebarBottom, SidebarSearch, SidebarTop } from './SidebarChrome.tsx';
-import { SidebarPopups, type RowPopup } from './SidebarPopups.tsx';
+import { moveItems, SidebarPopups, type RowPopup } from './SidebarPopups.tsx';
 import { itemsOf } from './sidebar-window.ts';
 import { useAgentList } from './use-agent-list.ts';
 import { useFolderUi } from './use-folder-ui.ts';
@@ -80,16 +80,20 @@ export function Sidebar(props: SidebarProps) {
     { kind: 'action', id: 'new-chat', label: 'New chat', icon: 'plus', onSelect: () => { props.onNewChat(agent.id); } },
     { kind: 'action', id: 'settings', label: 'Agent settings', icon: 'settings', onSelect: () => { props.onAgentSettings(agent.id); } },
     ...(rail ? [] : [{ kind: 'action', id: 'rename', label: 'Rename', icon: 'pencil', onSelect: () => { setRenaming(agent.id); } } satisfies MenuItem]),
-    {
-      kind: 'action',
-      id: 'move',
-      label: 'Move to folder…',
-      icon: 'folder',
-      onSelect: () => {
-        const anchor = rowOf(agent.id);
-        if (anchor !== null) setPopup({ kind: 'move', agent, anchor });
-      },
-    },
+    ...(rail && moveItems(agent, state.folders, () => undefined, null).length === 0
+      ? []
+      : [
+          {
+            kind: 'action',
+            id: 'move',
+            label: 'Move to folder…',
+            icon: 'folder',
+            onSelect: () => {
+              const anchor = rowOf(agent.id);
+              if (anchor !== null) setPopup({ kind: 'move', agent, anchor });
+            },
+          } satisfies MenuItem,
+        ]),
     { kind: 'separator', id: 'sep' },
     { kind: 'action', id: 'delete', label: 'Delete…', icon: 'trash', danger: true, onSelect: () => { setDeleting(agent); } },
   ];
@@ -116,7 +120,7 @@ export function Sidebar(props: SidebarProps) {
       )}
       <div ref={view.list} class="agent-list" onKeyDown={view.onKeyDown} onFocusIn={view.onFocusIn} onFocusOut={view.onFocusOut} onScroll={view.onScroll}>
         {state.agents.kind === 'loading' && <div class="sidebar-note">Loading…</div>}
-        {state.agents.kind === 'failed' && <div class="sidebar-note danger">{state.agents.message}</div>}
+        {state.agents.kind === 'failed' && <div class="sidebar-note danger">{props.redact(state.agents.message)}</div>}
         {state.agents.kind === 'loaded' && agents.length > 0 && entries.length === 0 && filter !== '' && <div class="sidebar-note">No agents match.</div>}
         <div style={{ height: `${String(shown.before)}px` }} />
         {items.slice(shown.start, shown.end).map((item) => {
@@ -131,7 +135,7 @@ export function Sidebar(props: SidebarProps) {
                   count={item.count}
                   collapsed={item.collapsed}
                   renaming={folderId !== null && folders.renaming === folderId}
-                  onToggle={() => { folders.toggle(sectionKey(section)); }}
+                  onToggle={() => { if (filter === '') folders.toggle(sectionKey(section)); }}
                   onNewFolder={() => { folders.startDraft(null); }}
                   onRename={() => { folders.startRename(folderId); }}
                   onRenamed={(name) => { if (folderId !== null) folders.finishRename(folderId, name); }}

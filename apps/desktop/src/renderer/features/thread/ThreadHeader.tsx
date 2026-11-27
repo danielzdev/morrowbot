@@ -31,6 +31,7 @@ export interface ThreadHeaderProps {
 }
 
 interface TabMenu {
+  readonly threadId: string;
   readonly anchor: HTMLElement;
   readonly at: { readonly x: number; readonly y: number } | null;
   readonly items: readonly MenuItem[];
@@ -43,7 +44,13 @@ export function ThreadHeader(props: ThreadHeaderProps) {
   const [renaming, setRenaming] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<Thread | null>(null);
   const [tabMenu, setTabMenu] = useState<TabMenu | null>(null);
-  const { tabs, close, closeOthers } = useTabs(props.agent.id, props.threads, props.threadsLoaded, props.openThreadId, props.onOpen);
+  const header = useRef<HTMLElement>(null);
+  const { tabs, close: closeTab, closeOthers } = useTabs(props.agent.id, props.threads, props.threadsLoaded, props.openThreadId, props.onOpen);
+  const close = (threadId: string): void => {
+    const hadFocus = header.current?.contains(document.activeElement) === true || document.activeElement === document.body;
+    closeTab(threadId);
+    if (hadFocus) requestAnimationFrame(() => header.current?.querySelector<HTMLElement>('.tab.active .tab-open')?.focus());
+  };
   const thread = props.threads.find(({ id }) => id === props.openThreadId);
 
   const actionsFor = (target: Thread, withSettings: boolean): readonly MenuItem[] => {
@@ -60,7 +67,7 @@ export function ThreadHeader(props: ThreadHeaderProps) {
   };
 
   return (
-    <header class="thread-header drag">
+    <header ref={header} class="thread-header drag">
       {props.sidebarButton && <IconButton icon="sidebar" label="Show sidebar" shortcut="toggle-sidebar" onClick={props.onShowSidebar} />}
       <ThreadTabs
         agentName={props.agent.name}
@@ -77,7 +84,7 @@ export function ThreadHeader(props: ThreadHeaderProps) {
           setRenaming(null);
           if (title !== null) props.onRename(id, title);
         }}
-        onMenu={(target, anchor, at) => { setTabMenu({ anchor, at, items: actionsFor(target, false) }); }}
+        onMenu={(target, anchor, at) => { setTabMenu({ threadId: target.id, anchor, at, items: actionsFor(target, false) }); }}
       />
       <IconButton icon="plus" label="New chat" shortcut="new-chat" onClick={props.onNewChat} />
       <Tooltip label="All chats">
@@ -87,7 +94,7 @@ export function ThreadHeader(props: ThreadHeaderProps) {
       </Tooltip>
       <span class="spacer" />
       {thread !== undefined && <MenuButton icon="more" label="Chat actions" items={() => actionsFor(thread, true)} />}
-      {tabMenu !== null && <Menu key={`${String(tabMenu.at?.x)},${String(tabMenu.at?.y)}`} anchor={{ current: tabMenu.anchor }} at={tabMenu.at ?? undefined} label="Tab actions" align="start" items={tabMenu.items} onClose={() => { setTabMenu(null); }} />}
+      {tabMenu !== null && <Menu key={`${tabMenu.threadId}-${tabMenu.at === null ? 'key' : `${String(tabMenu.at.x)},${String(tabMenu.at.y)}`}`} anchor={{ current: tabMenu.anchor }} at={tabMenu.at ?? undefined} label="Tab actions" align="start" items={tabMenu.items} onClose={() => { setTabMenu(null); }} />}
       {switcher && (
         <ChatSwitcher
           anchor={listButton}

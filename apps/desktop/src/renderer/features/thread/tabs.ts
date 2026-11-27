@@ -1,4 +1,5 @@
 import type { Thread } from '@morrowbot/contracts';
+import { mainThread } from '../../shared/main-thread.ts';
 
 /** The header's tabs: the agent's main chat (its first, shown under the agent's name and never closed), then the other open chats. */
 export interface Tabs {
@@ -8,7 +9,7 @@ export interface Tabs {
 
 /** `kept` is the saved tab order; the chat on screen joins at the end when it is not kept yet. Deleted chats drop out. */
 export function tabsOf(threads: readonly Thread[], kept: readonly string[], openId: string | null): Tabs {
-  const main = threads.reduce<Thread | null>((first, thread) => (first === null || thread.createdAt < first.createdAt ? thread : first), null);
+  const main = mainThread(threads);
   const byId = new Map(threads.map((thread) => [thread.id, thread]));
   const ids = openId === null || kept.includes(openId) ? kept : [...kept, openId];
   const others = ids.flatMap((id) => {

@@ -1,5 +1,5 @@
 import type { Agent } from '@morrowbot/contracts';
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { MorrowbotBridge } from '../bridge.ts';
 import { Sidebar } from '../features/agents/index.ts';
 import { BotAvatar, combineActivity, motionOf } from '../features/avatar/index.ts';
@@ -21,6 +21,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
   const [settings, setSettings] = useState<SettingsSection | null>(null);
   const [filterRequest, setFilterRequest] = useState(0);
   const [info, setInfo] = useState<AppInfo | null>(null);
+  const copies = useRef(0);
   const state = useStore(models.agents.state);
   const cards = useStore(models.plugins.cards);
   const activity = useStore(models.chats.activity);
@@ -56,8 +57,10 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
   };
   const copyChat = (threadId: string): void => {
     const screen = models.chats.session(threadId).screen;
+    const mine = ++copies.current;
     const copy = (): boolean => {
       const view = screen.get().view;
+      if (mine !== copies.current) return true;
       if (view.kind === 'loading') return false;
       if (view.kind === 'loaded' && agent !== undefined) void bridge.copyText(chatMarkdown(view.value.thread.title, agent.name, view.value.messages, safe));
       return true;

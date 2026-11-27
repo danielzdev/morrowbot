@@ -104,7 +104,7 @@ export const LastMessage = z.strictObject({
   agentId: EntityId,
   threadId: EntityId,
   kind: z.enum(['user', 'assistant']),
-  preview: z.string().max(200),
+  preview: z.string().max(401),
   at: Timestamp,
 });
 export type LastMessage = z.infer<typeof LastMessage>;

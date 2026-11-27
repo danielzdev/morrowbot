@@ -3,6 +3,7 @@ import type { z } from 'zod';
 import type { MorrowbotBridge } from '../../bridge.ts';
 import type { Api, ApiResult } from '../../shared/api.ts';
 import { Store, type Loadable } from '../../shared/store.ts';
+import { mainThread } from '../../shared/main-thread.ts';
 
 export interface AgentsState {
   readonly agents: Loadable<readonly Agent[]>;
@@ -137,7 +138,7 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
     const threads = byNewest(result.value.threads);
     setThreads(agentId, { kind: 'loaded', value: threads });
     const open = state.get().openThread[agentId];
-    if (open === undefined || !threads.some(({ id }) => id === open)) setOpen(agentId, threads.at(-1)?.id);
+    if (open === undefined || !threads.some(({ id }) => id === open)) setOpen(agentId, mainThread(threads)?.id);
   }
 
   function selectAgent(id: string): void {
@@ -184,15 +185,18 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
   };
 
   async function newThread(agentId: string): Promise<void> {
-    if (state.get().threads[agentId]?.kind !== 'loaded') await loadThreads(agentId);
     const result = await api.createThread(agentId);
     if (result.kind === 'failed') {
       patch({ problem: result.error.message });
       return;
     }
+    setOpen(agentId, result.value.id);
+    if (state.get().threads[agentId]?.kind !== 'loaded') {
+      await loadThreads(agentId);
+      return;
+    }
     threadLoads.set(agentId, ++threadSeq);
     setThreads(agentId, { kind: 'loaded', value: [result.value, ...threadsOf(agentId)] });
-    setOpen(agentId, result.value.id);
   }
 
   /** Refreshes last messages only, so agent and folder edits still saving are not undone. */
@@ -297,7 +301,7 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
       state.update((current) => ({ ...current, unread: seen(current.unread, threadId) }));
       const remaining = threadsOf(agentId).filter(({ id }) => id !== threadId);
       setThreads(agentId, { kind: 'loaded', value: remaining });
-      if (state.get().openThread[agentId] === threadId) setOpen(agentId, remaining.at(-1)?.id);
+      if (state.get().openThread[agentId] === threadId) setOpen(agentId, mainThread(remaining)?.id);
       options.onThreadsDeleted?.([threadId]);
       void refreshSummary();
       await loadThreads(agentId);

@@ -22,8 +22,9 @@ const MessageRow = z
   })
   .pipe(Message);
 
-const PREVIEW_LENGTH = 160;
-const FETCH_LENGTH = 400;
+const PREVIEW_LENGTH = 400;
+const FETCH_LENGTH = 1000;
+const CANDIDATES = 3;
 const BLANKS = "' ' || char(9, 10, 11, 12, 13)";
 
 const LastMessageRow = z
@@ -60,7 +61,7 @@ export function messageRepository(db: DatabaseSync): MessageRepository {
          row_number() OVER (PARTITION BY t.agent_id ORDER BY m.seq DESC) AS rank
        FROM messages m JOIN threads t ON t.id = m.thread_id
        WHERE trim(m.text, ${BLANKS}) <> ''
-     ) WHERE rank = 1 ORDER BY seq DESC`,
+     ) WHERE rank <= ${String(CANDIDATES)} ORDER BY seq DESC`,
   );
   return {
     insert: (message) => {
@@ -84,6 +85,13 @@ export function messageRepository(db: DatabaseSync): MessageRepository {
       return row === undefined ? undefined : MessageRow.parse(row);
     },
     listByThread: (threadId) => listByThread.all(threadId).map((row) => MessageRow.parse(row)),
-    lastByAgent: () => lastByAgent.all().map((row) => LastMessageRow.parse(row)),
+    lastByAgent: () => {
+      const found = new Map<string, LastMessage>();
+      for (const row of lastByAgent.all()) {
+        const message = LastMessageRow.parse(row);
+        if (message.preview !== '' && !found.has(message.agentId)) found.set(message.agentId, message);
+      }
+      return [...found.values()];
+    },
   };
 }

@@ -42,10 +42,10 @@ function say(threadId: string, kind: 'user' | 'assistant', text: string): void {
   );
 }
 
-it("previews each agent's newest message with text across its threads, cut to 160 characters", () => {
+it("previews each agent's newest message with text across its threads, cut to 400 characters", () => {
   say('g1', 'user', 'first thread');
   say('g2', 'user', 'second thread');
-  say('g1', 'assistant', `${'leaf '.repeat(40)}end`);
+  say('g1', 'assistant', `${'leaf '.repeat(100)}end`);
   say('o1', 'user', 'hoot');
   say('o1', 'assistant', '');
   expect(storage.messages.lastByAgent()).toMatchInlineSnapshot(`
@@ -61,7 +61,7 @@ it("previews each agent's newest message with text across its threads, cut to 16
         "agentId": "gardener",
         "at": "2026-01-01T00:00:03.000Z",
         "kind": "assistant",
-        "preview": "leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf…",
+        "preview": "leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf…",
         "threadId": "g1",
       },
     ]
@@ -69,10 +69,11 @@ it("previews each agent's newest message with text across its threads, cut to 16
 });
 
 it('never cuts a word in half, so redaction still sees whole emails and paths, and skips blank messages', () => {
-  say('g1', 'assistant', `${'a'.repeat(150)} reach me at someone@example.com today`);
+  say('g1', 'assistant', `${'a'.repeat(390)} reach me at someone@example.com today`);
   say('g1', 'assistant', ' \n\t ');
+  say('g1', 'assistant', '\u00a0\u2003');
   say('o1', 'user', `${' '.repeat(500)}hoot`);
-  say('f1', 'user', 'x'.repeat(170));
+  say('f1', 'user', 'x'.repeat(410));
   expect(storage.messages.lastByAgent().map(({ agentId, preview }) => ({ agentId, preview }))).toMatchInlineSnapshot(`
     [
       {
@@ -85,7 +86,7 @@ it('never cuts a word in half, so redaction still sees whole emails and paths, a
       },
       {
         "agentId": "gardener",
-        "preview": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa reach me…",
+        "preview": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa reach me…",
       },
     ]
   `);
