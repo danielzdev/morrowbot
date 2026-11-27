@@ -34,12 +34,6 @@ export function parseRevealTarget(options: FromRenderer): RevealTarget {
   return parsed.data;
 }
 
-/** The data folder the host uses: the same rule as the host's own config. */
-export function dataDirOf(env: NodeJS.ProcessEnv): string {
-  const configured = env.MORROWBOT_DATA_DIR;
-  return configured !== undefined && path.isAbsolute(configured) ? configured : path.join(homedir(), '.morrowbot');
-}
-
 interface RevealContext {
   readonly dataDir: string;
   readonly host: HostTarget | undefined;

@@ -4,6 +4,8 @@ import { expect, it } from 'vitest';
 import type { Appearance } from '../../shared/appearance.ts';
 import type { ChatPrefs } from '../../shared/chat-prefs.ts';
 import { Store } from '../../shared/store.ts';
+import type { UpdateStatus } from '../../bridge.ts';
+import type { UpdatesModel } from '../../shared/updates.ts';
 import { AboutSection } from './AboutSection.tsx';
 import { AppearanceSection } from './AppearanceSection.tsx';
 import { ChatSection } from './ChatSection.tsx';
@@ -21,6 +23,7 @@ const BRIDGE = {
   revealPath: () => Promise.resolve(),
 };
 const ignore = (): void => undefined;
+const UPDATES: UpdatesModel = { status: new Store<UpdateStatus>({ kind: 'up-to-date' }), check: ignore, restart: ignore, close: ignore };
 
 const decode = (text: string): string => text.replaceAll('&amp;', '&').replaceAll('&#39;', "'").replaceAll('&quot;', '"').replaceAll('&lt;', '<').replaceAll('&gt;', '>');
 
@@ -35,7 +38,7 @@ const SECTIONS: Readonly<Record<SettingsSection, () => string>> = {
   appearance: () => renderToString(h(AppearanceSection, { appearance: APPEARANCE, onChange: ignore })),
   chat: () => renderToString(h(ChatSection, { prefs: PREFS, onChange: ignore, platform: 'mac' })),
   keyboard: () => renderToString(h(KeyboardSection, { platform: 'mac', sendWith: 'enter' })),
-  about: () => renderToString(h(AboutSection, { info: INFO, onRevealData: ignore })),
+  about: () => renderToString(h(AboutSection, { info: INFO, update: { kind: 'up-to-date' }, onRevealData: ignore, onCheckForUpdates: ignore, onRestartToUpdate: ignore })),
 };
 
 it('renders exactly the rows search knows about, with the same label and description', () => {
@@ -51,6 +54,7 @@ function modal(link: SettingsLink): { readonly breadcrumb: string; readonly curr
       appearance: { state: new Store(APPEARANCE), set: ignore, close: ignore },
       chatPrefs: { state: new Store(PREFS), set: ignore },
       info: INFO,
+      updates: UPDATES,
       bridge: BRIDGE,
     }),
   );

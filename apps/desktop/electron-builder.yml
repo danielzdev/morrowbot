@@ -1,0 +1,32 @@
+# MorrowBot.app for Apple Silicon. `npm run package:mac -w apps/desktop` builds it into release/.
+# Signing and notarization switch on by themselves when their env vars are set (see RELEASING.md).
+appId: com.legendarykoi.morrowbot
+productName: MorrowBot
+copyright: Copyright © 2026 Legendary Koi
+directories:
+  app: dist/app
+  output: release
+  buildResources: resources
+npmRebuild: false
+# scripts/build-app.ts bundles every dependency, so the app ships no node_modules.
+files:
+  - '**/*'
+  - '!**/node_modules/**'
+mac:
+  target:
+    - target: dmg
+      arch: arm64
+    - target: zip
+      arch: arm64
+  category: public.app-category.productivity
+  icon: resources/icon.png
+  hardenedRuntime: true
+  entitlements: resources/entitlements.mac.plist
+  entitlementsInherit: resources/entitlements.mac.plist
+  artifactName: MorrowBot-${version}-${arch}.${ext}
+publish:
+  provider: github
+  owner: danielzdev
+  repo: morrowbot-releases
+  private: true
+  releaseType: release

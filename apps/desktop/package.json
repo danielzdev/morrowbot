@@ -1,24 +1,29 @@
 {
   "name": "@morrowbot/desktop",
   "productName": "MorrowBot",
-  "version": "0.0.0",
+  "description": "A personal AI agent app with crash-isolated plugins.",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "author": "Legendary Koi",
+  "license": "Apache-2.0",
   "main": "src/main/main.ts",
   "scripts": {
     "build": "node scripts/build-renderer.ts",
     "start": "npm run build && electron .",
-    "typecheck": "tsc -p tsconfig.json && tsc -p src/renderer/tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json && tsc -p src/renderer/tsconfig.json",
+    "package:mac": "npm run build && node scripts/build-app.ts && electron-builder --mac --publish never"
   },
   "devDependencies": {
     "@types/ws": "^8.18.2",
-    "electron": "^45.5.0",
+    "electron": "45.5.0",
+    "electron-builder": "^26.18.0",
     "preact-render-to-string": "6.8.3",
     "rolldown": "^1.3.4"
   },
   "dependencies": {
     "@morrowbot/contracts": "^0.0.0",
+    "electron-updater": "^6.8.11",
     "open-bot-avatar": "0.5.2",
     "preact": "^11.2.0",
     "ws": "^8.23.0",

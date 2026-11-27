@@ -1,0 +1,87 @@
+name: Private release
+
+# Builds, signs, notarizes and publishes MorrowBot.app (arm64 .dmg, .zip and latest-mac.yml) to the
+# private releases repo on every push to main. Repos without the release secrets (forks included)
+# skip the build instead of failing. Setup: apps/desktop/RELEASING.md.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: private-release
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.secrets.outputs.ready }}
+    steps:
+      - id: secrets
+        env:
+          APPLE_CERT_BASE64: ${{ secrets.APPLE_CERT_BASE64 }}
+          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          PRIVATE_RELEASES_TOKEN: ${{ secrets.PRIVATE_RELEASES_TOKEN }}
+        run: |
+          missing=()
+          for name in APPLE_CERT_BASE64 APPLE_CERT_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID PRIVATE_RELEASES_TOKEN; do
+            if [ -z "${!name}" ]; then missing+=("$name"); fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::notice::Skipping the private release; missing secrets: ${missing[*]}"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  release:
+    needs: gate
+    if: needs.gate.outputs.ready == 'true'
+    runs-on: macos-15
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      MORROWBOT_RELEASES_REPO: ${{ vars.MORROWBOT_RELEASES_REPO || 'danielzdev/morrowbot-releases' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+      - run: npm ci
+      - name: Version this build
+        run: |
+          base="$(node -p "require('./apps/desktop/package.json').version.split('.').slice(0, 2).join('.')")"
+          npm version "$base.$GITHUB_RUN_NUMBER" --no-git-tag-version --workspace apps/desktop
+      - name: Give an empty releases repo a first commit to tag
+        env:
+          GH_TOKEN: ${{ secrets.PRIVATE_RELEASES_TOKEN }}
+        run: |
+          if ! gh api "repos/$MORROWBOT_RELEASES_REPO/commits?per_page=1" > /dev/null 2>&1; then
+            gh api --method PUT "repos/$MORROWBOT_RELEASES_REPO/contents/README.md" \
+              -f message='Start the MorrowBot release feed' \
+              -f content="$(printf '# MorrowBot releases\n\nSigned builds published by the private release workflow.\n' | base64)"
+          fi
+      - name: Build, sign, notarize and publish
+        working-directory: apps/desktop
+        env:
+          CSC_LINK: ${{ secrets.APPLE_CERT_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          GH_TOKEN: ${{ secrets.PRIVATE_RELEASES_TOKEN }}
+        run: |
+          npm run build
+          node scripts/build-app.ts
+          npx electron-builder --mac --publish always \
+            -c.forceCodeSigning=true \
+            -c.publish.owner="${MORROWBOT_RELEASES_REPO%%/*}" \
+            -c.publish.repo="${MORROWBOT_RELEASES_REPO#*/}"

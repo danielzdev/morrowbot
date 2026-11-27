@@ -13,6 +13,7 @@ import { createModels } from './models.ts';
 import { AgentDialogs, type AgentDialog } from './AgentDialogs.tsx';
 import { Pages, type Page } from './Pages.tsx';
 import { Shell } from './Shell.tsx';
+import { UpdateBanner } from './UpdateBanner.tsx';
 
 const NO_INFO: AppInfo = { appVersion: '', homeDir: '', userName: '', dataDir: '' };
 
@@ -31,6 +32,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
   const cards = useStore(models.plugins.cards);
   const activity = useStore(models.chats.activity);
   const appearance = useStore(models.appearance.state);
+  const update = useStore(models.updates.status);
   useEffect(() => {
     void models.agents.load();
     void models.plugins.load();
@@ -43,6 +45,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
       models.plugins.close();
       models.agents.close();
       models.appearance.close();
+      models.updates.close();
     };
   }, [models]);
 
@@ -118,6 +121,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
         )}
         main={(chrome) => (
           <>
+            <UpdateBanner status={update} onRestart={models.updates.restart} />
             {state.problem !== null && (
               <div class="banner danger" role="alert">
                 <span>{safe(state.problem)}</span>
@@ -163,6 +167,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
           appearance={models.appearance}
           chatPrefs={models.chatPrefs}
           info={info}
+          updates={models.updates}
           bridge={bridge}
         />
       )}

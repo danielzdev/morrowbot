@@ -12,7 +12,15 @@ node node_modules/electron/install.js   # once: downloads the Electron binary
 npm start -w apps/desktop               # builds the window, then starts Electron and the host
 ```
 
-Data lives in `~/.morrowbot` (`MORROWBOT_DATA_DIR` moves it). The Claude, Codex, Antigravity and OpenCode providers are built in; other plugins load from its `plugins` folder (`MORROWBOT_PLUGINS_DIR`).
+A dev run keeps its data in `~/.morrowbot-dev` (`MORROWBOT_DATA_DIR` moves it); only the installed `MorrowBot.app` uses `~/.morrowbot`. The Claude, Codex, Antigravity and OpenCode providers are built in; other plugins load from the data folder's `plugins` folder (`MORROWBOT_PLUGINS_DIR`).
+
+## Build MorrowBot.app
+
+```sh
+npm run package:mac -w apps/desktop      # Apple Silicon .dmg and .zip in apps/desktop/release
+```
+
+Signing, notarization, private releases and auto-updates: [`apps/desktop/RELEASING.md`](apps/desktop/RELEASING.md).
 
 ## License
 

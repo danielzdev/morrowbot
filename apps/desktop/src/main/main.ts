@@ -1,15 +1,17 @@
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { homedir } from 'node:os';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, shell, type IpcMainEvent, type IpcMainInvokeEvent, type OpenDialogOptions, type BrowserWindowConstructorOptions } from 'electron';
 import type { BridgeChannels } from '../renderer/bridge.ts';
 import { APP_ID, PRODUCT_NAME } from './app-identity.ts';
+import { appFilesOf } from './app-files.ts';
 import { openEventStream, type EventStream } from './event-stream.ts';
 import { superviseHost } from './host-supervisor.ts';
 import { checkSender, IpcRefusedError, parseCopyText, parseSubscription, proxyRequest, type HostTarget, type IpcSender } from './ipc-proxy.ts';
-import { appInfoOf, dataDirOf, loginItemOf, parseExternalUrl, parseOpenAtLogin, parseRevealTarget, resolveReveal } from './shell-actions.ts';
+import { NO_UPDATER, startUpdater, type Updater } from './updater.ts';
+import { hostEnvOf, profileOf, type UsableProfile } from './profile.ts';
+import { appInfoOf, loginItemOf, parseExternalUrl, parseOpenAtLogin, parseRevealTarget, resolveReveal } from './shell-actions.ts';
 
-const RENDERER_URL = pathToFileURL(fileURLToPath(new URL('../../dist/renderer/index.html', import.meta.url))).href;
-const PRELOAD = fileURLToPath(new URL('../preload/preload.cjs', import.meta.url));
-const HOST_MAIN = fileURLToPath(new URL('../../../host/src/main.ts', import.meta.url));
+const FILES = appFilesOf(app.isPackaged ? { kind: 'packaged', appPath: app.getAppPath() } : { kind: 'dev' });
+const RENDERER_URL = FILES.rendererUrl;
 
 const CHANNELS: BridgeChannels = {
   request: 'morrowbot:request',
@@ -24,6 +26,10 @@ const CHANNELS: BridgeChannels = {
   appInfo: 'morrowbot:app-info',
   loginItem: 'morrowbot:login-item',
   setOpenAtLogin: 'morrowbot:set-open-at-login',
+  updateStatus: 'morrowbot:update-status',
+  updateChanged: 'morrowbot:update-changed',
+  checkForUpdates: 'morrowbot:check-for-updates',
+  restartToUpdate: 'morrowbot:restart-to-update',
 };
 
 /** macOS keeps its traffic lights, inset into the window's own 48px top bar; elsewhere the system frame stays. */
@@ -39,8 +45,9 @@ function report(error: unknown): void {
   console.error('MorrowBot:', error);
 }
 
-function runApp(): void {
+function runApp(profile: UsableProfile): void {
   let window: BrowserWindow | undefined;
+  let updater: Updater = NO_UPDATER;
   let events: EventStream | undefined;
   let lifetime: Lifetime = 'running';
 
@@ -58,7 +65,7 @@ function runApp(): void {
       title: PRODUCT_NAME,
       show: false,
       ...TITLE_BAR,
-      webPreferences: { preload: PRELOAD, contextIsolation: true, sandbox: true, nodeIntegration: false },
+      webPreferences: { preload: FILES.preload, contextIsolation: true, sandbox: true, nodeIntegration: false },
     });
     opened.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     opened.webContents.on('will-navigate', (event) => {
@@ -103,7 +110,7 @@ function runApp(): void {
     });
   }
 
-  const host = superviseHost(HOST_MAIN, {
+  const host = superviseHost({ main: FILES.hostMain, env: hostEnvOf(profile, process.env) }, {
     ready: (target) => {
       connect(target, RECONNECT_MS);
     },
@@ -157,7 +164,7 @@ function runApp(): void {
     clipboard.writeText(parseCopyText({ sender: senderOf(event), rendererUrl: RENDERER_URL, input })),
   );
 
-  const dataDir = dataDirOf(process.env);
+  const { dataDir } = profile;
   const fromRenderer = (event: IpcMainInvokeEvent, input: unknown) => ({ sender: senderOf(event), rendererUrl: RENDERER_URL, input });
 
   ipcMain.handle(CHANNELS.openExternal, (event, input: unknown) => shell.openExternal(parseExternalUrl(fromRenderer(event, input))));
@@ -184,6 +191,19 @@ function runApp(): void {
     return loginItem();
   });
 
+  ipcMain.handle(CHANNELS.updateStatus, (event) => {
+    checkSender(senderOf(event), RENDERER_URL);
+    return updater.status();
+  });
+  ipcMain.handle(CHANNELS.checkForUpdates, (event) => {
+    checkSender(senderOf(event), RENDERER_URL);
+    return updater.check();
+  });
+  ipcMain.handle(CHANNELS.restartToUpdate, (event) => {
+    checkSender(senderOf(event), RENDERER_URL);
+    updater.restart();
+  });
+
   app.on('second-instance', openWindow);
   app.on('activate', openWindow);
   app.on('window-all-closed', () => {
@@ -199,6 +219,7 @@ function runApp(): void {
       case 'running':
         event.preventDefault();
         lifetime = 'stopping-host';
+        updater.stop();
         events?.close();
         void host.stop().finally(() => {
           lifetime = 'host-stopped';
@@ -208,10 +229,31 @@ function runApp(): void {
     }
   });
 
-  void app.whenReady().then(openWindow);
+  void app.whenReady().then(() => {
+    openWindow();
+    if (app.isPackaged) {
+      updater = startUpdater({ env: process.env, appPath: app.getAppPath(), onStatus: (status) => window?.webContents.send(CHANNELS.updateChanged, status), report });
+    }
+  });
+}
+
+/** One instance per profile: the installed app keeps Electron's own profile and lock, any other run uses its own. */
+function start(profile: UsableProfile): void {
+  if (profile.kind === 'isolated') app.setPath('userData', profile.userDataDir);
+  if (app.requestSingleInstanceLock()) runApp(profile);
+  else app.quit();
 }
 
 app.setName(PRODUCT_NAME);
 app.setAppUserModelId(APP_ID);
-if (app.requestSingleInstanceLock()) runApp();
-else app.quit();
+const profile = profileOf({ packaged: app.isPackaged, env: process.env, homeDir: homedir() });
+switch (profile.kind) {
+  case 'invalid':
+    dialog.showErrorBox('MorrowBot could not start', profile.problem);
+    app.exit(1);
+    break;
+  case 'installed':
+  case 'isolated':
+    start(profile);
+    break;
+}

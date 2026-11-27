@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { DEV_DATA_DIR } from '@morrowbot/contracts';
 import { z } from 'zod';
 
 const DEFAULT_PORT = 47_800;
@@ -24,6 +25,7 @@ export interface HostConfig {
   readonly port: number;
   /** Start with every plugin turned off. */
   readonly safeMode: boolean;
+  /** `MORROWBOT_DATA_DIR`, else `~/.morrowbot-dev`. The installed app passes `~/.morrowbot` itself, so a host run by hand never opens it. */
   readonly dataDir: string;
   readonly pluginsDir: string;
 }
@@ -47,7 +49,7 @@ export function parseHostConfig({ env, args, homeDir }: HostConfigInput): HostCo
   }
   if (!parsed.success || problems.length > 0) return { kind: 'invalid', problems };
   const safeModeEnv = parsed.data.MORROWBOT_SAFE_MODE;
-  const dataDir = parsed.data.MORROWBOT_DATA_DIR ?? path.join(homeDir, '.morrowbot');
+  const dataDir = parsed.data.MORROWBOT_DATA_DIR ?? path.join(homeDir, DEV_DATA_DIR);
   return {
     kind: 'ok',
     config: {
