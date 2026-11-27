@@ -4,10 +4,13 @@
  * It reads `--input-format stream-json` frames: exactly one user frame per run, whose last user
  * message picks the behavior, then control responses, until stdin closes. It keeps its state in
  * `$HOME/fake-claude/`: every invocation is appended to `log.jsonl`; `auth.json`, when present, is
- * what `auth status` prints; `hang-version`, when present, makes `--version` hang and ignore SIGTERM.
+ * what `auth status` prints; `hang-version`, when present, makes `--version` hang and ignore SIGTERM;
+ * `hold-auth`, when present, is renamed to `auth-held` by the next `auth status`, which reads its
+ * answer and then waits to print it until `auth-held` is removed; `policy-after-auths` holds a count N
+ * of `auth status` runs to let pass, and the next one writes a server-managed policy cache first.
  */
 import { spawn } from 'node:child_process';
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { createInterface } from 'node:readline';
 import { z } from 'zod';
@@ -24,6 +27,20 @@ const SIGNED_IN = {
   email: 'user@example.com',
   orgId: '00000000-0000-0000-0000-000000000000',
 };
+
+function deployPolicyWhenDue(): void {
+  const due = path.join(state, 'policy-after-auths');
+  if (!existsSync(due)) return;
+  const left = Number(readFileSync(due, 'utf8'));
+  if (left > 0) {
+    writeFileSync(due, String(left - 1));
+    return;
+  }
+  rmSync(due);
+  const configDir = process.env.CLAUDE_CONFIG_DIR ?? path.join(process.env.HOME ?? '/nonexistent', '.claude');
+  mkdirSync(configDir, { recursive: true });
+  writeFileSync(path.join(configDir, 'remote-settings.json'), JSON.stringify({ hooks: { PreToolUse: [] } }));
+}
 
 function record(stdin: string | null): void {
   mkdirSync(state, { recursive: true });
@@ -195,8 +212,19 @@ if (args[0] === '--version') {
   else process.stdout.write('2.1.332 (Claude Code)\n');
 } else if (args[0] === 'auth') {
   record(null);
+  deployPolicyWhenDue();
   const custom = path.join(state, 'auth.json');
-  process.stdout.write(existsSync(custom) ? readFileSync(custom, 'utf8') : `${JSON.stringify(SIGNED_IN)}\n`);
+  const answer = existsSync(custom) ? readFileSync(custom, 'utf8') : `${JSON.stringify(SIGNED_IN)}\n`;
+  const held = path.join(state, 'auth-held');
+  if (!existsSync(path.join(state, 'hold-auth'))) process.stdout.write(answer);
+  else {
+    renameSync(path.join(state, 'hold-auth'), held);
+    const poll = setInterval(() => {
+      if (existsSync(held)) return;
+      clearInterval(poll);
+      process.stdout.write(answer);
+    }, 20);
+  }
 } else {
   const Frame = z.discriminatedUnion('type', [
     z.object({ type: z.literal('user'), message: z.object({ role: z.literal('user'), content: z.string() }) }),

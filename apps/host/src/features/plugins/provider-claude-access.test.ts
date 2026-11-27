@@ -292,3 +292,39 @@ it("drops the old account's live usage once provider info sees another account",
     after: { kind: after.kind, reason: after.kind === 'unavailable' ? after.reason : null, sameAccount: after.accountKey === before.accountKey },
   }).toEqual({ before: 'available', after: { kind: 'unavailable', reason: 'not-yet-observed', sameAccount: false } });
 });
+
+it('keeps the newest account when an older provider-info probe answers last', async () => {
+  const { thread } = await agentThread('read-only');
+  await events.finished(await start(thread, 'rate-limit'));
+  const first = UsageResponse.parse((await host.call('GET', '/api/plugins/provider-claude/usage')).body).usage;
+  const state = path.join(home, 'fake-claude');
+  await writeFile(path.join(state, 'hold-auth'), '');
+  const older = host.call('GET', '/api/plugins/provider-claude/info?refresh=1');
+  await vi.waitFor(() => readFile(path.join(state, 'auth-held')), { timeout: 5_000 });
+  const other = { loggedIn: true, authMethod: 'claude.ai', apiProvider: 'firstParty', subscriptionType: 'pro', planTier: 'pro', email: 'other@example.com' };
+  await writeFile(path.join(state, 'auth.json'), JSON.stringify(other));
+  expect((await host.call('GET', '/api/plugins/provider-claude/info?refresh=1')).status).toBe(200);
+  await rm(path.join(state, 'auth-held'));
+  expect((await older).status).toBe(200);
+  const usage = UsageResponse.parse((await host.call('GET', '/api/plugins/provider-claude/usage')).body).usage;
+  expect({ kind: usage.kind, firstAccount: usage.accountKey === first.accountKey }).toEqual({ kind: 'unavailable', firstAccount: false });
+});
+
+it('checks managed policy again right before launch, and refuses a turn when a policy appeared during its auth check', async () => {
+  const { thread } = await agentThread('read-only');
+  await mkdir(path.join(home, 'fake-claude'), { recursive: true });
+  await writeFile(path.join(home, 'fake-claude', 'policy-after-auths'), '1');
+  await events.finished(await start(thread, 'hello'));
+  const log = await readFile(path.join(home, 'fake-claude', 'log.jsonl'), 'utf8');
+  const prompts = log.split('\n').filter((line) => line.includes('"stdin":"hello"'));
+  const shown = (await history(thread)).map((line) => line.replaceAll(home, '$HOME'));
+  expect({ history: shown, launched: prompts.length }).toMatchInlineSnapshot(`
+    {
+      "history": [
+        "user: hello",
+        "assistant(failed {"kind":"access-not-supported","reason":"Claude Code server-managed settings are cached in $HOME/.claude/remote-settings.json."}): ",
+      ],
+      "launched": 0,
+    }
+  `);
+});
