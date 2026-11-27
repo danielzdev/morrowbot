@@ -9,10 +9,18 @@ export const DevicePlatform = z.enum(['ios', 'android', 'macos', 'windows', 'lin
 export type DevicePlatform = z.infer<typeof DevicePlatform>;
 
 /** Where a device reaches the host, such as `http://100.64.0.1:47800`. Parsed to its origin (one spelling per endpoint). */
+function tryParseUrl(value: string): URL | null {
+  try {
+    return new URL(value);
+  } catch {
+    return null;
+  }
+}
+
 export const HostUrl = z
   .url({ protocol: /^https?$/ })
   .refine((value) => {
-    const url = URL.parse(value);
+    const url = tryParseUrl(value);
     return url !== null && url.pathname === '/' && url.search === '' && url.hash === '' && url.username === '' && url.password === '';
   }, 'Use only the scheme, host and port')
   .transform((value) => new URL(value).origin);
