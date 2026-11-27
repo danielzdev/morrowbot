@@ -55,6 +55,7 @@ export const ROWS = {
   reduceMotion: row('appearance', 'reduce-motion', 'Reduce motion', "On stills avatars and slide-ins. Your system's reduce-motion setting always applies."),
   sendWith: row('chat', 'send-with', 'Send with', 'Which key sends your message. Shift+Enter always starts a new line.'),
   version: row('about', 'version', 'MorrowBot', 'Apache License 2.0 · Published by Legendary Koi'),
+  updates: row('about', 'updates', 'Updates', 'Downloads new versions in the background and installs them when you restart.'),
   dataFolder: row('about', 'data-folder', 'Data folder', 'Where MorrowBot keeps your agents and chats.'),
   licences: row('about', 'licences', 'Third-party licences', 'Open-source components that ship inside MorrowBot.'),
 };

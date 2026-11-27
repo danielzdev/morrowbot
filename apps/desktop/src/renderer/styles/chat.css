@@ -193,9 +193,20 @@
   background: var(--danger-bg);
   color: var(--danger);
 }
+.banner.update {
+  background: var(--accent-soft);
+  color: var(--text-1);
+}
 .banner-text {
   flex: 1;
   min-width: 12rem;
+}
+.banner-detail {
+  color: var(--text-2);
+}
+.banner-actions {
+  display: flex;
+  gap: var(--s-2);
 }
 .banner-row {
   display: flex;
