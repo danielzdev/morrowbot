@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { Agent, AgentWorkspace, AgentWorkspaceRequest, CreateAgentRequest, UpdateAgentRequest } from '@morrowbot/contracts';
 
@@ -45,7 +45,7 @@ export function createAgentService(options: AgentServiceOptions): AgentService {
       case 'dedicated':
         return { kind: 'dedicated', dir: path.join(options.workspacesDir, id) };
       case 'shared':
-        return path.isAbsolute(request.dir) ? { kind: 'shared', dir: path.normalize(request.dir) } : undefined;
+        return path.isAbsolute(request.dir) ? { kind: 'shared', dir: path.resolve(request.dir) } : undefined;
     }
   }
 
@@ -100,7 +100,7 @@ export function createAgentService(options: AgentServiceOptions): AgentService {
       const agent = records.get(id);
       if (agent === undefined) return false;
       await mkdir(agent.workspace.dir, { recursive: true });
-      const file = path.join(agent.workspace.dir, INSTRUCTIONS_FILE);
+      const file = await followLink(path.join(agent.workspace.dir, INSTRUCTIONS_FILE));
       const temporary = `${file}.${options.newId()}.tmp`;
       try {
         await writeFile(temporary, content, 'utf8');
@@ -111,6 +111,16 @@ export function createAgentService(options: AgentServiceOptions): AgentService {
       return true;
     },
   };
+}
+
+/** Saving replaces the file, so save through a symlinked `AGENTS.md` to the file it points at. */
+async function followLink(file: string): Promise<string> {
+  try {
+    return await realpath(file);
+  } catch (error) {
+    if (isMissingFile(error)) return file;
+    throw error;
+  }
 }
 
 function isMissingFile(error: unknown): boolean {

@@ -2,6 +2,8 @@ import { spawn } from 'node:child_process';
 import type { ToolResult } from '@morrowbot/contracts';
 
 const MAX_OUTPUT_BYTES = 256 * 1024;
+/** How long output may keep arriving after the command exits, from processes that left its process group. */
+const DRAIN_AFTER_EXIT_MS = 250;
 
 class CappedText {
   private readonly chunks: Buffer[] = [];
@@ -62,9 +64,17 @@ export function runShell(command: string, cwd: string, signal: AbortSignal | und
       child.stderr.destroy();
     };
     signal?.addEventListener('abort', kill, { once: true });
-    child.once('exit', killGroup);
+    let drain: NodeJS.Timeout | undefined;
+    child.once('exit', () => {
+      killGroup();
+      drain = setTimeout(() => {
+        child.stdout.destroy();
+        child.stderr.destroy();
+      }, DRAIN_AFTER_EXIT_MS);
+    });
 
     const finish = (result: ToolResult): void => {
+      clearTimeout(drain);
       signal?.removeEventListener('abort', kill);
       resolve(result);
     };

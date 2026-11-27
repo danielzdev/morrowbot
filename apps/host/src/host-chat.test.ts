@@ -174,6 +174,7 @@ it('stops a generation even when the provider ignores the signal, and keeps the 
   await host.call('PATCH', `/api/threads/${thread.id}`, { title: 'Renamed while generating' });
   const stopped = await host.call('POST', `/api/threads/${thread.id}/stop`);
   const idle = await host.call('POST', `/api/threads/${thread.id}/stop`);
+  await events.finished(thread.id);
   expect(Thread.parse((await host.call('GET', `/api/threads/${thread.id}`)).body).title).toBe('Renamed while generating');
 
   expect({ busy, stopped, idle }).toMatchInlineSnapshot(`
@@ -254,6 +255,7 @@ it('kills a running tool on stop and reports it before the reply finishes', asyn
   }
 
   await host.call('POST', `/api/threads/${thread.id}/stop`);
+  await events.finished(thread.id);
   expect(
     events.received.map((event) => (event.kind === 'generation.tool' ? `${event.kind}: ${event.result.kind}` : event.kind)),
   ).toMatchInlineSnapshot(`

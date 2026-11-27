@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { EntityId, PluginId, Timestamp } from './ids.ts';
 
-const AbsolutePath = z.string().regex(/^(\/|[A-Za-z]:[\\/])/, 'Use an absolute path');
+/** POSIX (`/x`), Windows drive (`C:\x`) or UNC (`\\server\share`) absolute paths. */
+const AbsolutePath = z.string().regex(/^(\/|[A-Za-z]:[\\/]|\\\\)/, 'Use an absolute path');
 
 /** Where an agent works. A dedicated folder belongs to one agent; a shared folder may be used by several. */
 export const AgentWorkspace = z.discriminatedUnion('kind', [

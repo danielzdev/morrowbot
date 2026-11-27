@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -77,7 +78,7 @@ it('keeps file reads and writes inside the workspace', async () => {
         "reason": "dangling is outside the agent workspace",
       },
       {
-        "error": "ENOENT: no such file or directory, stat '<base>/workspace/notes/missing.md'",
+        "error": "ENOENT: no such file or directory, open '<base>/workspace/notes/missing.md'",
         "kind": "failed",
       },
     ]
@@ -166,6 +167,28 @@ it('accepts absolute paths through a symlinked workspace path', async () => {
       {
         "kind": "denied",
         "reason": "<base>/outside/secret.txt is outside the agent workspace",
+      },
+    ]
+  `);
+});
+
+it('refuses named pipes instead of blocking on them', async () => {
+  execFileSync('mkfifo', [path.join(workspace, 'pipe')]);
+  const tools = createWorkspaceTools(workspace);
+  expect(
+    redact([
+      await tools.run({ kind: 'read_file', path: 'pipe' }),
+      await tools.run({ kind: 'write_file', path: 'pipe', content: 'x' }),
+    ]),
+  ).toMatchInlineSnapshot(`
+    [
+      {
+        "error": "pipe is not a regular file",
+        "kind": "failed",
+      },
+      {
+        "error": "ENXIO: no such device or address, open '<base>/workspace/pipe'",
+        "kind": "failed",
       },
     ]
   `);

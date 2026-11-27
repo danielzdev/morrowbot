@@ -163,10 +163,9 @@ export function createChatService(options: ChatServiceOptions): ChatService {
       exclusively(deletingAgents, id, (_threadId, generation) => generation.agentId === id, () => agents.delete(id)),
     listMessages: (threadId) => (threads.get(threadId) === undefined ? undefined : messages.listByThread(threadId)),
     send: (threadId, text) => {
+      if (closed || deletingThreads.has(threadId)) return { kind: 'thread_not_found' };
       const thread = threads.get(threadId);
-      if (thread === undefined || closed || deletingThreads.has(threadId) || deletingAgents.has(thread.agentId)) {
-        return { kind: 'thread_not_found' };
-      }
+      if (thread === undefined || deletingAgents.has(thread.agentId)) return { kind: 'thread_not_found' };
       if (active.has(threadId)) return { kind: 'busy' };
       const agent = agents.get(thread.agentId);
       if (agent === undefined) return { kind: 'thread_not_found' };

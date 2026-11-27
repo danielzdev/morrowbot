@@ -1,4 +1,4 @@
-import { access, mkdtemp, rm } from 'node:fs/promises';
+import { access, lstat, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Agent, type ChatProvider, type ProviderEvent, Thread } from '@morrowbot/contracts';
@@ -229,6 +229,19 @@ it('creates, updates and deletes agents and threads', async () => {
     }
   `);
   await access(shared);
+});
+
+it('saves AGENTS.md through a symlink instead of replacing it', async () => {
+  host = await startTestHost({ dataDir });
+  const shared = path.join(dataDir, 'linked');
+  const agent = Agent.parse((await host.call('POST', '/api/agents', { name: 'L', workspace: { kind: 'shared', dir: shared } })).body);
+  await writeFile(path.join(shared, 'CLAUDE.md'), 'old');
+  await symlink('CLAUDE.md', path.join(shared, 'AGENTS.md'));
+  await host.call('PUT', `/api/agents/${agent.id}/instructions`, { content: 'new' });
+  expect({
+    target: await readFile(path.join(shared, 'CLAUDE.md'), 'utf8'),
+    stillLink: (await lstat(path.join(shared, 'AGENTS.md'))).isSymbolicLink(),
+  }).toEqual({ target: 'new', stillLink: true });
 });
 
 it('manages plugin switches and settings and keeps them', async () => {
