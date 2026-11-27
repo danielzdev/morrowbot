@@ -7,6 +7,7 @@ import { startChatFixture, type ChatFixture } from '../../../host/src/testing/ch
 import { sequence } from '../../../host/src/testing/test-host.ts';
 import { createChatHub, type ChatHub } from '../renderer/features/chat/index.ts';
 import { createApi } from '../renderer/shared/api.ts';
+import { until } from '../renderer/shared/store.ts';
 import { idle, loaded, running, shown } from './screens.ts';
 import { openTestWindow, type TestWindow } from './test-window.ts';
 
@@ -191,4 +192,88 @@ it('resyncs after the host restarts mid-turn: the cut-off reply shows as interru
       "tokenReachedRenderer": false,
     }
   `);
+});
+
+it('keeps the history readable while the host is down, says it is reconnecting, and goes live again when the host is back', async () => {
+  const dataDir = await mkdtemp(path.join(tmpdir(), 'morrowbot-desktop-'));
+  cleanup.push(() => rm(dataDir, { recursive: true, force: true }));
+  const ids = sequence();
+  const before = await startChatFixture({ dataDir, sequence: ids, timeouts: FAST_STOP });
+  const thread = await before.thread(await before.agent());
+  const window = openTestWindow({ url: before.host.url, token: before.host.host.token });
+  const hub = createChatHub({ api: createApi(window.bridge), bridge: window.bridge, reconnectMs: 50 });
+  cleanup.push(() => {
+    hub.close();
+    window.close();
+  });
+  const session = hub.session(thread.id);
+  await loaded(session);
+  session.setDraft('hi');
+  await session.send();
+  await idle(session, 2);
+  session.setDraft('kept while down');
+
+  await before.close();
+  const down = await until(session.screen, (screen) => screen.connection === 'reconnecting');
+  const after = await host({ dataDir, sequence: ids });
+  window.connect({ url: after.host.url, token: after.host.host.token });
+  const back = await until(session.screen, (screen) => screen.connection === 'live' && screen.view.kind === 'loaded');
+  expect({ down: { connection: down.connection, shown: shown(down) }, back: { connection: back.connection, shown: shown(back) } }).toMatchInlineSnapshot(`
+    {
+      "back": {
+        "connection": "live",
+        "shown": {
+          "draft": "kept while down",
+          "problem": null,
+          "view": {
+            "activeTurn": null,
+            "expiredApprovals": [],
+            "messages": [
+              "user: hi",
+              "assistant: hello from pid <pid>: hi",
+            ],
+          },
+        },
+      },
+      "down": {
+        "connection": "reconnecting",
+        "shown": {
+          "draft": "kept while down",
+          "problem": null,
+          "view": {
+            "activeTurn": null,
+            "expiredApprovals": [],
+            "messages": [
+              "user: hi",
+              "assistant: hello from pid <pid>: hi",
+            ],
+          },
+        },
+      },
+    }
+  `);
+});
+
+it('says it is reconnecting during a resync and while only the event socket is down, even when /state still answers, and goes live when the socket is back', async () => {
+  const chat = await host();
+  const thread = await chat.thread(await chat.agent());
+  const { window, hub } = windowOn(chat);
+  const session = hub.session(thread.id);
+  await loaded(session);
+  session.handle({ kind: 'resync', threadId: thread.id });
+  const resyncing = session.screen.get().connection;
+  const resynced = await until(session.screen, (screen) => screen.connection === 'live');
+  window.dropStream();
+  const lost = session.screen.get().connection;
+  await session.load();
+  const afterLoad = session.screen.get();
+  window.connect({ url: chat.host.url, token: chat.host.host.token });
+  const back = await until(session.screen, (screen) => screen.connection === 'live');
+  expect({ resyncing, resynced: resynced.connection, lost, afterLoad: [afterLoad.connection, afterLoad.view.kind], back: back.connection }).toEqual({
+    resyncing: 'reconnecting',
+    resynced: 'live',
+    lost: 'reconnecting',
+    afterLoad: ['reconnecting', 'loaded'],
+    back: 'live',
+  });
 });

@@ -1,147 +1,207 @@
-import type { Message, PendingApproval } from '@morrowbot/contracts';
-import { useEffect, useRef } from 'preact/hooks';
+import type { ComponentChildren } from 'preact';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
+import type { MorrowbotBridge } from '../../bridge.ts';
 import { BlockedBanner } from '../../shared/BlockedBanner.tsx';
-import { formatTime } from '../../shared/format.ts';
 import { useStore } from '../../shared/use-store.ts';
-import { describeOutcome } from './outcome.ts';
-import type { ActiveTurnView, ToolCall } from './thread-model.ts';
+import { approvalHeadingId } from './ApprovalCard.tsx';
+import type { ChatDisplay } from './display.ts';
+import { FindBar } from './FindBar.tsx';
+import { problemText, viewAnnouncement, type AnnounceMode } from './live-region.ts';
+import { readingSpot, restoreSpot, type ReadingSpot } from './reading-spot.ts';
+import { earlierStart, firstShown, growthOf, nearBottom, onGrowth } from './scroll-anchor.ts';
+import { pendingApprovals, type ThreadView } from './thread-model.ts';
 import type { ThreadSession } from './thread-session.ts';
+import { Timeline, type TimelineContext } from './Timeline.tsx';
 
-function MessageItem(props: { readonly message: Message; readonly latest: boolean; readonly session: ThreadSession; readonly busy: boolean }) {
-  const { message } = props;
-  if (message.kind === 'user') {
-    return (
-      <div class="message user">
-        <div class="bubble">{message.text}</div>
-      </div>
-    );
-  }
-  const note = describeOutcome(message.outcome);
-  const offer = props.latest ? note.continueOffer : null;
-  return (
-    <div class={`message assistant tone-${note.tone}`}>
-      {message.text !== '' && <div class="text">{message.text}</div>}
-      {message.seedTruncated === true && <div class="note muted">Older messages were not sent.</div>}
-      {note.label !== null && (
-        <div class={`note ${note.tone}`}>
-          {note.label}
-          {note.resetsAt !== null && <span> Resets {formatTime(note.resetsAt)}.</span>}
-        </div>
-      )}
-      {offer !== null && (
-        <div class="offer">
-          {offer.prompt !== null && <span>{offer.prompt}</span>}
-          <button
-            class="secondary"
-            disabled={props.busy}
-            onClick={() => void props.session.continueTurn(message.id, offer.sessionChoice)}
-          >
-            {offer.label}
-          </button>
-        </div>
-      )}
-    </div>
-  );
+export interface ChatViewProps {
+  readonly session: ThreadSession;
+  /** Holds Continue back, e.g. while the agent's provider settings save. */
+  readonly locked: boolean;
+  readonly agentName: string;
+  readonly providerName: string | null;
+  readonly display: ChatDisplay;
+  readonly bridge: Pick<MorrowbotBridge, 'openExternal' | 'copyText'>;
+  /** Bumped by every ⌘F. */
+  readonly findRequest: number;
+  /** Opened from the sidebar's "Needs you" row: focus the pending approval's heading once (spec §4.3), never its Allow button. */
+  readonly focusApproval: boolean;
+  readonly onApprovalFocused: () => void;
+  /** The empty chat's avatar and question (spec §4.1). */
+  readonly hero: ComponentChildren;
+  readonly announce: AnnounceMode;
+  readonly onOpenProviders: () => void;
 }
 
-function ToolLine({ tool }: { readonly tool: ToolCall }) {
-  const icon = tool.outcome === 'running' ? '…' : tool.outcome === 'ok' ? '✓' : '✕';
-  return (
-    <div class={`tool ${tool.outcome}`}>
-      <span class="tool-icon">{icon}</span> {tool.name}
-      <code>{JSON.stringify(tool.input)}</code>
-    </div>
-  );
-}
-
-function ApprovalCard(props: { readonly approval: PendingApproval; readonly answering: boolean; readonly session: ThreadSession }) {
-  return (
-    <div class="card approval" role="alertdialog" aria-label="Approval needed">
-      <div class="card-title">Approval needed</div>
-      <div class="card-body">{props.approval.summary}</div>
-      <div class="card-actions">
-        {props.approval.choices.map((choice) => (
-          <button
-            key={choice.id}
-            class={choice.id === 'allow' ? 'primary' : 'secondary'}
-            disabled={props.answering}
-            onClick={() => void props.session.answer(props.approval.approvalId, choice.id)}
-          >
-            {choice.label}
-          </button>
-        ))}
-      </div>
-      <div class="card-foot">Unanswered requests are denied after 30 minutes.</div>
-    </div>
-  );
-}
-
-function ActiveTurn(props: { readonly turn: ActiveTurnView; readonly answering: readonly string[]; readonly session: ThreadSession }) {
-  const { turn } = props;
-  const status = turn.state === 'queued' ? (turn.queueNote ?? 'Queued: waiting for a free slot') : (turn.detail ?? 'Working');
-  return (
-    <div class="message assistant active">
-      <div class={`status ${turn.state}`}>
-        <span class="pulse" /> {turn.state === 'queued' ? 'Queued' : 'Running'} · {status}
-      </div>
-      {turn.tools.map((tool) => (
-        <ToolLine key={tool.toolUseId} tool={tool} />
-      ))}
-      {turn.text !== '' && <div class="text">{turn.text}</div>}
-      {turn.approvals.map((approval) => (
-        <ApprovalCard
-          key={approval.approvalId}
-          approval={approval}
-          answering={props.answering.includes(approval.approvalId)}
-          session={props.session}
-        />
-      ))}
-    </div>
-  );
-}
-
-/** The chat. `locked` holds Continue back, e.g. while the agent's provider settings save. */
-export function ChatView({ session, locked }: { readonly session: ThreadSession; readonly locked: boolean }) {
+/** The chat canvas: history in a window of recent messages, the live turn, FindBar and announcements. */
+export function ChatView(props: ChatViewProps) {
+  const { session } = props;
   const screen = useStore(session.screen);
-  const bottom = useRef<HTMLDivElement>(null);
   const view = screen.view.kind === 'loaded' ? screen.view.value : null;
-  const tail = view === null ? 0 : view.messages.length + (view.activeTurn?.text.length ?? 0) + (view.activeTurn?.approvals.length ?? 0);
+  const scroller = useRef<HTMLDivElement>(null);
+  const following = useRef(true);
+  const lastSent = useRef<string | null>(null);
+  const anchor = useRef<ReadingSpot | null>(null);
+  const [pill, setPill] = useState(false);
+  const [start, setStart] = useState<number | null>(null);
+  const [finding, setFinding] = useState(false);
+  const [said, setSaid] = useState({ text: '', n: 0 });
+  const latest = useRef(props);
+  latest.current = props;
+  const begin = start ?? (view === null ? 0 : firstShown(view.messages.length));
+  const growth = view === null ? '' : growthOf(view);
+  const fresh = view !== null && view.messages.length === 0 && view.activeTurn === null;
+
+  const ctx = useMemo<TimelineContext>(
+    () => ({
+      display: props.display,
+      copy: { provider: props.providerName, safe: props.display.safe },
+      actions: {
+        openLink: (href) => void latest.current.bridge.openExternal(href),
+        copy: (text) => {
+          const safe = latest.current.display.safe(text);
+          if (safe !== null) void latest.current.bridge.copyText(safe);
+        },
+      },
+      onAction: (messageId, action) => {
+        if (action.kind === 'continue') void session.continueTurn(messageId, action.sessionChoice);
+        else latest.current.onOpenProviders();
+      },
+      onAnswer: (approvalId, choiceId) => void session.answer(approvalId, choiceId),
+    }),
+    [session, props.display, props.providerName],
+  );
+
+  const announce = (text: string): void => { setSaid((before) => ({ text, n: before.n + 1 })); };
+  const previous = useRef<ThreadView | null>(null);
   useEffect(() => {
-    bottom.current?.scrollIntoView({ block: 'end' });
-  }, [tail]);
+    if (view === null) return;
+    if (start === null) setStart(firstShown(view.messages.length));
+    const text = viewAnnouncement(previous.current, view, props.agentName, ctx.copy, props.announce);
+    previous.current = view;
+    if (text !== null) announce(text);
+  }, [view]);
+  useEffect(() => {
+    if (screen.problem !== null) announce(problemText(screen.problem, props.display.safe));
+  }, [screen.problem]);
+  useEffect(() => {
+    if (screen.connection === 'reconnecting') announce('Reconnecting…');
+  }, [screen.connection]);
+  useEffect(() => {
+    if (!props.focusApproval || view === null) return;
+    const first = view.activeTurn === null ? undefined : pendingApprovals(view.activeTurn)[0];
+    const heading = first === undefined ? null : document.getElementById(approvalHeadingId(first.approvalId));
+    if (heading !== null) {
+      heading.scrollIntoView({ block: 'center' });
+      heading.focus({ preventScroll: true });
+      following.current = false;
+    }
+    props.onApprovalFocused();
+  }, [props.focusApproval, view]);
+  const seenFind = useRef(props.findRequest);
+  useEffect(() => {
+    if (props.findRequest === seenFind.current) return;
+    seenFind.current = props.findRequest;
+    setFinding(true);
+  }, [props.findRequest]);
+
+  const toBottom = (): void => {
+    const box = scroller.current;
+    if (box === null) return;
+    box.scrollTop = box.scrollHeight;
+    following.current = true;
+    setPill(false);
+  };
+  useLayoutEffect(() => {
+    if (view === null) return;
+    const lastUser = view.messages.findLast(({ kind }) => kind === 'user')?.id ?? '';
+    const sent = lastSent.current !== null && lastUser !== lastSent.current;
+    lastSent.current = lastUser;
+    if (onGrowth(following.current, sent) === 'follow') toBottom();
+    else setPill(true);
+  }, [growth]);
+  useLayoutEffect(() => {
+    const box = scroller.current;
+    const spot = anchor.current;
+    anchor.current = null;
+    if (box === null || spot === null) return;
+    restoreSpot(box, spot);
+    const frame = requestAnimationFrame(() => {
+      restoreSpot(box, spot);
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+    };
+  }, [begin]);
+  useEffect(() => {
+    const box = scroller.current;
+    const content = box?.firstElementChild;
+    if (box == null || content == null) return;
+    const observer = new ResizeObserver(() => {
+      if (following.current) box.scrollTop = box.scrollHeight;
+    });
+    observer.observe(content);
+    return () => { observer.disconnect(); };
+  }, [view === null, fresh]);
+
   switch (screen.view.kind) {
     case 'loading':
       return <div class="chat empty">Loading…</div>;
     case 'failed':
       return (
         <div class="chat empty">
-          <p>{screen.view.message}</p>
-          <button class="secondary" onClick={() => void session.load()}>
-            Try again
-          </button>
+          <p>{props.display.safe(screen.view.message) ?? 'This chat could not be loaded.'}</p>
+          <button class="secondary" onClick={() => void session.load()}>Try again</button>
         </div>
       );
     case 'loaded':
       break;
   }
   const loaded = screen.view.value;
-  const last = loaded.messages.at(-1);
   const idle = loaded.activeTurn === null && loaded.blockedGroups.length === 0 && screen.busy === null;
+  const showEarlier = (): void => {
+    const box = scroller.current;
+    if (box !== null) anchor.current = readingSpot(box);
+    setStart(earlierStart(begin));
+  };
   return (
-    <div class="chat">
+    <div class="chat-frame">
+      {screen.connection === 'reconnecting' && <div class="reconnecting" role="status">Reconnecting…</div>}
       <BlockedBanner groups={loaded.blockedGroups} onRelease={(regId) => void session.release(regId)} />
-      <div class="messages">
-        {loaded.messages.length === 0 && loaded.activeTurn === null && <div class="hint">Send a message to start.</div>}
-        {loaded.messages.map((message) => (
-          <MessageItem key={message.id} message={message} latest={message === last && idle} session={session} busy={!idle || locked} />
-        ))}
-        {loaded.expiredApprovals.map((summary, index) => (
-          <div key={index} class="note warning">
-            An approval expired and was denied: {summary}
-          </div>
-        ))}
-        {loaded.activeTurn !== null && <ActiveTurn turn={loaded.activeTurn} answering={screen.answering} session={session} />}
-        <div ref={bottom} />
+      {finding && (
+        <FindBar
+          view={loaded}
+          scroller={scroller}
+          rendered={`${String(begin)}:${growth}`}
+          focusRequest={props.findRequest}
+          firstRendered={begin}
+          onReveal={(id) => {
+            const index = loaded.messages.findIndex((message) => message.id === id);
+            if (index !== -1 && index < begin) setStart(earlierStart(begin, index));
+          }}
+          onClose={() => { setFinding(false); }}
+        />
+      )}
+      <div
+        ref={scroller}
+        class={`chat${fresh ? ' fresh' : ''}`}
+        onScroll={(event) => {
+          following.current = nearBottom(event.currentTarget);
+          if (following.current) setPill(false);
+        }}
+      >
+        {fresh ? (
+          <div class="hero">{props.hero}</div>
+        ) : (
+          <Timeline view={loaded} start={begin} answering={screen.answering} idle={idle} locked={props.locked} offline={screen.connection !== 'live'} ctx={ctx} onShowEarlier={showEarlier} />
+        )}
+      </div>
+      {pill && (
+        <button class="new-messages" onClick={toBottom}>
+          ↓ New messages
+        </button>
+      )}
+      <div class="visually-hidden" aria-live="polite">
+        <span key={said.n}>{said.text}</span>
       </div>
     </div>
   );

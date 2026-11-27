@@ -142,6 +142,43 @@ it('removes ELECTRON_RUN_AS_NODE from the command environment and keeps the rest
   }
 });
 
+it("gives a command its own variables on top of the runtime's, replacing one of the same name", async () => {
+  process.env.MORROWBOT_TEST_MARK = 'runtime';
+  try {
+    const lines: string[] = [];
+    await commands.run('/usr/bin/env', { ...options({ args: [], onLine: (line) => lines.push(line) }), env: { MORROWBOT_TEST_MARK: 'own', MORROWBOT_TEST_EXTRA: 'added' }, input: '' });
+    const unchanged: string[] = [];
+    await commands.run('/usr/bin/env', { ...options({ args: [], onLine: (line) => unchanged.push(line) }), input: '' });
+    const marks = (printed: readonly string[]): string[] => printed.filter((line) => line.startsWith('MORROWBOT_TEST_')).sort();
+    expect({ own: marks(lines), next: marks(unchanged) }).toMatchInlineSnapshot(`
+      {
+        "next": [
+          "MORROWBOT_TEST_MARK=runtime",
+        ],
+        "own": [
+          "MORROWBOT_TEST_EXTRA=added",
+          "MORROWBOT_TEST_MARK=own",
+        ],
+      }
+    `);
+  } finally {
+    delete process.env.MORROWBOT_TEST_MARK;
+  }
+});
+
+it('starts the guard without the command\'s own variables, so they cannot change how it starts', async () => {
+  const lines: string[] = [];
+  const exit = await commands.run('/bin/sh', { ...options({ args: ['-c', 'echo "$NODE_OPTIONS"'], onLine: (line) => lines.push(line) }), env: { NODE_OPTIONS: '--no-such-flag' }, input: '' });
+  expect({ exit: exit.kind === 'exited' ? exit.code : exit.kind, lines }).toMatchInlineSnapshot(`
+    {
+      "exit": 0,
+      "lines": [
+        "--no-such-flag",
+      ],
+    }
+  `);
+});
+
 it('passes stdin and input files to the command', async () => {
   const { lines } = await run('/bin/sh', ['-c', 'cat; echo; cat "$1"; echo; cat "$2"', 'sh', commandFilePath(0), commandFilePath(1)], {
     input: 'from stdin',

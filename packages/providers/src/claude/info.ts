@@ -24,15 +24,20 @@ const DEFAULT_EFFORT: EffortLevel = 'high';
 
 /**
  * Claude Code's model aliases and the efforts each accepts, as 2.1.332 reports them in its
- * `initialize` answer (`fixtures/2.1.332/initialize-models.json`). Claude Code's own choice is the
- * `default` selection, which passes neither `--model` nor `--effort`.
+ * `initialize` answer (`fixtures/2.1.332/initialize-models.json`): Haiku 4.5 reports none, so it gets
+ * no Effort option and no `--effort`. Claude Code's own choice is the `default` selection, which
+ * passes neither `--model` nor `--effort`.
  */
 const ALIASES: readonly { readonly id: string; readonly label: string; readonly efforts: readonly EffortLevel[] }[] = [
   { id: 'fable', label: 'Fable', efforts: EFFORT_LEVELS },
   { id: 'opus', label: 'Opus', efforts: EFFORT_LEVELS },
   { id: 'sonnet', label: 'Sonnet', efforts: EFFORT_LEVELS },
   { id: 'haiku', label: 'Haiku', efforts: EFFORT_LEVELS },
+  { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5', efforts: [] },
 ];
+
+/** The alias the picker marks Recommended and new bindings start on. */
+const RECOMMENDED = 'opus';
 
 function defaultEffort(efforts: readonly EffortLevel[]): EffortLevel {
   return efforts.includes(DEFAULT_EFFORT) ? DEFAULT_EFFORT : (efforts[0] ?? DEFAULT_EFFORT);
@@ -41,15 +46,18 @@ function defaultEffort(efforts: readonly EffortLevel[]): EffortLevel {
 export const MODELS: readonly ProviderModel[] = ALIASES.map(({ id, label, efforts }) => ({
   id,
   label,
-  isDefault: false,
-  options: [
-    {
-      id: EFFORT_OPTION_ID,
-      label: 'Effort',
-      defaultChoiceId: defaultEffort(efforts),
-      choices: efforts.map((effort) => ({ id: effort, label: EFFORT_LABELS[effort] })),
-    },
-  ],
+  isDefault: id === RECOMMENDED,
+  options:
+    efforts.length === 0
+      ? []
+      : [
+          {
+            id: EFFORT_OPTION_ID,
+            label: 'Effort',
+            defaultChoiceId: defaultEffort(efforts),
+            choices: efforts.map((effort) => ({ id: effort, label: EFFORT_LABELS[effort] })),
+          },
+        ],
 }));
 
 /**
@@ -66,7 +74,7 @@ export function effortOf(selection: ModelSelection): EffortChoice {
   if (selection.kind === 'default') return { kind: 'none' };
   const alias = ALIASES.find(({ id }) => id === selection.id);
   const asked = selection.choices[EFFORT_OPTION_ID];
-  if (asked === undefined) return alias === undefined ? { kind: 'none' } : { kind: 'level', level: defaultEffort(alias.efforts) };
+  if (asked === undefined) return alias === undefined || alias.efforts.length === 0 ? { kind: 'none' } : { kind: 'level', level: defaultEffort(alias.efforts) };
   const level = alias?.efforts.find((effort) => effort === asked);
   return level === undefined
     ? { kind: 'unsupported', reason: `Claude model "${selection.id}" does not offer the effort "${asked}". Pick another effort.` }

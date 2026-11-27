@@ -19,6 +19,7 @@ const CHANNELS: BridgeChannels = {
   event: 'morrowbot:event',
   subscribe: 'morrowbot:subscribe',
   hostReady: 'morrowbot:host-ready',
+  hostLost: 'morrowbot:host-lost',
   pickFolder: 'morrowbot:pick-folder',
   copyText: 'morrowbot:copy-text',
   openExternal: 'morrowbot:open-external',
@@ -98,6 +99,7 @@ function runApp(): void {
         window?.webContents.send(CHANNELS.hostReady);
       },
       onLost: () => {
+        window?.webContents.send(CHANNELS.hostLost);
         setTimeout(() => {
           if (lifetime === 'running' && host.target() === target) connect(target, Math.min(delayMs * 2, RECONNECT_MAX_MS));
         }, delayMs);

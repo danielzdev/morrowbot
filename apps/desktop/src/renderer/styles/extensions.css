@@ -60,12 +60,12 @@
   margin: 0;
   padding-left: var(--s-5);
 }
-.btn.link {
+.btn.vendor-link {
   padding: 0;
   min-height: var(--hit);
   color: var(--accent);
 }
-.btn.link:hover:not(:disabled) {
+.btn.vendor-link:hover:not(:disabled) {
   background: none;
   color: var(--accent-hover);
 }

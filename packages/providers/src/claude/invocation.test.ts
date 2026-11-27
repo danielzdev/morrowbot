@@ -179,3 +179,24 @@ it('passes the effort a model offers (its default when none was chosen) after th
     }
   `);
 });
+
+it('passes no --effort for a model that reports no efforts, and refuses one asked for it', () => {
+  const haiku = { kind: 'model', id: 'claude-haiku-4-5-20251001', choices: {} } as const;
+  const effort = effortOf(haiku);
+  expect({
+    effort,
+    args: buildInvocation({ access: 'read-only', mode: 'interactive', selection: haiku, system: null, seed: null, prompt: 'hi', effort: effort.kind === 'level' ? effort.level : null }).args.slice(-2),
+    asked: effortOf({ ...haiku, choices: { effort: 'high' } }).kind,
+  }).toMatchInlineSnapshot(`
+    {
+      "args": [
+        "--model",
+        "claude-haiku-4-5-20251001",
+      ],
+      "asked": "unsupported",
+      "effort": {
+        "kind": "none",
+      },
+    }
+  `);
+});

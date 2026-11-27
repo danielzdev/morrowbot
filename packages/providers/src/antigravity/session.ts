@@ -1,8 +1,10 @@
-import type { ModelSelection, ProviderError, TurnSession } from '@morrowbot/plugin-sdk';
-import type { AcpDaemon, Call, SessionHandlers } from './daemon.ts';
+import { acp, type ModelSelection, type ProviderError, type TurnSession } from '@morrowbot/plugin-sdk';
+import type { AcpDaemon } from './daemon.ts';
 import { MODEL, THOUGHT, type ModelCatalog } from './models.ts';
-import { Ignored, selectOf, SessionLoadResponse, SessionNewResponse, SetConfigResponse, type ConfigOption } from './protocol.ts';
-import { ASKING_MODE } from './session-stream.ts';
+import { SessionLoadResponse, SessionNewResponse } from './protocol.ts';
+
+/** agy's mode that asks before every edit and command (`approval-required`). */
+export const ASKING_MODE = 'default';
 
 const OPEN_MS = 60_000;
 const SET_MS = 15_000;
@@ -19,7 +21,7 @@ export type Opened =
       readonly kind: 'opened';
       readonly sessionId: string;
       readonly isNew: boolean;
-      readonly options: readonly ConfigOption[];
+      readonly options: readonly acp.ConfigOption[];
       /** The plan agy reports for the signed-in account, such as "Google AI Ultra". */
       readonly tier: string | null;
       readonly detach: () => void;
@@ -31,7 +33,7 @@ export type Opened =
  * one. agy replays a loaded session's history as updates before it answers, so nothing it sends
  * before the answer reaches `handlers`, and a permission request during the replay is refused.
  */
-export async function openSession(daemon: AcpDaemon, cwd: string, session: TurnSession, handlers: SessionHandlers): Promise<Opened> {
+export async function openSession(daemon: AcpDaemon, cwd: string, session: TurnSession, handlers: acp.SessionHandlers): Promise<Opened> {
   if (session.kind === 'new') {
     const created = await daemon.call('session/new', { cwd, mcpServers: [] }, SessionNewResponse, OPEN_MS);
     if (created.kind !== 'ok') return { kind: 'refused', error: callError('start a session', created) };
@@ -69,7 +71,7 @@ export type Configured = { readonly kind: 'configured'; readonly model: string |
 export async function configureSession(
   daemon: AcpDaemon,
   sessionId: string,
-  opened: readonly ConfigOption[],
+  opened: readonly acp.ConfigOption[],
   setup: {
     readonly selection: ModelSelection;
     readonly catalog: ModelCatalog;
@@ -81,42 +83,42 @@ export async function configureSession(
   const { selection, catalog } = setup;
   let options = opened;
   const set = async (configId: string, value: string): Promise<ProviderError | null> => {
-    const reply = await daemon.call('session/set_config_option', { sessionId, configId, value }, SetConfigResponse, SET_MS);
+    const reply = await daemon.call('session/set_config_option', { sessionId, configId, value }, acp.SetConfigResponse, SET_MS);
     if (reply.kind !== 'ok') return callError(`change its ${configId} setting`, reply);
     options = reply.value.configOptions;
     return null;
   };
   catalog.observe(options, setup.fresh);
-  if (selectOf(options, 'mode')?.current !== ASKING_MODE) {
+  if (acp.selectOf(options, 'mode')?.current !== ASKING_MODE) {
     setup.forgetMode();
     const failed = await set('mode', ASKING_MODE);
     if (failed !== null) return { kind: 'refused', error: failed };
   }
   if (selection.kind === 'model') {
-    if (selectOf(options, MODEL)?.current !== selection.id) {
+    if (acp.selectOf(options, MODEL)?.current !== selection.id) {
       const failed = await set(MODEL, selection.id);
       if (failed !== null) return { kind: 'refused', error: failed.kind === 'other' ? { kind: 'invalid-model' } : failed };
-      if (selectOf(options, MODEL)?.current !== selection.id) return { kind: 'refused', error: { kind: 'invalid-model' } };
+      if (acp.selectOf(options, MODEL)?.current !== selection.id) return { kind: 'refused', error: { kind: 'invalid-model' } };
       catalog.observe(options, false);
     }
     const thought = selection.choices[THOUGHT];
-    const offered = selectOf(options, THOUGHT);
+    const offered = acp.selectOf(options, THOUGHT);
     if (thought !== undefined && offered !== null && offered.current !== thought && offered.values.some((entry) => entry.value === thought)) {
       const failed = await set(THOUGHT, thought);
       if (failed !== null) return { kind: 'refused', error: failed };
-      if (selectOf(options, THOUGHT)?.current !== thought) return { kind: 'refused', error: { kind: 'other', message: `Antigravity did not take the thinking level "${thought}".` } };
+      if (acp.selectOf(options, THOUGHT)?.current !== thought) return { kind: 'refused', error: { kind: 'other', message: `Antigravity did not take the thinking level "${thought}".` } };
     }
   }
-  if (selectOf(options, 'mode')?.current !== ASKING_MODE) {
+  if (acp.selectOf(options, 'mode')?.current !== ASKING_MODE) {
     return { kind: 'refused', error: { kind: 'access-not-supported', reason: 'Antigravity would not run this chat in its Default mode, which asks before every edit and command.' } };
   }
-  return { kind: 'configured', model: selectOf(options, MODEL)?.current ?? null };
+  return { kind: 'configured', model: acp.selectOf(options, MODEL)?.current ?? null };
 }
 
 /** Frees the session in the daemon; agy keeps it on disk. */
 export function closeSession(daemon: AcpDaemon, sessionId: string): void {
   if (!daemon.canClose || !daemon.alive()) return;
-  daemon.call('session/close', { sessionId }, Ignored, CLOSE_MS).catch((error: unknown) => {
+  daemon.call('session/close', { sessionId }, acp.Ignored, CLOSE_MS).catch((error: unknown) => {
     console.error('provider-antigravity: could not close a session', error);
   });
 }
@@ -132,7 +134,7 @@ export function vendorError(code: number, message: string): ProviderError {
 }
 
 /** Why a call failed, as the contract's error: agy's own error, or `transient` when the daemon gave no usable answer. */
-function callError(what: string, call: Exclude<Call<unknown>, { readonly kind: 'ok' }>): ProviderError {
+function callError(what: string, call: Exclude<acp.Call<unknown>, { readonly kind: 'ok' }>): ProviderError {
   if (call.kind === 'unanswered') return { kind: 'transient', retryAfterMs: null };
   const error = vendorError(call.code, call.message);
   return error.kind === 'other' ? { kind: 'other', message: `Antigravity could not ${what}: ${call.message}` } : error;

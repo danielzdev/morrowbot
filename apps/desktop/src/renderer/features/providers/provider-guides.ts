@@ -18,6 +18,10 @@ const GUIDES: Readonly<Record<string, SetupGuide>> = {
     steps: ['Install Google Antigravity with its agy command-line tool.', 'Open Antigravity once and sign in with your Google account.'],
     link: { label: 'Google Antigravity', url: 'https://antigravity.google' },
   },
+  'provider-opencode': {
+    steps: ['Install the opencode CLI, version 2.4. Its free models need no account or sign-in.'],
+    link: { label: 'opencode', url: 'https://opencode.ai' },
+  },
 };
 
 const COMMUNITY: SetupGuide = { steps: ['Follow the setup steps of the plugin that adds this provider.'], link: null };

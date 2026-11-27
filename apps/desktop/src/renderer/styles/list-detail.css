@@ -100,20 +100,13 @@
 .item-name > :is(.tag, .item-version) {
   margin-left: var(--s-1);
 }
-.item-text > .pill {
+.item-text > .status-pill {
   align-self: flex-start;
 }
 .item-version {
   color: var(--text-3);
 }
-.tag {
-  padding: 0 var(--s-1);
-  border: 1px solid var(--hairline-strong);
-  border-radius: var(--r-xs);
-  color: var(--text-2);
-  font: var(--t-meta);
-}
-.pill {
+.status-pill {
   display: inline-flex;
   align-items: center;
   flex: none;
@@ -122,19 +115,19 @@
   font: var(--t-meta);
   white-space: nowrap;
 }
-.pill.ok {
+.status-pill.ok {
   background: var(--ok-bg);
   color: var(--ok);
 }
-.pill.muted {
+.status-pill.muted {
   background: var(--selected);
   color: var(--text-2);
 }
-.pill.warning {
+.status-pill.warning {
   background: var(--warn-bg);
   color: var(--warn);
 }
-.pill.error {
+.status-pill.error {
   background: var(--danger-bg);
   color: var(--danger);
 }

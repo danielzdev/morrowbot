@@ -11,6 +11,7 @@ import { AppInfo, redact } from '../shared/privacy.ts';
 import { useStore } from '../shared/use-store.ts';
 import { liveFactsOf } from './derive.ts';
 import { createModels } from './models.ts';
+import { AgentDialogs, type AgentDialog } from './AgentDialogs.tsx';
 import { Pages, type Page } from './Pages.tsx';
 import { Shell } from './Shell.tsx';
 
@@ -21,6 +22,10 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
   const [page, setPage] = useState<Page>({ kind: 'chat' });
   const [settings, setSettings] = useState<SettingsLink | null>(null);
   const [filterRequest, setFilterRequest] = useState(0);
+  const [findRequest, setFindRequest] = useState(0);
+  const [approvalFocus, setApprovalFocus] = useState<string | null>(null);
+  const [bindingRequest, setBindingRequest] = useState(0);
+  const [dialog, setDialog] = useState<AgentDialog | null>(null);
   const [info, setInfo] = useState<AppInfo | null>(null);
   const copies = useRef(0);
   const state = useStore(models.agents.state);
@@ -86,10 +91,12 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
       <Shell
         onShortcut={(id) => {
           if (id === 'new-chat' && agent !== undefined) newChat(agent.id);
-          if (id === 'new-agent') setPage({ kind: 'new-agent' });
+          if (id === 'new-agent') setDialog({ kind: 'new-agent' });
+          if (id === 'binding') setBindingRequest((count) => count + 1);
           if (id === 'settings') openSettings('general');
           if (id === 'filter-agents') setFilterRequest((count) => count + 1);
           if (id === 'extensions') setPage({ kind: 'extensions' });
+          if (id === 'find' && page.kind === 'chat') setFindRequest((count) => count + 1);
         }}
         sidebar={(mode, controls) => (
           <Sidebar
@@ -104,12 +111,13 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
             onOpenAgent={(agentId, threadId) => {
               models.agents.selectAgent(agentId);
               if (threadId !== null) models.agents.openThread(agentId, threadId);
+              setApprovalFocus(threadId);
               setPage({ kind: 'chat' });
               controls.dismiss();
             }}
             onNewChat={(agentId) => { newChat(agentId); controls.dismiss(); }}
-            onAgentSettings={(agentId) => { models.agents.selectAgent(agentId); setPage({ kind: 'agent-settings' }); controls.dismiss(); }}
-            onNewAgent={() => { setPage({ kind: 'new-agent' }); controls.dismiss(); }}
+            onAgentSettings={(agentId) => { setDialog({ kind: 'agent-settings', agentId, section: 'general' }); controls.dismiss(); }}
+            onNewAgent={() => { setDialog({ kind: 'new-agent' }); controls.dismiss(); }}
             onSettings={() => { openSettings('general'); }}
             onExtensions={() => { setPage({ kind: 'extensions' }); controls.dismiss(); }}
           />
@@ -122,9 +130,37 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
                 <button class="btn ghost" onClick={() => { models.agents.dismissProblem(); }}>Dismiss</button>
               </div>
             )}
-            <Pages page={page} onPage={setPage} models={models} bridge={bridge} agent={agent} chrome={chrome} info={info} reducedMotion={appearance.reducedMotion} onCopy={copyChat} onNewChat={newChat} onOpenSettings={openSettings} />
+            <Pages
+              page={page}
+              onPage={setPage}
+              models={models}
+              bridge={bridge}
+              agent={agent}
+              chrome={chrome}
+              info={info}
+              reducedMotion={appearance.reducedMotion}
+              findRequest={findRequest}
+              bindingRequest={bindingRequest}
+              approvalFocus={approvalFocus}
+              onApprovalFocused={() => { setApprovalFocus(null); }}
+              onAgentSettings={(agentId, section) => { setDialog({ kind: 'agent-settings', agentId, section }); }}
+              onNewAgent={() => { setDialog({ kind: 'new-agent' }); }}
+              onCopy={copyChat}
+              onNewChat={newChat}
+              onOpenSettings={openSettings}
+            />
           </>
         )}
+      />
+      <AgentDialogs
+        dialog={dialog}
+        onDialog={setDialog}
+        models={models}
+        bridge={bridge}
+        info={info}
+        reducedMotion={appearance.reducedMotion}
+        onOpenProviders={() => { openSettings('providers'); }}
+        onCreated={(created) => { newChat(created.id); }}
       />
       {settings !== null && (
         <SettingsModal

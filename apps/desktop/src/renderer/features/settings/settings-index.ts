@@ -56,7 +56,7 @@ export const ROWS = {
   chatWidth: row('appearance', 'chat-width', 'Chat width', 'How wide the chat column gets: Normal is 720px, Wide is 920px.'),
   reduceMotion: row('appearance', 'reduce-motion', 'Reduce motion', "On stills avatars and slide-ins. Your system's reduce-motion setting always applies."),
   sendWith: row('chat', 'send-with', 'Send with', 'Which key sends your message. Shift+Enter always starts a new line.'),
-  providers: row('providers', 'providers', 'AI providers', 'Claude, Codex, Antigravity and community engines: set up, sign in, check status and change settings.'),
+  providers: row('providers', 'providers', 'AI providers', 'Claude, Codex, Antigravity, OpenCode and community engines: set up, sign in, check status and change settings.'),
   version: row('about', 'version', 'MorrowBot', 'Apache License 2.0 · Published by Legendary Koi'),
   dataFolder: row('about', 'data-folder', 'Data folder', 'Where MorrowBot keeps your agents and chats.'),
   licences: row('about', 'licences', 'Third-party licences', 'Open-source components that ship inside MorrowBot.'),
@@ -73,6 +73,8 @@ const SHORTCUT_COPY: Readonly<Record<ShortcutId, readonly [label: string, descri
   'toggle-sidebar': ['Toggle sidebar', 'Shrink the sidebar to a rail of avatars, or expand it again.'],
   'filter-agents': ['Filter agents', 'Find an agent in the sidebar by name.'],
   extensions: ['Extensions', 'Open Extensions: your plugins, connectors and the Marketplace.'],
+  find: ['Find in chat', 'Search the open chat. Enter and Shift+Enter move between matches.'],
+  binding: ['Model and access', "Change the current agent's model, effort and access."],
 };
 
 const CONTEXT_COPY: Readonly<Record<ContextKey, readonly [label: string, description: string]>> = {
@@ -115,6 +117,8 @@ export function keysOf(id: KeyRowId, platform: Platform, sendWith: SendWith): st
     case 'toggle-sidebar':
     case 'filter-agents':
     case 'extensions':
+    case 'find':
+    case 'binding':
       return shortcutLabel(id, platform);
   }
 }

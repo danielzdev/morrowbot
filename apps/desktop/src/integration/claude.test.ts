@@ -2,10 +2,10 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Agent, Thread, type AccessLevel } from '@morrowbot/contracts';
+import { Agent, MessageList, Thread, type AccessLevel } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { DEFAULT_PLUGIN_TIMEOUTS, startTestHost, type TestHost } from '../../../host/src/testing/test-host.ts';
-import { createChatHub, type ChatHub, type ThreadSession } from '../renderer/features/chat/index.ts';
+import { createChatHub, pendingApprovals, type ChatHub, type ThreadSession } from '../renderer/features/chat/index.ts';
 import { createProvidersModel, providerStatus, type ProvidersModel } from '../renderer/features/providers/index.ts';
 import { createApi } from '../renderer/shared/api.ts';
 import { until } from '../renderer/shared/store.ts';
@@ -141,7 +141,7 @@ it('shows a rate-limited reply with its reset time and a Continue', async () => 
           "expiredApprovals": [],
           "messages": [
             "user: limited",
-            "assistant:  [Usage limit reached.] [Continue]",
+            "assistant:  [The provider's 5-hour limit is reached] [Continue]",
           ],
         },
       },
@@ -150,11 +150,12 @@ it('shows a rate-limited reply with its reset time and a Continue', async () => 
 });
 
 const asking = (session: ThreadSession): Promise<unknown> =>
-  until(session.screen, (screen) => screen.view.kind === 'loaded' && (screen.view.value.activeTurn?.approvals.length ?? 0) > 0);
+  until(session.screen, (screen) => screen.view.kind === 'loaded' && screen.view.value.activeTurn !== null && pendingApprovals(screen.view.value.activeTurn).length > 0);
 
 function approvalId(session: ThreadSession): string {
   const view = session.screen.get().view;
-  return view.kind === 'loaded' ? (view.value.activeTurn?.approvals[0]?.approvalId ?? '') : '';
+  const turn = view.kind === 'loaded' ? view.value.activeTurn : null;
+  return turn === null ? '' : (pendingApprovals(turn)[0]?.approvalId ?? '');
 }
 
 it('a pending approval card comes back after a reload, and Allow from the reloaded window writes the file', async () => {
@@ -281,6 +282,75 @@ it('answering a stale card reloads the chat from the host and leaves the current
           ],
         },
       },
+    }
+  `);
+});
+
+it('Continue after a rate limit reuses the saved input: the chat never gets a second user message', async () => {
+  const session = await chatWith('read-only');
+  session.setDraft('limited');
+  await session.send();
+  const limited = await idle(session, 2);
+  const failed = limited.view.kind === 'loaded' ? (limited.view.value.messages.at(-1)?.id ?? '') : '';
+  await session.continueTurn(failed, { kind: 'auto' });
+  await until(session.screen, (screen) => screen.view.kind === 'loaded' && screen.view.value.activeTurn === null && screen.busy === null && screen.view.value.messages.at(-1)?.id !== failed);
+  const history = await host.call('GET', `/api/threads/${session.threadId}/messages`);
+  const kinds = MessageList.parse(history.body).messages.map(({ kind }) => kind);
+  expect({ shown: shown(session.screen.get()), userMessagesOnHost: kinds.filter((kind) => kind === 'user').length }).toMatchInlineSnapshot(`
+    {
+      "shown": {
+        "draft": "",
+        "problem": null,
+        "view": {
+          "activeTurn": null,
+          "expiredApprovals": [],
+          "messages": [
+            "user: limited",
+            "assistant:  [The provider's 5-hour limit is reached] [Continue]",
+            "assistant:  [The provider's 5-hour limit is reached] [Continue]",
+          ],
+        },
+      },
+      "userMessagesOnHost": 1,
+    }
+  `);
+});
+
+/** The live turn's steps, or the steps this window kept on the last reply. */
+function stepsOf(session: ThreadSession): string[] {
+  const view = session.screen.get().view;
+  if (view.kind !== 'loaded') return [];
+  const last = view.value.messages.at(-1);
+  const steps = view.value.activeTurn?.steps ?? (last === undefined ? [] : (view.value.finished[last.id]?.steps ?? []));
+  return steps.map((step) => (step.kind === 'tool' ? `tool ${step.name}: ${step.outcome}` : `approval: ${step.ending === null ? 'pending' : JSON.stringify(step.ending)}`));
+}
+
+it('keeps an approval card through a resync while pending, then ends it as the user chose (a second click changes nothing), beside its tool row', async () => {
+  const session = await chatWith('workspace-write');
+  session.setDraft('write-git');
+  await session.send();
+  await asking(session);
+  const pending = stepsOf(session);
+  await session.load();
+  const afterResync = stepsOf(session);
+  const id = approvalId(session);
+  await session.answer(id, 'deny');
+  await session.answer(id, 'allow');
+  await idle(session, 2);
+  expect({ pending, afterResync, denied: stepsOf(session) }).toMatchInlineSnapshot(`
+    {
+      "afterResync": [
+        "tool Write: running",
+        "approval: pending",
+      ],
+      "denied": [
+        "tool Write: error",
+        "approval: {"kind":"chosen","label":"Deny"}",
+      ],
+      "pending": [
+        "tool Write: running",
+        "approval: pending",
+      ],
     }
   `);
 });

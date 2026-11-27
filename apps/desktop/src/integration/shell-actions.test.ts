@@ -49,13 +49,24 @@ it('reveals folders by opaque id only, resolving an agent workspace from the hos
   const pathRefused = outcome(() => parseRevealTarget(page({ kind: 'path', path: '/etc' })));
   const resolved = await resolveReveal(parseRevealTarget(page({ kind: 'agent-workspace', agentId: agent.id })), context);
   const missing = await resolveReveal({ kind: 'agent-workspace', agentId: 'no-such-agent' }, context).catch((error: unknown) => (error instanceof Error ? error.message : ''));
+  const copy = { kind: 'instructions-copy', agentId: agent.id, revealId: '2026-01-01T00-00-01.000Z-1.md' };
   expect({
     pathRefused,
     dataDir: await resolveReveal(parseRevealTarget(page({ kind: 'data-dir' })), context),
     pluginsDirCreated: (await resolveReveal(parseRevealTarget(page({ kind: 'plugins-dir' })), context)) === pluginsDir && (await stat(pluginsDir)).isDirectory(),
     workspaceMatches: resolved === agent.workspace.dir,
     missing,
-  }).toEqual({ pathRefused: 'refused: Malformed reveal request', dataDir: '/data/morrowbot', pluginsDirCreated: true, workspaceMatches: true, missing: 'No such agent to reveal' });
+    copy: await resolveReveal(parseRevealTarget(page(copy)), context),
+    copyEscape: outcome(() => parseRevealTarget(page({ ...copy, revealId: '../../../etc/passwd' }))),
+  }).toEqual({
+    pathRefused: 'refused: Malformed reveal request',
+    dataDir: '/data/morrowbot',
+    pluginsDirCreated: true,
+    workspaceMatches: true,
+    missing: 'No such agent to reveal',
+    copy: `/data/morrowbot/instructions-drafts/${agent.id}/2026-01-01T00-00-01.000Z-1.md`,
+    copyEscape: 'refused: Malformed reveal request',
+  });
 });
 
 it('takes only a safe-mode boolean to relaunch', () => {

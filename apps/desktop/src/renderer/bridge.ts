@@ -6,6 +6,7 @@ export interface BridgeChannels {
   readonly event: 'morrowbot:event';
   readonly subscribe: 'morrowbot:subscribe';
   readonly hostReady: 'morrowbot:host-ready';
+  readonly hostLost: 'morrowbot:host-lost';
   readonly pickFolder: 'morrowbot:pick-folder';
   readonly copyText: 'morrowbot:copy-text';
   readonly openExternal: 'morrowbot:open-external';
@@ -16,8 +17,13 @@ export interface BridgeChannels {
   readonly relaunch: 'morrowbot:relaunch';
 }
 
-/** A folder to show in Finder, named by an opaque id; desktop main resolves the path itself. */
-export type RevealTarget = { readonly kind: 'data-dir' } | { readonly kind: 'plugins-dir' } | { readonly kind: 'agent-workspace'; readonly agentId: string };
+/** A folder or file to show in Finder, named by an opaque id; desktop main resolves the path itself. */
+export type RevealTarget =
+  | { readonly kind: 'data-dir' }
+  | { readonly kind: 'plugins-dir' }
+  | { readonly kind: 'agent-workspace'; readonly agentId: string }
+  /** An AGENTS.md copy kept by Save a copy; `revealId` is the file name the host returned. */
+  | { readonly kind: 'instructions-copy'; readonly agentId: string; readonly revealId: string };
 
 /** Open at login: only the installed app on macOS and Windows can register a login item. */
 export type LoginItem = { readonly kind: 'unsupported' } | { readonly kind: 'supported'; readonly openAtLogin: boolean };
@@ -44,6 +50,8 @@ export interface MorrowbotBridge {
   unsubscribe(threadId: string): void;
   /** The host started, or restarted after a crash with a new epoch: reload everything held from the API. */
   onHostReady(listener: () => void): () => void;
+  /** The host's event stream dropped: the host may be restarting or down until the next `onHostReady`. */
+  onHostLost(listener: () => void): () => void;
   /** Asks the user for a folder with the system dialog; null when they cancel. */
   pickFolder(): Promise<string | null>;
   /** Puts text on the system clipboard. */

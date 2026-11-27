@@ -40,7 +40,7 @@ function Guide(props: { readonly providerId: string; readonly onOpenLink: (url: 
         <li>{AFTER_SETUP}</li>
       </ol>
       {guide.link !== null && (
-        <button type="button" class="btn ghost link" onClick={() => { if (guide.link !== null) props.onOpenLink(guide.link.url); }}>
+        <button type="button" class="btn ghost vendor-link" onClick={() => { if (guide.link !== null) props.onOpenLink(guide.link.url); }}>
           {guide.link.label} ↗
         </button>
       )}

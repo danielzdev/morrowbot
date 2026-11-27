@@ -2,29 +2,20 @@ import type { ApiError, AssistantMessage, EventServerFrame, SessionChoice, Sessi
 import type { MorrowbotBridge } from '../../bridge.ts';
 import type { Api } from '../../shared/api.ts';
 import { Store, type Loadable } from '../../shared/store.ts';
-import { applyEvent, viewOf, type ThreadView } from './thread-model.ts';
+import { memoryDrafts, type DraftStore } from './drafts.ts';
+import type { BannerReason } from './outcome-copy.ts';
+import { applyEvent, endApproval, pendingApprovals, viewOf, type ThreadView } from './thread-model.ts';
 
 /** Something the composer asked the host to start. Kept so it can be retried exactly. */
 export type PendingAction =
   | { readonly kind: 'send'; readonly text: string }
   | { readonly kind: 'continue'; readonly failedMessageId: string };
 
-export interface SessionChoiceOption {
-  readonly choice: SessionChoice;
-  readonly label: string;
-  readonly warning: string | null;
-}
-
 /** Why the last send or Continue did not start. In every case the host wrote nothing, so the draft stays. */
 export type ComposerProblem =
-  | {
-      readonly kind: 'session-choice';
-      readonly reason: SessionChoiceReason;
-      readonly prompt: string;
-      readonly options: readonly SessionChoiceOption[];
-      readonly action: PendingAction;
-    }
-  | { readonly kind: 'retry'; readonly message: string; readonly action: PendingAction; readonly sessionChoice: SessionChoice }
+  | { readonly kind: 'session-choice'; readonly reason: SessionChoiceReason; readonly action: PendingAction }
+  | { readonly kind: 'retry'; readonly reason: BannerReason; readonly action: PendingAction; readonly sessionChoice: SessionChoice }
+  /** `message` is the host's own text; it is redacted before display. */
   | { readonly kind: 'error'; readonly message: string };
 
 export interface ThreadScreen {
@@ -34,6 +25,8 @@ export interface ThreadScreen {
   readonly problem: ComposerProblem | null;
   /** Approval ids whose answer is on its way to the host. */
   readonly answering: readonly string[];
+  /** `reconnecting`: the host can't be reached; the loaded history stays readable and sending waits. */
+  readonly connection: 'live' | 'reconnecting';
 }
 
 export interface ThreadSession {
@@ -43,6 +36,8 @@ export interface ThreadSession {
   load(): Promise<void>;
   /** A frame from the host's event stream. */
   handle(frame: EventServerFrame): void;
+  /** The event stream dropped (false) or is back (true, which reloads): while it is down the chat says it is reconnecting. */
+  setStream(up: boolean): void;
   setDraft(text: string): void;
   send(): Promise<void>;
   /** Runs the refused action again with the user's session choice. */
@@ -66,50 +61,53 @@ export interface ThreadSessionOptions {
   readonly blockedRefreshMs?: number;
   /** After a Stop or Release, which can block or free process groups that other screens show too. */
   readonly onGroupsChanged?: () => void;
-}
-
-const SEEDED: SessionChoiceOption = { choice: { kind: 'new-seeded' }, label: 'Start new seeded session', warning: null };
-
-function sessionChoice(reason: SessionChoiceReason): Pick<Extract<ComposerProblem, { kind: 'session-choice' }>, 'prompt' | 'options'> {
-  switch (reason) {
-    case 'diverged':
-      return {
-        prompt: "The provider's saved session did not finish its last turn.",
-        options: [
-          { choice: { kind: 'continue-existing' }, label: 'Continue saved session', warning: 'Continuing may repeat actions the provider already took.' },
-          SEEDED,
-        ],
-      };
-    case 'instructions-changed':
-      return { prompt: 'Instructions changed: start a new seeded session?', options: [SEEDED] };
-    case 'unseeded-history':
-      return { prompt: 'This chat has messages the provider has not seen: start a new seeded session?', options: [SEEDED] };
-  }
+  /** Where the draft is kept, so it survives a reload. */
+  readonly drafts?: DraftStore;
+  /** How often an unreachable host is tried again. */
+  readonly reconnectMs?: number;
+  /** This window's clock, for tool and turn timings. */
+  readonly now?: () => number;
 }
 
 export function problemOf(error: ApiError['error'], action: PendingAction, choice: SessionChoice): ComposerProblem {
   switch (error.kind) {
     case 'session-choice-required':
-      return { kind: 'session-choice', reason: error.reason, action, ...sessionChoice(error.reason) };
+      return { kind: 'session-choice', reason: error.reason, action };
     case 'provider-unavailable':
+      return { kind: 'retry', reason: error.reason, action, sessionChoice: choice };
     case 'binding-changed':
-      return { kind: 'retry', message: error.message, action, sessionChoice: choice };
+      return { kind: 'retry', reason: 'binding-changed', action, sessionChoice: choice };
     case 'invalid_request':
     case 'not_found':
     case 'conflict':
     case 'forbidden':
     case 'unauthorized':
     case 'internal':
+    case 'instructions-conflict':
       return { kind: 'error', message: error.message };
   }
 }
 
+/** A failed load that means the host is down or restarting, rather than a refusal. */
+/** The host itself is away (no answer, or the proxy's 502–504), as opposed to an error it reported. */
+const unreachable = (status: number): boolean => status === 0 || (status >= 502 && status <= 504);
+
+const stillPending = (view: ThreadScreen['view'], approvalId: string): boolean =>
+  view.kind === 'loaded' && view.value.activeTurn !== null && pendingApprovals(view.value.activeTurn).some((approval) => approval.approvalId === approvalId);
+
 export function openThreadSession(options: ThreadSessionOptions): ThreadSession {
   const { api, bridge, threadId } = options;
-  const screen = new Store<ThreadScreen>({ view: { kind: 'loading' }, draft: '', busy: null, problem: null, answering: [] });
+  const drafts = options.drafts ?? memoryDrafts();
+  const now = options.now ?? Date.now;
+  const screen = new Store<ThreadScreen>({ view: { kind: 'loading' }, draft: drafts.read(threadId), busy: null, problem: null, answering: [], connection: 'live' });
   const patch = (change: Partial<ThreadScreen>): void => {
-    screen.update((current) => ({ ...current, ...change }));
+    if (change.draft !== undefined && change.draft !== screen.get().draft) drafts.write(threadId, change.draft);
+    screen.update((current) => {
+      const next = { ...current, ...change };
+      return change.view === undefined ? next : { ...next, answering: next.answering.filter((id) => stillPending(next.view, id)) };
+    });
   };
+  let streamUp = true;
   let loads = 0;
   let loading = false;
   let closed = false;
@@ -123,32 +121,44 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
     const result = await api.threadState(threadId);
     if (mine !== loads || closed) return;
     loading = false;
+    const before = screen.get().view;
     if (result.kind === 'failed') {
-      patch({ view: { kind: 'failed', message: result.status === 404 ? 'This chat no longer exists.' : result.error.message } });
+      if (before.kind === 'loaded' && unreachable(result.status)) {
+        patch({ connection: 'reconnecting' });
+        blockedTimer = setTimeout(() => void load(), options.reconnectMs ?? 2_000);
+        return;
+      }
+      patch({ connection: streamUp ? 'live' : 'reconnecting', view: { kind: 'failed', message: result.status === 404 ? 'This chat no longer exists.' : result.error.message } });
       return;
     }
-    const view = viewOf(result.value);
-    patch({ view: { kind: 'loaded', value: view } });
+    const view = viewOf(result.value, before.kind === 'loaded' ? before.value : null);
+    patch({ connection: streamUp ? 'live' : 'reconnecting', view: { kind: 'loaded', value: view } });
     bridge.subscribe(threadId, result.value.cursor);
     if (view.blockedGroups.length > 0) {
       blockedTimer = setTimeout(() => void load(), options.blockedRefreshMs ?? 5_000);
     }
   }
 
+  /** Events were missed: the chat says it is reconnecting, and holds Send, until the snapshot is in. */
+  function resync(): void {
+    if (screen.get().view.kind === 'loaded') patch({ connection: 'reconnecting' });
+    void load();
+  }
+
   function handle(frame: EventServerFrame): void {
     if (closed || frame.kind === 'usage.updated' || frame.threadId !== threadId) return;
     if (frame.kind === 'resync') {
-      void load();
+      resync();
       return;
     }
     const current = screen.get().view;
     if (loading || current.kind !== 'loaded') return;
-    const applied = applyEvent(current.value, frame);
+    const applied = applyEvent(current.value, frame, now());
     switch (applied.kind) {
       case 'ignored':
         return;
       case 'resync':
-        void load();
+        resync();
         return;
       case 'applied':
         patch({ view: { kind: 'loaded', value: applied.view } });
@@ -193,6 +203,11 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
     screen,
     load,
     handle,
+    setStream: (up) => {
+      streamUp = up;
+      if (up) void load();
+      else patch({ connection: 'reconnecting' });
+    },
     setDraft: (draft) => {
       patch({ draft });
     },
@@ -228,9 +243,13 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
       if (generationId === undefined || screen.get().answering.includes(approvalId)) return;
       patch({ answering: [...screen.get().answering, approvalId] });
       const result = await api.answerApproval(threadId, approvalId, generationId, choiceId);
-      patch({ answering: screen.get().answering.filter((id) => id !== approvalId) });
       if (result.kind === 'ok') return;
-      if (result.status === 404) await load();
+      patch({ answering: screen.get().answering.filter((id) => id !== approvalId) });
+      if (result.status === 404) {
+        const view = screen.get().view;
+        if (view.kind === 'loaded') patch({ view: { kind: 'loaded', value: endApproval(view.value, approvalId, { kind: 'late' }) } });
+        await load();
+      }
       else patch({ problem: { kind: 'error', message: result.error.message } });
     },
     release: async (regId) => {

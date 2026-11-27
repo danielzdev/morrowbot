@@ -58,7 +58,7 @@ export function ListRow(props: {
 
 /** A status pill: words always, colour as a second signal. */
 export function Pill(props: { readonly tone: 'ok' | 'muted' | 'warning' | 'error'; readonly children: ComponentChildren }) {
-  return <span class={`pill ${props.tone}`}>{props.children}</span>;
+  return <span class={`status-pill ${props.tone}`}>{props.children}</span>;
 }
 
 /** One titled part of a detail pane. */

@@ -13,6 +13,7 @@ const CHANNELS = {
   event: 'morrowbot:event',
   subscribe: 'morrowbot:subscribe',
   hostReady: 'morrowbot:host-ready',
+  hostLost: 'morrowbot:host-lost',
   pickFolder: 'morrowbot:pick-folder',
   copyText: 'morrowbot:copy-text',
   openExternal: 'morrowbot:open-external',
@@ -43,6 +44,7 @@ const bridge = {
   subscribe: (threadId, since) => { ipcRenderer.send(CHANNELS.subscribe, { kind: 'subscribe', threadId, since }); },
   unsubscribe: (threadId) => { ipcRenderer.send(CHANNELS.subscribe, { kind: 'unsubscribe', threadId }); },
   onHostReady: (listener) => listen(CHANNELS.hostReady, () => { listener(); }),
+  onHostLost: (listener) => listen(CHANNELS.hostLost, () => { listener(); }),
   // Main answers with the chosen folder path or null.
   pickFolder: () => ipcRenderer.invoke(CHANNELS.pickFolder),
   copyText: (text) => ipcRenderer.invoke(CHANNELS.copyText, text),

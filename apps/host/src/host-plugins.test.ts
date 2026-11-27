@@ -26,7 +26,7 @@ async function echoThread(running: TestHost): Promise<Thread> {
     (await running.call('POST', '/api/agents', { name: 'E', provider: ECHO }))
       .body,
   );
-  await running.call('PUT', `/api/agents/${agent.id}/instructions`, { content: 'Be kind.' });
+  await running.call('PUT', `/api/agents/${agent.id}/instructions`, { content: 'Be kind.', expectedRevision: null });
   return Thread.parse((await running.call('POST', `/api/agents/${agent.id}/threads`, {})).body);
 }
 
@@ -108,6 +108,7 @@ it('lists where each plugin came from, safe mode, the plugins folder and discove
         "provider-claude: built-in, running",
         "provider-openai: built-in, running",
         "provider-antigravity: built-in, running",
+        "provider-opencode: built-in, running",
         "echo: built-in, safe-mode",
         "faulty: user, safe-mode",
       ],

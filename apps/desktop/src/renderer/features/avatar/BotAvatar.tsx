@@ -3,13 +3,13 @@ import { mountAvatar, type AvatarOptions, type MountedAvatar } from 'open-bot-av
 import { useEffect, useId, useRef } from 'preact/hooks';
 import { FinishFilter, hasFilter, materialOf } from './finish.tsx';
 import type { AvatarMotion } from './motion.ts';
-import { definitionOf } from './shapes.ts';
+import { avatarEntry } from './registry.ts';
 
 /** A resting avatar: no frames until something changes. */
 const RESTING: AvatarMotion = { state: 'idle', mood: 'neutral', paused: true };
 
 function optionsOf(avatar: AgentAvatar, motion: AvatarMotion, label: string, reducedMotion: boolean): AvatarOptions | undefined {
-  const definition = definitionOf(avatar.shape);
+  const definition = avatarEntry(avatar.shape)?.definition;
   if (definition === undefined) return undefined;
   return {
     definition,
@@ -65,6 +65,7 @@ export function BotAvatar(props: {
   return (
     <span class={`bot-avatar finish-${avatar.finish}`} data-state={motion.state} style={{ width: `${String(size)}px`, height: `${String(size)}px` }}>
       <FinishFilter id={filterId} finish={avatar.finish} size={size} />
+      {avatarEntry(avatar.shape)?.definition === undefined && <span class="bot-avatar-fallback" style={{ background: avatar.color }} />}
       <span ref={host} class="bot-avatar-engine" style={hasFilter(avatar.finish) ? { filter: `url(#${filterId})` } : {}} />
     </span>
   );

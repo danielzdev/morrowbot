@@ -110,6 +110,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
       records: storage.agents,
       folderExists: (id) => folders.get(id) !== undefined,
       workspacesDir: path.join(dataDir, 'workspaces'),
+      draftsDir: path.join(dataDir, 'instructions-drafts'),
       newId,
       now,
     });

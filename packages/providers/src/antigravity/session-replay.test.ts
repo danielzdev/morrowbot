@@ -1,9 +1,6 @@
-import { readOptionalFile, z, type ApprovalAnswer, type TurnChunk } from '@morrowbot/plugin-sdk';
+import { acp, readOptionalFile, z, type ApprovalAnswer, type TurnChunk } from '@morrowbot/plugin-sdk';
 import { expect, it } from 'vitest';
-import { decide, permissionResult } from './permission.ts';
-import { PermissionRequest, PromptResponse, SessionNotification } from './protocol.ts';
-import { createSessionStream } from './session-stream.ts';
-import { createTripwire, type Breach } from './tripwire.ts';
+import { ASKING_MODE } from './session.ts';
 import { outcomeOf, usageOf } from './turn.ts';
 
 /** Recorded from agy 1.5.18 in a folder `/work/ws2` with every permission denied; paths and ids redacted. */
@@ -21,26 +18,26 @@ const Message = z.looseObject({ id: z.unknown().optional(), method: z.string().o
  */
 async function replay(name: string): Promise<unknown> {
   const chunks: TurnChunk[] = [];
-  const breaches: Breach[] = [];
+  const breaches: acp.Breach[] = [];
   const permissions: unknown[] = [];
   let end: unknown = null;
-  const stream = createSessionStream({ home: '/work', emit: (chunk) => chunks.push(chunk), onBreach: (breach) => breaches.push(breach) });
-  const tripwire = createTripwire('/work', (breach) => breaches.push(breach));
+  const stream = acp.createSessionStream({ home: '/work', mode: ASKING_MODE, emit: (chunk) => chunks.push(chunk), onBreach: (breach) => breaches.push(breach) });
+  const tripwire = acp.createTripwire('/work', (breach) => breaches.push(breach));
   const lines = (await fixture(name)).split('\n').filter((line) => line !== '');
   for (const line of lines) {
     const message = Message.parse(JSON.parse(line));
     if (message.method === 'session/update') {
-      const { sessionId, update } = SessionNotification.parse(message.params);
+      const { sessionId, update } = acp.SessionNotification.parse(message.params);
       tripwire.hear(sessionId, update);
       stream.hear(update);
     }
     else if (message.method === 'session/request_permission') {
-      const request = PermissionRequest.parse(message.params);
-      const decision = decide(request, '/work');
+      const request = acp.PermissionRequest.parse(message.params);
+      const decision = acp.decide(request, '/work', 'Antigravity');
       const answer: ApprovalAnswer | null = decision.kind === 'ask' ? { kind: 'chosen', choiceId: 'deny' } : null;
-      permissions.push({ decision, reply: permissionResult(request.options, answer, false) });
+      permissions.push({ decision, reply: acp.permissionResult(request.options, answer, false) });
     } else if (message.method === undefined) {
-      const reply = PromptResponse.parse(message.result);
+      const reply = acp.PromptResponse.parse(message.result);
       end = { outcome: outcomeOf(reply.stopReason, false), usage: usageOf(reply) };
     }
   }

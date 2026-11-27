@@ -1,6 +1,6 @@
 import type { ProviderInfo, TurnMode, UsageResponse, UsageUnavailableReason, VendorSettings } from '@morrowbot/contracts';
 import { formatTime } from '../../shared/format.ts';
-import { ACCESS_LABEL } from '../../shared/labels.ts';
+import { profileName, withheldReason } from '../../shared/binding-ui/access-copy.ts';
 import { DetailSection } from '../../shared/ui/ListDetail.tsx';
 
 type Ready = Extract<ProviderInfo, { kind: 'ready' | 'ready-models-later' }>;
@@ -40,14 +40,14 @@ function Access({ info, redact }: { readonly info: Ready; readonly redact: (text
     <ul class="fact-list">
       {profiles.map((profile) => (
         <li key={`${profile.access}/${profile.vendorSettings}`} class="ok">
-          ✓ {ACCESS_LABEL[profile.access]} · for {profile.modes.map((mode) => MODES[mode]).join(' and ')}
+          ✓ {profileName(profile)} · for {profile.modes.map((mode) => MODES[mode]).join(' and ')}
           {profile.readsOutsideCwd ? ' · can read files outside the workspace' : ''}
           <div class="muted">{INSTRUCTIONS[profile.vendorSettings]}</div>
         </li>
       ))}
       {withheld.map((profile) => (
         <li key={`withheld-${profile.access}/${profile.vendorSettings}`} class="withheld">
-          ✕ {ACCESS_LABEL[profile.access]}: {redact(profile.reason)}
+          ✕ {profileName(profile)}: {withheldReason(profile.reason, redact)}
         </li>
       ))}
       {profiles.length === 0 && withheld.length === 0 && <li class="muted">No access level is offered.</li>}

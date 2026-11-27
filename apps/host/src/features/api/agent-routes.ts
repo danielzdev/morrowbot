@@ -1,11 +1,14 @@
 import {
-  AgentInstructions,
   type AgentList,
   CreateAgentRequest,
+  InstructionsCopyRequest,
+  type InstructionsCopyReply,
+  PutInstructionsRequest,
+  type PutInstructionsReply,
   UpdateAgentRequest,
 } from '@morrowbot/contracts';
 import type { ApiServices } from './ports.ts';
-import { failure, json, noContent, notFound } from './reply.ts';
+import { failure, instructionsConflict, json, noContent, notFound } from './reply.ts';
 import { parseBody, type Route } from './route.ts';
 
 export function agentRoutes({ agents, folders, chat }: ApiServices): Route[] {
@@ -30,6 +33,10 @@ export function agentRoutes({ agents, folders, chat }: ApiServices): Route[] {
             return json(201, created.agent);
           case 'invalid':
             return failure('invalid_request', created.reason);
+          case 'instructions-occupied':
+            return instructionsConflict('occupied', created.current);
+          case 'failed':
+            return failure('internal', created.message);
         }
       },
     },
@@ -67,20 +74,53 @@ export function agentRoutes({ agents, folders, chat }: ApiServices): Route[] {
       method: 'GET',
       path: '/api/agents/:id/instructions',
       handle: async ({ params }) => {
-        const content = await agents.readInstructions(params.get('id'));
-        if (content === undefined) return notFound('Agent');
-        const body: AgentInstructions = { content };
-        return json(200, body);
+        const view = await agents.instructionsView(params.get('id'));
+        return view === undefined ? notFound('Agent') : json(200, view);
       },
     },
     {
       method: 'PUT',
       path: '/api/agents/:id/instructions',
       handle: async (context) => {
-        const request = await parseBody(context, AgentInstructions);
+        const request = await parseBody(context, PutInstructionsRequest);
         if (request.kind === 'rejected') return request.reply;
-        const saved = await agents.writeInstructions(context.params.get('id'), request.value.content);
-        return saved ? json(200, request.value) : notFound('Agent');
+        const id = context.params.get('id');
+        if (request.value.expectedRevision !== null) {
+          const current = await agents.instructionsView(id);
+          return current === undefined ? notFound('Agent') : instructionsConflict('replace-unavailable', current);
+        }
+        const created = await agents.createInstructions(id, request.value.content);
+        if (created === undefined) return notFound('Agent');
+        switch (created.kind) {
+          case 'created': {
+            const body: PutInstructionsReply = { revision: created.revision };
+            return json(200, body);
+          }
+          case 'occupied': {
+            const current = await agents.instructionsView(id);
+            return current === undefined ? notFound('Agent') : instructionsConflict('occupied', current);
+          }
+          case 'failed':
+            return failure('internal', created.message);
+        }
+      },
+    },
+    {
+      method: 'POST',
+      path: '/api/agents/:id/instructions/copies',
+      handle: async (context) => {
+        const request = await parseBody(context, InstructionsCopyRequest);
+        if (request.kind === 'rejected') return request.reply;
+        const saved = await agents.saveInstructionsCopy(context.params.get('id'), request.value.content);
+        if (saved === undefined) return notFound('Agent');
+        switch (saved.kind) {
+          case 'saved': {
+            const body: InstructionsCopyReply = { revealId: saved.name };
+            return json(201, body);
+          }
+          case 'failed':
+            return failure('internal', saved.message);
+        }
       },
     },
   ];
