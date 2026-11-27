@@ -86,10 +86,13 @@ export function providerRequests({ slotOf, statusOf, isServing, groups, timeouts
    */
   async function info(pluginId: string, refresh: boolean): Promise<InfoResult> {
     const slot = slotOf(pluginId);
+    let waited: Promise<void> | undefined;
     for (;;) {
-      if (statusOf(slot).kind === 'starting') await slot.queue;
-      else if (slot.daemonGone !== undefined) await slot.daemonGone;
-      else break;
+      if (slot.daemonGone !== undefined) await slot.daemonGone;
+      else if (statusOf(slot).kind === 'starting' && slot.queue !== waited) {
+        waited = slot.queue;
+        await waited;
+      } else break;
     }
     const reason = unavailable(slot);
     const child = slot.process;

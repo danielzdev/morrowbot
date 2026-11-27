@@ -167,6 +167,7 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
 
   async function start(slot: Slot, record: PluginRecord | undefined): Promise<void> {
     const { manifest, entryPath, dir } = slot.plugin;
+    await slot.retired;
     if (record?.enabled === false) {
       setStatus(slot, { kind: 'disabled' });
       return;
@@ -247,7 +248,7 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
       await stopFailed(slot, `manifest.json says "${manifest.kind}" but the plugin runs as "${kind}"`);
     } catch (error) {
       if (error instanceof PluginRequestError) await stopFailed(slot, error.message);
-      else await child.exited;
+      else await slot.retired;
     }
   }
 

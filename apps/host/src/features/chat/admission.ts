@@ -41,6 +41,7 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
   const revision = plugins.revision(pluginId);
   const info = await plugins.info(pluginId, false);
   if (info.kind === 'superseded') return { kind: 'binding_changed' };
+  if (core.rechecking.has(pluginId)) return { kind: 'provider_unavailable', reason: 'rechecking' };
   if (info.kind === 'unavailable') {
     return info.reason === 'daemon-blocked'
       ? { kind: 'provider_unavailable', reason: 'daemon-blocked' }

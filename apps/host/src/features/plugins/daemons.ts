@@ -75,13 +75,15 @@ export function daemons(deps: DaemonDeps): Daemons {
       groups.markEnding(pgid);
       const release = hold(slot);
       const lost = row.generationIds.flatMap((id) => take(slot, child, worker, id) ?? []);
-      for (const turn of lost) turn.sink.onLost();
       void groups
         .verify(pgid)
         .then((released) => {
           if (!released && !deps.stopping()) deps.quarantine(slot, [pgid]);
         })
-        .finally(release);
+        .finally(() => {
+          for (const turn of lost) turn.sink.onLost();
+          release();
+        });
       return;
     }
     void groups.verify(pgid).then((released) => {
@@ -94,6 +96,7 @@ export function daemons(deps: DaemonDeps): Daemons {
   async function retire(slot: Slot, row: ChildGroupRow): Promise<void> {
     const child = slot.process;
     const worker = slot.worker;
+    const retired = slot.retired;
     slot.daemonRevision += 1;
     slot.info = undefined;
     slot.daemonLost = true;
@@ -104,19 +107,18 @@ export function daemons(deps: DaemonDeps): Daemons {
     const lost = child === undefined || worker === null ? [] : row.generationIds.flatMap((id) => take(slot, child, worker, id) ?? []);
     try {
       if (child === undefined) {
-        await slot.retired;
+        await retired;
         return;
       }
       log(`stopping daemon group ${String(row.pgid)}`);
       child.killChildGroup(row.pgid);
-      const deadline = performance.now() + DAEMON_STOP_MS;
       const exited = await Promise.race([reported.promise.then(() => true), delay(DAEMON_STOP_MS, false, { ref: false })]);
-      if (exited && (await groups.awaitGone(row.pgid, Math.max(0, deadline - performance.now())))) return;
+      if (exited && (await groups.awaitGone(row.pgid, DAEMON_STOP_MS))) return;
       if (slot.process === child) {
         log(`daemon group ${String(row.pgid)} did not stop; killing the worker`);
         await deps.killWorker(slot, child);
       } else {
-        await slot.retired;
+        await retired;
       }
     } finally {
       slot.retiring.delete(row.pgid);
@@ -152,6 +154,7 @@ export function daemons(deps: DaemonDeps): Daemons {
         );
         const child = slot.process;
         if (timedOut && child !== undefined && slot.worker === older.worker) await deps.killWorker(slot, child);
+        await settled(slot);
       }
       for (const row of groups.daemons(slot.plugin.manifest.id)) await retire(slot, row);
       const stillBlocked = blockedDetail(slot);
@@ -169,14 +172,15 @@ export function daemons(deps: DaemonDeps): Daemons {
       return { kind: 'unavailable', reason: `Plugin "${slot.plugin.manifest.id}" is not running (${slot.status.kind})` };
     }
     const entry = ask(slot, child, worker, true, undefined);
+    const current = (): boolean => slot.daemonRevision === entry.revision && slot.process === child && slot.worker === worker;
     try {
       const info = await entry.value;
-      if (slot.daemonRevision === entry.revision) return { kind: 'ok', info };
-      await settled(slot);
-      const blocked = blockedDetail(slot);
-      return blocked === undefined ? { kind: 'unavailable', reason: "The provider's daemon exited during Recheck. Recheck again." } : { kind: 'blocked', detail: blocked };
+      if (current()) return { kind: 'ok', info };
+      return await superseded(slot);
     } catch (error) {
-      if (!(error instanceof PluginTimeoutError)) return { kind: 'unavailable', reason: error instanceof Error ? error.message : String(error) };
+      if (!(error instanceof PluginTimeoutError)) {
+        return current() ? { kind: 'unavailable', reason: error instanceof Error ? error.message : String(error) } : await superseded(slot);
+      }
       slot.daemonRevision += 1;
       await deps.killWorker(slot, child);
       const blocked = blockedDetail(slot);
@@ -186,6 +190,13 @@ export function daemons(deps: DaemonDeps): Daemons {
       slot.daemonLost = false;
       return { kind: 'ok', info };
     }
+  }
+
+  /** The fresh start's daemon or worker went away while it was asked: its answer is not published. */
+  async function superseded(slot: Slot): Promise<RecheckAnswer> {
+    await settled(slot);
+    const blocked = blockedDetail(slot);
+    return blocked === undefined ? { kind: 'unavailable', reason: 'The provider stopped during Recheck. Recheck again.' } : { kind: 'blocked', detail: blocked };
   }
 
   return { groupExited, retire, recheck };

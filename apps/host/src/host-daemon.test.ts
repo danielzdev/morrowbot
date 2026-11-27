@@ -165,7 +165,7 @@ it('stops a daemon that ignores interrupt with kill-child-group, then a worker k
   `);
 });
 
-it('on an unexpected daemon exit settles its turns once, holds new work until the exit is verified, then registers a new daemon through provider-info {refresh:true}', async () => {
+it('on an unexpected daemon exit holds new work and settles its turns once the exit is verified, then registers a new daemon through provider-info {refresh:true}', async () => {
   const sticky = stickyProbe();
   let holding = true;
   chat = await startDaemonFixture({ probe: sticky.probe });
@@ -177,16 +177,19 @@ it('on an unexpected daemon exit settles its turns once, holds new work until th
   const shared = await start(fixture, sharing.id, 'stall');
   await until(async () => (await turnsSeen(fixture)) === 2);
   const exited = await start(fixture, exiting.id, 'exit');
-  await fixture.events.finished(exited);
-  await fixture.events.finished(shared);
+  await until(async () => (await fixture.daemonEvents()).includes('daemon-exit d1'));
   const heldThread = (await fixture.host.call('POST', `/api/threads/${exiting.id}/messages`, { text: 'again' })).status;
   const pending = fixture.host.call('POST', `/api/threads/${other.id}/messages`, { text: 'next' });
   await sleep(300);
   const whileChecking = await fixture.daemonEvents();
+  const settledWhileChecking = [finishedCount(fixture, exited), finishedCount(fixture, shared)];
   holding = false;
+  await fixture.events.finished(exited);
+  await fixture.events.finished(shared);
   const next = SendMessageResponse.parse((await pending).body);
   await fixture.events.finished(next.generationId);
   expect({
+    settledWhileChecking,
     finishedOnce: [finishedCount(fixture, exited), finishedCount(fixture, shared)],
     heldThread,
     whileChecking,
@@ -231,6 +234,10 @@ it('on an unexpected daemon exit settles its turns once, holds new work until th
           "generationIds": [],
           "state": "live",
         },
+      ],
+      "settledWhileChecking": [
+        0,
+        0,
       ],
       "whileChecking": [
         "daemon-start d1",
