@@ -12,7 +12,7 @@ const OFFERED: PermissionOption[] = [
 it('sends only reads, searches and fetches to a card, and denies every other kind, known or not', () => {
   const kinds = ['read', 'search', 'fetch', 'edit', 'delete', 'move', 'execute', 'think', 'switch_mode', 'other', 'a-kind-from-a-later-agy', undefined];
   expect(
-    Object.fromEntries(kinds.map((kind) => [String(kind), decide({ sessionId: 's', toolCall: { toolCallId: 't', kind, title: 'x', locations: [{ path: '/home/me/a' }] }, options: OFFERED }, '/home/me').kind])),
+    Object.fromEntries(kinds.map((kind) => [String(kind), decide({ sessionId: 's', toolCall: { toolCallId: 't', kind, title: 'x', locations: [{ path: '/home/me/a' }] }, options: OFFERED }, '/home/me', 'Antigravity').kind])),
   ).toMatchInlineSnapshot(`
     {
       "a-kind-from-a-later-agy": "deny",
@@ -80,7 +80,7 @@ it('allows once only when the user chose Allow, never always; a stopped turn ans
 });
 
 it('masks secrets and shows the home folder as ~ in what a card or a denial says', () => {
-  const ask = (kind: string, title: string) => decide({ sessionId: 's', toolCall: { kind, title, locations: [] }, options: OFFERED }, '/home/me');
+  const ask = (kind: string, title: string) => decide({ sessionId: 's', toolCall: { kind, title, locations: [] }, options: OFFERED }, '/home/me', 'Antigravity');
   expect([ask('fetch', 'https://example.com/?api_key=abc123'), ask('execute', 'curl -H "Authorization: Bearer abc.def" /home/me/x')]).toMatchInlineSnapshot(`
     [
       {

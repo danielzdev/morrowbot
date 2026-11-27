@@ -25,6 +25,8 @@ export interface CommandOptions {
    * where the command expects a path.
    */
   readonly files: readonly string[];
+  /** Variables this command gets on top of the runtime's environment, replacing any of the same name. */
+  readonly env?: Readonly<Record<string, string>>;
   /**
    * What the command's process group belongs to: a turn (by its `turnId`), a short probe, or the
    * plugin's shared daemon (started from `providerInfo`, kept across turns, stopped by the host's
@@ -140,7 +142,7 @@ function openCommand(command: string, options: CommandOptions, owner: Owner): Op
     guard = fork(GUARD_PATH, [String(options.files.length), command, ...options.args], {
       cwd: options.cwd,
       detached: true,
-      env: guardEnv(owner.env),
+      env: guardEnv({ ...owner.env, ...options.env }),
       execArgv: [],
       serialization: 'json',
       stdio,

@@ -1,44 +1,45 @@
-import type { TurnChunk } from '@morrowbot/plugin-sdk';
-import { ConfigOptionUpdate, ContentChunk, ModeUpdate, selectOf, ToolCall } from './protocol.ts';
-import { describeTool } from './tool-input.ts';
+import type { TurnChunk } from '@morrowbot/contracts';
+import { ConfigOptionUpdate, ContentChunk, ModeUpdate, selectOf, ToolCall, type SessionUpdate } from './protocol.ts';
+import { describeTool } from './tools.ts';
 import type { Breach } from './tripwire.ts';
 
-/** agy's mode that asks before every edit and command (`approval-required`). */
-export const ASKING_MODE = 'default';
-/** A mode update MorrowBot cannot read counts as leaving Default mode. */
+/** A mode update MorrowBot cannot read counts as leaving the session's mode. */
 const UNREADABLE = 'an unreadable mode';
 
 const ENDED = new Set(['completed', 'failed']);
 
 export interface SessionStream {
   /** Hears one `session/update`. */
-  hear(update: unknown): void;
+  hear(update: SessionUpdate): void;
   /**
-   * The mode agy last announced in an update, or null. Answers to MorrowBot's own changes are not
-   * counted: one can be read after a later update, so only updates keep agy's order.
+   * The mode the agent last announced in an update, or null. Answers to MorrowBot's own changes are
+   * not counted: one can be read after a later update, so only updates keep the agent's order.
    */
   mode(): string | null;
-  /** Forgets the mode heard so far: called just before MorrowBot asks agy for Default mode. */
+  /** Forgets the mode heard so far: called just before MorrowBot asks the agent for `mode`. */
   forgetMode(): void;
 }
 
 export interface StreamOptions {
   readonly home: string | null;
+  /** The mode the session must stay in: the one that keeps the agent asking, or read-only. */
+  readonly mode: string;
   readonly emit: (chunk: TurnChunk) => void;
-  /** Hears agy leave Default mode. Changes finished without asking are the daemon's tripwire's. */
+  /** Hears the agent leave `mode`. Changes finished without asking are the client's tripwire's. */
   readonly onBreach: (breach: Extract<Breach, { kind: 'mode-changed' }>) => void;
 }
 
 /** Turns one session's updates into turn chunks: reply text, Thinking, and each tool call's start and end. */
 export function createSessionStream(options: StreamOptions): SessionStream {
   const { emit, home } = options;
+  const kept = options.mode;
   const tools = new Map<string, { kind: string | null; title: string | null; ended: boolean }>();
   let thinking = false;
   let mode: string | null = null;
   const breach = options.onBreach;
   const heardMode = (current: string): void => {
     mode = current;
-    if (current !== ASKING_MODE) breach({ kind: 'mode-changed', mode: current });
+    if (current !== kept) breach({ kind: 'mode-changed', mode: current });
   };
 
   const tool = (raw: unknown): void => {
@@ -61,7 +62,7 @@ export function createSessionStream(options: StreamOptions): SessionStream {
 
   return {
     hear: (update) => {
-      const kind = typeof update === 'object' && update !== null && 'sessionUpdate' in update ? update.sessionUpdate : null;
+      const kind = update.sessionUpdate;
       if (kind !== 'agent_thought_chunk') thinking = false;
       switch (kind) {
         case 'agent_message_chunk': {
