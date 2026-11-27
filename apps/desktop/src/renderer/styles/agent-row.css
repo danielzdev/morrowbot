@@ -97,22 +97,6 @@
   color: var(--text-1);
   font-weight: 500;
 }
-.row-actions {
-  position: absolute;
-  top: 6px;
-  right: var(--s-1);
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  visibility: hidden;
-}
-.switcher-row:is(:hover, :focus-within) .row-actions,
-.row-actions:has(:popover-open) {
-  visibility: visible;
-}
-.switcher-row:is(:hover, :focus-within) .switcher-time {
-  display: none;
-}
 .agent-row.rail {
   justify-content: center;
   height: 48px;

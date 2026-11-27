@@ -32,7 +32,7 @@ export interface ThreadHeaderProps {
 
 interface TabMenu {
   readonly anchor: HTMLElement;
-  readonly at: { readonly x: number; readonly y: number };
+  readonly at: { readonly x: number; readonly y: number } | null;
   readonly items: readonly MenuItem[];
 }
 
@@ -46,17 +46,14 @@ export function ThreadHeader(props: ThreadHeaderProps) {
   const { tabs, close, closeOthers } = useTabs(props.agent.id, props.threads, props.threadsLoaded, props.openThreadId, props.onOpen);
   const thread = props.threads.find(({ id }) => id === props.openThreadId);
 
-  const actionsFor = (target: Thread, inTab: boolean): readonly MenuItem[] => {
+  const actionsFor = (target: Thread, withSettings: boolean): readonly MenuItem[] => {
     const main = target.id === tabs.main?.id;
     return [
       ...(main ? [] : [{ kind: 'action', id: 'rename', label: 'Rename', icon: 'pencil', onSelect: () => { setRenaming(target.id); } } satisfies MenuItem]),
       { kind: 'action', id: 'copy', label: 'Copy chat as Markdown', icon: 'copy', onSelect: () => { props.onCopy(target.id); } },
-      ...(inTab
-        ? [
-            ...(main ? [] : [{ kind: 'action', id: 'close', label: 'Close tab', icon: 'close', onSelect: () => { close(target.id); } } satisfies MenuItem]),
-            { kind: 'action', id: 'close-others', label: 'Close other tabs', onSelect: () => { closeOthers(target.id); } } satisfies MenuItem,
-          ]
-        : [{ kind: 'action', id: 'settings', label: 'Agent settings', icon: 'settings', onSelect: props.onAgentSettings } satisfies MenuItem]),
+      ...(main ? [] : [{ kind: 'action', id: 'close', label: 'Close tab', icon: 'close', onSelect: () => { close(target.id); } } satisfies MenuItem]),
+      { kind: 'action', id: 'close-others', label: 'Close other tabs', onSelect: () => { closeOthers(target.id); } },
+      ...(withSettings ? [{ kind: 'action', id: 'settings', label: 'Agent settings', icon: 'settings', onSelect: props.onAgentSettings } satisfies MenuItem] : []),
       { kind: 'separator', id: 'sep' },
       { kind: 'action', id: 'delete', label: 'Delete chat…', icon: 'trash', danger: true, onSelect: () => { setDeleting(target); } },
     ];
@@ -80,7 +77,7 @@ export function ThreadHeader(props: ThreadHeaderProps) {
           setRenaming(null);
           if (title !== null) props.onRename(id, title);
         }}
-        onMenu={(target, anchor, at) => { setTabMenu({ anchor, at, items: actionsFor(target, true) }); }}
+        onMenu={(target, anchor, at) => { setTabMenu({ anchor, at, items: actionsFor(target, false) }); }}
       />
       <IconButton icon="plus" label="New chat" shortcut="new-chat" onClick={props.onNewChat} />
       <Tooltip label="All chats">
@@ -89,8 +86,8 @@ export function ThreadHeader(props: ThreadHeaderProps) {
         </button>
       </Tooltip>
       <span class="spacer" />
-      {thread !== undefined && <MenuButton icon="more" label="Chat actions" items={() => actionsFor(thread, false)} />}
-      {tabMenu !== null && <Menu anchor={{ current: tabMenu.anchor }} at={tabMenu.at} label="Tab actions" align="start" items={tabMenu.items} onClose={() => { setTabMenu(null); }} />}
+      {thread !== undefined && <MenuButton icon="more" label="Chat actions" items={() => actionsFor(thread, true)} />}
+      {tabMenu !== null && <Menu key={`${String(tabMenu.at?.x)},${String(tabMenu.at?.y)}`} anchor={{ current: tabMenu.anchor }} at={tabMenu.at ?? undefined} label="Tab actions" align="start" items={tabMenu.items} onClose={() => { setTabMenu(null); }} />}
       {switcher && (
         <ChatSwitcher
           anchor={listButton}

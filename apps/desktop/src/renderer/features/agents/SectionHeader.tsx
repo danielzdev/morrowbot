@@ -24,7 +24,7 @@ export function SectionHeader(props: SectionHeaderProps) {
   if (section.kind === 'folder' && props.renaming) {
     return (
       <div class="section-header renaming">
-        <NameInput initial={section.folder.name} label={`Rename folder ${label}`} onDone={props.onRenamed} />
+        <NameInput initial={section.folder.name} maxLength={80} label={`Rename folder ${label}`} onDone={props.onRenamed} />
       </div>
     );
   }

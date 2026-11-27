@@ -116,7 +116,7 @@ export function Shell(props: {
               resize(moved.clientX);
             };
             handle.addEventListener('pointermove', move);
-            handle.addEventListener('pointerup', () => { handle.removeEventListener('pointermove', move); }, { once: true });
+            handle.addEventListener('lostpointercapture', () => { handle.removeEventListener('pointermove', move); }, { once: true });
           }}
           onKeyDown={(event) => {
             if (event.key === 'ArrowLeft') resize(layout.width - 8);

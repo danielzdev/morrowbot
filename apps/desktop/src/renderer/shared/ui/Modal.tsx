@@ -29,7 +29,7 @@ export function Modal(props: {
       close: () => {
         onClose.current();
       },
-      returnFocus: opener,
+      returnFocus: null,
       contains: (target) => target instanceof Node && inner.contains(target),
     });
     (firstFocusable(inner) ?? inner).focus();
@@ -37,6 +37,7 @@ export function Modal(props: {
       unmounting.current = true;
       removeLayer();
       element.close();
+      if (opener?.isConnected === true) opener.focus();
     };
   }, []);
   return (

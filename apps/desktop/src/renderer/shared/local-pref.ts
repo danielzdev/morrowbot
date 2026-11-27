@@ -16,6 +16,6 @@ export function writePref(key: string, value: unknown): void {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch {
-    // Storage can be full or blocked; the preference then lasts until the window reloads.
+    return;
   }
 }

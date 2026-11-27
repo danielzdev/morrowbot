@@ -4,7 +4,7 @@ import { AgentSettings, NewAgent, type AvatarEditor, type ProviderOption } from 
 import { AvatarPicker, freshAvatar } from '../features/avatar/index.ts';
 import { bindTo } from '../features/binding/index.ts';
 import { PluginsPage } from '../features/plugins/index.ts';
-import { displayPath, type AppInfo } from '../shared/privacy.ts';
+import { displayPath, redact, type AppInfo } from '../shared/privacy.ts';
 import { useStore } from '../shared/use-store.ts';
 import { ChatPane, type Chrome } from './ChatPane.tsx';
 import { cardOf, infoOf, type Models } from './models.ts';
@@ -63,7 +63,7 @@ export function Pages(props: {
     case 'chat':
       if (agent !== undefined) {
         return (
-          <ChatPane key={agent.id} models={models} agent={agent} chrome={chrome} reducedMotion={props.reducedMotion} onAgentSettings={() => { setPage({ kind: 'agent-settings' }); }} onPlugins={() => { setPage({ kind: 'plugins' }); }} onCopy={props.onCopy} onNewChat={() => { props.onNewChat(agent.id); }} />
+          <ChatPane key={agent.id} models={models} agent={agent} chrome={chrome} reducedMotion={props.reducedMotion} redact={(text) => redact(text, info ?? NO_INFO)} onAgentSettings={() => { setPage({ kind: 'agent-settings' }); }} onPlugins={() => { setPage({ kind: 'plugins' }); }} onCopy={props.onCopy} onNewChat={() => { props.onNewChat(agent.id); }} />
         );
       }
       return (

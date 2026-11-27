@@ -1,6 +1,5 @@
 /**
- * Migration 4 (sidebar folders). Append-only: never edit a migration that has shipped.
- * Deleting a folder leaves its agents in place, outside any folder.
+ * Migration 4 (sidebar folders). Deleting a folder leaves its agents in place, outside any folder.
  */
 export const MIGRATION_4 = `
   CREATE TABLE folders (

@@ -102,7 +102,7 @@ export function AgentRow(props: AgentRowProps) {
     return (
       <div class="agent-row renaming">
         {props.avatar}
-        <NameInput initial={agent.name} label={`Rename ${agent.name}`} onDone={props.onRenamed} />
+        <NameInput initial={agent.name} maxLength={200} label={`Rename ${agent.name}`} onDone={props.onRenamed} />
       </div>
     );
   }

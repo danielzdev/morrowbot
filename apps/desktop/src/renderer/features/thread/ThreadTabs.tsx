@@ -18,7 +18,8 @@ export interface ThreadTabsProps {
   readonly onClose: (threadId: string) => void;
   readonly onRename: (threadId: string | null) => void;
   readonly onRenamed: (threadId: string, title: string | null) => void;
-  readonly onMenu: (thread: Thread, tab: HTMLElement, at: { readonly x: number; readonly y: number }) => void;
+  /** Opens a tab's menu at a right-click point, or beside the tab from the keyboard (null). */
+  readonly onMenu: (thread: Thread, tab: HTMLElement, at: { readonly x: number; readonly y: number } | null) => void;
 }
 
 /** What a tab shows at its end: a spinner while working, a dot for queued, approval, failure or a new reply. */
@@ -44,7 +45,7 @@ export function ThreadTabs(props: ThreadTabsProps) {
     if (thread !== null && props.renamingId === thread.id) {
       return (
         <div key={thread.id} class="tab active renaming">
-          <NameInput initial={thread.title} label="Chat name" onDone={(name) => { props.onRenamed(thread.id, name); }} />
+          <NameInput initial={thread.title} maxLength={200} label="Chat name" onDone={(name) => { props.onRenamed(thread.id, name); }} />
         </div>
       );
     }
@@ -64,7 +65,13 @@ export function ThreadTabs(props: ThreadTabsProps) {
           onAuxClick={(event) => { if (event.button === 1 && !isMain && id !== null) props.onClose(id); }}
           onContextMenu={(event) => {
             event.preventDefault();
-            if (thread !== null) props.onMenu(thread, event.currentTarget, { x: event.clientX, y: event.clientY });
+            if (thread !== null) props.onMenu(thread, event.currentTarget, event.button === 2 ? { x: event.clientX, y: event.clientY } : null);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'F10' && event.shiftKey && thread !== null) {
+              event.preventDefault();
+              props.onMenu(thread, event.currentTarget, null);
+            }
           }}
         >
           {isMain && <span class="tab-avatar">{props.avatar}</span>}

@@ -14,12 +14,12 @@ export interface Chrome {
   readonly showSidebar: () => void;
 }
 
-function ProviderChip(props: { readonly card: PluginCard | undefined; readonly onPlugins: () => void }) {
+function ProviderChip(props: { readonly card: PluginCard | undefined; readonly redact: (text: string) => string; readonly onPlugins: () => void }) {
   if (props.card === undefined) return <span class="chip warning">Provider not installed</span>;
   const summary = summarize(props.card.entry, props.card.info);
   if (summary.state === 'ready' && summary.tone === 'ok') return null;
   return (
-    <button class={`chip ${summary.tone}`} onClick={props.onPlugins} title={summary.detail ?? ''}>
+    <button class={`chip ${summary.tone}`} onClick={props.onPlugins} title={props.redact(summary.detail ?? '')}>
       {props.card.entry.manifest.name}: {summary.title}
     </button>
   );
@@ -31,6 +31,8 @@ export function ChatPane(props: {
   readonly agent: Agent;
   readonly chrome: Chrome;
   readonly reducedMotion: boolean;
+  /** Makes host error text safe to show (spec §9.1). */
+  readonly redact: (text: string) => string;
   readonly onAgentSettings: () => void;
   readonly onPlugins: () => void;
   readonly onCopy: (threadId: string) => void;
@@ -82,7 +84,7 @@ export function ChatPane(props: {
         onDelete={(id) => void models.agents.deleteThread(agent.id, id)}
         onCopy={props.onCopy}
       />
-      {threads?.kind === 'failed' && <div class="banner danger">{threads.message}</div>}
+      {threads?.kind === 'failed' && <div class="banner danger">{props.redact(threads.message)}</div>}
       {session === undefined ? (
         <div class="chat empty">
           <p>No chats yet.</p>
@@ -106,12 +108,12 @@ export function ChatPane(props: {
                 <>
                   <ModelPicker info={info} binding={binding} disabled={saving} onChange={(selection) => { rebind({ ...binding, selection }); }} />
                   <AccessPicker info={info} binding={binding} disabled={saving} onChange={(access, vendorSettings) => { rebind({ ...binding, access, vendorSettings }); }} />
-                  <ProviderChip card={card} onPlugins={props.onPlugins} />
+                  <ProviderChip card={card} redact={props.redact} onPlugins={props.onPlugins} />
                 </>
               )
             }
           />
-          {bindingProblem !== null && <div class="access-notes note danger">{bindingProblem}</div>}
+          {bindingProblem !== null && <div class="access-notes note danger">{props.redact(bindingProblem)}</div>}
           {binding !== null && <AccessNotes info={info} binding={binding} />}
         </>
       )}

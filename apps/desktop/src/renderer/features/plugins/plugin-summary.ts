@@ -1,5 +1,6 @@
 import type { PluginEntry, PluginStatus, ProviderInfo } from '@morrowbot/contracts';
 import type { Loadable } from '../../shared/store.ts';
+import { planLabel } from '../../shared/privacy.ts';
 
 export type SummaryTone = 'ok' | 'muted' | 'warning' | 'error';
 
@@ -77,7 +78,8 @@ function fromInfo(info: ProviderInfo): PluginSummary {
       };
     case 'ready':
     case 'ready-models-later': {
-      const account = info.accountLabel === null ? '' : ` · ${info.accountLabel}`;
+      const plan = info.accountLabel === null ? null : planLabel(info.accountLabel);
+      const account = plan === null ? '' : ` · ${plan}`;
       const title = info.capabilities.profiles.length === 0 ? `Ready ${info.version}, but no access level is available` : `Ready · ${info.version}${account}`;
       return summary('ready', info.capabilities.profiles.length === 0 ? 'warning' : 'ok', title, info.warning);
     }

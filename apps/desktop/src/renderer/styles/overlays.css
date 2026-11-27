@@ -209,6 +209,18 @@
 .switcher-row.renaming {
   padding: 0 var(--s-1);
 }
+.switcher-row .row-actions {
+  display: none;
+  align-items: center;
+  gap: 2px;
+  padding-right: 2px;
+}
+.switcher-row:is(:hover, :focus-within) .row-actions {
+  display: flex;
+}
+.switcher-row:is(:hover, :focus-within) .switcher-time {
+  display: none;
+}
 .switcher-open {
   display: flex;
   align-items: center;

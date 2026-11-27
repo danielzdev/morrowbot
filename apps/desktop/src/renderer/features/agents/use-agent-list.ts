@@ -17,7 +17,9 @@ export function useAgentList(items: readonly SidebarItem[], selectedId: string |
   const typed = useRef({ text: '', at: 0 });
   const entries = items.flatMap((item) => (item.kind === 'agent' ? [item.entry] : []));
   const shown = windowOf(items, scroll.top, scroll.height, entries.length, rail);
-  const tabStop = [focusId, selectedId].map((id) => entries.find(({ agent }) => agent.id === id)).find((entry) => entry !== undefined)?.agent.id ?? entries[0]?.agent.id;
+  const preferred = [focusId, selectedId].map((id) => entries.find(({ agent }) => agent.id === id)).find((entry) => entry !== undefined)?.agent.id ?? entries[0]?.agent.id;
+  const rendered = items.slice(shown.start, shown.end).flatMap((item) => (item.kind === 'agent' ? [item.entry.agent.id] : []));
+  const tabStop = preferred === undefined || rendered.length === 0 || rendered.includes(preferred) ? preferred : rendered[0];
 
   const measure = (element: HTMLElement): void => {
     setScroll({ top: element.scrollTop, height: element.clientHeight });
@@ -29,8 +31,13 @@ export function useAgentList(items: readonly SidebarItem[], selectedId: string |
       measure(element);
     });
     observer.observe(element);
+    const pressed = (event: PointerEvent): void => {
+      if (!(event.target instanceof Node) || !element.contains(event.target)) listHasFocus.current = false;
+    };
+    document.addEventListener('pointerdown', pressed, true);
     return () => {
       observer.disconnect();
+      document.removeEventListener('pointerdown', pressed, true);
     };
   }, []);
   useLayoutEffect(() => {
@@ -52,8 +59,9 @@ export function useAgentList(items: readonly SidebarItem[], selectedId: string |
     setFocusId(entry.agent.id);
   };
   const onKeyDown = (event: KeyboardEvent): void => {
-    if (!(event.target instanceof HTMLElement) || !event.target.classList.contains('agent-main')) return;
-    const current = entries.findIndex(({ agent }) => agent.id === tabStop);
+    const target = event.target;
+    if (!(target instanceof HTMLElement) || !target.classList.contains('agent-main')) return;
+    const current = entries.findIndex(({ agent }) => agent.id === target.dataset.agent);
     let next = rovingTarget(event.key, current, entries.length);
     if (next === null && event.key.length === 1 && event.key !== ' ' && !event.metaKey && !event.ctrlKey && !event.altKey) {
       typed.current = { text: event.timeStamp - typed.current.at < TYPE_AHEAD_MS ? typed.current.text + event.key : event.key, at: event.timeStamp };

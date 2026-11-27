@@ -61,8 +61,31 @@ it("previews each agent's newest message with text across its threads, cut to 16
         "agentId": "gardener",
         "at": "2026-01-01T00:00:03.000Z",
         "kind": "assistant",
-        "preview": "leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf …",
+        "preview": "leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf leaf…",
         "threadId": "g1",
+      },
+    ]
+  `);
+});
+
+it('never cuts a word in half, so redaction still sees whole emails and paths, and skips blank messages', () => {
+  say('g1', 'assistant', `${'a'.repeat(150)} reach me at someone@example.com today`);
+  say('g1', 'assistant', ' \n\t ');
+  say('o1', 'user', `${' '.repeat(500)}hoot`);
+  say('f1', 'user', 'x'.repeat(170));
+  expect(storage.messages.lastByAgent().map(({ agentId, preview }) => ({ agentId, preview }))).toMatchInlineSnapshot(`
+    [
+      {
+        "agentId": "fox",
+        "preview": "…",
+      },
+      {
+        "agentId": "owl",
+        "preview": "hoot",
+      },
+      {
+        "agentId": "gardener",
+        "preview": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa reach me…",
       },
     ]
   `);

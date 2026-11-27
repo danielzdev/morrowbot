@@ -42,6 +42,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
 
   const agent = state.agents.kind === 'loaded' ? state.agents.value.find(({ id }) => id === state.selectedAgentId) : undefined;
   const safe = (text: string): string => redact(text, info ?? NO_INFO);
+  const preview = (text: string): string => (info === null ? '…' : safe(text));
   const avatarOf = (each: Agent, size: number) => {
     const motion = motionOf(combineActivity(Object.values(activity).filter((one) => one.agentId === each.id).map((one) => one.activity)));
     return <BotAvatar avatar={each.avatar} motion={motion} size={size} reducedMotion={appearance.reducedMotion} />;
@@ -54,10 +55,17 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
     });
   };
   const copyChat = (threadId: string): void => {
-    const view = models.chats.session(threadId).screen.get().view;
-    const thread = agent === undefined || state.threads[agent.id]?.kind !== 'loaded' ? undefined : view.kind === 'loaded' ? view.value.thread : undefined;
-    if (agent === undefined || thread === undefined || view.kind !== 'loaded') return;
-    void bridge.copyText(chatMarkdown(thread.title, agent.name, view.value.messages, safe));
+    const screen = models.chats.session(threadId).screen;
+    const copy = (): boolean => {
+      const view = screen.get().view;
+      if (view.kind === 'loading') return false;
+      if (view.kind === 'loaded' && agent !== undefined) void bridge.copyText(chatMarkdown(view.value.thread.title, agent.name, view.value.messages, safe));
+      return true;
+    };
+    if (copy()) return;
+    const stop = screen.subscribe(() => {
+      if (copy()) stop();
+    });
   };
 
   return (
@@ -66,7 +74,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
         onShortcut={(id) => {
           if (id === 'new-chat' && agent !== undefined) newChat(agent.id);
           if (id === 'new-agent') setPage({ kind: 'new-agent' });
-          if (id === 'settings') setSettings((open) => (open === null ? 'appearance' : null));
+          if (id === 'settings') setSettings('appearance');
           if (id === 'filter-agents') setFilterRequest((count) => count + 1);
           if (id === 'extensions') setPage({ kind: 'plugins' });
         }}
@@ -76,7 +84,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
             mode={mode}
             facts={(each) => liveFactsOf(cards, activity, each)}
             avatar={avatarOf}
-            redact={safe}
+            redact={preview}
             alert={pluginAlert(entriesOf(cards))}
             filterRequest={filterRequest}
             onToggle={controls.toggle}

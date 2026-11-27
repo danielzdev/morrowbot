@@ -17,8 +17,6 @@ function optionsOf(avatar: AgentAvatar, motion: AvatarMotion, label: string, red
     material: materialOf(avatar.finish),
     state: motion.state,
     mood: motion.mood,
-    // A paused avatar snaps to rest and the engine's shared clock then sleeps. Reduced motion (the
-    // app setting or the OS) holds a still pose per state.
     reducedMotion: motion.paused || reducedMotion ? true : 'system',
     renderer: 'canvas',
     label,

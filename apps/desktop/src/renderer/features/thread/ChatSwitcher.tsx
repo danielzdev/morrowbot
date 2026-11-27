@@ -101,6 +101,7 @@ export function ChatSwitcher(props: ChatSwitcherProps) {
               <div key={thread.id} class="switcher-row renaming" role="listitem">
                 <NameInput
                   initial={thread.title}
+                  maxLength={200}
                   label={`Rename ${title}`}
                   onDone={(name) => {
                     setRenaming(null);

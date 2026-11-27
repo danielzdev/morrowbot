@@ -40,6 +40,7 @@ export interface SidebarProps {
 }
 
 const AVATAR_PX = 44;
+const NONE_FOLDED: ReadonlySet<string> = new Set();
 const RAIL_AVATAR_PX = 36;
 
 /** The agents list (spec §3.1, messenger style): search, Needs you / Working, Agents, the person's folders, then Extensions and Settings. */
@@ -58,7 +59,7 @@ export function Sidebar(props: SidebarProps) {
 
   const facts = agents.map((agent): AgentFacts => ({ agent, ...props.facts(agent), unread: unreadAgents.has(agent.id), lastMessage: state.lastMessages[agent.id] ?? null }));
   const groups = groupAgents(facts, state.folders, rail ? '' : filter);
-  const items = itemsOf(groups, rail, folders.folded);
+  const items = itemsOf(groups, rail, filter === '' || rail ? folders.folded : NONE_FOLDED);
   const view = useAgentList(items, state.selectedAgentId, rail);
   const { entries, shown } = view;
 
@@ -78,7 +79,7 @@ export function Sidebar(props: SidebarProps) {
   const menuFor = (agent: Agent): readonly MenuItem[] => [
     { kind: 'action', id: 'new-chat', label: 'New chat', icon: 'plus', onSelect: () => { props.onNewChat(agent.id); } },
     { kind: 'action', id: 'settings', label: 'Agent settings', icon: 'settings', onSelect: () => { props.onAgentSettings(agent.id); } },
-    { kind: 'action', id: 'rename', label: 'Rename', icon: 'pencil', onSelect: () => { setRenaming(agent.id); } },
+    ...(rail ? [] : [{ kind: 'action', id: 'rename', label: 'Rename', icon: 'pencil', onSelect: () => { setRenaming(agent.id); } } satisfies MenuItem]),
     {
       kind: 'action',
       id: 'move',
@@ -110,7 +111,7 @@ export function Sidebar(props: SidebarProps) {
       {!rail && <SidebarSearch inputRef={search} value={filter} onChange={setFilter} onDown={() => { view.moveTo(0); }} onNewAgent={props.onNewAgent} />}
       {!rail && folders.draft !== null && (
         <div class="folder-draft">
-          <NameInput initial="" label="New folder name" placeholder="Folder name" onDone={(name) => void folders.finishDraft(name)} />
+          <NameInput initial="" maxLength={80} label="New folder name" placeholder="Folder name" onDone={(name) => void folders.finishDraft(name)} />
         </div>
       )}
       <div ref={view.list} class="agent-list" onKeyDown={view.onKeyDown} onFocusIn={view.onFocusIn} onFocusOut={view.onFocusOut} onScroll={view.onScroll}>
@@ -173,7 +174,7 @@ export function Sidebar(props: SidebarProps) {
         deletingFolder={folders.deleting}
         onClosePopup={() => { setPopup(null); }}
         onMove={(agentId, folderId) => void props.model.updateAgent(agentId, { folderId })}
-        onNewFolderFor={folders.startDraft}
+        onNewFolderFor={rail ? null : folders.startDraft}
         onCancelDeleteAgent={() => { setDeleting(null); }}
         onDeleteAgent={(id) => {
           setDeleting(null);
