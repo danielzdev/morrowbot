@@ -1,4 +1,5 @@
-import { copyFile, mkdir, rm } from 'node:fs/promises';
+import { copyFile, cp, mkdir, rm } from 'node:fs/promises';
+import { basename, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'rolldown';
 
@@ -13,4 +14,5 @@ await build({
   tsconfig: `${source}tsconfig.json`,
   output: { file: `${out}app.js`, format: 'iife', minify: true },
 });
-await Promise.all(['index.html', 'styles.css'].map((name) => copyFile(`${source}${name}`, `${out}${name}`)));
+await copyFile(`${source}index.html`, `${out}index.html`);
+await cp(`${source}styles`, `${out}styles`, { recursive: true, filter: (path) => ['', '.css'].includes(extname(basename(path))) });

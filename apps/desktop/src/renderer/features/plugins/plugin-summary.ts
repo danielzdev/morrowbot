@@ -99,3 +99,25 @@ export function summarize(entry: PluginEntry, info: Loadable<ProviderInfo> | nul
       return fromInfo(info.value);
   }
 }
+
+const ALERTS: Partial<Readonly<Record<PluginStatus['kind'], { readonly tone: 'warn' | 'danger'; readonly words: string }>>> = {
+  crashed: { tone: 'danger', words: 'crashed' },
+  quarantined: { tone: 'danger', words: 'quarantined' },
+  unhealthy: { tone: 'warn', words: 'not responding' },
+  'invalid-config': { tone: 'warn', words: 'with settings to fix' },
+};
+
+/** The Plugins button's dot and its accessible label (spec §3.1), or null when every plugin is fine. */
+export function pluginAlert(entries: readonly PluginEntry[]): { readonly tone: 'warn' | 'danger'; readonly label: string } | null {
+  if (entries.some((entry) => entry.status.kind === 'safe-mode')) return { tone: 'warn', label: 'Plugins: Safe mode: plugins are off.' };
+  const counts = new Map<string, number>();
+  let tone: 'warn' | 'danger' | null = null;
+  for (const entry of entries) {
+    const alert = ALERTS[entry.status.kind];
+    if (alert === undefined) continue;
+    counts.set(alert.words, (counts.get(alert.words) ?? 0) + 1);
+    if (tone !== 'danger') tone = alert.tone;
+  }
+  if (tone === null) return null;
+  return { tone, label: `Plugins: ${[...counts].map(([words, count]) => `${String(count)} ${words}`).join(', ')}` };
+}

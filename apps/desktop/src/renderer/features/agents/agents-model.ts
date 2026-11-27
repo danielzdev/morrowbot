@@ -9,8 +9,10 @@ export interface AgentsState {
   readonly selectedAgentId: string | null;
   /** Each agent's chats, newest first. */
   readonly threads: Readonly<Record<string, Loadable<readonly Thread[]>>>;
-  /** The open chat tab of each agent. */
+  /** The open chat of each agent. */
   readonly openThread: Readonly<Record<string, string>>;
+  /** Chats whose turn finished while they were not on screen, by chat id, with their agent's id. */
+  readonly unread: Readonly<Record<string, string>>;
   readonly problem: string | null;
 }
 
@@ -27,6 +29,8 @@ export interface AgentsModel {
   openThread(agentId: string, threadId: string): void;
   renameThread(agentId: string, threadId: string, title: string): Promise<void>;
   deleteThread(agentId: string, threadId: string): Promise<void>;
+  /** A turn finished in this chat; it counts as unread unless it is the chat on screen. */
+  markFinished(agentId: string, threadId: string): void;
   /** Moves the chat to the front after activity, and names an untitled chat after its first message. */
   touchThread(agentId: string, threadId: string, firstText: string | null): Promise<void>;
   instructions(id: string): Promise<Saved<string>>;
@@ -86,7 +90,7 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
    * order; only the last one's reply is shown, and a refused one shows what the host kept.
    */
   const updates = new Map<string, Promise<unknown>>();
-  const state = new Store<AgentsState>({ agents: { kind: 'loading' }, selectedAgentId: null, threads: {}, openThread: {}, problem: null });
+  const state = new Store<AgentsState>({ agents: { kind: 'loading' }, selectedAgentId: null, threads: {}, openThread: {}, unread: {}, problem: null });
   const patch = (change: Partial<AgentsState>): void => {
     state.update((current) => ({ ...current, ...change }));
   };
@@ -96,9 +100,13 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
   const setOpen = (agentId: string, threadId: string | undefined): void => {
     state.update((current) => {
       const others = Object.fromEntries(Object.entries(current.openThread).filter(([key]) => key !== agentId));
-      return { ...current, openThread: threadId === undefined ? others : { ...others, [agentId]: threadId } };
+      const openThread = threadId === undefined ? others : { ...others, [agentId]: threadId };
+      return { ...current, openThread, unread: seen(current.unread, current.selectedAgentId === agentId ? threadId : undefined) };
     });
   };
+  /** The unread chats without the one now on screen. */
+  const seen = (unread: AgentsState['unread'], threadId: string | undefined): AgentsState['unread'] =>
+    threadId === undefined || !(threadId in unread) ? unread : Object.fromEntries(Object.entries(unread).filter(([key]) => key !== threadId));
   const threadsOf = (agentId: string): readonly Thread[] => {
     const threads = state.get().threads[agentId];
     return threads?.kind === 'loaded' ? threads.value : [];
@@ -120,7 +128,7 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
   }
 
   function selectAgent(id: string): void {
-    patch({ selectedAgentId: id });
+    state.update((current) => ({ ...current, selectedAgentId: id, unread: seen(current.unread, current.openThread[id]) }));
     if (state.get().threads[id]?.kind !== 'loaded') void loadThreads(id);
   }
 
@@ -221,6 +229,11 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
     },
     newThread,
     openThread: setOpen,
+    markFinished: (agentId, threadId) => {
+      const current = state.get();
+      if (current.selectedAgentId === agentId && current.openThread[agentId] === threadId) return;
+      patch({ unread: { ...current.unread, [threadId]: agentId } });
+    },
     renameThread: async (agentId, threadId, title) => {
       const result = await api.renameThread(threadId, title);
       if (result.kind === 'failed') patch({ problem: result.error.message });
@@ -232,6 +245,7 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
         patch({ problem: result.error.message });
         return;
       }
+      state.update((current) => ({ ...current, unread: seen(current.unread, threadId) }));
       const remaining = threadsOf(agentId).filter(({ id }) => id !== threadId);
       setThreads(agentId, { kind: 'loaded', value: remaining });
       if (state.get().openThread[agentId] === threadId) setOpen(agentId, remaining[0]?.id);

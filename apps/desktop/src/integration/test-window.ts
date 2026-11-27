@@ -60,6 +60,9 @@ export function openTestWindow(target: HostTarget): TestWindow {
     onHostReady: (listener) => listen(ready, listener),
     pickFolder: () => Promise.resolve(null),
     copyText: () => Promise.resolve(),
+    openExternal: () => Promise.resolve(),
+    revealPath: () => Promise.resolve(),
+    appInfo: () => Promise.resolve({ appVersion: '0.0.0', homeDir: '/Users/tester', userName: 'tester', dataDir: '/Users/tester/.morrowbot' }),
   };
   return {
     bridge,
