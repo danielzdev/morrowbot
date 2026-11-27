@@ -171,8 +171,11 @@ it('stops a ping-pong at the exchange limit, and two chatty agents at the pair l
   for (let count = depths.length - 1; count <= AGENT_PAIR_LIMIT; count += 1) {
     pairStatus = (await send(b.id, { kind: 'new', toAgentId: a.id, fromThreadId: b.threadId, text: 'more' })).status;
   }
+  await host.call('DELETE', `/api/threads/${b.threadId}`);
+  const fresh = Thread.parse((await host.call('POST', `/api/agents/${b.id}/threads`, {})).body);
+  const afterDeletingChat = (await send(b.id, { kind: 'new', toAgentId: a.id, fromThreadId: fresh.id, text: 'again' })).status;
 
-  expect({ limit: MAX_EXCHANGE_MESSAGES, depths, pairStatus, stored: (await list(a.id)).length }).toMatchInlineSnapshot(`
+  expect({ limit: MAX_EXCHANGE_MESSAGES, depths, pairStatus, afterDeletingChat }).toMatchInlineSnapshot(`
     {
       "depths": [
         0,
@@ -184,8 +187,8 @@ it('stops a ping-pong at the exchange limit, and two chatty agents at the pair l
         409,
       ],
       "limit": 6,
+      "afterDeletingChat": 429,
       "pairStatus": 429,
-      "stored": 20,
     }
   `);
 });
