@@ -1,6 +1,8 @@
 import type { ComponentChildren } from 'preact';
 import { useLayoutEffect, useRef } from 'preact/hooks';
 import { Icon } from '../../shared/ui/Icon.tsx';
+import type { SendWith } from '../../shared/chat-prefs.ts';
+import { isSendPress, PLATFORM } from '../../shared/keys.ts';
 import { useStore } from '../../shared/use-store.ts';
 import type { ComposerProblem, ThreadSession } from './thread-session.ts';
 
@@ -74,7 +76,7 @@ function fit(box: HTMLTextAreaElement): void {
 
 /**
  * The message box (spec §4.5). `toolbar` holds the binding and access pills, `notes` the warning
- * strip shown under it while a warning applies. Enter sends, except while composing text.
+ * strip shown under it while a warning applies. `sendWith` is Settings › Chat › Send with.
  */
 export function Composer(props: {
   readonly session: ThreadSession;
@@ -82,6 +84,7 @@ export function Composer(props: {
   readonly toolbar: ComponentChildren;
   readonly notes?: ComponentChildren;
   readonly disabledReason: string | null;
+  readonly sendWith: SendWith;
 }) {
   const { session } = props;
   const screen = useStore(session.screen);
@@ -107,7 +110,7 @@ export function Composer(props: {
             session.setDraft(event.currentTarget.value);
           }}
           onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+            if (isSendPress(event, props.sendWith, PLATFORM)) {
               event.preventDefault();
               if (canSend) void session.send();
             }

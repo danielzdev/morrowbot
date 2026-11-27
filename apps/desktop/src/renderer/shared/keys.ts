@@ -1,3 +1,5 @@
+import type { SendWith } from './chat-prefs.ts';
+
 /** The app's global shortcuts (spec §1.5). ⌘ on macOS is Ctrl elsewhere. */
 export type ShortcutId = 'new-chat' | 'new-agent' | 'settings' | 'toggle-sidebar' | 'filter-agents' | 'extensions' | 'binding';
 
@@ -59,6 +61,26 @@ export function shortcutLabel(id: ShortcutId, platform: Platform): string {
 export function ariaShortcut(id: ShortcutId, platform: Platform): string {
   const { key, shift } = SHORTCUTS[id];
   return `${platform === 'mac' ? 'Meta' : 'Control'}+${shift ? 'Shift+' : ''}${key === ',' ? 'Comma' : key.toUpperCase()}`;
+}
+
+/** True when a key press in the composer sends the message, per Settings › Chat › Send with. ⌘Enter always sends. */
+export function isSendPress(press: KeyPress, sendWith: SendWith, platform: Platform): boolean {
+  if (press.key !== 'Enter' || press.isComposing === true || press.shiftKey || press.altKey) return false;
+  const mod = platform === 'mac' ? press.metaKey : press.ctrlKey;
+  const other = platform === 'mac' ? press.ctrlKey : press.metaKey;
+  if (other) return false;
+  return sendWith === 'enter' || mod;
+}
+
+/** How the send key and the new-line key are written: "Enter" and "⇧Enter", or "⌘Enter" and "Enter". */
+export function sendKeyLabels(sendWith: SendWith, platform: Platform): { readonly send: string; readonly newLine: string } {
+  const shift = platform === 'mac' ? '⇧Enter' : 'Shift+Enter';
+  return sendWith === 'enter' ? { send: 'Enter', newLine: shift } : { send: platform === 'mac' ? '⌘Enter' : 'Ctrl+Enter', newLine: 'Enter' };
+}
+
+/** True when `/` should move focus to the settings search: a bare `/` typed outside a text field (spec §1.5). */
+export function isSearchPress(press: KeyPress, inTextField: boolean): boolean {
+  return press.key === '/' && !inTextField && press.isComposing !== true && !press.metaKey && !press.ctrlKey && !press.altKey;
 }
 
 /** This window's platform. */

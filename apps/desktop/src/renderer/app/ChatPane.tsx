@@ -33,6 +33,7 @@ export function ChatPane(props: {
   const state = useStore(models.agents.state);
   const cards = useStore(models.plugins.cards);
   const activity = useStore(models.chats.activity);
+  const { sendWith } = useStore(models.chatPrefs.state);
   const threadId = state.openThread[agent.id] ?? null;
   const threads = state.threads[agent.id];
   const choices = providerChoicesOf(cards);
@@ -88,6 +89,7 @@ export function ChatPane(props: {
             session={session}
             agentName={agent.name}
             disabledReason={saving ? 'Saving the new settings…' : sendBlock(agent.name, choice, agent.provider)}
+            sendWith={sendWith}
             toolbar={
               <BindingControl
                 agentName={agent.name}

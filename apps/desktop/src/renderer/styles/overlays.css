@@ -315,3 +315,12 @@
   background: var(--on-accent);
   transform: translateX(14px);
 }
+.switch:disabled {
+  border-color: var(--text-disabled);
+}
+.switch:disabled .switch-knob {
+  background: var(--text-disabled);
+}
+:root[data-motion='reduced'] .switch-knob {
+  transition: none;
+}

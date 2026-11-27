@@ -2,7 +2,7 @@ import { homedir, userInfo } from 'node:os';
 import path from 'node:path';
 import { AgentList, INSTRUCTIONS_COPY_NAME } from '@morrowbot/contracts';
 import { z } from 'zod';
-import type { RevealTarget } from '../renderer/bridge.ts';
+import type { LoginItem, RevealTarget } from '../renderer/bridge.ts';
 import { checkSender, IpcRefusedError, proxyRequest, type HostTarget, type IpcSender } from './ipc-proxy.ts';
 
 interface FromRenderer {
@@ -77,4 +77,17 @@ export async function resolveReveal(target: RevealTarget, context: RevealContext
 /** H6 `appInfo()`: read by the renderer's privacy rules and About, never shown raw. */
 export function appInfoOf(appVersion: string, dataDir: string): { appVersion: string; homeDir: string; userName: string; dataDir: string } {
   return { appVersion, homeDir: homedir(), userName: userInfo().username, dataDir };
+}
+
+/** Checks an IPC `set-open-at-login` message: a boolean. */
+export function parseOpenAtLogin(options: FromRenderer): boolean {
+  checkSender(options.sender, options.rendererUrl);
+  const open = z.boolean().safeParse(options.input);
+  if (!open.success) throw new IpcRefusedError('Malformed login item request');
+  return open.data;
+}
+
+/** The login item state for the renderer; `null` where this build cannot register one. */
+export function loginItemOf(openAtLogin: boolean | null): LoginItem {
+  return openAtLogin === null ? { kind: 'unsupported' } : { kind: 'supported', openAtLogin };
 }

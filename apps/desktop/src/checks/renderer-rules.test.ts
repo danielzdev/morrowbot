@@ -41,5 +41,5 @@ it('links every stylesheet from index.html, and the built app ships each one', (
   const linked = [...readFileSync(`${desktop}dist/renderer/index.html`, 'utf8').matchAll(/<link rel="stylesheet" href="\.\/styles\/([\w-]+\.css)"/g)].map((match) => match[1]);
   const built = readdirSync(`${desktop}dist/renderer/styles`).sort();
   expect({ source: cssFiles, linked: [...linked].sort(), built }).toEqual({ source: cssFiles, linked: cssFiles, built: cssFiles });
-  expect(cssFiles).toEqual(['agent-forms.css', 'agent-row.css', 'base.css', 'binding.css', 'chat.css', 'layout.css', 'overlays.css', 'settings.css', 'thread.css', 'tokens.css']);
+  expect(cssFiles).toEqual(['agent-forms.css', 'agent-row.css', 'base.css', 'binding.css', 'chat.css', 'layout.css', 'overlays.css', 'settings-search.css', 'settings.css', 'thread.css', 'tokens.css']);
 });
