@@ -9,7 +9,7 @@ import type {
 } from '@morrowbot/contracts';
 import { discoverPlugins, type DiscoveredPlugin } from './discovery.ts';
 import { PluginRequestError, spawnPluginProcess, type PluginProcess, type PluginTimeouts } from './plugin-process.ts';
-import type { PluginStore } from './plugin-store.ts';
+import type { PluginRecord, PluginStore } from './plugin-store.ts';
 import { resolvePluginConfig, type ConfigResult } from './settings.ts';
 
 export const DEFAULT_PLUGIN_TIMEOUTS: PluginTimeouts = { initMs: 10_000, healthMs: 5_000, shutdownMs: 3_000 };
@@ -62,9 +62,9 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
   const timeouts = options.timeouts ?? DEFAULT_PLUGIN_TIMEOUTS;
   const discovery = await discoverPlugins(options.pluginsDir);
   const slots = new Map<string, Slot>();
-  let stopped = false;
+  let stopping: Promise<void> | undefined;
   for (const plugin of discovery.plugins) {
-    const status: PluginStatus = safeMode ? { kind: 'safe-mode' } : { kind: 'starting' };
+    const status: PluginStatus = safeMode ? { kind: 'safe-mode' } : { kind: 'stopped' };
     slots.set(plugin.manifest.id, { plugin, status, process: undefined, queue: Promise.resolve(), health: undefined });
   }
 
@@ -77,21 +77,24 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
   function setStatus(slot: Slot, status: PluginStatus): void {
     if (isDeepStrictEqual(slot.status, status)) return;
     slot.status = status;
-    options.onStatus?.({ pluginId: slot.plugin.manifest.id, status });
+    try {
+      options.onStatus?.({ pluginId: slot.plugin.manifest.id, status });
+    } catch (error) {
+      console.error('MorrowBot host: a plugin status listener threw', error);
+    }
   }
 
   function enqueue(slot: Slot, task: () => Promise<void>): Promise<void> {
     const run = slot.queue.then(() => {
-      if (stopped) throw new Error('The plugin host has stopped');
+      if (stopping !== undefined) throw new Error('The plugin host has stopped');
       return task();
     });
     slot.queue = run.catch(() => undefined);
     return run;
   }
 
-  async function start(slot: Slot): Promise<void> {
+  async function start(slot: Slot, record: PluginRecord | undefined): Promise<void> {
     const { manifest, entryPath, dir } = slot.plugin;
-    const record = await store.read(manifest.id);
     if (record?.enabled === false) {
       setStatus(slot, { kind: 'disabled' });
       return;
@@ -174,16 +177,16 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
     return slot.status;
   }
 
-  async function stopAll(): Promise<void> {
-    stopped = true;
+  function stopAll(): Promise<void> {
     clearInterval(healthTimer);
-    await Promise.all(
+    stopping ??= Promise.all(
       [...slots.values()].map(async (slot) => {
         await slot.queue;
         await stopProcess(slot);
         setStatus(slot, { kind: 'stopped' });
       }),
-    );
+    ).then(() => undefined);
+    return stopping;
   }
 
   const healthTimer = setInterval(() => {
@@ -192,7 +195,13 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
   healthTimer.unref();
 
   if (!safeMode) {
-    const boots = await Promise.allSettled([...slots.values()].map((slot) => enqueue(slot, () => start(slot))));
+    const boots = await Promise.allSettled(
+      [...slots.values()].map((slot) =>
+        enqueue(slot, async () => {
+          await start(slot, await store.read(slot.plugin.manifest.id));
+        }),
+      ),
+    );
     const failed = boots.find((boot) => boot.status === 'rejected');
     if (failed !== undefined) {
       await stopAll();
@@ -207,13 +216,14 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
       const slot = slotOf(pluginId);
       return enqueue(slot, async () => {
         const record = await store.read(pluginId);
-        await store.write(pluginId, { enabled, config: record?.config ?? {} });
+        const next: PluginRecord = { enabled, config: record?.config ?? {} };
+        await store.write(pluginId, next);
         if (safeMode) return;
         if (!enabled) {
           await stopProcess(slot);
           setStatus(slot, { kind: 'disabled' });
         } else if (slot.process === undefined) {
-          await start(slot);
+          await start(slot, next);
         }
       });
     },
@@ -223,11 +233,11 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
       if (resolved.kind === 'invalid') return resolved;
       await enqueue(slot, async () => {
         const record = await store.read(pluginId);
-        const enabled = record?.enabled ?? true;
-        await store.write(pluginId, { enabled, config: resolved.saved });
-        if (safeMode || !enabled) return;
+        const next: PluginRecord = { enabled: record?.enabled ?? true, config: resolved.saved };
+        await store.write(pluginId, next);
+        if (safeMode || !next.enabled) return;
         await stopProcess(slot);
-        await start(slot);
+        await start(slot, next);
       });
       return resolved;
     },

@@ -100,6 +100,7 @@ export function spawnPluginProcess({ entryPath, cwd, timeouts }: SpawnOptions): 
       waiter.reject(new PluginGoneError());
     }
     pending.clear();
+    abandoned.clear();
     exit.resolve(result);
   }
 
@@ -231,7 +232,7 @@ export function spawnPluginProcess({ entryPath, cwd, timeouts }: SpawnOptions): 
         request({ kind: 'health', resolve }, reject, timeouts.healthMs, (id) => ({ kind: 'health', id }));
       }),
     stream: (streamRequest, onChunk, signal) =>
-      new Promise((resolve, reject) => {
+      signal?.aborted ? Promise.resolve('cancelled') : new Promise((resolve, reject) => {
         const onAbort = (): void => {
           if (!abandon(id)) return;
           signal?.removeEventListener('abort', onAbort);
@@ -253,8 +254,7 @@ export function spawnPluginProcess({ entryPath, cwd, timeouts }: SpawnOptions): 
           undefined,
           (requestId) => ({ kind: 'stream', id: requestId, request: streamRequest }),
         );
-        if (signal?.aborted) onAbort();
-        else signal?.addEventListener('abort', onAbort, { once: true });
+        signal?.addEventListener('abort', onAbort, { once: true });
       }),
     stop: async () => {
       if (!stopping && !gone) {

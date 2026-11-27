@@ -15,7 +15,7 @@ export const ChatMessage = z.strictObject({
 });
 export type ChatMessage = z.infer<typeof ChatMessage>;
 
-export const ProviderStreamRequest = z.strictObject({ messages: z.array(ChatMessage).min(1) });
+export const ProviderStreamRequest = z.strictObject({ messages: z.array(ChatMessage) });
 export type ProviderStreamRequest = z.infer<typeof ProviderStreamRequest>;
 
 export const StreamChunk = z.discriminatedUnion('kind', [z.strictObject({ kind: z.literal('text'), text: z.string() })]);
