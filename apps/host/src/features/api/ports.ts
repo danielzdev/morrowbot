@@ -67,7 +67,12 @@ export interface ApiChat {
   ): { readonly kind: 'replied' } | { readonly kind: 'not_found' };
   recheck(
     pluginId: string,
-  ): Promise<{ readonly kind: 'ok'; readonly info: ProviderInfo } | { readonly kind: 'busy' } | { readonly kind: 'unavailable'; readonly reason: string }>;
+  ): Promise<
+    | { readonly kind: 'ok'; readonly info: ProviderInfo }
+    | { readonly kind: 'busy' }
+    | { readonly kind: 'blocked'; readonly detail: string }
+    | { readonly kind: 'unavailable'; readonly reason: string }
+  >;
   usage(
     pluginId: string,
     refresh: boolean,

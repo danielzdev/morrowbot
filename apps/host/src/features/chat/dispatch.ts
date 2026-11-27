@@ -35,6 +35,7 @@ export async function dispatch(core: ChatCore, turn: Turn): Promise<void> {
     agent.workspace.dir === turn.workspaceDir &&
     revision.configRevision === turn.configRevision &&
     revision.worker === turn.worker &&
+    revision.daemonRevision === turn.daemonRevision &&
     plugins.canStart(turn.pluginId, turn.worker) &&
     info?.worker === turn.worker &&
     profileAllowed(info.info, turn.binding, 'interactive') === undefined;
@@ -83,6 +84,7 @@ export async function dispatch(core: ChatCore, turn: Turn): Promise<void> {
         cwd: turn.cwd,
         threadId: turn.threadId,
       });
+      plugins.linkDaemon(turn.pluginId, turn.worker, turn.generationId);
     });
   } catch (error) {
     core.options.report(error);

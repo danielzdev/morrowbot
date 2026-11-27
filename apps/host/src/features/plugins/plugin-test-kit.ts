@@ -25,6 +25,14 @@ export function memoryGroups(rows: readonly ChildGroupRow[] = []) {
     delete: (pgid) => {
       table.delete(pgid);
     },
+    link: (pgid, generationId) => {
+      const row = table.get(pgid);
+      if (row !== undefined) table.set(pgid, { ...row, generationIds: [...row.generationIds, generationId] });
+    },
+    unlink: (pgid, generationId) => {
+      const row = table.get(pgid);
+      if (row !== undefined) table.set(pgid, { ...row, generationIds: row.generationIds.filter((id) => id !== generationId) });
+    },
     list: () => [...table.values()],
     transaction: (work) => work(),
   };

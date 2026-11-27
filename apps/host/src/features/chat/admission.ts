@@ -40,6 +40,8 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
   if (core.rechecking.has(pluginId)) return { kind: 'provider_unavailable', reason: 'rechecking' };
   const revision = plugins.revision(pluginId);
   const info = await plugins.info(pluginId, false);
+  if (info.kind === 'superseded') return { kind: 'binding_changed' };
+  if (core.rechecking.has(pluginId)) return { kind: 'provider_unavailable', reason: 'rechecking' };
   if (info.kind === 'unavailable') {
     return info.reason === 'daemon-blocked'
       ? { kind: 'provider_unavailable', reason: 'daemon-blocked' }
@@ -59,9 +61,10 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
   let routeKey = '';
   if (capabilities.sessions) {
     const route = await plugins.routeInfo(pluginId, cwd);
+    const moved = plugins.revision(pluginId);
+    if (moved.worker !== info.worker || moved.daemonRevision !== info.daemonRevision) return { kind: 'binding_changed' };
     switch (route.kind) {
       case 'known':
-        if (route.worker !== info.worker) return { kind: 'binding_changed' };
         accountKey = route.accountKey;
         routeKey = route.routeKey;
         break;
@@ -92,7 +95,8 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
     second.ready.bindingJson !== first.ready.bindingJson ||
     second.ready.workspaceDir !== first.ready.workspaceDir ||
     now.configRevision !== revision.configRevision ||
-    now.worker !== info.worker
+    now.worker !== info.worker ||
+    now.daemonRevision !== info.daemonRevision
   ) {
     return { kind: 'binding_changed' };
   }
@@ -149,6 +153,7 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
     workspaceDir: second.ready.workspaceDir,
     configRevision: revision.configRevision,
     worker: info.worker,
+    daemonRevision: info.daemonRevision,
     maxSeedBytes: capabilities.maxSeedBytes,
     plan,
     sourceInput: userMessage,

@@ -30,9 +30,12 @@ const GroupRow = z.object({
 export interface ChildGroupRepository {
   insert(record: ChildGroupRecord): void;
   delete(pgid: number): void;
+  /** Links a dispatched turn to the shared daemon it runs on. */
+  link(pgid: number, generationId: string): void;
+  unlink(pgid: number, generationId: string): void;
   get(pgid: number): ChildGroupRecord | undefined;
   list(): ChildGroupRecord[];
-  /** Threads that a recorded turn group still holds. */
+  /** Threads that a recorded turn group, or a daemon group linked to one of their turns, still holds. */
   heldThreads(): Set<string>;
 }
 
@@ -42,6 +45,7 @@ export function childGroupRepository(db: DatabaseSync): ChildGroupRepository {
      VALUES (:pgid, :regId, :pluginId, :kind, :bootId, :leaderStart, :startedAt)`,
   );
   const link = db.prepare('INSERT INTO child_group_generations (pgid, generation_id) VALUES (?, ?)');
+  const unlink = db.prepare('DELETE FROM child_group_generations WHERE pgid = ? AND generation_id = ?');
   const remove = db.prepare('DELETE FROM child_groups WHERE pgid = ?');
   const select = `SELECT g.*, (SELECT group_concat(generation_id, char(10)) FROM child_group_generations l WHERE l.pgid = g.pgid)
     AS generation_ids FROM child_groups g`;
@@ -49,7 +53,7 @@ export function childGroupRepository(db: DatabaseSync): ChildGroupRepository {
   const list = db.prepare(`${select} ORDER BY g.started_at, g.pgid`);
   const held = db.prepare(
     `SELECT DISTINCT gen.thread_id AS thread_id FROM child_group_generations l
-       JOIN child_groups g ON g.pgid = l.pgid AND g.kind = 'turn'
+       JOIN child_groups g ON g.pgid = l.pgid AND g.kind IN ('turn', 'daemon')
        JOIN generations gen ON gen.id = l.generation_id`,
   );
   const parse = (row: unknown): ChildGroupRecord => {
@@ -72,6 +76,12 @@ export function childGroupRepository(db: DatabaseSync): ChildGroupRepository {
     },
     delete: (pgid) => {
       remove.run(pgid);
+    },
+    link: (pgid, generationId) => {
+      link.run(pgid, generationId);
+    },
+    unlink: (pgid, generationId) => {
+      unlink.run(pgid, generationId);
     },
     get: (pgid) => {
       const row = get.get(pgid);

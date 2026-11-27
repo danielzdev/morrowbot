@@ -81,6 +81,12 @@ export async function startHost(options: HostOptions): Promise<Host> {
         delete: (pgid) => {
           storage.childGroups.delete(pgid);
         },
+        link: (pgid, generationId) => {
+          storage.childGroups.link(pgid, generationId);
+        },
+        unlink: (pgid, generationId) => {
+          storage.childGroups.unlink(pgid, generationId);
+        },
         list: () => storage.childGroups.list(),
         transaction: (work) => storage.transaction(work),
       },
@@ -120,7 +126,14 @@ export async function startHost(options: HostOptions): Promise<Host> {
           setConfig: (pluginId, input) => plugins.setConfig(pluginId, input),
           info: async (pluginId, refresh) => {
             const result = await plugins.info(pluginId, refresh);
-            return result.kind === 'ok' ? { kind: 'ok', info: result.info } : result;
+            switch (result.kind) {
+              case 'ok':
+                return { kind: 'ok', info: result.info };
+              case 'superseded':
+                return { kind: 'unavailable', reason: 'The provider was rechecked meanwhile. Try again.' };
+              case 'unavailable':
+                return result;
+            }
           },
           releaseGroup: (regId) => plugins.releaseGroup(regId),
         },
@@ -165,6 +178,13 @@ function providerPlugins(plugins: PluginHost): ProviderPlugins {
     routeInfo: (pluginId, cwd) => plugins.routeInfo(pluginId, cwd),
     startTurn: (pluginId, worker, request, sink) => plugins.startTurn(pluginId, worker, request, sink),
     canStart: (pluginId, worker) => plugins.canStart(pluginId, worker),
+    linkDaemon: (pluginId, worker, generationId) => {
+      plugins.linkDaemon(pluginId, worker, generationId);
+    },
+    unlinkDaemon: (generationId) => {
+      plugins.unlinkDaemon(generationId);
+    },
+    recheck: (pluginId) => plugins.recheck(pluginId),
     cancelTurn: (pluginId, turnId) => {
       plugins.cancelTurn(pluginId, turnId);
     },

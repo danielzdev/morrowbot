@@ -1,0 +1,10 @@
+{
+  "protocolVersion": 1,
+  "id": "daemon",
+  "name": "Daemon",
+  "version": "1.0.0",
+  "kind": "provider",
+  "main": "index.ts",
+  "permissions": [],
+  "settingsSchema": {}
+}

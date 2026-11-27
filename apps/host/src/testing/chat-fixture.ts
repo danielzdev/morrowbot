@@ -12,7 +12,7 @@ export const ECHO: Extract<ProviderBinding, { kind: 'bound' }> = {
   vendorSettings: 'isolated',
 };
 
-/** A host running the fixture plugins (chat goes through `echo`), with an events socket. */
+/** A host running the fixture plugins (chat goes through `echo` unless agents bind another), with an events socket. */
 export interface ChatFixture {
   readonly dataDir: string;
   readonly host: TestHost;
@@ -31,7 +31,7 @@ export interface ChatFixture {
 
 export async function startChatFixture(options: Partial<TestHostOptions> = {}): Promise<ChatFixture> {
   const dataDir = options.dataDir ?? (await mkdtemp(path.join(tmpdir(), 'morrowbot-chat-')));
-  const host = await startTestHost({ ...options, dataDir, pluginsDir: PLUGIN_FIXTURES });
+  const host = await startTestHost({ ...options, dataDir, pluginsDir: options.pluginsDir ?? PLUGIN_FIXTURES });
   const events = await host.events();
   const fixture: ChatFixture = {
     dataDir,

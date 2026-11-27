@@ -40,6 +40,8 @@ export interface Turn {
   readonly workspaceDir: string;
   readonly configRevision: number;
   readonly worker: number;
+  /** The plugin's daemon revision at admission: a daemon retired or exited since refuses the turn at dispatch. */
+  readonly daemonRevision: number;
   readonly maxSeedBytes: number | undefined;
   readonly plan: SessionPlan;
   readonly sourceInput: UserMessage;
@@ -178,6 +180,7 @@ function persistSettlement(core: ChatCore, turn: Turn, message: AssistantMessage
         createdAt,
       });
       applySessionEffect(core, turn, result);
+      core.options.plugins.unlinkDaemon(turn.generationId);
     });
     return true;
   } catch (error) {

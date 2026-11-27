@@ -87,6 +87,8 @@ export interface PluginProcess {
   /** Whether a turn has been sent and has not ended. */
   hasTurn(turnId: string): boolean;
   ackChildGroup(pgid: number): void;
+  /** Asks the plugin to have the guard of `pgid` stop its group (SIGTERM, then SIGKILL a second later). */
+  killChildGroup(pgid: number): void;
   /** Kills the process through its own handle (SIGKILL). Its guards sweep their groups on pipe EOF. */
   kill(): void;
   /** Asks the plugin to shut down, then kills it if it has not exited within the shutdown timeout. */
@@ -334,6 +336,9 @@ export function spawnPluginProcess({ entryPath, cwd, env, timeouts, groups, log 
     hasTurn: (turnId) => turns.has(turnId),
     ackChildGroup: (pgid) => {
       send({ kind: 'child-group-ack', pgid });
+    },
+    killChildGroup: (pgid) => {
+      send({ kind: 'kill-child-group', pgid });
     },
     kill: () => {
       if (!gone) child.kill('SIGKILL');
