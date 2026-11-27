@@ -1,12 +1,12 @@
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { app, BrowserWindow, dialog, ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, type IpcMainEvent, type IpcMainInvokeEvent, type OpenDialogOptions } from 'electron';
 import type { BridgeChannels } from '../renderer/bridge.ts';
 import { APP_ID, PRODUCT_NAME } from './app-identity.ts';
 import { openEventStream, type EventStream } from './event-stream.ts';
 import { superviseHost } from './host-supervisor.ts';
-import { IpcRefusedError, parseSubscription, proxyRequest, type IpcSender } from './ipc-proxy.ts';
+import { checkSender, IpcRefusedError, parseCopyText, parseSubscription, proxyRequest, type HostTarget, type IpcSender } from './ipc-proxy.ts';
 
-const RENDERER_URL = pathToFileURL(fileURLToPath(new URL('../renderer/index.html', import.meta.url))).href;
+const RENDERER_URL = pathToFileURL(fileURLToPath(new URL('../../dist/renderer/index.html', import.meta.url))).href;
 const PRELOAD = fileURLToPath(new URL('../preload/preload.cjs', import.meta.url));
 const HOST_MAIN = fileURLToPath(new URL('../../../host/src/main.ts', import.meta.url));
 
@@ -14,10 +14,15 @@ const CHANNELS: BridgeChannels = {
   request: 'morrowbot:request',
   event: 'morrowbot:event',
   subscribe: 'morrowbot:subscribe',
-  hostRestarted: 'morrowbot:host-restarted',
+  hostReady: 'morrowbot:host-ready',
+  pickFolder: 'morrowbot:pick-folder',
+  copyText: 'morrowbot:copy-text',
 };
 
 type Lifetime = 'running' | 'stopping-host' | 'host-stopped';
+
+const RECONNECT_MS = 1_000;
+const RECONNECT_MAX_MS = 30_000;
 
 function report(error: unknown): void {
   console.error('MorrowBot:', error);
@@ -35,8 +40,10 @@ function runApp(): void {
       return;
     }
     const opened = new BrowserWindow({
-      width: 960,
-      height: 640,
+      width: 1200,
+      height: 800,
+      minWidth: 720,
+      minHeight: 480,
       title: PRODUCT_NAME,
       webPreferences: { preload: PRELOAD, contextIsolation: true, sandbox: true, nodeIntegration: false },
     });
@@ -61,11 +68,27 @@ function runApp(): void {
     return { kind: 'frame', url: frame.url, isMainFrame: ours && frame.parent === null };
   }
 
+  /** Follows the host's events; if the socket drops while the host lives, reconnects and has the window reload. */
+  function connect(target: HostTarget, delayMs: number): void {
+    events?.close();
+    events = openEventStream(target, {
+      onEvent: (event) => window?.webContents.send(CHANNELS.event, event),
+      report,
+      onOpen: () => {
+        delayMs = RECONNECT_MS;
+        window?.webContents.send(CHANNELS.hostReady);
+      },
+      onLost: () => {
+        setTimeout(() => {
+          if (lifetime === 'running' && host.target() === target) connect(target, Math.min(delayMs * 2, RECONNECT_MAX_MS));
+        }, delayMs);
+      },
+    });
+  }
+
   const host = superviseHost(HOST_MAIN, {
-    ready: (target, restarted) => {
-      events?.close();
-      events = openEventStream(target, (event) => window?.webContents.send(CHANNELS.event, event), report);
-      if (restarted) window?.webContents.send(CHANNELS.hostRestarted);
+    ready: (target) => {
+      connect(target, RECONNECT_MS);
     },
     alreadyRunning: () => {
       void dialog
@@ -98,6 +121,24 @@ function runApp(): void {
       else report(error);
     }
   });
+
+  let picking = false;
+  ipcMain.handle(CHANNELS.pickFolder, async (event) => {
+    checkSender(senderOf(event), RENDERER_URL);
+    if (picking || window === undefined) return null;
+    picking = true;
+    try {
+      const options: OpenDialogOptions = { properties: ['openDirectory', 'createDirectory'] };
+      const picked = await dialog.showOpenDialog(window, options);
+      return picked.canceled ? null : (picked.filePaths[0] ?? null);
+    } finally {
+      picking = false;
+    }
+  });
+
+  ipcMain.handle(CHANNELS.copyText, (event, input: unknown) =>
+    clipboard.writeText(parseCopyText({ sender: senderOf(event), rendererUrl: RENDERER_URL, input })),
+  );
 
   app.on('second-instance', openWindow);
   app.on('activate', openWindow);

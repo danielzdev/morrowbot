@@ -5,7 +5,9 @@ export interface BridgeChannels {
   readonly request: 'morrowbot:request';
   readonly event: 'morrowbot:event';
   readonly subscribe: 'morrowbot:subscribe';
-  readonly hostRestarted: 'morrowbot:host-restarted';
+  readonly hostReady: 'morrowbot:host-ready';
+  readonly pickFolder: 'morrowbot:pick-folder';
+  readonly copyText: 'morrowbot:copy-text';
 }
 
 export type ApiMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -28,6 +30,10 @@ export interface MorrowbotBridge {
   /** Starts a thread's events after `since` (its `/state` cursor), or from now on with `null`. */
   subscribe(threadId: string, since: Cursor | null): void;
   unsubscribe(threadId: string): void;
-  /** The host crashed and was restarted: anything held from the API is stale and must be reloaded. */
-  onHostRestarted(listener: () => void): () => void;
+  /** The host started, or restarted after a crash with a new epoch: reload everything held from the API. */
+  onHostReady(listener: () => void): () => void;
+  /** Asks the user for a folder with the system dialog; null when they cancel. */
+  pickFolder(): Promise<string | null>;
+  /** Puts text on the system clipboard. */
+  copyText(text: string): Promise<void>;
 }

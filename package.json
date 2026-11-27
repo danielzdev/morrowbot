@@ -15,7 +15,7 @@
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc -p tsconfig.json && npm run typecheck --workspaces --if-present",
     "test": "vitest run",
-    "check": "npm run lint && npm run typecheck && npm test"
+    "check": "npm run lint && npm run typecheck && npm run build -w apps/desktop && npm test"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

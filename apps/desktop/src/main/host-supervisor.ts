@@ -5,8 +5,8 @@ import type { HostTarget } from './ipc-proxy.ts';
 const STOP_GRACE_MS = 10_000;
 
 export interface HostSupervisorEvents {
-  /** The host is serving. `restarted` is true when this replaces a host that crashed. */
-  ready(target: HostTarget, restarted: boolean): void;
+  /** The host is serving, after the first start or the one restart after a crash. */
+  ready(target: HostTarget): void;
   /** Another host holds this data directory. */
   alreadyRunning(): void;
   /** The host could not start, or crashed again after its one restart. */
@@ -83,7 +83,7 @@ export function superviseHost(hostMain: string, events: HostSupervisorEvents): H
       case 'ready':
         target = result.target;
         void launched.exited.then(onExit);
-        events.ready(result.target, restarted);
+        events.ready(result.target);
         return;
       case 'already-running':
         events.alreadyRunning();

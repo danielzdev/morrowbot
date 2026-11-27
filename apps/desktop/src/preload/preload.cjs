@@ -12,7 +12,9 @@ const CHANNELS = {
   request: 'morrowbot:request',
   event: 'morrowbot:event',
   subscribe: 'morrowbot:subscribe',
-  hostRestarted: 'morrowbot:host-restarted',
+  hostReady: 'morrowbot:host-ready',
+  pickFolder: 'morrowbot:pick-folder',
+  copyText: 'morrowbot:copy-text',
 };
 
 /**
@@ -34,7 +36,10 @@ const bridge = {
   onEvent: (listener) => listen(CHANNELS.event, (_event, frame) => { listener(/** @type {import('@morrowbot/contracts').EventServerFrame} */ (frame)); }),
   subscribe: (threadId, since) => { ipcRenderer.send(CHANNELS.subscribe, { kind: 'subscribe', threadId, since }); },
   unsubscribe: (threadId) => { ipcRenderer.send(CHANNELS.subscribe, { kind: 'unsubscribe', threadId }); },
-  onHostRestarted: (listener) => listen(CHANNELS.hostRestarted, () => { listener(); }),
+  onHostReady: (listener) => listen(CHANNELS.hostReady, () => { listener(); }),
+  // Main answers with the chosen folder path or null.
+  pickFolder: () => ipcRenderer.invoke(CHANNELS.pickFolder),
+  copyText: (text) => ipcRenderer.invoke(CHANNELS.copyText, text),
 };
 
 contextBridge.exposeInMainWorld('morrowbot', bridge);
