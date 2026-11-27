@@ -1,0 +1,59 @@
+# OpenAI Codex (subscription)
+
+A provider plugin that answers with the Codex CLI you already have, signed in with
+your own ChatGPT plan. It runs one shared daemon,
+
+```
+codex app-server -c thread_unload_delay_secs=0
+```
+
+through the SDK's `jsonRpcProcess`, started by provider-info and registered with the
+host before any turn uses it. Each chat thread is a Codex thread, resumed by id, so
+Codex keeps the conversation. Stop sends `turn/interrupt`; if Codex ignores it, the
+host ends the daemon and the next turn gets a new one.
+
+**Access.** One profile: read-only with your own Codex settings (`personal`). Every
+thread starts or resumes with Codex's read-only sandbox, approvals `never`, and these
+turned off: the shell tool, unified exec, apps, plugins, hooks and each configured MCP
+server. Before the prompt goes out, the plugin checks Codex's own report of the thread
+(sandbox, approval policy, `mcpServerStatus/list`, `hooks/list`) and refuses the turn if
+anything is still on. An approval request is declined without a card. Read-only Codex
+can read files outside the workspace (`readsOutsideCwd`).
+
+**Held back** (checked on Codex 0.171, shown on the Plugins page):
+
+- workspace-write: a shell command that calls `setsid` keeps running after Stop;
+- `isolated` instructions: Codex always loads your `~/.codex/AGENTS.md`;
+- other systems than macOS, and Codex outside `>=0.171.0 <0.172.0`.
+
+**Accounts and routes.** Before each turn the plugin reads `account/read` and
+`config/read {cwd}` once. Only the built-in `openai` provider with a ChatGPT login and
+the default URLs is the plan route: its account key is the user and the ChatGPT
+workspace, and its threads are saved. Any other route (an API key, another provider,
+a custom `openai_base_url` or `chatgpt_base_url`, or an unknown workspace) runs each
+turn on a new ephemeral thread with no plan usage. A changed account or route ends the
+turn before the prompt (`account-changed`, `route-changed`, `signed-out`).
+
+**Sessions.** A thread already loaded in the daemon is reused only when it was loaded
+with the same route and policy; otherwise it is unloaded (`thread/unsubscribe`, checked
+with `thread/loaded/list`) and resumed with the policy again.
+
+**Usage.** Plan windows from `account/rateLimits/read`, read between two account
+checks and only on the plan route; a rate-limit notification during a turn triggers a
+new read. Tokens per turn are the change in the thread's cumulative total.
+
+Settings:
+
+- **Codex CLI path**: `codex` (found on `PATH`) or a full path. The ChatGPT app ships
+  one at `/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex`.
+
+**Fixtures.** `fixtures/0.171.0/` holds a redacted real session (a new thread's turn,
+a second turn and a cold resume), replayed by `src/turn-stream.test.ts`, and a real
+`account/rateLimits/read` answer. `schema/pinned.json` is the generated experimental
+schema for every shape the plugin reads or sends. With `MORROWBOT_LIVE_CODEX=1`,
+`apps/host/src/features/plugins/provider-openai-live*.test.ts` run the checks on your
+real Codex and compare the schema (`MORROWBOT_PIN_CODEX_SCHEMA=1` rewrites it after a
+version bump; read its diff). The turn checks spend a little of your plan.
+
+**Credits.** The usage windows in `src/usage.ts` follow t3code's `codexUsageLimits.ts`
+(MIT, `THIRD_PARTY_LICENSES/t3code-MIT.txt`).

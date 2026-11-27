@@ -63,7 +63,9 @@ and may also emit `status` lines, `tool-start`/`tool-end`, `session-bound` and
 `packages/contracts/src/provider.ts` and `plugin-rpc.ts`.
 
 The SDK also gives plugins `z` (Zod) to parse outside data, `openCommand` and
-`runCommand` to run a program, `readOptionalFile`, `listDirectory`,
+`runCommand` to run a program, `jsonRpcProcess` to talk JSON-RPC 2.0 over a
+long-lived program's stdin and stdout (requests, replies, notifications and the
+program's own requests, each request with a timeout), `readOptionalFile`, `listDirectory`,
 `statExecutable`, `readCliVersion`/`checkVersion`, and `confinePath`. Each program
 runs under a small guard process that leads its own process group. The host records
 the group before the program starts and treats the thread as busy until the group is
@@ -73,5 +75,6 @@ killed if the plugin process dies, even by SIGKILL. Processes that move to a gro
 of their own are out of its reach. `openCommand` needs macOS or Linux; provider
 plugins are disabled on Windows for now.
 
-`provider-claude/` is the first real plugin. Small examples live in
+`provider-claude/` runs Claude Code once per turn; `provider-openai/` runs one shared
+Codex `app-server` daemon (`openCommand` with `scope: {kind: 'daemon'}`). Small examples live in
 `apps/host/src/features/plugins/fixtures/`.
