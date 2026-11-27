@@ -1,10 +1,68 @@
 /* The chat canvas, messages, cards, banners and the composer. */
+.chat-frame {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
 .chat {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overflow-anchor: none;
+  scrollbar-gutter: stable both-edges;
+}
+.chat.fresh {
+  justify-content: flex-end;
+}
+.main:has(.chat.fresh) > .composer {
+  padding-bottom: max(var(--s-2), 24vh);
+}
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-6) var(--s-5);
+  text-align: center;
+}
+.hero-title {
+  font: var(--t-dialog);
+}
+.hero-note {
+  color: var(--text-3);
+  font: var(--t-small);
+}
+.reconnecting {
+  padding: var(--s-1) var(--s-5);
+  background: var(--info-bg);
+  color: var(--info);
+  font: var(--t-small);
+  text-align: center;
+}
+.new-messages {
+  position: absolute;
+  bottom: var(--s-3);
+  left: 50%;
+  z-index: var(--z-sticky);
+  transform: translateX(-50%);
+  min-height: var(--hit);
+  padding: var(--s-1) var(--s-3);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  box-shadow: var(--shadow-pop);
+  color: var(--text-1);
+  font: var(--t-ui);
+}
+.show-earlier {
+  align-self: center;
+}
+.reload-note {
+  text-align: center;
 }
 .chat.empty {
   align-items: center;
@@ -45,10 +103,6 @@
   flex-direction: column;
   gap: 6px;
 }
-.message.assistant .text {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
 .note {
   font: var(--t-ui);
 }
@@ -68,12 +122,13 @@
   color: var(--text-2);
   font: var(--t-ui);
 }
-.status {
+.turn-time {
   display: flex;
   align-items: center;
   gap: 6px;
   color: var(--text-3);
   font: var(--t-small);
+  font-variant-numeric: tabular-nums;
 }
 .pulse {
   width: 8px;
@@ -82,7 +137,7 @@
   background: var(--accent);
   animation: pulse 1.2s ease-in-out infinite;
 }
-.status.queued .pulse {
+.turn-time.queued .pulse {
   background: var(--text-3);
   animation: none;
 }
@@ -94,26 +149,6 @@
     opacity: 0.3;
   }
 }
-.tool {
-  display: flex;
-  gap: 6px;
-  align-items: baseline;
-  overflow: hidden;
-  color: var(--text-3);
-  font: var(--t-small);
-  white-space: nowrap;
-}
-.tool code {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.tool.error .tool-icon {
-  color: var(--danger);
-}
-.tool.ok .tool-icon {
-  color: var(--ok);
-}
-
 /* Cards and banners */
 .card {
   display: flex;
@@ -141,6 +176,7 @@
 }
 .banner {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--s-3);
@@ -156,6 +192,10 @@
 .banner:is(.error, .danger) {
   background: var(--danger-bg);
   color: var(--danger);
+}
+.banner-text {
+  flex: 1;
+  min-width: 12rem;
 }
 .banner-row {
   display: flex;

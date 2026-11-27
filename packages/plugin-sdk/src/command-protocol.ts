@@ -14,8 +14,8 @@ export type GuardMessage = z.infer<typeof GuardMessage>;
 
 /** What the plugin process tells the guard. */
 export const OwnerMessage = z.discriminatedUnion('kind', [
-  /** The host has registered the group: start the command. */
-  z.strictObject({ kind: z.literal('spawn') }),
+  /** The host has registered the group: start the command, with `env` on top of the guard's own. */
+  z.strictObject({ kind: z.literal('spawn'), env: z.record(z.string(), z.string()) }),
   /** Stop the group: SIGTERM, then SIGKILL a second later. */
   z.strictObject({ kind: z.literal('kill') }),
 ]);

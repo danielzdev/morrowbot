@@ -2,6 +2,7 @@ import type { PluginManifest, PluginRuntime, ProviderPlugin } from '@morrowbot/p
 import * as antigravity from './antigravity/index.ts';
 import * as claude from './claude/index.ts';
 import * as openai from './openai/index.ts';
+import * as opencode from './opencode/index.ts';
 
 /**
  * One provider built into MorrowBot. The host serves it inside its own process, on the same wire
@@ -22,4 +23,5 @@ export const BUILTIN_PROVIDERS: readonly ProviderAdapter[] = [
   { manifest: claude.manifest, create: claude.createClaudeProvider },
   { manifest: openai.manifest, create: openai.createCodexProvider },
   { manifest: antigravity.manifest, create: antigravity.createAntigravityProvider },
+  { manifest: opencode.manifest, create: opencode.createOpenCodeProvider },
 ];

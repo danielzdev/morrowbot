@@ -1,5 +1,4 @@
-import type { ModelOption, ProviderModel } from '@morrowbot/plugin-sdk';
-import { selectOf, type ConfigOption } from './protocol.ts';
+import { acp, type ModelOption, type ProviderModel } from '@morrowbot/plugin-sdk';
 
 export const MODEL = 'model';
 export const THOUGHT = 'thought_level';
@@ -13,7 +12,7 @@ export interface ModelCatalog {
    * Learns from a session's settings. `fresh` is true for a session's settings before MorrowBot
    * changed anything, so its model is agy's default. Returns the new list when it changed.
    */
-  observe(options: readonly ConfigOption[], fresh: boolean): readonly ProviderModel[] | null;
+  observe(options: readonly acp.ConfigOption[], fresh: boolean): readonly ProviderModel[] | null;
   /** The models seen so far, or null before any session. */
   models(): readonly ProviderModel[] | null;
 }
@@ -34,7 +33,7 @@ export function createModelCatalog(): ModelCatalog {
 
   return {
     observe: (options, fresh) => {
-      const model = selectOf(options, MODEL);
+      const model = acp.selectOf(options, MODEL);
       if (model === null) return null;
       listed = model.values;
       if (fresh) defaultModel = model.current;
@@ -51,8 +50,8 @@ export function createModelCatalog(): ModelCatalog {
 }
 
 /** The `thought_level` setting as a picker option, or null when the model has none. */
-function thoughtOption(options: readonly ConfigOption[]): ModelOption | null {
-  const thought = selectOf(options, THOUGHT);
+function thoughtOption(options: readonly acp.ConfigOption[]): ModelOption | null {
+  const thought = acp.selectOf(options, THOUGHT);
   const label = options.find((option) => option.id === THOUGHT)?.name ?? 'Thinking';
   if (thought === null || thought.values.length === 0) return null;
   const choices = thought.values.map(({ value, name }) => ({ id: value, label: name.trim() === '' ? value : name }));

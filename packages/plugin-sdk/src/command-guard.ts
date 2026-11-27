@@ -47,9 +47,9 @@ function report(message: GuardMessage, done: () => void): void {
   }
 }
 
-function start(): void {
+function start(own: Readonly<Record<string, string>>): void {
   if (child !== undefined || stopping) return;
-  const env = { ...process.env };
+  const env = { ...process.env, ...own };
   delete env.ELECTRON_RUN_AS_NODE;
   try {
     child = spawn(command, args, { stdio, env });
@@ -71,7 +71,7 @@ process.on('message', (raw: unknown) => {
   if (!parsed.success) return;
   switch (parsed.data.kind) {
     case 'spawn':
-      start();
+      start(parsed.data.env);
       return;
     case 'kill':
       stop();

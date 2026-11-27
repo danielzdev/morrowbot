@@ -1,8 +1,8 @@
-import type { ApprovalAnswer, ApprovalAsk } from '@morrowbot/plugin-sdk';
+import type { ApprovalAnswer, ApprovalAsk } from '../approvals.ts';
 import type { PermissionOption, PermissionRequest } from './protocol.ts';
-import { mask, tilde } from './tool-input.ts';
+import { mask, tilde } from './tools.ts';
 
-/** Tool kinds that only look: agy asks for them when they reach outside the workspace (checked on agy 1.5.18). */
+/** Tool kinds that only look. agy 1.5.18 and opencode 2.4.1 ask for them when they reach outside the workspace. */
 const LOOKING = new Set(['read', 'search', 'fetch']);
 const MAX_SUMMARY_CHARS = 500;
 
@@ -16,13 +16,14 @@ export type Decision = { readonly kind: 'ask'; readonly summary: string } | { re
 
 /**
  * Read-only policy: a read, search or fetch goes to an approval card; a write, a command, a mode
- * switch and every other kind (including one agy names in a later version) is denied without one.
+ * switch and every other kind (including one an agent names in a later version) is denied without
+ * one. `name` is the agent as the user knows it ("Antigravity").
  */
-export function decide(request: PermissionRequest, home: string | null): Decision {
+export function decide(request: PermissionRequest, home: string | null, name: string): Decision {
   const kind = request.toolCall.kind ?? 'other';
   const what = describe(request, home);
   if (LOOKING.has(kind)) return { kind: 'ask', summary: what };
-  return { kind: 'deny', status: `Denied ${what}: MorrowBot runs Antigravity read-only.` };
+  return { kind: 'deny', status: `Denied ${what}: MorrowBot runs ${name} read-only.` };
 }
 
 /**
@@ -38,7 +39,7 @@ export function permissionResult(options: readonly PermissionOption[], answer: A
   return refusal(options);
 }
 
-/** A reject option, or `cancelled` when agy offered none. */
+/** A reject option, or `cancelled` when the agent offered none. */
 export function refusal(options: readonly PermissionOption[]): unknown {
   const reject = options.find((option) => option.kind === 'reject_once') ?? options.find((option) => option.kind === 'reject_always');
   return reject === undefined ? { outcome: { outcome: 'cancelled' } } : selected(reject);

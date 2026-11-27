@@ -1,12 +1,12 @@
 import { ToolCall } from './protocol.ts';
-import { describeTool } from './tool-input.ts';
+import { describeTool } from './tools.ts';
 
 /** Tool kinds that change something. MorrowBot never allows one, so a finished one ran without asking. */
 const CHANGING = new Set(['edit', 'delete', 'move', 'execute', 'switch_mode']);
 /** Tool calls remembered across sessions until they end; the oldest is forgotten past this. */
 const MAX_OPEN_TOOLS = 1_000;
 
-/** Why no more turns may run: agy did something a read-only turn never allows. */
+/** Why no more turns may run: the agent did something a read-only turn never allows. */
 export type Breach =
   | { readonly kind: 'unasked-change'; readonly tool: string }
   | { readonly kind: 'mode-changed'; readonly mode: string };
@@ -17,7 +17,7 @@ export interface Tripwire {
 }
 
 /**
- * Watches every session on the daemon for a change agy finished without asking: an edit, delete,
+ * Watches every session on an agent for a change it finished without asking: an edit, delete,
  * move, command or mode switch reported `completed`. Updates often leave out the kind an earlier
  * message gave, so each open tool call's kind is remembered until it ends.
  */
@@ -43,11 +43,4 @@ export function createTripwire(home: string | null, onBreach: (breach: Breach) =
       if (open.size > MAX_OPEN_TOOLS && oldest.done !== true) open.delete(oldest.value);
     },
   };
-}
-
-/** What the user is told, and the profile is withheld with, after `breach`. */
-export function breachReason(breach: Breach, version: string | null): string {
-  const agy = version === null ? 'agy' : `agy ${version}`;
-  const what = breach.kind === 'unasked-change' ? `ran "${breach.tool}" without asking` : `left its Default mode for "${breach.mode}"`;
-  return `Antigravity (${agy}) ${what}. MorrowBot ended it and offers no Antigravity turns until the provider restarts.`;
 }

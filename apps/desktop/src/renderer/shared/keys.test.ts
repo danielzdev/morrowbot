@@ -35,7 +35,7 @@ it('ignores the other platform’s modifier, Alt chords, plain keys and IME comp
     shortcutOf(press('n', { metaKey: true }), 'other'),
     shortcutOf(press('n', { metaKey: true, altKey: true }), 'mac'),
     shortcutOf(press('n'), 'mac'),
-    shortcutOf(press('f', { metaKey: true }), 'mac'),
+    shortcutOf(press('g', { metaKey: true }), 'mac'),
     shortcutOf(press('n', { metaKey: true, isComposing: true }), 'mac'),
   ]).toEqual([null, null, null, null, null, null]);
 });
@@ -58,6 +58,11 @@ it('labels every shortcut for tooltips and aria-keyshortcuts', () => {
         "⇧⌘F",
         "Ctrl+Shift+F",
         "Meta+Shift+F",
+      ],
+      "find": [
+        "⌘F",
+        "Ctrl+F",
+        "Meta+F",
       ],
       "new-agent": [
         "⇧⌘N",
