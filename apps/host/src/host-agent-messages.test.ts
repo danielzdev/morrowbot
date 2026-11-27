@@ -177,6 +177,7 @@ it('stops a ping-pong at the exchange limit, and two chatty agents at the pair l
 
   expect({ limit: MAX_EXCHANGE_MESSAGES, depths, pairStatus, afterDeletingChat }).toMatchInlineSnapshot(`
     {
+      "afterDeletingChat": 429,
       "depths": [
         0,
         1,
@@ -187,7 +188,6 @@ it('stops a ping-pong at the exchange limit, and two chatty agents at the pair l
         409,
       ],
       "limit": 6,
-      "afterDeletingChat": 429,
       "pairStatus": 429,
     }
   `);

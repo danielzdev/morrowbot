@@ -1,6 +1,6 @@
-import type { AgentMessage, ApiError, AssistantMessage, EventServerFrame, SessionChoice, SessionChoiceReason } from '@morrowbot/contracts';
+import type { AgentMessage, ApiError, AssistantMessage, EventServerFrame, SessionChoice, SessionChoiceReason, ThreadState } from '@morrowbot/contracts';
 import type { MorrowbotBridge } from '../../bridge.ts';
-import type { Api } from '../../shared/api.ts';
+import type { Api, ApiResult } from '../../shared/api.ts';
 import { Store, type Loadable } from '../../shared/store.ts';
 import { memoryDrafts, type DraftStore } from './drafts.ts';
 import type { BannerReason } from './outcome-copy.ts';
@@ -115,14 +115,21 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
   /** Agent messages announced while a load is in flight, so none falls between its fetch and live delivery. */
   let heard: AgentMessage[] = [];
 
+  /** The chat's `/state` and its agent messages: both, or the first failure. */
+  async function snapshot(): Promise<ApiResult<{ readonly state: ThreadState; readonly agentMessages: readonly AgentMessage[] }>> {
+    const state = await api.threadState(threadId);
+    if (state.kind === 'failed') return state;
+    const exchanged = await api.agentMessages(state.value.thread.agentId, threadId);
+    return exchanged.kind === 'failed' ? exchanged : { kind: 'ok', value: { state: state.value, agentMessages: exchanged.value.messages } };
+  }
+
   async function load(): Promise<void> {
     const mine = ++loads;
     loading = true;
     clearTimeout(blockedTimer);
     bridge.unsubscribe(threadId);
     heard = [];
-    const result = await api.threadState(threadId);
-    const exchanged = result.kind === 'ok' ? await api.agentMessages(result.value.thread.agentId, threadId) : undefined;
+    const result = await snapshot();
     if (mine !== loads || closed) return;
     loading = false;
     const before = screen.get().view;
@@ -136,11 +143,10 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
       return;
     }
     const previous = before.kind === 'loaded' ? before.value : null;
-    const fetched = exchanged?.kind === 'ok' ? exchanged.value.messages : (previous?.agentMessages ?? []);
-    const view = withAgentMessages(viewOf(result.value, previous, fetched), heard);
+    const view = withAgentMessages(viewOf(result.value.state, previous, result.value.agentMessages), heard);
     heard = [];
     patch({ connection: streamUp ? 'live' : 'reconnecting', view: { kind: 'loaded', value: view } });
-    bridge.subscribe(threadId, result.value.cursor);
+    bridge.subscribe(threadId, result.value.state.cursor);
     if (view.blockedGroups.length > 0) {
       blockedTimer = setTimeout(() => void load(), options.blockedRefreshMs ?? 5_000);
     }

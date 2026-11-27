@@ -14,7 +14,6 @@ export interface AgentMessageRecords {
   insert(message: AgentMessage): void;
   get(id: string): AgentMessage | undefined;
   hasReply(id: string): boolean;
-  countBetween(a: string, b: string, since: string): number;
   list(agentId: string, threadId: string | null): AgentMessage[];
 }
 
@@ -52,6 +51,8 @@ type Route = { readonly kind: 'route'; readonly from: AgentEndpoint; readonly to
 export function createAgentMessageService(options: AgentMessageServiceOptions): AgentMessageService {
   const { records, threads } = options;
   const listeners = new Set<(message: AgentMessage) => void>();
+  /** Send times per pair of agents (either way), kept apart from stored messages so deleting a chat frees no quota. */
+  const sends = new Map<string, number[]>();
 
   /** Who the message goes from and to, checked against who is sending. */
   function route(senderId: string, request: SendAgentMessageRequest): Route {
@@ -88,8 +89,11 @@ export function createAgentMessageService(options: AgentMessageServiceOptions): 
       const routed = route(senderId, request);
       if (routed.kind !== 'route') return routed;
       const at = options.now();
-      const since = new Date(Date.parse(at) - AGENT_PAIR_WINDOW_MS).toISOString();
-      if (records.countBetween(routed.from.agentId, routed.to.agentId, since) >= AGENT_PAIR_LIMIT) {
+      const atMs = Date.parse(at);
+      const pair = [routed.from.agentId, routed.to.agentId].sort().join('\n');
+      const recent = (sends.get(pair) ?? []).filter((sentAt) => atMs - sentAt < AGENT_PAIR_WINDOW_MS);
+      sends.set(pair, recent);
+      if (recent.length >= AGENT_PAIR_LIMIT) {
         return {
           kind: 'rate-limited',
           reason: `These agents sent each other ${String(AGENT_PAIR_LIMIT)} messages in the last ${String(AGENT_PAIR_WINDOW_MS / 60_000)} minutes. Wait, or ask the user.`,
@@ -106,6 +110,7 @@ export function createAgentMessageService(options: AgentMessageServiceOptions): 
         createdAt: at,
       };
       records.insert(message);
+      recent.push(atMs);
       for (const listener of listeners) listener(message);
       return { kind: 'sent', message };
     },

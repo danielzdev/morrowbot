@@ -33,8 +33,6 @@ export interface AgentMessageRepository {
   insert(message: AgentMessage): void;
   get(id: string): AgentMessage | undefined;
   hasReply(id: string): boolean;
-  /** Messages between two agents, either way, created at or after `since`. */
-  countBetween(a: string, b: string, since: string): number;
   /** An agent's sent and received messages, oldest first; with `threadId`, only those shown in that chat. */
   list(agentId: string, threadId: string | null): AgentMessage[];
 }
@@ -47,10 +45,6 @@ export function agentMessageRepository(db: DatabaseSync): AgentMessageRepository
   );
   const get = db.prepare('SELECT * FROM agent_messages WHERE id = ?');
   const hasReply = db.prepare('SELECT COUNT(*) AS count FROM agent_messages WHERE reply_to_message_id = ?');
-  const countBetween = db.prepare(
-    `SELECT COUNT(*) AS count FROM agent_messages
-     WHERE ((from_agent_id = :a AND to_agent_id = :b) OR (from_agent_id = :b AND to_agent_id = :a)) AND created_at >= :since`,
-  );
   const listAll = db.prepare('SELECT * FROM agent_messages WHERE from_agent_id = :agentId OR to_agent_id = :agentId ORDER BY created_at, rowid');
   const listThread = db.prepare(
     `SELECT * FROM agent_messages
@@ -77,7 +71,6 @@ export function agentMessageRepository(db: DatabaseSync): AgentMessageRepository
       return row === undefined ? undefined : AgentMessageRow.parse(row);
     },
     hasReply: (id) => CountRow.parse(hasReply.get(id)).count > 0,
-    countBetween: (a, b, since) => CountRow.parse(countBetween.get({ a, b, since })).count,
     list: (agentId, threadId) =>
       (threadId === null ? listAll.all({ agentId }) : listThread.all({ agentId, threadId })).map((row) => AgentMessageRow.parse(row)),
   };
