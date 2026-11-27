@@ -40,7 +40,7 @@ export const NAV: readonly SettingsNavGroup[] = [
 const SECTION_ORDER: readonly SettingsSection[] = NAV.flatMap((group) => group.items.map(({ id }) => id)).filter(isSection);
 
 export function isSection(id: string): id is SettingsSection {
-  return id in SECTIONS;
+  return Object.hasOwn(SECTIONS, id);
 }
 
 const row = (section: SettingsSection, id: string, label: string, description: string): SettingEntry => ({ id, section, label, description });
@@ -53,7 +53,7 @@ export const ROWS = {
   reduceMotion: row('appearance', 'reduce-motion', 'Reduce motion', "On stills avatars and slide-ins. Your system's reduce-motion setting always applies."),
   sendWith: row('chat', 'send-with', 'Send with', 'Which key sends your message. Shift+Enter always starts a new line.'),
   version: row('about', 'version', 'MorrowBot', 'Apache License 2.0 · Published by Legendary Koi'),
-  dataFolder: row('about', 'data-folder', 'Data folder', 'Where MorrowBot keeps your agents, chats and settings.'),
+  dataFolder: row('about', 'data-folder', 'Data folder', 'Where MorrowBot keeps your agents and chats.'),
   licences: row('about', 'licences', 'Third-party licences', 'Open-source components that ship inside MorrowBot.'),
 };
 
@@ -74,7 +74,7 @@ const CONTEXT_COPY: Readonly<Record<ContextKey, readonly [label: string, descrip
   send: ['Send message', 'In the message box. Change it under Chat › Send with.'],
   'new-line': ['New line', 'In the message box.'],
   'settings-search': ['Search settings', 'In Settings, outside a text field.'],
-  escape: ['Close', 'Esc closes the top menu, popover or dialog. In a search field, it clears the search first.'],
+  escape: ['Close', 'Esc closes the top menu, popover or dialog. While searching settings, it clears the search first.'],
 };
 
 const SHORTCUT_IDS = Object.keys(SHORTCUTS).filter((id): id is ShortcutId => id in SHORTCUT_COPY);

@@ -122,6 +122,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
       />
       {settings !== null && (
         <SettingsModal
+          key={settings}
           link={settings}
           onClose={() => { setSettings(null); }}
           appearance={models.appearance}

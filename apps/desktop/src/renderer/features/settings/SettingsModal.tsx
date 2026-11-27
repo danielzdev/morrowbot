@@ -28,18 +28,23 @@ export interface SettingsModalProps {
   readonly bridge: Pick<MorrowbotBridge, 'loginItem' | 'setOpenAtLogin' | 'revealPath'>;
 }
 
-/** Scrolls a row into view, moves focus to its control and flashes it; returns the timer to clear. */
-function reveal(body: HTMLElement, rowId: string, reducedMotion: boolean): number | null {
+/** Scrolls a row into view, moves focus to its control and flashes it; returns what ends the flash early. */
+function reveal(body: HTMLElement, rowId: string, reducedMotion: boolean): (() => void) | undefined {
   const row = body.querySelector<HTMLElement>(`[data-setting="${CSS.escape(rowId)}"]`);
-  if (row === null) return null;
+  if (row === null) return undefined;
   const control = row.querySelector<HTMLElement>(TAB_STOP);
   if (control === null) row.tabIndex = -1;
   (control ?? row).focus({ preventScroll: true });
   row.scrollIntoView({ block: 'center', behavior: reducedMotion ? 'instant' : 'smooth' });
   row.classList.add('flash');
-  return window.setTimeout(() => {
+  const unflash = (): void => {
     row.classList.remove('flash');
-  }, FLASH_MS);
+  };
+  const timer = window.setTimeout(unflash, FLASH_MS);
+  return () => {
+    window.clearTimeout(timer);
+    unflash();
+  };
 }
 
 /** App settings (⌘,) in the shared Settings shell, with `/` search over every row (spec §6). */
@@ -58,10 +63,7 @@ export function SettingsModal(props: SettingsModalProps) {
 
   useLayoutEffect(() => {
     if (focusRow === null || body.current === null) return;
-    const timer = reveal(body.current, focusRow.id, appearance.reducedMotion);
-    return () => {
-      if (timer !== null) window.clearTimeout(timer);
-    };
+    return reveal(body.current, focusRow.id, appearance.reducedMotion);
   }, [focusRow]);
 
   const sectionView = () => {
@@ -109,11 +111,16 @@ export function SettingsModal(props: SettingsModalProps) {
       <div ref={body} class="settings-body">
         {searching ? (
           <SettingsSearchResults
+            key={query}
             results={results}
             query={query}
             groups={groups}
             onPick={pick}
             onBack={() => {
+              input.current?.focus();
+            }}
+            onClear={() => {
+              setQuery('');
               input.current?.focus();
             }}
           />

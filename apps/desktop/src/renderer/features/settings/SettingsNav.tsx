@@ -33,6 +33,7 @@ export function SettingsSearchField(props: {
           props.onQuery(event.currentTarget.value);
         }}
         onKeyDown={(event) => {
+          if (event.isComposing) return;
           if (event.key === 'Escape' && props.query !== '') {
             event.preventDefault();
             props.onQuery('');
@@ -52,13 +53,17 @@ export function SettingsSearchField(props: {
   );
 }
 
-/** The matches for a search, listed by section; picking one opens its row. ↑ from the first goes back to the field. */
+/**
+ * The matches for a search, listed by section; picking one opens its row. ↑ from the first goes back
+ * to the field and Esc clears the search. Key it on the query, so each search starts with the first match as its tab stop.
+ */
 export function SettingsSearchResults(props: {
   readonly results: RefObject<HTMLDivElement | null>;
   readonly query: string;
   readonly groups: readonly SearchGroup[];
   readonly onPick: (entry: SettingEntry) => void;
   readonly onBack: () => void;
+  readonly onClear: () => void;
 }) {
   const count = props.groups.reduce((total, group) => total + group.entries.length, 0);
   return (
@@ -67,6 +72,11 @@ export function SettingsSearchResults(props: {
       class="settings-results"
       onKeyDown={(event) => {
         const items = resultsOf(props.results.current);
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          props.onClear();
+          return;
+        }
         if (event.key === 'ArrowUp' && items[0] === document.activeElement) {
           event.preventDefault();
           props.onBack();

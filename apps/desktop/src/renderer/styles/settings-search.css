@@ -76,7 +76,9 @@
   color: var(--text-2);
 }
 .licence-list li {
-  display: contents;
+  display: grid;
+  grid-column: span 2;
+  grid-template-columns: subgrid;
 }
 .licence-list .mono {
   color: var(--text-3);

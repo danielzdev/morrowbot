@@ -1,3 +1,4 @@
+import { PLATFORM } from '../../shared/keys.ts';
 import { displayPath, type AppInfo } from '../../shared/privacy.ts';
 import { LICENCES } from './licences.ts';
 import { ROWS } from './settings-index.ts';
@@ -14,7 +15,7 @@ export function AboutSection(props: { readonly info: AppInfo | null; readonly on
       <SettingRow entry={ROWS.dataFolder}>
         <span class="mono setting-value">{info === null ? 'Not reported' : displayPath(info.dataDir, info)}</span>
         <button type="button" class="btn secondary" disabled={info === null} onClick={props.onRevealData}>
-          Reveal in Finder
+          {PLATFORM === 'mac' ? 'Reveal in Finder' : 'Show in folder'}
         </button>
       </SettingRow>
       <SettingRow entry={ROWS.licences}>

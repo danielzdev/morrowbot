@@ -8,7 +8,7 @@ import { SettingRow } from './SettingRow.tsx';
 const NOTE: Readonly<Record<Exclude<LoginItemState['kind'], 'supported'>, string>> = {
   loading: 'Checking…',
   unsupported: 'Only in the installed app on macOS and Windows',
-  failed: "Couldn't read this setting",
+  failed: "Couldn't reach this setting. Reopen Settings to try again.",
 };
 
 /** Settings › General. */
@@ -31,8 +31,9 @@ export function GeneralSection(props: { readonly bridge: Pick<MorrowbotBridge, '
       <Toggle
         label={ROWS.openAtLogin.label}
         checked={login.kind === 'supported' && login.openAtLogin}
-        disabled={login.kind !== 'supported' || saving}
+        disabled={login.kind !== 'supported'}
         onChange={(open) => {
+          if (saving) return;
           setSaving(true);
           void loadLoginItem(() => bridge.setOpenAtLogin(open)).then((state) => {
             setLogin(state);
