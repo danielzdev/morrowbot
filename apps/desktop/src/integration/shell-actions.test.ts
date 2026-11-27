@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { startChatFixture, type ChatFixture } from '../../../host/src/testing/chat-fixture.ts';
 import type { IpcSender } from '../main/ipc-proxy.ts';
-import { parseExternalUrl, parseRevealTarget, resolveReveal } from '../main/shell-actions.ts';
+import { loginItemOf, parseExternalUrl, parseOpenAtLogin, parseRevealTarget, resolveReveal } from '../main/shell-actions.ts';
 
 const RENDERER_URL = 'file:///Applications/MorrowBot.app/Contents/Resources/app/dist/renderer/index.html';
 const PAGE: IpcSender = { kind: 'frame', url: RENDERER_URL, isMainFrame: true };
@@ -45,10 +45,32 @@ it('reveals folders by opaque id only, resolving an agent workspace from the hos
   const pathRefused = outcome(() => parseRevealTarget(page({ kind: 'path', path: '/etc' })));
   const resolved = await resolveReveal(parseRevealTarget(page({ kind: 'agent-workspace', agentId: agent.id })), context);
   const missing = await resolveReveal({ kind: 'agent-workspace', agentId: 'no-such-agent' }, context).catch((error: unknown) => (error instanceof Error ? error.message : ''));
+  const copy = { kind: 'instructions-copy', agentId: agent.id, revealId: '2026-01-01T00-00-01.000Z-1.md' };
   expect({
     pathRefused,
     dataDir: await resolveReveal(parseRevealTarget(page({ kind: 'data-dir' })), context),
     workspaceMatches: resolved === agent.workspace.dir,
     missing,
-  }).toEqual({ pathRefused: 'refused: Malformed reveal request', dataDir: '/data/morrowbot', workspaceMatches: true, missing: 'No such agent to reveal' });
+    copy: await resolveReveal(parseRevealTarget(page(copy)), context),
+    copyEscape: outcome(() => parseRevealTarget(page({ ...copy, revealId: '../../../etc/passwd' }))),
+  }).toEqual({
+    pathRefused: 'refused: Malformed reveal request',
+    dataDir: '/data/morrowbot',
+    workspaceMatches: true,
+    missing: 'No such agent to reveal',
+    copy: `/data/morrowbot/instructions-drafts/${agent.id}/2026-01-01T00-00-01.000Z-1.md`,
+    copyEscape: 'refused: Malformed reveal request',
+  });
+});
+
+it('takes only a boolean to set open at login, and reports it unsupported where the build cannot register one', () => {
+  expect({
+    inputs: [true, false, 'true', 1, null, { open: true }].map((input) => outcome(() => parseOpenAtLogin(page(input)))),
+    foreign: outcome(() => parseOpenAtLogin({ ...page(true), sender: { kind: 'frame', url: 'https://evil.test/', isMainFrame: true } })),
+    states: [loginItemOf(null), loginItemOf(true), loginItemOf(false)],
+  }).toEqual({
+    inputs: [true, false, 'refused: Malformed login item request', 'refused: Malformed login item request', 'refused: Malformed login item request', 'refused: Malformed login item request'],
+    foreign: 'refused: IPC sender is not the app page: https://evil.test/',
+    states: [{ kind: 'unsupported' }, { kind: 'supported', openAtLogin: true }, { kind: 'supported', openAtLogin: false }],
+  });
 });

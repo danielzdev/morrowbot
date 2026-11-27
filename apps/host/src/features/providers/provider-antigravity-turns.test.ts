@@ -41,6 +41,7 @@ it('Stop sends session/cancel for that turn only, and the other turn keeps runni
   const stillRunning = fixture.turnEvents(other).every((event) => event.kind !== 'generation.finished');
   await fixture.host.call('POST', `/api/threads/${running.id}/stop`);
   await fixture.events.finished(other);
+  await until(async () => (await fixture.log()).slice(from).filter((entry) => entry.method === 'session/close').length === 2);
   expect(
     redact(fixture, {
       status: reply.status,

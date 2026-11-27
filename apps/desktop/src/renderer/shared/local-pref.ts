@@ -19,3 +19,11 @@ export function writePref(key: string, value: unknown): void {
     return;
   }
 }
+
+export function removePref(key: string): void {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    return;
+  }
+}

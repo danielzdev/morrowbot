@@ -1,12 +1,12 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { ApiError, ProviderUnavailableReason, SessionChoiceReason } from '@morrowbot/contracts';
+import type { AgentInstructionsView, ApiError, ProviderUnavailableReason, SessionChoiceReason } from '@morrowbot/contracts';
 import type { z } from 'zod';
 
 export type Reply =
   | { readonly kind: 'json'; readonly status: number; readonly body: unknown }
   | { readonly kind: 'empty'; readonly status: number };
 
-type ErrorKind = Exclude<ApiError['error']['kind'], 'provider-unavailable' | 'binding-changed' | 'session-choice-required'>;
+type ErrorKind = Exclude<ApiError['error']['kind'], 'provider-unavailable' | 'binding-changed' | 'session-choice-required' | 'instructions-conflict'>;
 
 const STATUS: Record<ErrorKind, number> = {
   invalid_request: 400,
@@ -56,6 +56,16 @@ export function sessionChoiceRequired(reason: SessionChoiceReason): Reply {
     'unseeded-history': 'This thread has history the provider has not seen. Start a new session seeded from this thread.',
   };
   const body: ApiError = { error: { kind: 'session-choice-required', reason, message: messages[reason] } };
+  return json(409, body);
+}
+
+/** `AGENTS.md` was left as it is: it exists already, or replacing it is not available yet (409). */
+export function instructionsConflict(reason: 'occupied' | 'replace-unavailable', current: AgentInstructionsView): Reply {
+  const messages: Record<typeof reason, string> = {
+    occupied: 'This folder already has an AGENTS.md, so MorrowBot kept it and wrote nothing.',
+    'replace-unavailable': "Editing AGENTS.md in place isn't available yet. Nothing was changed.",
+  };
+  const body: ApiError = { error: { kind: 'instructions-conflict', reason, current, message: messages[reason] } };
   return json(409, body);
 }
 

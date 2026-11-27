@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { startChatFixture, type ChatFixture } from '../../../host/src/testing/chat-fixture.ts';
-import { createChatHub, type ChatHub, type ThreadSession } from '../renderer/features/chat/index.ts';
+import { createChatHub, memoryDrafts, type ChatHub, type ThreadSession } from '../renderer/features/chat/index.ts';
 import { createApi } from '../renderer/shared/api.ts';
 import { idle, loaded, shown } from './screens.ts';
 import { openTestWindow, type TestWindow } from './test-window.ts';
@@ -8,6 +8,7 @@ import { openTestWindow, type TestWindow } from './test-window.ts';
 let chat: ChatFixture;
 let window: TestWindow;
 let hub: ChatHub;
+const cleanup: (() => void)[] = [];
 
 beforeEach(async () => {
   chat = await startChatFixture();
@@ -16,6 +17,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  for (const step of cleanup.splice(0)) step();
   hub.close();
   window.close();
   await chat.close();
@@ -47,8 +49,8 @@ it('asks for a session choice on a diverged session, keeps the draft, and sends 
         "problem": {
           "kind": "session-choice",
           "options": [
-            "Continue saved session (Continuing may repeat actions the provider already took.)",
-            "Start new seeded session",
+            "Continue existing (Continuing may repeat actions the provider already took.)",
+            "Start a new seeded session",
           ],
           "prompt": "The provider's saved session did not finish its last turn.",
         },
@@ -107,8 +109,9 @@ it('keeps the draft when the provider cannot take a send, and Retry sends the dr
             "kind": "send",
             "text": "hi",
           },
+          "banner": "Couldn't verify this provider's route or account.",
           "kind": "retry",
-          "message": "The provider could not say which account it uses. Try again.",
+          "reason": "route-info-failed",
           "sessionChoice": {
             "kind": "auto",
           },
@@ -132,6 +135,77 @@ it('keeps the draft when the provider cannot take a send, and Retry sends the dr
         },
       },
       "written": [],
+    }
+  `);
+});
+
+it('keeps a chat’s draft through a 503, a 409 and a window reload, and a sent message clears it', async () => {
+  const drafts = memoryDrafts();
+  const reload = (): ChatHub => {
+    const next = createChatHub({ api: createApi(window.bridge), bridge: window.bridge, drafts });
+    cleanup.push(() => { next.close(); });
+    return next;
+  };
+  await chat.configure({ sessions: true, routeInfo: 'fail' });
+  const thread = await chat.thread(await chat.agent());
+  const first = reload().session(thread.id);
+  await loaded(first);
+  const unavailable = await typeAndSend(first, 'plan my week');
+  const afterUnavailable = reload().session(thread.id).screen.get().draft;
+
+  await chat.configure({ sessions: true, routeInfo: 'ok' });
+  const second = reload().session(thread.id);
+  await loaded(second);
+  second.setDraft('hi');
+  await second.send();
+  await idle(second, 2);
+  second.setDraft('fail');
+  await second.send();
+  await idle(second, 4);
+  const conflict = await typeAndSend(second, 'and the weekend');
+  const afterConflict = reload().session(thread.id).screen.get().draft;
+
+  const third = reload().session(thread.id);
+  await loaded(third);
+  await third.send();
+  await third.choose({ kind: 'new-seeded' });
+  await idle(third, 6);
+  expect({
+    refused: [unavailable, conflict].map((screen) => (screen !== null && typeof screen === 'object' && 'problem' in screen ? screen.problem : screen)),
+    afterUnavailable,
+    afterConflict,
+    afterSend: { shown: third.screen.get().draft, stored: drafts.read(thread.id), freshWindow: reload().session(thread.id).screen.get().draft },
+  }).toMatchInlineSnapshot(`
+    {
+      "afterConflict": "and the weekend",
+      "afterSend": {
+        "freshWindow": "",
+        "shown": "",
+        "stored": "",
+      },
+      "afterUnavailable": "plan my week",
+      "refused": [
+        {
+          "action": {
+            "kind": "send",
+            "text": "plan my week",
+          },
+          "banner": "Couldn't verify this provider's route or account.",
+          "kind": "retry",
+          "reason": "route-info-failed",
+          "sessionChoice": {
+            "kind": "auto",
+          },
+        },
+        {
+          "kind": "session-choice",
+          "options": [
+            "Continue existing (Continuing may repeat actions the provider already took.)",
+            "Start a new seeded session",
+          ],
+          "prompt": "The provider's saved session did not finish its last turn.",
+        },
+      ],
     }
   `);
 });

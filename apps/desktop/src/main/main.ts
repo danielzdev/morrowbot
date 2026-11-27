@@ -5,7 +5,7 @@ import { APP_ID, PRODUCT_NAME } from './app-identity.ts';
 import { openEventStream, type EventStream } from './event-stream.ts';
 import { superviseHost } from './host-supervisor.ts';
 import { checkSender, IpcRefusedError, parseCopyText, parseSubscription, proxyRequest, type HostTarget, type IpcSender } from './ipc-proxy.ts';
-import { appInfoOf, dataDirOf, parseExternalUrl, parseRevealTarget, resolveReveal } from './shell-actions.ts';
+import { appInfoOf, dataDirOf, loginItemOf, parseExternalUrl, parseOpenAtLogin, parseRevealTarget, resolveReveal } from './shell-actions.ts';
 
 const RENDERER_URL = pathToFileURL(fileURLToPath(new URL('../../dist/renderer/index.html', import.meta.url))).href;
 const PRELOAD = fileURLToPath(new URL('../preload/preload.cjs', import.meta.url));
@@ -16,11 +16,14 @@ const CHANNELS: BridgeChannels = {
   event: 'morrowbot:event',
   subscribe: 'morrowbot:subscribe',
   hostReady: 'morrowbot:host-ready',
+  hostLost: 'morrowbot:host-lost',
   pickFolder: 'morrowbot:pick-folder',
   copyText: 'morrowbot:copy-text',
   openExternal: 'morrowbot:open-external',
   revealPath: 'morrowbot:reveal-path',
   appInfo: 'morrowbot:app-info',
+  loginItem: 'morrowbot:login-item',
+  setOpenAtLogin: 'morrowbot:set-open-at-login',
 };
 
 /** macOS keeps its traffic lights, inset into the window's own 48px top bar; elsewhere the system frame stays. */
@@ -92,6 +95,7 @@ function runApp(): void {
         window?.webContents.send(CHANNELS.hostReady);
       },
       onLost: () => {
+        window?.webContents.send(CHANNELS.hostLost);
         setTimeout(() => {
           if (lifetime === 'running' && host.target() === target) connect(target, Math.min(delayMs * 2, RECONNECT_MAX_MS));
         }, delayMs);
@@ -166,6 +170,18 @@ function runApp(): void {
   ipcMain.handle(CHANNELS.appInfo, (event) => {
     checkSender(senderOf(event), RENDERER_URL);
     return appInfoOf(app.getVersion(), dataDir);
+  });
+
+  const loginItems = app.isPackaged && (process.platform === 'darwin' || process.platform === 'win32');
+  const loginItem = () => loginItemOf(loginItems ? app.getLoginItemSettings().openAtLogin : null);
+  ipcMain.handle(CHANNELS.loginItem, (event) => {
+    checkSender(senderOf(event), RENDERER_URL);
+    return loginItem();
+  });
+  ipcMain.handle(CHANNELS.setOpenAtLogin, (event, input: unknown) => {
+    const open = parseOpenAtLogin(fromRenderer(event, input));
+    if (loginItems) app.setLoginItemSettings({ openAtLogin: open });
+    return loginItem();
   });
 
   app.on('second-instance', openWindow);

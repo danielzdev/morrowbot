@@ -1,11 +1,7 @@
-import type { ProviderError, TurnContext, TurnEnd, TurnOutcome, TurnRequest, TurnUsage } from '@morrowbot/plugin-sdk';
-import type { AcpDaemon, SessionHandlers } from './daemon.ts';
+import { acp, type ProviderError, type TurnContext, type TurnEnd, type TurnOutcome, type TurnRequest, type TurnUsage } from '@morrowbot/plugin-sdk';
+import type { AcpDaemon } from './daemon.ts';
 import type { ModelCatalog } from './models.ts';
-import { APPROVAL_CHOICES, decide, permissionResult } from './permission.ts';
-import { PromptResponse, type PermissionRequest } from './protocol.ts';
-import { closeSession, configureSession, openSession, vendorError } from './session.ts';
-import { ASKING_MODE, createSessionStream } from './session-stream.ts';
-import { tilde } from './tool-input.ts';
+import { ASKING_MODE, closeSession, configureSession, openSession, vendorError } from './session.ts';
 import type { WorkspaceCheck } from './workspace.ts';
 
 /** A prompt has no deadline of its own: Stop cancels it, and the host ends a daemon that ignores that. */
@@ -80,8 +76,9 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
   const cancelPrompt = (): void => {
     if (sessionId !== null && daemon.alive()) daemon.notify('session/cancel', { sessionId });
   };
-  const stream = createSessionStream({
+  const stream = acp.createSessionStream({
     home: deps.home,
+    mode: ASKING_MODE,
     emit,
     onBreach: (found) => {
       if (armed) daemon.breach(found);
@@ -89,17 +86,17 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
   });
   /** No answer allows anything once agy broke the rules, or after Stop. */
   const refusing = (): boolean => stopped() || deps.breach() !== null;
-  const answer = async (asked: PermissionRequest): Promise<unknown> => {
-    const decision = decide(asked, deps.home);
+  const answer = async (asked: acp.PermissionRequest): Promise<unknown> => {
+    const decision = acp.decide(asked, deps.home, 'Antigravity');
     if (decision.kind === 'deny') {
       emit({ kind: 'status', text: decision.status });
-      return permissionResult(asked.options, null, stopped());
+      return acp.permissionResult(asked.options, null, stopped());
     }
-    if (refusing()) return permissionResult(asked.options, null, true);
-    const chosen = await Promise.race([context.ask({ summary: `Antigravity wants to ${decision.summary}`, choices: APPROVAL_CHOICES }), deps.fenced.then(() => null)]);
-    return refusing() ? permissionResult(asked.options, null, true) : permissionResult(asked.options, chosen, false);
+    if (refusing()) return acp.permissionResult(asked.options, null, true);
+    const chosen = await Promise.race([context.ask({ summary: `Antigravity wants to ${decision.summary}`, choices: acp.APPROVAL_CHOICES }), deps.fenced.then(() => null)]);
+    return refusing() ? acp.permissionResult(asked.options, null, true) : acp.permissionResult(asked.options, chosen, false);
   };
-  const handlers: SessionHandlers = {
+  const handlers: acp.SessionHandlers = {
     onUpdate: (update) => {
       stream.hear(update);
     },
@@ -171,7 +168,7 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
     signal.addEventListener('abort', cancelPrompt, { once: true });
     try {
       if (stopped()) return ended({ kind: 'cancelled' }, { sessionTouched: false });
-      const reply = await Promise.race([daemon.call('session/prompt', { sessionId: id, prompt: [{ type: 'text', text: promptText(request) }] }, PromptResponse, PROMPT_MS), deps.fenced.then(() => null)]);
+      const reply = await Promise.race([daemon.call('session/prompt', { sessionId: id, prompt: [{ type: 'text', text: promptText(request) }] }, acp.PromptResponse, PROMPT_MS), deps.fenced.then(() => null)]);
       const touched = { actualModel: model, sessionTouched: true };
       const fenceNow = fence();
       if (reply === null || fenceNow !== null) {
@@ -235,7 +232,7 @@ function workspaceError(check: WorkspaceCheck, home: string | null): ProviderErr
     case 'customized':
       return {
         kind: 'access-not-supported',
-        reason: `Antigravity runs the hooks in ${tilde(check.folder, home)} (and its plugins and MCP servers) without asking (checked on agy 1.5.18), so MorrowBot cannot run it read-only there. Move that folder out of the workspace to chat with Antigravity.`,
+        reason: `Antigravity runs the hooks in ${acp.tilde(check.folder, home)} (and its plugins and MCP servers) without asking (checked on agy 1.5.18), so MorrowBot cannot run it read-only there. Move that folder out of the workspace to chat with Antigravity.`,
       };
     case 'unknown':
       return { kind: 'access-not-supported', reason: check.reason };
@@ -259,7 +256,7 @@ export function outcomeOf(stopReason: string, cancelled: boolean): TurnOutcome {
 }
 
 /** agy's token counts for the prompt. Its `inputTokens` already leaves out cached reads (checked on 1.5.18). */
-export function usageOf(response: PromptResponse): TurnUsage {
+export function usageOf(response: acp.PromptResponse): TurnUsage {
   const { usage } = response;
   if (usage === null || usage === undefined) return { kind: 'unavailable' };
   return {

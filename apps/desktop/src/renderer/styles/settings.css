@@ -1,6 +1,6 @@
 /* The Settings modal shell, its rows, and the full-page forms (New agent, Agent settings, Plugins). */
-.settings-modal .modal-panel {
-  width: 960px;
+.settings-modal > .modal-panel {
+  width: min(960px, calc(100vw - 2 * var(--s-4)));
   height: min(720px, 100%);
   overflow: hidden;
 }
@@ -9,14 +9,20 @@
   grid-template-columns: 200px minmax(0, 1fr);
   height: 100%;
 }
+.settings-side {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--surface-1);
+  border-right: 1px solid var(--hairline);
+}
 .settings-nav {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: var(--s-4);
   padding: var(--s-4) var(--s-2);
   overflow-y: auto;
-  background: var(--surface-1);
-  border-right: 1px solid var(--hairline);
 }
 .settings-nav-group {
   display: flex;
@@ -109,18 +115,40 @@
   overflow-wrap: anywhere;
 }
 .setting-control {
+  display: flex;
   flex: none;
+  align-items: center;
+  gap: var(--s-3);
+  max-width: 60%;
+}
+.setting-note,
+.setting-value {
+  color: var(--text-3);
+  font: var(--t-small);
+}
+.setting-value {
+  overflow-wrap: anywhere;
+}
+.setting-control kbd {
+  min-width: var(--hit);
+  padding: 2px var(--s-2);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-xs);
+  color: var(--text-2);
+  text-align: center;
 }
 @media (max-width: 759px) {
   .settings-shell {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
   }
+  .settings-side {
+    border-right: none;
+    border-bottom: 1px solid var(--hairline);
+  }
   .settings-nav {
     flex-direction: row;
     overflow-x: auto;
-    border-right: none;
-    border-bottom: 1px solid var(--hairline);
   }
   .settings-nav-group .kicker {
     display: none;
@@ -159,10 +187,6 @@ textarea.instructions {
   min-height: 220px;
   font: 400 0.8125rem/1.25rem var(--font-mono);
   resize: vertical;
-}
-.danger-zone {
-  padding-top: var(--s-4);
-  border-top: 1px solid var(--hairline);
 }
 
 /* Plugins page */
@@ -262,7 +286,7 @@ textarea.instructions {
   grid-column: 1 / -1;
 }
 
-/* Avatars and the avatar picker */
+/* Avatars */
 .bot-avatar {
   position: relative;
   display: inline-block;
@@ -279,62 +303,4 @@ textarea.instructions {
   height: 0;
   overflow: hidden;
   pointer-events: none;
-}
-.avatar-picker {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s-4);
-}
-.avatar-preview {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 132px;
-  height: 132px;
-  background: var(--surface-2);
-  border: 1px solid var(--hairline-strong);
-  border-radius: var(--r-md);
-}
-.avatar-options {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-}
-.avatar-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-.avatar-tile {
-  display: grid;
-  place-items: center;
-  padding: 3px;
-  background: var(--surface-2);
-  border: 1px solid var(--hairline-strong);
-}
-.avatar-tile:hover {
-  background-image: linear-gradient(var(--hover), var(--hover));
-}
-.avatar-tile.selected,
-.swatch.selected {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-.swatch {
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border: 1px solid var(--hairline-strong);
-  border-radius: var(--r-pill);
-}
-.swatch-custom {
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border: none;
-  background: none;
-  cursor: pointer;
 }

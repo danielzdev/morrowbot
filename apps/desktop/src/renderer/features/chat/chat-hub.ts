@@ -3,6 +3,7 @@ import type { MorrowbotBridge } from '../../bridge.ts';
 import type { Api } from '../../shared/api.ts';
 import { Store } from '../../shared/store.ts';
 import { COMPLETED_MS, nextActivity, type ChatActivity } from './activity.ts';
+import { memoryDrafts, type DraftStore } from './drafts.ts';
 import { openThreadSession, type ThreadSession } from './thread-session.ts';
 
 /** What one chat of an agent is doing. */
@@ -13,7 +14,7 @@ export interface ThreadActivity {
   readonly failed: boolean;
 }
 
-/** The open chats. Each keeps its draft while the user switches tabs, and all reload after a host restart. */
+/** The open chats. Each keeps its draft across tab switches and reloads, and all reload after a host restart. */
 export interface ChatHub {
   /** What each open chat is doing, by chat id; a chat that is not open, or did not load, is idle. */
   readonly activity: Store<Readonly<Record<string, ThreadActivity>>>;
@@ -27,11 +28,14 @@ export interface ChatHub {
 
 export interface ChatHubOptions {
   readonly api: Api;
-  readonly bridge: Pick<MorrowbotBridge, 'subscribe' | 'unsubscribe' | 'onEvent' | 'onHostReady'>;
+  readonly bridge: Pick<MorrowbotBridge, 'subscribe' | 'unsubscribe' | 'onEvent' | 'onHostReady' | 'onHostLost'>;
   readonly onFinished?: (threadId: string, message: AssistantMessage) => void;
   readonly onGroupsChanged?: () => void;
   readonly blockedRefreshMs?: number;
   readonly completedMs?: number;
+  /** Where unsent drafts are kept; a window passes local storage so they survive a reload. */
+  readonly drafts?: DraftStore;
+  readonly reconnectMs?: number;
 }
 
 export function createChatHub(options: ChatHubOptions): ChatHub {
@@ -39,6 +43,7 @@ export function createChatHub(options: ChatHubOptions): ChatHub {
   const watching = new Map<string, () => void>();
   const completed = new Map<string, ReturnType<typeof setTimeout>>();
   const activity = new Store<Readonly<Record<string, ThreadActivity>>>({});
+  const drafts = options.drafts ?? memoryDrafts();
   const setActivity = (threadId: string, next: ThreadActivity | undefined): void => {
     const current = activity.get()[threadId];
     if (current?.agentId === next?.agentId && current?.activity === next?.activity && current?.failed === next?.failed) return;
@@ -97,7 +102,17 @@ export function createChatHub(options: ChatHubOptions): ChatHub {
   const reloadAll = (): void => {
     for (const session of sessions.values()) void session.load();
   };
-  const stopRestarts = options.bridge.onHostReady(reloadAll);
+  let streamUp = true;
+  const setStream = (up: boolean): void => {
+    streamUp = up;
+    for (const session of sessions.values()) session.setStream(up);
+  };
+  const stopRestarts = options.bridge.onHostReady(() => {
+    setStream(true);
+  });
+  const stopLost = options.bridge.onHostLost(() => {
+    setStream(false);
+  });
   return {
     activity,
     session: (threadId) => {
@@ -112,15 +127,19 @@ export function createChatHub(options: ChatHubOptions): ChatHub {
           for (const other of sessions.values()) if (other.threadId !== threadId) void other.load();
           options.onGroupsChanged?.();
         },
+        drafts,
         ...(options.blockedRefreshMs === undefined ? {} : { blockedRefreshMs: options.blockedRefreshMs }),
+        ...(options.reconnectMs === undefined ? {} : { reconnectMs: options.reconnectMs }),
       });
       sessions.set(threadId, session);
       watch(session);
+      if (!streamUp) session.setStream(false);
       void session.load();
       return session;
     },
     reloadAll,
     forget: (threadId) => {
+      drafts.write(threadId, '');
       sessions.get(threadId)?.close();
       sessions.delete(threadId);
       stopWatching(threadId);
@@ -128,6 +147,7 @@ export function createChatHub(options: ChatHubOptions): ChatHub {
     close: () => {
       stopEvents();
       stopRestarts();
+      stopLost();
       for (const session of sessions.values()) {
         session.close();
         stopWatching(session.threadId);

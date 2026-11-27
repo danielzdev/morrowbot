@@ -13,11 +13,14 @@ const CHANNELS = {
   event: 'morrowbot:event',
   subscribe: 'morrowbot:subscribe',
   hostReady: 'morrowbot:host-ready',
+  hostLost: 'morrowbot:host-lost',
   pickFolder: 'morrowbot:pick-folder',
   copyText: 'morrowbot:copy-text',
   openExternal: 'morrowbot:open-external',
   revealPath: 'morrowbot:reveal-path',
   appInfo: 'morrowbot:app-info',
+  loginItem: 'morrowbot:login-item',
+  setOpenAtLogin: 'morrowbot:set-open-at-login',
 };
 
 /**
@@ -40,12 +43,15 @@ const bridge = {
   subscribe: (threadId, since) => { ipcRenderer.send(CHANNELS.subscribe, { kind: 'subscribe', threadId, since }); },
   unsubscribe: (threadId) => { ipcRenderer.send(CHANNELS.subscribe, { kind: 'unsubscribe', threadId }); },
   onHostReady: (listener) => listen(CHANNELS.hostReady, () => { listener(); }),
+  onHostLost: (listener) => listen(CHANNELS.hostLost, () => { listener(); }),
   // Main answers with the chosen folder path or null.
   pickFolder: () => ipcRenderer.invoke(CHANNELS.pickFolder),
   copyText: (text) => ipcRenderer.invoke(CHANNELS.copyText, text),
   openExternal: (url) => ipcRenderer.invoke(CHANNELS.openExternal, url),
   revealPath: (target) => ipcRenderer.invoke(CHANNELS.revealPath, target),
   appInfo: () => ipcRenderer.invoke(CHANNELS.appInfo),
+  loginItem: () => ipcRenderer.invoke(CHANNELS.loginItem),
+  setOpenAtLogin: (open) => ipcRenderer.invoke(CHANNELS.setOpenAtLogin, open),
 };
 
 contextBridge.exposeInMainWorld('morrowbot', bridge);

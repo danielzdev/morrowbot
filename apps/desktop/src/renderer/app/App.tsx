@@ -5,11 +5,12 @@ import { Sidebar } from '../features/agents/index.ts';
 import { BotAvatar, combineActivity, motionOf } from '../features/avatar/index.ts';
 import { chatMarkdown } from '../features/chat/index.ts';
 import { pluginAlert } from '../features/plugins/index.ts';
-import { SettingsModal, type SettingsSection } from '../features/settings/index.ts';
+import { SettingsModal, type SettingsLink } from '../features/settings/index.ts';
 import { AppInfo, redact } from '../shared/privacy.ts';
 import { useStore } from '../shared/use-store.ts';
 import { entriesOf, liveFactsOf } from './derive.ts';
 import { createModels } from './models.ts';
+import { AgentDialogs, type AgentDialog } from './AgentDialogs.tsx';
 import { Pages, type Page } from './Pages.tsx';
 import { Shell } from './Shell.tsx';
 
@@ -18,8 +19,12 @@ const NO_INFO: AppInfo = { appVersion: '', homeDir: '', userName: '', dataDir: '
 export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
   const models = useMemo(() => createModels(bridge), [bridge]);
   const [page, setPage] = useState<Page>({ kind: 'chat' });
-  const [settings, setSettings] = useState<SettingsSection | null>(null);
+  const [settings, setSettings] = useState<SettingsLink | null>(null);
   const [filterRequest, setFilterRequest] = useState(0);
+  const [findRequest, setFindRequest] = useState(0);
+  const [approvalFocus, setApprovalFocus] = useState<string | null>(null);
+  const [bindingRequest, setBindingRequest] = useState(0);
+  const [dialog, setDialog] = useState<AgentDialog | null>(null);
   const [info, setInfo] = useState<AppInfo | null>(null);
   const copies = useRef(0);
   const state = useStore(models.agents.state);
@@ -47,6 +52,10 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
   const avatarOf = (each: Agent, size: number) => {
     const motion = motionOf(combineActivity(Object.values(activity).filter((one) => one.agentId === each.id).map((one) => one.activity)));
     return <BotAvatar avatar={each.avatar} motion={motion} size={size} reducedMotion={appearance.reducedMotion} />;
+  };
+  /** The one way to open Settings: the sidebar, ⌘, and later the palette and banners all pass a link here. */
+  const openSettings = (link: SettingsLink): void => {
+    setSettings(link);
   };
   const newChat = (agentId: string): void => {
     models.agents.selectAgent(agentId);
@@ -76,10 +85,12 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
       <Shell
         onShortcut={(id) => {
           if (id === 'new-chat' && agent !== undefined) newChat(agent.id);
-          if (id === 'new-agent') setPage({ kind: 'new-agent' });
-          if (id === 'settings') setSettings('appearance');
+          if (id === 'new-agent') setDialog({ kind: 'new-agent' });
+          if (id === 'binding') setBindingRequest((count) => count + 1);
+          if (id === 'settings') openSettings('general');
           if (id === 'filter-agents') setFilterRequest((count) => count + 1);
           if (id === 'extensions') setPage({ kind: 'plugins' });
+          if (id === 'find' && page.kind === 'chat') setFindRequest((count) => count + 1);
         }}
         sidebar={(mode, controls) => (
           <Sidebar
@@ -94,13 +105,14 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
             onOpenAgent={(agentId, threadId) => {
               models.agents.selectAgent(agentId);
               if (threadId !== null) models.agents.openThread(agentId, threadId);
+              setApprovalFocus(threadId);
               setPage({ kind: 'chat' });
               controls.dismiss();
             }}
             onNewChat={(agentId) => { newChat(agentId); controls.dismiss(); }}
-            onAgentSettings={(agentId) => { models.agents.selectAgent(agentId); setPage({ kind: 'agent-settings' }); controls.dismiss(); }}
-            onNewAgent={() => { setPage({ kind: 'new-agent' }); controls.dismiss(); }}
-            onSettings={() => { setSettings('appearance'); }}
+            onAgentSettings={(agentId) => { setDialog({ kind: 'agent-settings', agentId, section: 'general' }); controls.dismiss(); }}
+            onNewAgent={() => { setDialog({ kind: 'new-agent' }); controls.dismiss(); }}
+            onSettings={() => { openSettings('general'); }}
             onExtensions={() => { setPage({ kind: 'plugins' }); controls.dismiss(); }}
           />
         )}
@@ -112,20 +124,46 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
                 <button class="btn ghost" onClick={() => { models.agents.dismissProblem(); }}>Dismiss</button>
               </div>
             )}
-            <Pages page={page} onPage={setPage} models={models} bridge={bridge} agent={agent} chrome={chrome} info={info} reducedMotion={appearance.reducedMotion} onCopy={copyChat} onNewChat={newChat} />
+            <Pages
+              page={page}
+              onPage={setPage}
+              models={models}
+              bridge={bridge}
+              agent={agent}
+              chrome={chrome}
+              info={info}
+              reducedMotion={appearance.reducedMotion}
+              findRequest={findRequest}
+              bindingRequest={bindingRequest}
+              approvalFocus={approvalFocus}
+              onApprovalFocused={() => { setApprovalFocus(null); }}
+              onAgentSettings={(agentId, section) => { setDialog({ kind: 'agent-settings', agentId, section }); }}
+              onNewAgent={() => { setDialog({ kind: 'new-agent' }); }}
+              onCopy={copyChat}
+              onNewChat={newChat}
+            />
           </>
         )}
       />
+      <AgentDialogs
+        dialog={dialog}
+        onDialog={setDialog}
+        models={models}
+        bridge={bridge}
+        info={info}
+        reducedMotion={appearance.reducedMotion}
+        onOpenProviders={() => { setPage({ kind: 'plugins' }); }}
+        onCreated={(created) => { newChat(created.id); }}
+      />
       {settings !== null && (
         <SettingsModal
-          section={settings}
-          onSection={setSettings}
+          key={settings}
+          link={settings}
           onClose={() => { setSettings(null); }}
-          appearance={appearance}
-          onTheme={models.appearance.setTheme}
-          onReduceMotion={models.appearance.setReduceMotion}
+          appearance={models.appearance}
+          chatPrefs={models.chatPrefs}
           info={info}
-          onRevealData={() => void bridge.revealPath({ kind: 'data-dir' })}
+          bridge={bridge}
         />
       )}
     </>

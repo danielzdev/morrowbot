@@ -1,28 +1,20 @@
 import type { Agent } from '@morrowbot/contracts';
-import { useRef, useState } from 'preact/hooks';
+import { useMemo, useRef, useState } from 'preact/hooks';
+import type { MorrowbotBridge } from '../bridge.ts';
 import { BotAvatar, combineActivity, motionOf } from '../features/avatar/index.ts';
-import { AccessNotes, AccessPicker, ModelPicker, type BoundProvider } from '../features/binding/index.ts';
-import { ChatView, Composer } from '../features/chat/index.ts';
-import { summarize, type PluginCard } from '../features/plugins/index.ts';
+import type { AgentSection } from '../features/agents/index.ts';
+import { BindingControl, BindingWarnings, sendBlock, type BoundProvider } from '../features/binding/index.ts';
+import { chatDisplay, ChatView, Composer } from '../features/chat/index.ts';
 import { ThreadHeader } from '../features/thread/index.ts';
+import { profileName } from '../shared/binding-ui/access-copy.ts';
+import { displayPath, type AppInfo } from '../shared/privacy.ts';
 import { useStore } from '../shared/use-store.ts';
-import { threadStatusOf } from './derive.ts';
-import { infoOf, type Models } from './models.ts';
+import { choiceFor, providerChoicesOf, threadStatusOf } from './derive.ts';
+import type { Models } from './models.ts';
 
 export interface Chrome {
   readonly sidebarButton: boolean;
   readonly showSidebar: () => void;
-}
-
-function ProviderChip(props: { readonly card: PluginCard | undefined; readonly redact: (text: string) => string; readonly onPlugins: () => void }) {
-  if (props.card === undefined) return <span class="chip warning">Provider not installed</span>;
-  const summary = summarize(props.card.entry, props.card.info);
-  if (summary.state === 'ready' && summary.tone === 'ok') return null;
-  return (
-    <button class={`chip ${summary.tone}`} onClick={props.onPlugins} title={props.redact(summary.detail ?? '')}>
-      {props.card.entry.manifest.name}: {summary.title}
-    </button>
-  );
 }
 
 /** The agent's open chat: header, messages and composer. */
@@ -30,36 +22,41 @@ export function ChatPane(props: {
   readonly models: Models;
   readonly agent: Agent;
   readonly chrome: Chrome;
+  readonly bridge: MorrowbotBridge;
   readonly reducedMotion: boolean;
-  /** Makes host error text safe to show (spec §9.1). */
-  readonly redact: (text: string) => string;
-  readonly onAgentSettings: () => void;
+  /** The machine facts that make host text and paths safe to show (spec §9.1); null until main reports them. */
+  readonly info: AppInfo | null;
+  readonly findRequest: number;
+  readonly approvalFocus: string | null;
+  readonly onApprovalFocused: () => void;
+  readonly onAgentSettings: (section: AgentSection) => void;
   readonly onPlugins: () => void;
+  /** Changes on ⇧⌘M: open the binding popover. */
+  readonly bindingRequest: number;
   readonly onCopy: (threadId: string) => void;
   readonly onNewChat: () => void;
 }) {
   const { models, agent } = props;
+  const display = useMemo(() => chatDisplay(props.info, agent.workspace.dir), [props.info, agent.workspace.dir]);
   const state = useStore(models.agents.state);
   const cards = useStore(models.plugins.cards);
   const activity = useStore(models.chats.activity);
+  const { sendWith } = useStore(models.chatPrefs.state);
   const threadId = state.openThread[agent.id] ?? null;
   const threads = state.threads[agent.id];
-  const binding = agent.provider.kind === 'bound' ? agent.provider : null;
-  const card = binding === null || cards.kind !== 'loaded' ? undefined : cards.value.find(({ entry }) => entry.manifest.id === binding.pluginId);
-  const info = infoOf(card);
+  const choices = providerChoicesOf(cards);
+  const bound = agent.provider.kind === 'bound' ? agent.provider : null;
+  const choice = bound === null ? undefined : choiceFor(cards, choices, bound.pluginId);
   const [saving, setSaving] = useState(false);
   const inFlight = useRef(false);
-  const [bindingProblem, setBindingProblem] = useState<string | null>(null);
-  const rebind = (next: BoundProvider): void => {
-    if (inFlight.current) return;
+  const commit = async (next: BoundProvider): Promise<string | null> => {
+    if (inFlight.current) return 'Another change is still saving.';
     inFlight.current = true;
     setSaving(true);
-    setBindingProblem(null);
-    void models.agents.updateAgent(agent.id, { provider: next }).then((result) => {
-      inFlight.current = false;
-      setSaving(false);
-      if (result.kind === 'refused') setBindingProblem(`The change was not saved: ${result.message}`);
-    });
+    const result = await models.agents.updateAgent(agent.id, { provider: next });
+    inFlight.current = false;
+    setSaving(false);
+    return result.kind === 'refused' ? result.message : null;
   };
   const session = threadId === null ? undefined : models.chats.session(threadId);
   const motion = motionOf(combineActivity(Object.values(activity).filter((each) => each.agentId === agent.id).map((each) => each.activity)));
@@ -75,7 +72,7 @@ export function ChatPane(props: {
         unread={(id) => id in state.unread}
         sidebarButton={props.chrome.sidebarButton}
         onShowSidebar={props.chrome.showSidebar}
-        onAgentSettings={props.onAgentSettings}
+        onAgentSettings={() => { props.onAgentSettings('general'); }}
         onNewChat={props.onNewChat}
         onOpen={(id) => {
           models.agents.openThread(agent.id, id);
@@ -84,7 +81,7 @@ export function ChatPane(props: {
         onDelete={(id) => void models.agents.deleteThread(agent.id, id)}
         onCopy={props.onCopy}
       />
-      {threads?.kind === 'failed' && <div class="banner danger">{props.redact(threads.message)}</div>}
+      {threads?.kind === 'failed' && <div class="banner danger">{display.redact(threads.message)}</div>}
       {session === undefined ? (
         <div class="chat empty">
           <p>No chats yet.</p>
@@ -94,27 +91,53 @@ export function ChatPane(props: {
         </div>
       ) : (
         <>
-          <ChatView key={session.threadId} session={session} locked={saving} />
+          <ChatView
+            key={session.threadId}
+            session={session}
+            locked={saving}
+            agentName={agent.name}
+            providerName={choice?.name ?? null}
+            display={display}
+            bridge={props.bridge}
+            findRequest={props.findRequest}
+            focusApproval={props.approvalFocus === session.threadId}
+            onApprovalFocused={props.onApprovalFocused}
+            announce="status"
+            onOpenProviders={props.onPlugins}
+            hero={
+              <>
+                <BotAvatar avatar={agent.avatar} motion={motion} size={64} reducedMotion={props.reducedMotion} />
+                <p class="hero-title">What can {agent.name} help with?</p>
+                <p class="hero-note">
+                  {props.info === null ? '…' : displayPath(agent.workspace.dir, props.info, agent.workspace.dir)}
+                  {bound !== null && ` · ${profileName(bound)}`}
+                </p>
+              </>
+            }
+          />
           <Composer
             key={`composer-${session.threadId}`}
             session={session}
-            disabledReason={binding === null ? "Choose a provider in this agent's settings." : saving ? 'Saving the new settings…' : null}
+            agentName={agent.name}
+            disabledReason={saving ? 'Saving the new settings…' : sendBlock(agent.name, choice, agent.provider)}
+            safe={display.safe}
+            onOpenProviders={props.onPlugins}
+            sendWith={sendWith}
             toolbar={
-              binding === null ? (
-                <button class="chip warning" onClick={props.onAgentSettings}>
-                  No provider
-                </button>
-              ) : (
-                <>
-                  <ModelPicker info={info} binding={binding} disabled={saving} onChange={(selection) => { rebind({ ...binding, selection }); }} />
-                  <AccessPicker info={info} binding={binding} disabled={saving} onChange={(access, vendorSettings) => { rebind({ ...binding, access, vendorSettings }); }} />
-                  <ProviderChip card={card} redact={props.redact} onPlugins={props.onPlugins} />
-                </>
-              )
+              <BindingControl
+                agentName={agent.name}
+                choices={choices}
+                choice={choice}
+                binding={agent.provider}
+                openRequest={props.bindingRequest}
+                onCommit={commit}
+                redact={display.redact}
+                onOpenProviders={props.onPlugins}
+                onOpenBrain={() => { props.onAgentSettings('brain'); }}
+              />
             }
+            notes={<BindingWarnings choice={choice} binding={agent.provider} onOpenProviders={props.onPlugins} />}
           />
-          {bindingProblem !== null && <div class="access-notes note danger">{props.redact(bindingProblem)}</div>}
-          {binding !== null && <AccessNotes info={info} binding={binding} />}
         </>
       )}
     </div>
