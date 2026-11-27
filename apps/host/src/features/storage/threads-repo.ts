@@ -21,6 +21,8 @@ export interface ThreadRepository {
   delete(id: string): boolean;
   get(id: string): Thread | undefined;
   listByAgent(agentId: string): Thread[];
+  /** Every agent's threads, most recently changed first. */
+  listAll(): Thread[];
 }
 
 export function threadRepository(db: DatabaseSync): ThreadRepository {
@@ -33,6 +35,7 @@ export function threadRepository(db: DatabaseSync): ThreadRepository {
   const remove = db.prepare('DELETE FROM threads WHERE id = ?');
   const get = db.prepare('SELECT * FROM threads WHERE id = ?');
   const listByAgent = db.prepare('SELECT * FROM threads WHERE agent_id = ? ORDER BY created_at, rowid');
+  const listAll = db.prepare('SELECT * FROM threads ORDER BY updated_at DESC, rowid DESC');
   return {
     insert: (thread) => {
       insert.run({ ...thread });
@@ -49,5 +52,6 @@ export function threadRepository(db: DatabaseSync): ThreadRepository {
       return row === undefined ? undefined : ThreadRow.parse(row);
     },
     listByAgent: (agentId) => listByAgent.all(agentId).map((row) => ThreadRow.parse(row)),
+    listAll: () => listAll.all().map((row) => ThreadRow.parse(row)),
   };
 }

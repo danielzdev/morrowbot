@@ -1,0 +1,154 @@
+/* Settings › Usage (spec §6.4): Limits and Tokens. Bars only ever draw for reported windows. */
+.usage-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding-top: var(--s-3);
+}
+.usage-bar,
+.usage-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+.usage-tabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-md);
+}
+.usage-tab {
+  min-height: var(--hit);
+  padding: 0 var(--s-3);
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+  font: var(--t-ui-strong);
+}
+.usage-tab:hover {
+  color: var(--text-1);
+}
+.usage-tab[aria-selected='true'] {
+  background: var(--selected);
+  color: var(--text-1);
+}
+.usage-limits,
+.usage-tokens {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+.usage-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.usage-group-title {
+  margin: 0;
+  font: var(--t-title);
+}
+.usage-asof,
+.usage-empty,
+.usage-note {
+  margin: 0;
+  color: var(--text-3);
+  font: var(--t-small);
+}
+.limit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--s-3);
+}
+.limit-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-4);
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+}
+.limit-card.reason {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+.limit-head,
+.limit-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+.limit-label {
+  font: var(--t-ui-strong);
+}
+.limit-left {
+  color: var(--text-2);
+  font: var(--t-ui);
+  font-variant-numeric: tabular-nums;
+}
+.limit-bar {
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--r-pill);
+  background: var(--selected);
+}
+.limit-bar > div {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+.limit-models {
+  color: var(--text-3);
+  font: var(--t-small);
+  overflow-wrap: anywhere;
+}
+.limit-reset {
+  margin-left: auto;
+  padding: 1px var(--s-2);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-pill);
+  color: var(--text-2);
+  font: var(--t-small);
+  white-space: nowrap;
+}
+.limit-reason {
+  margin: 0;
+  color: var(--text-2);
+  font: var(--t-ui);
+}
+.tokens-table {
+  width: 100%;
+  border-collapse: collapse;
+  font: var(--t-ui);
+  font-variant-numeric: tabular-nums;
+}
+.tokens-table th,
+.tokens-table td {
+  padding: var(--s-2) var(--s-2);
+  border-bottom: 1px solid var(--hairline);
+  text-align: right;
+  white-space: nowrap;
+}
+.tokens-table thead th {
+  color: var(--text-3);
+  font: var(--t-meta);
+}
+.tokens-table :is(th, td):first-child {
+  padding-left: 0;
+  text-align: left;
+  white-space: normal;
+}
+.tokens-table tbody th {
+  font-weight: 500;
+}
+.tokens-name {
+  display: block;
+}
+.tokens-detail {
+  display: block;
+  color: var(--text-3);
+  font: var(--t-small);
+}

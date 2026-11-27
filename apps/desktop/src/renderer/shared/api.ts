@@ -16,10 +16,12 @@ import {
   Thread,
   ThreadList,
   ThreadState,
+  TokenUsageResponse,
   UsageResponse,
   CreateAgentRequest,
   type PluginConfig,
   type SessionChoice,
+  type TokenRange,
   type UpdateAgentRequest,
 } from '@morrowbot/contracts';
 import { z } from 'zod';
@@ -50,6 +52,8 @@ export interface Api {
   saveInstructions(id: string, content: string, expectedRevision: string | null): Promise<ApiResult<PutInstructionsReply>>;
   saveInstructionsCopy(id: string, content: string): Promise<ApiResult<InstructionsCopyReply>>;
   listThreads(agentId: string): Promise<ApiResult<ThreadList>>;
+  /** Every agent's chats, newest first (H9, for ⌘K). */
+  listAllThreads(): Promise<ApiResult<ThreadList>>;
   createThread(agentId: string, title?: string): Promise<ApiResult<Thread>>;
   renameThread(id: string, title: string): Promise<ApiResult<Thread>>;
   deleteThread(id: string): Promise<ApiResult<null>>;
@@ -66,6 +70,8 @@ export interface Api {
   providerInfo(id: string, refresh: boolean): Promise<ApiResult<ProviderInfoResponse>>;
   recheck(id: string): Promise<ApiResult<ProviderInfoResponse>>;
   usage(id: string, refresh: boolean): Promise<ApiResult<UsageResponse>>;
+  /** Local token counts over a range (H5). */
+  tokenUsage(range: TokenRange): Promise<ApiResult<TokenUsageResponse>>;
   releaseGroup(regId: string): Promise<ApiResult<ReleaseGroupResponse>>;
 }
 
@@ -101,6 +107,7 @@ export function createApi(bridge: MorrowbotBridge): Api {
     saveInstructions: (id, content, expectedRevision) => call(PutInstructionsReply, 'PUT', at('agents', id, 'instructions'), { content, expectedRevision }),
     saveInstructionsCopy: (id, content) => call(InstructionsCopyReply, 'POST', at('agents', id, 'instructions', 'copies'), { content }),
     listThreads: (agentId) => call(ThreadList, 'GET', at('agents', agentId, 'threads')),
+    listAllThreads: () => call(ThreadList, 'GET', at('threads')),
     createThread: (agentId, title) => call(Thread, 'POST', at('agents', agentId, 'threads'), title === undefined ? {} : { title }),
     renameThread: (id, title) => call(Thread, 'PATCH', at('threads', id), { title }),
     deleteThread: (id) => call(NoContent, 'DELETE', at('threads', id)),
@@ -119,6 +126,7 @@ export function createApi(bridge: MorrowbotBridge): Api {
     providerInfo: (id, refresh) => call(ProviderInfoResponse, 'GET', `${at('plugins', id, 'info')}${refresh ? '?refresh=1' : ''}`),
     recheck: (id) => call(ProviderInfoResponse, 'POST', at('plugins', id, 'recheck')),
     usage: (id, refresh) => call(UsageResponse, 'GET', `${at('plugins', id, 'usage')}${refresh ? '?refresh=1' : ''}`),
+    tokenUsage: (range) => call(TokenUsageResponse, 'GET', `${at('usage', 'tokens')}?range=${range}`),
     releaseGroup: (regId) => call(ReleaseGroupResponse, 'POST', at('child-groups', regId, 'release')),
   };
 }

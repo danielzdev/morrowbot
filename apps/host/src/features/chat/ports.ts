@@ -43,6 +43,7 @@ export interface ChatStore {
     delete(id: string): boolean;
     get(id: string): Thread | undefined;
     listByAgent(agentId: string): Thread[];
+    listAll(): Thread[];
   };
   readonly messages: {
     insert(message: Message): void;

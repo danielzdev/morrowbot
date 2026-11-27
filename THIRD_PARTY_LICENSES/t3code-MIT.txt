@@ -1,3 +1,6 @@
+t3code (https://github.com/pingdotgg/t3code)
+Ideas adapted in apps/mobile: the iPhone Duo hinge and reserved-region bridge (modules/morrow-native-controls) and the hinge-safe layout engine (src/lib/reserved-regions.ts, src/lib/layout.ts).
+
 MIT License
 
 Copyright (c) 2026 T3 Tools Inc.

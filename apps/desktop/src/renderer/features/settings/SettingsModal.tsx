@@ -30,6 +30,8 @@ export interface SettingsModalProps {
   readonly bridge: Pick<MorrowbotBridge, 'loginItem' | 'setOpenAtLogin' | 'revealPath'>;
   /** Settings › Providers, from `features/providers` (wired in by `app/`): opened at `initial`, naming its selection for the breadcrumb. */
   readonly providers: (slot: { readonly initial: string | null; readonly onTrail: (name: string | null) => void }) => ComponentChildren;
+  /** Settings › Usage, composed by the app from the usage feature. */
+  readonly usage: ComponentChildren;
 }
 
 /** A section's own header row, so search finds the section. */
@@ -94,6 +96,8 @@ export function SettingsModal(props: SettingsModalProps) {
             {props.providers({ initial: start.section === 'providers' ? start.item : null, onTrail })}
           </>
         );
+      case 'usage':
+        return props.usage;
       case 'about':
         return <AboutSection info={props.info} onRevealData={() => void props.bridge.revealPath({ kind: 'data-dir' })} />;
     }

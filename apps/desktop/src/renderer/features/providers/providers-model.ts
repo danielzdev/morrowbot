@@ -27,6 +27,8 @@ export interface ProvidersModel {
   load(): Promise<void>;
   refreshInfo(id: string): Promise<void>;
   recheck(id: string): Promise<void>;
+  /** Asks the provider for its plan limits again, past the host's cache. */
+  refreshUsage(id: string): Promise<void>;
   setConfig(id: string, config: PluginConfig): Promise<boolean>;
   setEnabled(id: string, enabled: boolean): Promise<void>;
   release(id: string, regId: string): Promise<void>;
@@ -77,8 +79,8 @@ export function createProvidersModel(options: ProvidersModelOptions): ProvidersM
     return result.kind === 'ok' ? { info: { kind: 'loaded', value: result.value.info }, age: { via: 'load', at: now() } } : { info: { kind: 'failed', message: result.error.message }, age: null };
   }
 
-  async function fetchUsage(id: string): Promise<UsageResponse | null> {
-    const result = await api.usage(id, false);
+  async function fetchUsage(id: string, refresh = false): Promise<UsageResponse | null> {
+    const result = await api.usage(id, refresh);
     return result.kind === 'ok' ? result.value : null;
   }
 
@@ -152,6 +154,10 @@ export function createProvidersModel(options: ProvidersModelOptions): ProvidersM
       const usage = await fetchUsage(id);
       bump(id);
       patch(id, { busy: null, info: { kind: 'loaded', value: result.value.info }, usage, age: { via: 'recheck', at: now() } });
+    },
+    refreshUsage: async (id) => {
+      const usage = await fetchUsage(id, true);
+      patch(id, { usage });
     },
     setConfig: async (id, config) => {
       patch(id, { busy: 'saving', problem: null });

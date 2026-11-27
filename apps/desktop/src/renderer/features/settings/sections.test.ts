@@ -29,6 +29,7 @@ const MODAL: SettingsModalProps = {
   info: INFO,
   bridge: BRIDGE,
   providers: () => null,
+  usage: h('p', { class: 'usage-stub' }, 'usage'),
 };
 
 const decode = (text: string): string => text.replaceAll('&amp;', '&').replaceAll('&#39;', "'").replaceAll('&quot;', '"').replaceAll('&lt;', '<').replaceAll('&gt;', '>');
@@ -45,6 +46,7 @@ const SECTIONS: Readonly<Record<SettingsSection, () => string>> = {
   chat: () => renderToString(h(ChatSection, { prefs: PREFS, onChange: ignore, platform: 'mac' })),
   keyboard: () => renderToString(h(KeyboardSection, { platform: 'mac', sendWith: 'enter' })),
   providers: () => renderToString(h(SettingsModal, { ...MODAL, link: 'providers' })),
+  usage: () => '',
   about: () => renderToString(h(AboutSection, { info: INFO, onRevealData: ignore })),
 };
 
@@ -78,12 +80,14 @@ it('opens each deep link at its section, with the nav and breadcrumb pointing th
     general: modal('general'),
     appearance: modal('appearance/reduce-motion'),
     keyboard: modal('keyboard/key-escape'),
+    usage: modal('usage'),
     about: modal('about'),
     provider: modal('providers/provider-openai'),
   }).toEqual({
     general: { breadcrumb: 'Settings / General', current: 'General', firstRow: 'open-at-login' },
     appearance: { breadcrumb: 'Settings / Appearance', current: 'Appearance', firstRow: 'theme' },
-    keyboard: { breadcrumb: 'Settings / Keyboard', current: 'Keyboard', firstRow: 'key-new-chat' },
+    keyboard: { breadcrumb: 'Settings / Keyboard', current: 'Keyboard', firstRow: 'key-palette' },
+    usage: { breadcrumb: 'Settings / Usage', current: 'Usage', firstRow: undefined },
     about: { breadcrumb: 'Settings / About', current: 'About', firstRow: 'version' },
     provider: { breadcrumb: 'Settings / Providers', current: 'Providers', firstRow: 'providers', item: 'provider-openai' },
   });

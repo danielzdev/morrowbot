@@ -3,6 +3,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { agentRepository, type AgentRepository } from './agents-repo.ts';
 import { childGroupRepository, type ChildGroupRepository } from './child-groups-repo.ts';
+import { deviceRepository, type DeviceRepository } from './devices-repo.ts';
 import { folderRepository, type FolderRepository } from './folders-repo.ts';
 import { generationRepository, type GenerationRepository } from './generations-repo.ts';
 import { messageRepository, type MessageRepository } from './messages-repo.ts';
@@ -10,6 +11,7 @@ import { pluginSettingsRepository, type PluginSettingsRepository } from './plugi
 import { migrate } from './schema.ts';
 import { sessionRepository, type SessionRepository } from './sessions-repo.ts';
 import { threadRepository, type ThreadRepository } from './threads-repo.ts';
+import { tokenTotalsRepository, type TokenTotalsRepository } from './token-totals-repo.ts';
 import { usageSnapshotRepository, type UsageSnapshotRepository } from './usage-repo.ts';
 
 export interface Storage {
@@ -22,6 +24,8 @@ export interface Storage {
   readonly sessions: SessionRepository;
   readonly childGroups: ChildGroupRepository;
   readonly usage: UsageSnapshotRepository;
+  readonly tokens: TokenTotalsRepository;
+  readonly devices: DeviceRepository;
   /** Runs `work` in one write transaction (`BEGIN IMMEDIATE`), rolled back if it throws. Not reentrant. */
   transaction<T>(work: () => T): T;
   close(): void;
@@ -46,6 +50,8 @@ export function openStorage(file: string, now: () => string): Storage {
       sessions: sessionRepository(db),
       childGroups: childGroupRepository(db),
       usage: usageSnapshotRepository(db),
+      tokens: tokenTotalsRepository(db, now),
+      devices: deviceRepository(db),
       transaction: (work) => {
         db.exec('BEGIN IMMEDIATE');
         try {

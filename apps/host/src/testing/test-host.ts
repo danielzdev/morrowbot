@@ -69,6 +69,7 @@ export async function startTestHost(options: TestHostOptions): Promise<TestHost>
       builtinPluginsDir: options.builtinPluginsDir ?? null,
     },
     version: '0.0.0-test',
+    hostName: 'Studio Host',
     onPluginStatus: () => undefined,
     ...(options.sequence ?? sequence()),
     report: (error) => errors.push(error),

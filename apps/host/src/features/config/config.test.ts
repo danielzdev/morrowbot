@@ -88,3 +88,34 @@ it('turns on safe mode from the flag or the env, and places data under the home 
     ]
   `);
 });
+
+it('binds to loopback unless MORROWBOT_HOST_BIND names an IP address, kept in one spelling', () => {
+  const bind = (value: string | undefined) => {
+    const result = parse(value === undefined ? {} : { MORROWBOT_HOST_BIND: value });
+    return result.kind === 'ok' ? result.config.hostname : result.problems;
+  };
+  const values = [undefined, '100.64.0.1', '0.0.0.0', '::', '0:0:0:0:0:0:0:0', '0:0:0:0:0:0:0:1', 'FD7A:115C:A1E0:0:0:0:0:1', '::ffff:127.0.0.1', 'studio-host.local', 'fe80::1%en0', ''];
+  expect(Object.fromEntries(values.map((value) => [value ?? '(unset)', bind(value)]))).toMatchInlineSnapshot(`
+    {
+      "": [
+        "MORROWBOT_HOST_BIND: Expected an IPv4 or IPv6 address, such as 100.64.0.1 or 0.0.0.0",
+      ],
+      "(unset)": "127.0.0.1",
+      "0.0.0.0": "0.0.0.0",
+      "0:0:0:0:0:0:0:0": "::",
+      "0:0:0:0:0:0:0:1": "::1",
+      "100.64.0.1": "100.64.0.1",
+      "::": "::",
+      "::ffff:127.0.0.1": [
+        "MORROWBOT_HOST_BIND: Use the IPv4 form of an IPv4-mapped address",
+      ],
+      "FD7A:115C:A1E0:0:0:0:0:1": "fd7a:115c:a1e0::1",
+      "fe80::1%en0": [
+        "MORROWBOT_HOST_BIND: Expected an IPv4 or IPv6 address, such as 100.64.0.1 or 0.0.0.0",
+      ],
+      "studio-host.local": [
+        "MORROWBOT_HOST_BIND: Expected an IPv4 or IPv6 address, such as 100.64.0.1 or 0.0.0.0",
+      ],
+    }
+  `);
+});

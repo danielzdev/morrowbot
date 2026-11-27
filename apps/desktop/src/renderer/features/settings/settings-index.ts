@@ -3,7 +3,7 @@ import { sendKeyLabels, shortcutLabel, SHORTCUTS, type Platform, type ShortcutId
 import type { IconName } from '../../shared/ui/Icon.tsx';
 import type { SettingsNavGroup } from '../../shared/ui/SettingsShell.tsx';
 
-export type SettingsSection = 'general' | 'appearance' | 'chat' | 'keyboard' | 'providers' | 'about';
+export type SettingsSection = 'general' | 'appearance' | 'chat' | 'keyboard' | 'providers' | 'usage' | 'about';
 
 /** A place in Settings: a section, or a row inside it (`'appearance/theme'`). Sidebar, palette and banners all open these. */
 export type SettingsLink = SettingsSection | `${SettingsSection}/${string}`;
@@ -30,6 +30,7 @@ export const SECTIONS: Readonly<Record<SettingsSection, { readonly title: string
   chat: { title: 'Chat', icon: 'chat' },
   keyboard: { title: 'Keyboard', icon: 'keyboard' },
   providers: { title: 'Providers', icon: 'provider' },
+  usage: { title: 'Usage', icon: 'gauge' },
   about: { title: 'About', icon: 'info' },
 };
 
@@ -37,7 +38,7 @@ const navItem = (id: SettingsSection) => ({ id, label: SECTIONS[id].title, icon:
 
 export const NAV: readonly SettingsNavGroup[] = [
   { label: 'App', items: [navItem('general'), navItem('appearance'), navItem('chat'), navItem('keyboard')] },
-  { label: 'Connections', items: [navItem('providers')] },
+  { label: 'Connections', items: [navItem('providers'), navItem('usage')] },
   { label: null, items: [navItem('about')] },
 ];
 
@@ -67,9 +68,11 @@ export type ContextKey = 'send' | 'new-line' | 'settings-search' | 'escape';
 export type KeyRowId = ShortcutId | ContextKey;
 
 const SHORTCUT_COPY: Readonly<Record<ShortcutId, readonly [label: string, description: string]>> = {
+  palette: ['Command palette', 'Jump to an agent, a chat, a setting or an action.'],
   'new-chat': ['New chat', 'Start a new chat with the current agent.'],
   'new-agent': ['New agent', 'Create an agent.'],
   settings: ['Settings', 'Open these settings.'],
+  usage: ['Usage', 'See plan limits and the tokens your agents used.'],
   'toggle-sidebar': ['Toggle sidebar', 'Shrink the sidebar to a rail of avatars, or expand it again.'],
   'filter-agents': ['Filter agents', 'Find an agent in the sidebar by name.'],
   extensions: ['Extensions', 'Open Extensions: your plugins, connectors and the Marketplace.'],
@@ -111,9 +114,11 @@ export function keysOf(id: KeyRowId, platform: Platform, sendWith: SendWith): st
       return '/';
     case 'escape':
       return 'Esc';
+    case 'palette':
     case 'new-chat':
     case 'new-agent':
     case 'settings':
+    case 'usage':
     case 'toggle-sidebar':
     case 'filter-agents':
     case 'extensions':
@@ -153,3 +158,18 @@ export function targetOf(link: SettingsLink): SettingsTarget {
   const known = INDEX.some((entry) => entry.section === section && entry.id === rest);
   return { section, row: known ? rest : null, item: known || rest === '' ? null : rest };
 }
+
+/** A place in Settings the command palette can open: a section, or one row. */
+export interface SettingsDestination {
+  readonly link: SettingsLink;
+  readonly label: string;
+  readonly description: string;
+  /** The section's title, shown beside a row. */
+  readonly section: string;
+}
+
+/** Every section, then every row, as palette entries. */
+export const DESTINATIONS: readonly SettingsDestination[] = [
+  ...SECTION_ORDER.map((section) => ({ link: section, label: SECTIONS[section].title, description: '', section: 'Settings' })),
+  ...INDEX.map((entry): SettingsDestination => ({ link: `${entry.section}/${entry.id}`, label: entry.label, description: entry.description, section: SECTIONS[entry.section].title })),
+];
