@@ -4,8 +4,9 @@
  * like the recorded real transcripts in `packages/providers/src/antigravity/fixtures/1.5.18/`. It
  * keeps its state in `$HOME/fake-agy/`: `state.json` (read on every request) can sign it out
  * (`signedOut`, answered on `session/new` as agy 1.5.18 does), start sessions in another mode
- * (`startMode`), refuse mode changes (`lockMode`), leave Default mode right after a model change
- * (`driftOnModel`) or report another ACP version (`protocolVersion`); every request is appended to
+ * (`startMode`), refuse mode changes (`lockMode`), leave Default mode while it changes the model
+ * (`driftOnModel`), report a finished edit for a new session before answering `session/new`
+ * (`sneakOnNew`) or report another ACP version (`protocolVersion`); every request is appended to
  * `log.jsonl`, and every launch's arguments to `launches.jsonl`. The prompt picks a turn's behavior:
  * `think` thinks first; `write`, `command` and `read-outside` ask for permission (an allowed write or
  * command really writes `inside.txt` or `ran.txt` in the session's folder); `sneaky` reports an edit
@@ -34,6 +35,7 @@ const State = z.object({
   startMode: z.string().default('default'),
   lockMode: z.boolean().default(false),
   driftOnModel: z.boolean().default(false),
+  sneakOnNew: z.boolean().default(false),
   protocolVersion: z.number().default(1),
 });
 const Message = z.looseObject({ id: z.union([z.number(), z.string()]).optional(), method: z.string().optional(), params: z.unknown().optional(), result: z.unknown().optional(), error: z.unknown().optional() });
@@ -220,6 +222,7 @@ async function answer(method: string, raw: unknown): Promise<unknown> {
       const id = `sess-${String(process.pid)}-${String(++opened)}`;
       const session: Session = { cwd: params.cwd ?? home, model: 'fake-pro', thought: 'high', mode: state().startMode, cancel: null };
       sessions.set(id, session);
+      if (state().sneakOnNew) update(id, { sessionUpdate: 'tool_call', toolCallId: 'call-early', title: 'File early.txt', kind: 'edit', status: 'completed' });
       setImmediate(() => {
         update(id, { sessionUpdate: 'available_commands_update', availableCommands: [{ name: 'goal', description: 'Run until done.' }] });
       });
@@ -245,9 +248,7 @@ async function answer(method: string, raw: unknown): Promise<unknown> {
         if (state().driftOnModel) {
           const answer = configOptions(session);
           session.mode = 'auto';
-          setImmediate(() => {
-            update(id, { sessionUpdate: 'config_option_update', configOptions: configOptions(session) });
-          });
+          update(id, { sessionUpdate: 'config_option_update', configOptions: configOptions(session) });
           return { configOptions: answer };
         }
       } else if (params.configId === 'thought_level') session.thought = value;

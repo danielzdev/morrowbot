@@ -56,6 +56,11 @@ function toolsOf(generationId: string): string[] {
   return events.received.flatMap((event) => (event.kind === 'generation.tool-start' && event.generationId === generationId ? [`${event.name}:${ends.get(event.toolUseId) ?? 'open'}`] : []));
 }
 
+/** Whether MorrowBot itself denied a `kind` tool in that turn (its status says so), rather than agy failing it. */
+function deniedByMorrowBot(generationId: string, kind: string): boolean {
+  return events.received.some((event) => event.kind === 'generation.status' && event.generationId === generationId && (event.detail ?? '').startsWith(`Denied ${kind} `));
+}
+
 describe.skipIf(!LIVE)('provider-antigravity on your agy login', () => {
   it(
     'is ready once a session lists models; a read-only turn loads the workspace AGENTS.md; a write inside, a write outside, a command and a write through a symlink are each denied and change nothing',
@@ -72,16 +77,16 @@ describe.skipIf(!LIVE)('provider-antigravity on your agy login', () => {
       await writeFile(path.join(workspace, 'AGENTS.md'), 'When asked for the canary word, the canary word is KUMQUAT.\n');
       await send(thread, 'Say the canary word, and nothing else.');
       const tries = [
-        { prompt: 'Use your file-writing tool to create inside.txt containing x. Do not use any other tool.', target: path.join(workspace, 'inside.txt'), tool: 'Edit' },
-        { prompt: `Use your file-writing tool to create ${path.join(outside, 'written.txt')} containing x. Do not use any other tool.`, target: path.join(outside, 'written.txt'), tool: 'Edit' },
-        { prompt: 'Use your command tool to run exactly: touch ran.txt . Do not use any other tool.', target: path.join(workspace, 'ran.txt'), tool: 'Shell' },
-        { prompt: 'Use your file-writing tool to create escape/linked.txt containing x. Do not use any other tool.', target: path.join(outside, 'linked.txt'), tool: 'Edit' },
+        { prompt: 'Use your file-writing tool to create inside.txt containing x. Do not use any other tool.', target: path.join(workspace, 'inside.txt'), tool: 'Edit', kind: 'edit' },
+        { prompt: `Use your file-writing tool to create ${path.join(outside, 'written.txt')} containing x. Do not use any other tool.`, target: path.join(outside, 'written.txt'), tool: 'Edit', kind: 'edit' },
+        { prompt: 'Use your command tool to run exactly: touch ran.txt . Do not use any other tool.', target: path.join(workspace, 'ran.txt'), tool: 'Shell', kind: 'execute' },
+        { prompt: 'Use your file-writing tool to create escape/linked.txt containing x. Do not use any other tool.', target: path.join(outside, 'linked.txt'), tool: 'Edit', kind: 'edit' },
       ];
       const denied: unknown[] = [];
       for (const attempt of tries) {
         const generationId = await send(thread, attempt.prompt);
         const tools = toolsOf(generationId);
-        denied.push({ tool: attempt.tool, reachedDenial: tools.includes(`${attempt.tool}:error`), anyToolSucceeded: tools.some((tool) => tool.endsWith(':ok')), changed: await exists(attempt.target) });
+        denied.push({ tool: attempt.tool, reachedDenial: tools.includes(`${attempt.tool}:error`), byMorrowBot: deniedByMorrowBot(generationId, attempt.kind), anyToolSucceeded: tools.some((tool) => tool.endsWith(':ok')), changed: await exists(attempt.target) });
       }
       const after = Info.parse((await host.call('GET', '/api/plugins/provider-antigravity/info')).body).info;
       const usage = UsageResponse.parse((await host.call('GET', '/api/plugins/provider-antigravity/usage?refresh=1')).body);
@@ -100,7 +105,7 @@ describe.skipIf(!LIVE)('provider-antigravity on your agy login', () => {
         after: { kind: 'ready', accountKey: '', labelled: true, models: true },
         outcomes: ['completed', 'completed', 'completed', 'completed', 'completed'],
         canary: true,
-        denied: tries.map(({ tool }) => ({ tool, reachedDenial: true, anyToolSucceeded: false, changed: false })),
+        denied: tries.map(({ tool }) => ({ tool, reachedDenial: true, byMorrowBot: true, anyToolSucceeded: false, changed: false })),
         usage: 'unsupported',
         errors: [],
       });

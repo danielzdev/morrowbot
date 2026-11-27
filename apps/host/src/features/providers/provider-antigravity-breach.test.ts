@@ -17,29 +17,31 @@ afterEach(async () => {
 
 const methods = async (method: string): Promise<number> => (await agy.log()).filter((entry) => entry.method === method).length;
 
+/** The provider's info once the daemon a breach ended is gone (a request in flight across its exit is superseded). */
 async function withheld(): Promise<unknown> {
+  await until(() => agy.daemonPgids().length === 0);
   const info = await agy.host.call('GET', '/api/plugins/provider-antigravity/info?refresh=1');
   const body = JSON.stringify(info.body);
   return { profiles: /"profiles":\[\]/.test(body), breach: /ran |left its Default mode/.test(body) };
 }
 
-it('ends the daemon at once when agy reports an edit it never asked for, even though it ignores session/cancel, and refuses the next turn', async () => {
+it('ends the daemon at once when agy reports an edit it never asked for, even though it ignores session/cancel, refuses the next turn, and starts no new daemon', async () => {
   const thread = await agy.thread(await agy.agent());
   await agy.send(thread, 'hello');
-  const [before] = agy.daemonPgids();
   const turn = await agy.start(thread, 'sneaky edit');
   await agy.events.finished(turn);
-  await until(() => agy.daemonPgids()[0] !== before);
-  const next = await agy.post(thread, 'hello again');
-  expect({ steps: agy.steps(turn), cancels: await methods('session/cancel'), history: await agy.history(thread), withheld: await withheld(), next: next.body }).toMatchInlineSnapshot(`
+  const seen = { withheld: await withheld(), next: (await agy.post(thread, 'hello again')).body };
+  expect({ steps: agy.steps(turn), cancels: await methods('session/cancel'), history: await agy.history(thread), ...seen, launches: (await agy.launches()).length, daemons: agy.daemonPgids().length }).toMatchInlineSnapshot(`
     {
       "cancels": 1,
+      "daemons": 0,
       "history": [
         "user: hello",
         "assistant(completed): Echo: hello",
         "user: sneaky edit",
         "assistant(failed access-not-supported): ",
       ],
+      "launches": 1,
       "next": {
         "error": {
           "kind": "conflict",
@@ -80,16 +82,17 @@ it('ends the daemon at once when agy leaves Default mode during a turn', async (
   `);
 });
 
-it('refuses a turn whose session leaves Default mode while MorrowBot sets it up', async () => {
+it('refuses a turn, before its prompt, whose session leaves Default mode while MorrowBot sets it up', async () => {
   await agy.setState({ driftOnModel: true });
   const thread = await agy.thread(await agy.agent({ ...AGY, selection: { kind: 'model', id: 'fake-flash', choices: {} } }));
   await agy.send(thread, 'hello');
-  expect({ history: await agy.history(thread), withheld: await withheld() }).toMatchInlineSnapshot(`
+  expect({ history: await agy.history(thread), prompts: await methods('session/prompt'), withheld: await withheld() }).toMatchInlineSnapshot(`
     {
       "history": [
         "user: hello",
         "assistant(failed access-not-supported): ",
       ],
+      "prompts": 0,
       "withheld": {
         "breach": true,
         "profiles": true,
@@ -98,23 +101,43 @@ it('refuses a turn whose session leaves Default mode while MorrowBot sets it up'
   `);
 });
 
-it('a breach in one turn withdraws the open approval card of another turn on the same daemon, which ends interrupted', async () => {
+it("ends a session's turn before its prompt when agy reports a finished edit for it before MorrowBot holds the session", async () => {
+  await agy.setState({ sneakOnNew: true });
+  const thread = await agy.thread(await agy.agent());
+  await agy.send(thread, 'hello');
+  expect({ history: await agy.history(thread), prompts: await methods('session/prompt'), withheld: await withheld() }).toMatchInlineSnapshot(`
+    {
+      "history": [
+        "user: hello",
+        "assistant(failed access-not-supported): ",
+      ],
+      "prompts": 0,
+      "withheld": {
+        "breach": true,
+        "profiles": true,
+      },
+    }
+  `);
+});
+
+it('a breach in one turn fails another turn on the same daemon at once and withdraws its approval card; a late Allow allows nothing', async () => {
   await writeFile(path.join(agy.home, 'outside.txt'), 'secret plans');
   const agent = await agy.agent();
   const [reading, breaking] = [await agy.thread(agent, 'A'), await agy.thread(agent, 'B')];
   const read = await agy.start(reading, 'read-outside please');
   await agy.events.until((event) => event.kind === 'generation.approval-requested' && event.generationId === read);
+  const approvalId = agy.events.received.flatMap((event) => (event.kind === 'generation.approval-requested' && event.generationId === read ? [event.approval.approvalId] : []))[0];
   const broken = await agy.start(breaking, 'sneaky edit');
   await agy.events.finished(broken);
   await agy.events.finished(read);
-  const late = await agy.host.call('POST', `/api/threads/${reading.id}/approvals/none`, { generationId: read, choiceId: 'allow' });
-  const allowed = (await agy.log()).filter((entry) => entry.method === 'permission-reply' || entry.method === 'client-reply');
+  const late = await agy.host.call('POST', `/api/threads/${reading.id}/approvals/${approvalId ?? 'missing'}`, { generationId: read, choiceId: 'allow' });
+  const allowed = (await agy.log()).flatMap((entry) => (entry.method === 'permission-reply' ? [entry.params] : []));
   expect({ read: agy.steps(read), histories: [await agy.history(reading), await agy.history(breaking)], lateAllow: late.status, repliesToAgy: allowed }).toMatchInlineSnapshot(`
     {
       "histories": [
         [
           "user: read-outside please",
-          "assistant(interrupted): ",
+          "assistant(failed access-not-supported): ",
         ],
         [
           "user: sneaky edit",
@@ -125,9 +148,15 @@ it('a breach in one turn withdraws the open approval card of another turn on the
       "read": [
         "tool-start Read: {"title":"File outside.txt"}",
         "card: Antigravity wants to read ~/outside.txt [allow, deny]",
+        "status: Antigravity (agy 1.5.18) ran "Edit File sneaky.txt" without asking. MorrowBot ended it and offers no Antigravity turns until the provider restarts.",
         "card resolved: {"kind":"cleared"}",
       ],
-      "repliesToAgy": [],
+      "repliesToAgy": [
+        {
+          "choice": "cancelled",
+          "tool": "read",
+        },
+      ],
     }
   `);
 });

@@ -47,6 +47,7 @@ export async function openSession(daemon: AcpDaemon, cwd: string, session: TurnS
     },
     onPermission: (request) => (replay.done ? handlers.onPermission(request) : Promise.resolve(CANCELLED)),
     onRefused: handlers.onRefused,
+    replaying: () => !replay.done,
   });
   const loaded = await daemon.call('session/load', { sessionId: ref, cwd, mcpServers: [] }, SessionLoadResponse, OPEN_MS);
   if (loaded.kind !== 'ok') {
@@ -69,7 +70,13 @@ export async function configureSession(
   daemon: AcpDaemon,
   sessionId: string,
   opened: readonly ConfigOption[],
-  setup: { readonly selection: ModelSelection; readonly catalog: ModelCatalog; readonly fresh: boolean },
+  setup: {
+    readonly selection: ModelSelection;
+    readonly catalog: ModelCatalog;
+    readonly fresh: boolean;
+    /** Called just before agy is asked for Default mode, so only what it says afterwards counts. */
+    readonly forgetMode: () => void;
+  },
 ): Promise<Configured> {
   const { selection, catalog } = setup;
   let options = opened;
@@ -81,6 +88,7 @@ export async function configureSession(
   };
   catalog.observe(options, setup.fresh);
   if (selectOf(options, 'mode')?.current !== ASKING_MODE) {
+    setup.forgetMode();
     const failed = await set('mode', ASKING_MODE);
     if (failed !== null) return { kind: 'refused', error: failed };
   }

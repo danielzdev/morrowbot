@@ -21,6 +21,13 @@ export function createAntigravityProvider(runtime: PluginRuntime): ProviderPlugi
   let live: Live | undefined;
   let starting: Promise<Live | string> | undefined;
   let breach: string | null = null;
+  /** Settles, once, when agy breaks the read-only rules: every turn on the daemon stops then. */
+  const fenced = Promise.withResolvers<string>();
+  const onBreach = (reason: string): void => {
+    if (breach !== null) return;
+    breach = reason;
+    fenced.resolve(reason);
+  };
 
   const current = (): Started => {
     if (started === undefined) throw new Error('provider-antigravity has not been started yet');
@@ -31,7 +38,7 @@ export function createAntigravityProvider(runtime: PluginRuntime): ProviderPlugi
   const ensureDaemon = async (): Promise<Live | string> => {
     if (live?.daemon.alive() === true) return live;
     const { settings, probeCwd, geminiDir } = current();
-    starting ??= startDaemon(runtime.jsonRpcProcess, settings.cliPath, probeCwd, geminiDir)
+    starting ??= startDaemon(runtime.jsonRpcProcess, { cliPath: settings.cliPath, cwd: probeCwd, geminiDir, home: runtime.env.HOME ?? null, onBreach })
       .then((result) => {
         if (result.kind === 'failed') return result.reason;
         const fresh: Live = { daemon: result.daemon, catalog: createModelCatalog(), tier: null, signedOut: false };
@@ -67,6 +74,7 @@ export function createAntigravityProvider(runtime: PluginRuntime): ProviderPlugi
       case 'above':
         break;
     }
+    if (breach !== null) return readyInfo(version, { tier: live?.tier ?? null, models: live?.catalog.models() ?? null, breach }, runtime.platform);
     const running = await ensureDaemon();
     if (typeof running === 'string') return { kind: 'error', message: running };
     if (running.signedOut) return { kind: 'signed-out', signIn: { kind: 'run-in-terminal', argv: [executable.path, 'acp', '--gemini-dir', geminiDir, '--login'] } };
@@ -116,15 +124,7 @@ export function createAntigravityProvider(runtime: PluginRuntime): ProviderPlugi
         checkWorkspace: (cwd, signal) => checkWorkspace(runtime.runCommand, cwd, signal),
         platformReason: platformReason(runtime.platform),
         breach: () => breach,
-        onBreach: (reason) => {
-          breach ??= reason;
-          const daemon = live?.daemon;
-          setTimeout(() => {
-            daemon?.close().catch((error: unknown) => {
-              console.error('provider-antigravity: could not end the daemon after agy broke the read-only rules', error);
-            });
-          }, 0);
-        },
+        fenced: fenced.promise,
         home: runtime.env.HOME ?? null,
       }),
   });

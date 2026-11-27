@@ -1,18 +1,14 @@
 import type { TurnChunk } from '@morrowbot/plugin-sdk';
 import { ConfigOptionUpdate, ContentChunk, ModeUpdate, selectOf, ToolCall } from './protocol.ts';
 import { describeTool } from './tool-input.ts';
+import type { Breach } from './tripwire.ts';
 
 /** agy's mode that asks before every edit and command (`approval-required`). */
 export const ASKING_MODE = 'default';
+/** A mode update MorrowBot cannot read counts as leaving Default mode. */
+const UNREADABLE = 'an unreadable mode';
 
-/** Tool kinds that change something. MorrowBot never allows one, so a finished one ran without asking. */
-const CHANGING = new Set(['edit', 'delete', 'move', 'execute', 'switch_mode']);
 const ENDED = new Set(['completed', 'failed']);
-
-/** Why the turn must stop at once: agy did something a read-only turn never allows. */
-export type Breach =
-  | { readonly kind: 'unasked-change'; readonly tool: string }
-  | { readonly kind: 'mode-changed'; readonly mode: string };
 
 export interface SessionStream {
   /** Hears one `session/update`. */
@@ -22,12 +18,15 @@ export interface SessionStream {
    * counted: one can be read after a later update, so only updates keep agy's order.
    */
   mode(): string | null;
+  /** Forgets the mode heard so far: called just before MorrowBot asks agy for Default mode. */
+  forgetMode(): void;
 }
 
 export interface StreamOptions {
   readonly home: string | null;
   readonly emit: (chunk: TurnChunk) => void;
-  readonly onBreach: (breach: Breach) => void;
+  /** Hears agy leave Default mode. Changes finished without asking are the daemon's tripwire's. */
+  readonly onBreach: (breach: Extract<Breach, { kind: 'mode-changed' }>) => void;
 }
 
 /** Turns one session's updates into turn chunks: reply text, Thinking, and each tool call's start and end. */
@@ -58,7 +57,6 @@ export function createSessionStream(options: StreamOptions): SessionStream {
     if (status === null || status === undefined || !ENDED.has(status) || entry.ended) return;
     entry.ended = true;
     emit({ kind: 'tool-end', toolUseId: toolCallId, outcome: status === 'completed' ? 'ok' : 'error' });
-    if (status === 'completed' && CHANGING.has(entry.kind ?? '')) breach({ kind: 'unasked-change', tool: describeTool(entry.kind, entry.title, home).label });
   };
 
   return {
@@ -83,13 +81,13 @@ export function createSessionStream(options: StreamOptions): SessionStream {
           return;
         case 'config_option_update': {
           const parsed = ConfigOptionUpdate.safeParse(update);
-          const reported = parsed.success ? selectOf(parsed.data.configOptions, 'mode') : null;
-          if (reported !== null) heardMode(reported.current);
+          if (!parsed.success) heardMode(UNREADABLE);
+          else if (parsed.data.configOptions.some((option) => option.id === 'mode')) heardMode(selectOf(parsed.data.configOptions, 'mode')?.current ?? UNREADABLE);
           return;
         }
         case 'current_mode_update': {
           const parsed = ModeUpdate.safeParse(update);
-          if (parsed.success) heardMode(parsed.data.currentModeId);
+          heardMode(parsed.success ? parsed.data.currentModeId : UNREADABLE);
           return;
         }
         default:
@@ -97,5 +95,8 @@ export function createSessionStream(options: StreamOptions): SessionStream {
       }
     },
     mode: () => mode,
+    forgetMode: () => {
+      mode = null;
+    },
   };
 }

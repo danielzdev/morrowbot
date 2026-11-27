@@ -4,7 +4,7 @@ import type { ModelCatalog } from './models.ts';
 import { APPROVAL_CHOICES, decide, permissionResult } from './permission.ts';
 import { PromptResponse, type PermissionRequest } from './protocol.ts';
 import { closeSession, configureSession, openSession, vendorError } from './session.ts';
-import { ASKING_MODE, createSessionStream, type Breach } from './session-stream.ts';
+import { ASKING_MODE, createSessionStream } from './session-stream.ts';
 import { tilde } from './tool-input.ts';
 import type { WorkspaceCheck } from './workspace.ts';
 
@@ -22,8 +22,8 @@ export interface TurnDeps {
   readonly platformReason: string | null;
   /** Why turns are no longer offered in this run, or null. */
   readonly breach: () => string | null;
-  /** Records why no more turns run, and ends the daemon with every turn on it. */
-  readonly onBreach: (reason: string) => void;
+  /** Settles with that reason when agy breaks the read-only rules in any turn. */
+  readonly fenced: Promise<string>;
   readonly home: string | null;
 }
 
@@ -52,7 +52,16 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
     sessionTouched: more.sessionTouched,
     finalText: null,
   });
-  const refuse = (error: ProviderError, sessionTouched = false): TurnEnd => ended(stopped() ? { kind: 'cancelled' } : { kind: 'failed', error }, { sessionTouched });
+  const fence = (): ProviderError | null => {
+    const reason = deps.breach();
+    return reason === null ? null : { kind: 'access-not-supported', reason };
+  };
+  /** A refusal; once agy broke the read-only rules, that is the reason, even after Stop. */
+  const refuse = (error: ProviderError, sessionTouched = false): TurnEnd => {
+    const fenced = fence();
+    if (fenced !== null) return ended({ kind: 'failed', error: fenced }, { sessionTouched });
+    return ended(stopped() ? { kind: 'cancelled' } : { kind: 'failed', error }, { sessionTouched });
+  };
   const abort = new Promise<'stopped'>((resolveStop) => {
     if (stopped()) resolveStop('stopped');
     else signal.addEventListener('abort', () => { resolveStop('stopped'); }, { once: true });
@@ -66,31 +75,20 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
   const { daemon } = live;
 
   let armed = false;
-  let breached: string | null = null;
-  const fenced = Promise.withResolvers<null>();
+  let over = false;
   let sessionId: string | null = null;
   const cancelPrompt = (): void => {
-    if (sessionId !== null) daemon.notify('session/cancel', { sessionId });
-  };
-  const breach = (found: Breach): void => {
-    if (breached !== null) return;
-    breached = breachReason(found, daemon.version);
-    fenced.resolve(null);
-    emit({ kind: 'status', text: breached });
-    cancelPrompt();
-    deps.onBreach(breached);
+    if (sessionId !== null && daemon.alive()) daemon.notify('session/cancel', { sessionId });
   };
   const stream = createSessionStream({
     home: deps.home,
     emit,
     onBreach: (found) => {
-      if (armed) breach(found);
+      if (armed) daemon.breach(found);
     },
   });
-  /** Why nothing more is allowed: this or another turn saw agy break the read-only rules. */
-  const whyRefusing = (): string | null => breached ?? deps.breach();
   /** No answer allows anything once agy broke the rules, or after Stop. */
-  const refusing = (): boolean => stopped() || whyRefusing() !== null;
+  const refusing = (): boolean => stopped() || deps.breach() !== null;
   const answer = async (asked: PermissionRequest): Promise<unknown> => {
     const decision = decide(asked, deps.home);
     if (decision.kind === 'deny') {
@@ -98,7 +96,7 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
       return permissionResult(asked.options, null, stopped());
     }
     if (refusing()) return permissionResult(asked.options, null, true);
-    const chosen = await Promise.race([context.ask({ summary: `Antigravity wants to ${decision.summary}`, choices: APPROVAL_CHOICES }), fenced.promise]);
+    const chosen = await Promise.race([context.ask({ summary: `Antigravity wants to ${decision.summary}`, choices: APPROVAL_CHOICES }), deps.fenced.then(() => null)]);
     return refusing() ? permissionResult(asked.options, null, true) : permissionResult(asked.options, chosen, false);
   };
   const handlers: SessionHandlers = {
@@ -109,6 +107,7 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
     onRefused: (method) => {
       emit({ kind: 'status', text: `Refused Antigravity's ${method}: MorrowBot runs it read-only.` });
     },
+    replaying: () => false,
   };
 
   const opening = openSession(daemon, request.cwd, request.session, handlers);
@@ -132,9 +131,18 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
   sessionId = opened.sessionId;
   live.signedOut = false;
   live.tier = opened.tier ?? live.tier;
+  deps.fenced
+    .then((reason) => {
+      if (over) return;
+      emit({ kind: 'status', text: reason });
+      cancelPrompt();
+    })
+    .catch((error: unknown) => {
+      console.error('provider-antigravity: could not stop a turn after agy broke the read-only rules', error);
+    });
   try {
     const before = live.catalog.models();
-    const setup = { selection: request.selection, catalog: live.catalog, fresh: opened.isNew };
+    const setup = { selection: request.selection, catalog: live.catalog, fresh: opened.isNew, forgetMode: () => { stream.forgetMode(); } };
     const configured = await unlessStopped(configureSession(daemon, opened.sessionId, opened.options, setup));
     const after = live.catalog.models();
     if (after !== null && after !== before) emit({ kind: 'model-options-changed', models: [...after] });
@@ -145,11 +153,16 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
     }
     armed = true;
     const mode = stream.mode();
-    if (mode !== null && mode !== ASKING_MODE) breach({ kind: 'mode-changed', mode });
-    const fence = whyRefusing();
-    if (fence !== null) return refuse({ kind: 'access-not-supported', reason: fence });
+    if (mode !== null && mode !== ASKING_MODE) daemon.breach({ kind: 'mode-changed', mode });
+    const fenceBefore = fence();
+    if (fenceBefore !== null) return refuse(fenceBefore);
+    const again = await unlessStopped(deps.checkWorkspace(request.cwd, signal));
+    if (again === 'stopped') return ended({ kind: 'cancelled' }, { sessionTouched: false });
+    const changed = workspaceError(again, deps.home) ?? fence();
+    if (changed !== null) return refuse(changed);
     return await prompt(opened.sessionId, configured.model);
   } finally {
+    over = true;
     opened.detach();
     closeSession(daemon, opened.sessionId);
   }
@@ -158,11 +171,12 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
     signal.addEventListener('abort', cancelPrompt, { once: true });
     try {
       if (stopped()) return ended({ kind: 'cancelled' }, { sessionTouched: false });
-      const reply = await Promise.race([daemon.call('session/prompt', { sessionId: id, prompt: [{ type: 'text', text: promptText(request) }] }, PromptResponse, PROMPT_MS), fenced.promise]);
+      const reply = await Promise.race([daemon.call('session/prompt', { sessionId: id, prompt: [{ type: 'text', text: promptText(request) }] }, PromptResponse, PROMPT_MS), deps.fenced.then(() => null)]);
       const touched = { actualModel: model, sessionTouched: true };
-      if (reply === null || breached !== null) {
+      const fenceNow = fence();
+      if (reply === null || fenceNow !== null) {
         const usage: TurnUsage = reply?.kind === 'ok' ? usageOf(reply.value) : { kind: 'unavailable' };
-        return ended({ kind: 'failed', error: { kind: 'access-not-supported', reason: breached ?? 'Antigravity broke the read-only rules.' } }, { ...touched, usage });
+        return ended({ kind: 'failed', error: fenceNow ?? { kind: 'access-not-supported', reason: 'Antigravity broke the read-only rules.' } }, { ...touched, usage });
       }
       switch (reply.kind) {
         case 'ok':
@@ -202,23 +216,30 @@ async function preflight(request: TurnRequest, deps: TurnDeps, signal: AbortSign
   if (breach !== null) return refused({ kind: 'access-not-supported', reason: breach });
   const cli = await deps.checkCli(request.cwd);
   if (cli !== null) return refused(cli);
-  const workspace = await deps.checkWorkspace(request.cwd, signal);
-  switch (workspace.kind) {
-    case 'clear':
-      break;
-    case 'customized':
-      return refused({
-        kind: 'access-not-supported',
-        reason: `Antigravity runs the hooks in ${tilde(workspace.folder, deps.home)} (and its plugins and MCP servers) without asking (checked on agy 1.5.18), so MorrowBot cannot run it read-only there. Move that folder out of the workspace to chat with Antigravity.`,
-      });
-    case 'unknown':
-      return refused({ kind: 'access-not-supported', reason: workspace.reason });
-  }
+  const workspace = workspaceError(await deps.checkWorkspace(request.cwd, signal), deps.home);
+  if (workspace !== null) return refused(workspace);
+  const late = deps.breach();
+  if (late !== null) return refused({ kind: 'access-not-supported', reason: late });
   const live = deps.live();
   if (live?.daemon.alive() !== true) return refused({ kind: 'transient', retryAfterMs: null });
   if (request.expectedAccountKey !== '') return refused(request.expectedRouteKey === '' ? { kind: 'account-changed' } : { kind: 'route-changed' });
   if (request.expectedRouteKey !== '') return refused({ kind: 'route-changed' });
   return { kind: 'ok', live };
+}
+
+/** Why agy cannot run read-only in the workspace, or null when it can. */
+function workspaceError(check: WorkspaceCheck, home: string | null): ProviderError | null {
+  switch (check.kind) {
+    case 'clear':
+      return null;
+    case 'customized':
+      return {
+        kind: 'access-not-supported',
+        reason: `Antigravity runs the hooks in ${tilde(check.folder, home)} (and its plugins and MCP servers) without asking (checked on agy 1.5.18), so MorrowBot cannot run it read-only there. Move that folder out of the workspace to chat with Antigravity.`,
+      };
+    case 'unknown':
+      return { kind: 'access-not-supported', reason: check.reason };
+  }
 }
 
 /** How agy's `stopReason` ends the turn. `cancelled` only when the host asked to stop. */
@@ -249,12 +270,6 @@ export function usageOf(response: PromptResponse): TurnUsage {
     outputTokens: usage.outputTokens,
     reasoningTokens: usage.thoughtTokens ?? null,
   };
-}
-
-function breachReason(breach: Breach, version: string | null): string {
-  const agy = version === null ? 'agy' : `agy ${version}`;
-  const what = breach.kind === 'unasked-change' ? `ran "${breach.tool}" without asking` : `left its Default mode for "${breach.mode}"`;
-  return `Antigravity (${agy}) ${what}. MorrowBot ended it and offers no Antigravity turns until the provider restarts.`;
 }
 
 /** A seeded new session gets the earlier conversation (the host's `<user>` / `<assistant>` blocks) before the prompt. */

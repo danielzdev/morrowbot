@@ -1,8 +1,9 @@
 import { readOptionalFile, z, type ApprovalAnswer, type TurnChunk } from '@morrowbot/plugin-sdk';
 import { expect, it } from 'vitest';
 import { decide, permissionResult } from './permission.ts';
-import { PermissionRequest, PromptResponse } from './protocol.ts';
-import { createSessionStream, type Breach } from './session-stream.ts';
+import { PermissionRequest, PromptResponse, SessionNotification } from './protocol.ts';
+import { createSessionStream } from './session-stream.ts';
+import { createTripwire, type Breach } from './tripwire.ts';
 import { outcomeOf, usageOf } from './turn.ts';
 
 /** Recorded from agy 1.5.18 in a folder `/work/ws2` with every permission denied; paths and ids redacted. */
@@ -15,7 +16,7 @@ async function fixture(name: string): Promise<string> {
 const Message = z.looseObject({ id: z.unknown().optional(), method: z.string().optional(), params: z.looseObject({ update: z.unknown().optional() }).optional(), result: z.unknown().optional() });
 
 /**
- * Replays one recorded prompt: each `session/update` through the stream, each permission request
+ * Replays one recorded prompt: each `session/update` through the stream and the tripwire, each permission request
  * through the read-only policy (answering Deny where a card would be shown), and the prompt's reply.
  */
 async function replay(name: string): Promise<unknown> {
@@ -24,10 +25,15 @@ async function replay(name: string): Promise<unknown> {
   const permissions: unknown[] = [];
   let end: unknown = null;
   const stream = createSessionStream({ home: '/work', emit: (chunk) => chunks.push(chunk), onBreach: (breach) => breaches.push(breach) });
+  const tripwire = createTripwire('/work', (breach) => breaches.push(breach));
   const lines = (await fixture(name)).split('\n').filter((line) => line !== '');
   for (const line of lines) {
     const message = Message.parse(JSON.parse(line));
-    if (message.method === 'session/update') stream.hear(message.params?.update);
+    if (message.method === 'session/update') {
+      const { sessionId, update } = SessionNotification.parse(message.params);
+      tripwire.hear(sessionId, update);
+      stream.hear(update);
+    }
     else if (message.method === 'session/request_permission') {
       const request = PermissionRequest.parse(message.params);
       const decision = decide(request, '/work');

@@ -1,6 +1,7 @@
 import type { JsonRpcProcess, StartJsonRpcProcess, z } from '@morrowbot/plugin-sdk';
 import { InitializeResponse, PermissionRequest, SessionNotification, SessionScoped } from './protocol.ts';
 import { refusal } from './permission.ts';
+import { breachReason, createTripwire, type Breach } from './tripwire.ts';
 
 /** Under the host's 30 s provider-info deadline, which starts the daemon. */
 const INITIALIZE_MS = 25_000;
@@ -22,6 +23,8 @@ export interface SessionHandlers {
   readonly onPermission: (request: PermissionRequest) => Promise<unknown>;
   /** The daemon refused a request of agy's own (a file write, a terminal) for this session. */
   readonly onRefused: (method: string) => void;
+  /** Whether agy is replaying the session's saved history, which the tripwire does not count. */
+  readonly replaying: () => boolean;
 }
 
 export interface AcpDaemon {
@@ -37,6 +40,19 @@ export interface AcpDaemon {
   /** Hears the daemon exit. */
   readonly exited: Promise<void>;
   close(): Promise<void>;
+  /** agy broke the read-only rules: reports why once, and ends the daemon with every turn on it. */
+  breach(found: Breach): void;
+}
+
+export interface DaemonOptions {
+  readonly cliPath: string;
+  /** Where the daemon runs: the provider's own data folder. */
+  readonly cwd: string;
+  /** MorrowBot's own Antigravity folder, kept apart from the user's `~/.gemini`. */
+  readonly geminiDir: string;
+  readonly home: string | null;
+  /** Hears, once, why this daemon broke the read-only rules, before it ends. */
+  readonly onBreach: (reason: string) => void;
 }
 
 export type DaemonStart = { readonly kind: 'started'; readonly daemon: AcpDaemon } | { readonly kind: 'failed'; readonly reason: string };
@@ -45,10 +61,25 @@ export type DaemonStart = { readonly kind: 'started'; readonly daemon: AcpDaemon
  * Starts `agy acp` as this provider's shared daemon and completes the ACP `initialize` handshake.
  * `geminiDir` is MorrowBot's own Antigravity folder, so agy reads none of the user's settings,
  * permission grants, hooks, plugins or MCP servers; the Google sign-in is shared through the keychain.
+ * Every session's updates go through the tripwire, held by a turn or not.
  */
-export async function startDaemon(jsonRpcProcess: StartJsonRpcProcess, cliPath: string, cwd: string, geminiDir: string): Promise<DaemonStart> {
+export async function startDaemon(jsonRpcProcess: StartJsonRpcProcess, options: DaemonOptions): Promise<DaemonStart> {
+  const { cliPath, cwd, geminiDir } = options;
   const sessions = new Map<string, SessionHandlers>();
   let alive = true;
+  let version: string | null = null;
+  let breached = false;
+  const breach = (found: Breach): void => {
+    if (breached) return;
+    breached = true;
+    options.onBreach(breachReason(found, version));
+    setTimeout(() => {
+      close().catch((error: unknown) => {
+        console.error('provider-antigravity: could not end the daemon after agy broke the read-only rules', error);
+      });
+    }, 0);
+  };
+  const tripwire = createTripwire(options.home, breach);
   const refuse = (method: string, params: unknown, why: string): Promise<never> => {
     const scoped = SessionScoped.safeParse(params);
     if (scoped.success) sessions.get(scoped.data.sessionId)?.onRefused(method);
@@ -62,7 +93,11 @@ export async function startDaemon(jsonRpcProcess: StartJsonRpcProcess, cliPath: 
     onNotification: (method, params) => {
       if (method !== 'session/update') return;
       const notification = SessionNotification.safeParse(params);
-      if (notification.success) sessions.get(notification.data.sessionId)?.onUpdate(notification.data.update);
+      if (!notification.success) return;
+      const { sessionId, update } = notification.data;
+      const handlers = sessions.get(sessionId);
+      if (handlers?.replaying() !== true) tripwire.hear(sessionId, update);
+      handlers?.onUpdate(update);
     },
     onRequest: (method, params) => {
       if (method === 'session/request_permission') {
@@ -109,10 +144,11 @@ export async function startDaemon(jsonRpcProcess: StartJsonRpcProcess, cliPath: 
     return { kind: 'failed', reason: hello.kind === 'error' ? `Antigravity refused to start: ${hello.message}` : hello.reason };
   }
   const capabilities = hello.value.agentCapabilities;
+  version = hello.value.agentInfo?.version ?? null;
   return {
     kind: 'started',
     daemon: {
-      version: hello.value.agentInfo?.version ?? null,
+      version,
       canLoad: capabilities?.loadSession === true,
       canClose: capabilities?.sessionCapabilities?.close !== undefined,
       alive: () => alive,
@@ -128,6 +164,7 @@ export async function startDaemon(jsonRpcProcess: StartJsonRpcProcess, cliPath: 
       },
       exited,
       close,
+      breach,
     },
   };
 }

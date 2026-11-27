@@ -31,14 +31,16 @@ filtered out, for the day agy names an account.
   approval card, "Allow once" or "Deny". `allow_always` is never chosen;
 - requests from agy to write a file or run a terminal through MorrowBot (`fs/write_text_file`,
   `terminal/*`) are refused, and the client offers neither;
-- a turn is refused, before any session opens, in a workspace that has one of agy's own
-  customization folders (`.agents`, `.agent`, `_agents`, `_agent`), there or in a folder above it up
-  to its git root. agy runs the hooks, plugins and MCP servers in them without asking, even with its
-  own `--gemini-dir` (checked on agy 1.5.18);
-- if agy reports an edit or command that finished without asking, or leaves Default mode (during a
-  turn, or while MorrowBot sets the session up), the turn fails (`access-not-supported`), the
-  daemon ends at once with every turn on it, and the profile is withheld until the provider
-  restarts. An open approval card is withdrawn and a late answer allows nothing.
+- a turn is refused in a workspace that has one of agy's own customization folders (`.agents`,
+  `.agent`, `_agents`, `_agent`), there or in a folder above it up to its git root, on its path as
+  given or its real path. agy runs the hooks, plugins and MCP servers in them without asking, even
+  with its own `--gemini-dir` (checked on agy 1.5.18). The check runs before the session opens and
+  again just before the prompt; a folder another program adds during the turn is not seen;
+- if agy reports an edit or command that finished without asking, in any session on the daemon
+  (even one MorrowBot has not finished setting up), or a session leaves Default mode, every turn on
+  the daemon fails at once (`access-not-supported`), the daemon ends, and the profile is withheld
+  until the provider restarts, with no new daemon started. Open approval cards are withdrawn and a
+  late answer allows nothing. A change agy reports only as `failed`, or not at all, is not seen.
 
 **Held back** (checked on agy 1.5.18, shown on the Plugins page):
 
