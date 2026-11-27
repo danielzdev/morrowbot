@@ -5,10 +5,16 @@ import { Store } from '../../shared/store.ts';
 import { COMPLETED_MS, nextActivity, type ChatActivity } from './activity.ts';
 import { openThreadSession, type ThreadSession } from './thread-session.ts';
 
+/** What one chat of an agent is doing. */
+export interface ThreadActivity {
+  readonly agentId: string;
+  readonly activity: ChatActivity;
+}
+
 /** The open chats. Each keeps its draft while the user switches tabs, and all reload after a host restart. */
 export interface ChatHub {
-  /** What each open chat is doing; a chat that is not open is idle. */
-  readonly activity: Store<Readonly<Record<string, ChatActivity>>>;
+  /** What each open chat is doing, by chat id; a chat that is not open, or did not load, is idle. */
+  readonly activity: Store<Readonly<Record<string, ThreadActivity>>>;
   /** The chat's session, opened and loaded on first use. */
   session(threadId: string): ThreadSession;
   /** Loads every open chat again, e.g. after a process group was released elsewhere. */
@@ -30,11 +36,12 @@ export function createChatHub(options: ChatHubOptions): ChatHub {
   const sessions = new Map<string, ThreadSession>();
   const watching = new Map<string, () => void>();
   const completed = new Map<string, ReturnType<typeof setTimeout>>();
-  const activity = new Store<Readonly<Record<string, ChatActivity>>>({});
-  const setActivity = (threadId: string, next: ChatActivity | undefined): void => {
-    if (activity.get()[threadId] === next) return;
-    activity.update((current) => {
-      const others = Object.fromEntries(Object.entries(current).filter(([key]) => key !== threadId));
+  const activity = new Store<Readonly<Record<string, ThreadActivity>>>({});
+  const setActivity = (threadId: string, next: ThreadActivity | undefined): void => {
+    const current = activity.get()[threadId];
+    if (current?.agentId === next?.agentId && current?.activity === next?.activity) return;
+    activity.update((all) => {
+      const others = Object.fromEntries(Object.entries(all).filter(([key]) => key !== threadId));
       return next === undefined ? others : { ...others, [threadId]: next };
     });
   };
@@ -47,19 +54,29 @@ export function createChatHub(options: ChatHubOptions): ChatHub {
     watching.set(
       threadId,
       session.screen.subscribe(({ view }) => {
-        if (view.kind !== 'loaded') return;
-        const next = nextActivity(activity.get()[threadId], view.value);
+        switch (view.kind) {
+          case 'loading':
+            return;
+          case 'failed':
+            settle(threadId);
+            setActivity(threadId, undefined);
+            return;
+          case 'loaded':
+            break;
+        }
+        const { agentId } = view.value.thread;
+        const next = nextActivity(activity.get()[threadId]?.activity, view.value);
         if (next !== 'completed') settle(threadId);
         else if (!completed.has(threadId)) {
           completed.set(
             threadId,
             setTimeout(() => {
               completed.delete(threadId);
-              setActivity(threadId, 'idle');
+              setActivity(threadId, { agentId, activity: 'idle' });
             }, options.completedMs ?? COMPLETED_MS),
           );
         }
-        setActivity(threadId, next);
+        setActivity(threadId, { agentId, activity: next });
       }),
     );
   };

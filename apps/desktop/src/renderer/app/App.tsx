@@ -8,14 +8,13 @@ import {
   NewAgent,
   Sidebar,
   type AgentsModel,
-  type AgentsState,
   type AvatarEditor,
   type Page,
   type ProviderOption,
 } from '../features/agents/index.ts';
 import { AvatarPicker, BotAvatar, combineActivity, freshAvatar, motionOf, type AvatarMotion } from '../features/avatar/index.ts';
 import { AccessNotes, AccessPicker, bindTo, ModelPicker, type BoundProvider } from '../features/binding/index.ts';
-import { ChatView, Composer, createChatHub, type ChatActivity, type ChatHub } from '../features/chat/index.ts';
+import { ChatView, Composer, createChatHub, type ChatHub, type ThreadActivity } from '../features/chat/index.ts';
 import { createPluginsModel, PluginsPage, summarize, type PluginCard, type PluginsModel } from '../features/plugins/index.ts';
 import { createApi } from '../shared/api.ts';
 import { useStore } from '../shared/use-store.ts';
@@ -74,10 +73,8 @@ function createModels(bridge: MorrowbotBridge): Models {
 }
 
 /** How an agent's avatar moves: by what the busiest of its open chats is doing. */
-function motionOfAgent(agents: AgentsState, activity: Readonly<Record<string, ChatActivity>>, agentId: string): AvatarMotion {
-  const threads = agents.threads[agentId];
-  const ids = threads?.kind === 'loaded' ? threads.value.map(({ id }) => id) : [];
-  return motionOf(combineActivity(ids.map((id) => activity[id] ?? 'idle')));
+function motionOfAgent(activity: Readonly<Record<string, ThreadActivity>>, agentId: string): AvatarMotion {
+  return motionOf(combineActivity(Object.values(activity).filter((each) => each.agentId === agentId).map((each) => each.activity)));
 }
 
 const avatarEditor: AvatarEditor = (value, onChange) => <AvatarPicker value={value} onChange={onChange} />;
@@ -120,7 +117,7 @@ function ChatPane(props: { readonly models: Models; readonly agent: Agent; reado
   return (
     <div class="main">
       <header class="main-header">
-        <BotAvatar avatar={agent.avatar} motion={motionOfAgent(state, activity, agent.id)} size={40} />
+        <BotAvatar avatar={agent.avatar} motion={motionOfAgent(activity, agent.id)} size={40} />
         <div class="title">
           <strong>{agent.name}</strong>
           {agent.description !== '' && <span class="muted">{agent.description}</span>}
@@ -201,7 +198,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
             providers={providers}
             bindingFor={bindingFor}
             avatarEditor={avatarEditor}
-            initialAvatar={freshAvatar()}
+            newAvatar={freshAvatar}
             onCreated={() => {
               setPage({ kind: 'chat' });
             }}
@@ -240,7 +237,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
         model={models.agents}
         page={page}
         onPage={setPage}
-        avatar={(each) => <BotAvatar avatar={each.avatar} motion={motionOfAgent(state, activity, each.id)} size={28} />}
+        avatar={(each) => <BotAvatar avatar={each.avatar} motion={motionOfAgent(activity, each.id)} size={28} />}
       />
       <div class="content">
         {state.problem !== null && (

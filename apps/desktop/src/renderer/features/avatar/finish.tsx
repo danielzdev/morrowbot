@@ -18,7 +18,8 @@ export function hasFilter(finish: AvatarFinish): boolean {
   return finish === 'matte' || finish === 'metallic';
 }
 
-const REGION = { x: '-25%', y: '-25%', width: '150%', height: '150%' };
+/** Room for the engine's ribbons, which sweep well outside the body while working or celebrating. */
+const REGION = { x: '-60%', y: '-60%', width: '220%', height: '220%' };
 
 /**
  * Lights the flat body as a raised surface from its own outline: a blurred alpha is the height,

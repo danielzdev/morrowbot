@@ -60,6 +60,8 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
   let threadSeq = 0;
   /** The latest thread-list request per agent; a reply to an older one, or one sent before a full load, is dropped. */
   const threadLoads = new Map<string, number>();
+  /** Each agent's updates go to the host one at a time, in order, so the last one asked for is the one kept. */
+  const updates = new Map<string, Promise<unknown>>();
   const state = new Store<AgentsState>({ agents: { kind: 'loading' }, selectedAgentId: null, threads: {}, openThread: {}, problem: null });
   const patch = (change: Partial<AgentsState>): void => {
     state.update((current) => ({ ...current, ...change }));
@@ -147,10 +149,18 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
       }
       return saved(result, (agent) => agent);
     },
-    updateAgent: async (id, request) => {
-      const result = await api.updateAgent(id, request);
-      if (result.kind === 'ok') replaceAgent(result.value);
-      return saved(result, (agent) => agent);
+    updateAgent: (id, request) => {
+      const run = async (): Promise<Saved<Agent>> => {
+        const result = await api.updateAgent(id, request);
+        if (result.kind === 'ok') replaceAgent(result.value);
+        return saved(result, (agent) => agent);
+      };
+      const next = (updates.get(id) ?? Promise.resolve()).then(run, run);
+      updates.set(id, next);
+      void next.finally(() => {
+        if (updates.get(id) === next) updates.delete(id);
+      });
+      return next;
     },
     deleteAgent: async (id) => {
       const open = state.get().openThread[id];

@@ -35,12 +35,12 @@ export function NewAgent(props: {
   readonly providers: readonly ProviderOption[];
   readonly bindingFor: (pluginId: string) => ProviderBinding;
   readonly avatarEditor: AvatarEditor;
-  /** The avatar the form starts with. */
-  readonly initialAvatar: AgentAvatar;
+  /** Makes the avatar the form starts with. */
+  readonly newAvatar: () => AgentAvatar;
   readonly onCreated: (agent: Agent) => void;
 }) {
   const [name, setName] = useState('');
-  const [avatar, setAvatar] = useState(props.initialAvatar);
+  const [avatar, setAvatar] = useState(props.newAvatar);
   const [description, setDescription] = useState('');
   const [workspace, setWorkspace] = useState<AgentWorkspaceRequest>({ kind: 'dedicated' });
   const [pluginId, setPluginId] = useState(props.providers[0]?.id ?? NONE);
@@ -169,24 +169,29 @@ export function AgentSettings(props: {
   const [description, setDescription] = useState(agent.description);
   const [avatar, setAvatar] = useState(agent.avatar);
   const [problem, setProblem] = useState<string | null>(null);
-  /** Saves go one at a time, in order, so the last choice is the one that stays. */
-  const saves = useRef<Promise<void>>(Promise.resolve());
   const update = (request: Parameters<AgentsModel['updateAgent']>[1]): void => {
-    const save = (): Promise<void> =>
-      model.updateAgent(agent.id, request).then((result) => {
-        setProblem(result.kind === 'refused' ? result.message : null);
-      });
-    saves.current = saves.current.then(save, save);
+    void model.updateAgent(agent.id, request).then((result) => {
+      setProblem(result.kind === 'refused' ? result.message : null);
+    });
+  };
+  /** The avatar the host has; a refused pick goes back to it, unless a newer pick followed. */
+  const kept = useRef(agent.avatar);
+  kept.current = agent.avatar;
+  const picks = useRef(0);
+  const pickAvatar = (next: AgentAvatar): void => {
+    const mine = ++picks.current;
+    setAvatar(next);
+    void model.updateAgent(agent.id, { avatar: next }).then((result) => {
+      setProblem(result.kind === 'refused' ? result.message : null);
+      if (result.kind === 'refused' && mine === picks.current) setAvatar(kept.current);
+    });
   };
   return (
     <div class="page form">
       <h2>{agent.name}</h2>
       <div class="field">
         <span>Avatar</span>
-        {props.avatarEditor(avatar, (next) => {
-          setAvatar(next);
-          update({ avatar: next });
-        })}
+        {props.avatarEditor(avatar, pickAvatar)}
       </div>
       <label class="field">
         <span>Name</span>

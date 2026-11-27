@@ -1,5 +1,5 @@
 export type { ChatActivity } from './activity.ts';
-export { createChatHub, type ChatHub } from './chat-hub.ts';
+export { createChatHub, type ChatHub, type ThreadActivity } from './chat-hub.ts';
 export { ChatView } from './ChatView.tsx';
 export { Composer } from './Composer.tsx';
 export { describeOutcome, type OutcomeNote } from './outcome.ts';

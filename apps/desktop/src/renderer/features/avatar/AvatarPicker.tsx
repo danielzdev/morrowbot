@@ -3,7 +3,7 @@ import { BotAvatar } from './BotAvatar.tsx';
 import type { AvatarMotion } from './motion.ts';
 import { FINISHES, finishLabel, SHAPES, shapeLabel } from './shapes.ts';
 
-export const COLORS: readonly string[] = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6b7280'];
+const COLORS: readonly string[] = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6b7280'];
 
 /** One change the picker offers. */
 export type AvatarChoice =
@@ -42,13 +42,12 @@ export function AvatarPicker(props: { readonly value: AgentAvatar; readonly onCh
         <BotAvatar avatar={value} motion={PREVIEW} size={112} label={`${shapeLabel(value.shape)} avatar, ${finishLabel(value.finish)}`} />
       </div>
       <div class="avatar-options">
-        <div class="avatar-row" role="radiogroup" aria-label="Shape">
+        <div class="avatar-row" role="group" aria-label="Shape">
           {SHAPES.map((shape) => (
             <button
               type="button"
               key={shape}
-              role="radio"
-              aria-checked={shape === value.shape}
+              aria-pressed={shape === value.shape}
               class={`avatar-tile ${shape === value.shape ? 'selected' : ''}`}
               title={shapeLabel(shape)}
               aria-label={shapeLabel(shape)}
@@ -58,13 +57,12 @@ export function AvatarPicker(props: { readonly value: AgentAvatar; readonly onCh
             </button>
           ))}
         </div>
-        <div class="avatar-row" role="radiogroup" aria-label="Color">
+        <div class="avatar-row" role="group" aria-label="Color">
           {COLORS.map((color) => (
             <button
               type="button"
               key={color}
-              role="radio"
-              aria-checked={color === value.color.toLowerCase()}
+              aria-pressed={color === value.color.toLowerCase()}
               aria-label={color}
               class={`swatch ${color === value.color.toLowerCase() ? 'selected' : ''}`}
               style={{ background: color }}
@@ -80,13 +78,12 @@ export function AvatarPicker(props: { readonly value: AgentAvatar; readonly onCh
             onChange={(event) => { pick({ kind: 'color', color: event.currentTarget.value }); }}
           />
         </div>
-        <div class="segmented" role="radiogroup" aria-label="Finish">
+        <div class="segmented" role="group" aria-label="Finish">
           {FINISHES.map((finish) => (
             <button
               type="button"
               key={finish}
-              role="radio"
-              aria-checked={finish === value.finish}
+              aria-pressed={finish === value.finish}
               class={finish === value.finish ? 'selected' : undefined}
               onClick={() => { pick({ kind: 'finish', finish }); }}
             >

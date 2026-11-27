@@ -53,25 +53,38 @@ it('renders each finish: matte and metallic light the body with a filter of thei
     `);
 });
 
-it('offers every finish in the picker and marks the chosen shape, color and finish', () => {
-  const html = renderToString(h(AvatarPicker, { value: { ...AVATAR, color: '#EC4899', finish: 'metallic' }, onChange: () => undefined }));
-  const finishes = html.slice(html.indexOf('aria-label="Finish"'));
-  expect({
-    checked: [...html.matchAll(/role="radio" aria-checked="true"[^>]*?(?:aria-label="([^"]+)"[^>]*>|>([^<]+)<)/g)].map((match) => match[1] ?? match[2]),
-    finishes: [...finishes.matchAll(/aria-checked="(true|false)"[^>]*>([^<]+)</g)].map((match) => `${String(match[2])}${match[1] === 'true' ? ' (chosen)' : ''}`),
-  }).toMatchInlineSnapshot(`
-    {
-      "checked": [
-        "Mug",
-        "#ec4899",
-        "Metallic",
-      ],
-      "finishes": [
-        "Flat",
-        "Fluffy",
-        "Matte",
-        "Metallic (chosen)",
-      ],
-    }
+/** Each picker button as its name, marked when pressed. */
+function buttons(html: string): string[] {
+  return [...html.matchAll(/<button([^>]*)>([^<]*)/g)].flatMap(([, attributes = '', text]) => {
+    const pressed = /aria-pressed="(true|false)"/.exec(attributes)?.[1];
+    if (pressed === undefined) return [];
+    const name = /aria-label="([^"]+)"/.exec(attributes)?.[1] ?? text;
+    return [`${String(name)}${pressed === 'true' ? ' (chosen)' : ''}`];
+  });
+}
+
+it('offers every shape, color and finish in the picker and marks the chosen ones', () => {
+  expect(buttons(renderToString(h(AvatarPicker, { value: { ...AVATAR, color: '#EC4899', finish: 'metallic' }, onChange: () => undefined })))).toMatchInlineSnapshot(`
+    [
+      "Chat",
+      "Controller",
+      "Barbell",
+      "Mug (chosen)",
+      "Lightbulb",
+      "Sprout",
+      "Watering can",
+      "#6366f1",
+      "#0ea5e9",
+      "#10b981",
+      "#f59e0b",
+      "#ef4444",
+      "#8b5cf6",
+      "#ec4899 (chosen)",
+      "#6b7280",
+      "Flat",
+      "Fluffy",
+      "Matte",
+      "Metallic (chosen)",
+    ]
   `);
 });

@@ -3,7 +3,7 @@ import { afterEach, expect, it } from 'vitest';
 import { startChatFixture, type ChatFixture } from '../../../host/src/testing/chat-fixture.ts';
 import { createAgentsModel } from '../renderer/features/agents/index.ts';
 import { choose, motionOf, type AvatarChoice } from '../renderer/features/avatar/index.ts';
-import { createChatHub, type ChatActivity, type ChatHub } from '../renderer/features/chat/index.ts';
+import { createChatHub, type ChatHub } from '../renderer/features/chat/index.ts';
 import { createApi } from '../renderer/shared/api.ts';
 import { until } from '../renderer/shared/store.ts';
 import { idle, loaded } from './screens.ts';
@@ -31,31 +31,41 @@ function windowOn(chat: ChatFixture): TestWindow {
   return window;
 }
 
-it("moves the avatar with its chat: working while it streams, a celebration when it completes, then rest; a failed turn doesn't celebrate", async () => {
+it("moves the avatar with its chat: working while it streams, a celebration when it completes, then rest; failed and stopped turns don't celebrate", async () => {
   const chat = await host();
   const window = windowOn(chat);
   const hub: ChatHub = createChatHub({ api: createApi(window.bridge), bridge: window.bridge, completedMs: 50 });
   cleanup.push(() => {
     hub.close();
   });
-  const thread = await chat.thread(await chat.agent());
+  const agent = await chat.agent();
+  const thread = await chat.thread(agent);
   const shown: string[] = [];
-  let last: ChatActivity | undefined;
+  let last: string | undefined;
   hub.activity.subscribe((activity) => {
     const now = activity[thread.id];
-    if (now === last) return;
-    last = now;
-    shown.push(now === undefined ? 'closed' : `${now} → ${motionOf(now).state}${motionOf(now).paused ? ' (paused)' : ''}`);
+    const line = now === undefined ? 'closed' : `${now.agentId === agent.id ? '' : 'WRONG AGENT '}${now.activity} → ${motionOf(now.activity).state}${motionOf(now.activity).paused ? ' (paused)' : ''}`;
+    if (line === last) return;
+    last = line;
+    shown.push(line);
   });
   const session = hub.session(thread.id);
   await loaded(session);
+  const rested = () => until(hub.activity, (activity) => activity[thread.id]?.activity === 'idle');
   for (const [text, messages] of [['hi', 2], ['fail', 4]] as const) {
     session.setDraft(text);
     await session.send();
     await idle(session, messages);
-    await until(hub.activity, (activity) => activity[thread.id] === 'idle');
+    await rested();
     shown.push('---');
   }
+  session.setDraft('stall-polite');
+  await session.send();
+  await until(hub.activity, (activity) => activity[thread.id]?.activity === 'streaming');
+  await session.stop();
+  await idle(session, 6);
+  await rested();
+  shown.push('---');
   hub.forget(thread.id);
   expect(shown).toMatchInlineSnapshot(`
     [
@@ -71,12 +81,17 @@ it("moves the avatar with its chat: working while it streams, a celebration when
       "streaming → working",
       "idle → idle (paused)",
       "---",
+      "queued → waiting",
+      "thinking → thinking",
+      "streaming → working",
+      "idle → idle (paused)",
+      "---",
       "closed",
     ]
   `);
 });
 
-it('keeps each agent its own avatar: every picked shape, color and finish is saved and read back from the host', async () => {
+it('keeps each agent its own avatar: picks sent at once are saved in order and read back from the host', async () => {
   const chat = await host();
   const window = windowOn(chat);
   const api = createApi(window.bridge);
@@ -95,13 +110,16 @@ it('keeps each agent its own avatar: every picked shape, color and finish is sav
   ];
   const saved: string[] = [];
   let avatar = planner.avatar;
-  for (const pick of picks) {
+  const sent = picks.map((pick) => {
     avatar = choose(avatar, pick);
-    const result = await model.updateAgent(planner.id, { avatar });
+    return model.updateAgent(planner.id, { avatar });
+  });
+  for (const result of await Promise.all(sent)) {
     saved.push(result.kind === 'saved' ? `${result.value.avatar.shape} ${result.value.avatar.color} ${result.value.avatar.finish}` : result.message);
   }
 
-  const fresh = createAgentsModel({ api: createApi(windowOn(chat).bridge), bridge: window.bridge });
+  const freshWindow = windowOn(chat);
+  const fresh = createAgentsModel({ api: createApi(freshWindow.bridge), bridge: freshWindow.bridge });
   cleanup.push(() => {
     fresh.close();
   });

@@ -6,7 +6,7 @@ import type { AvatarMotion } from './motion.ts';
 import { definitionOf } from './shapes.ts';
 
 /** A resting avatar: no frames until something changes. */
-export const RESTING: AvatarMotion = { state: 'idle', mood: 'neutral', paused: true };
+const RESTING: AvatarMotion = { state: 'idle', mood: 'neutral', paused: true };
 
 function optionsOf(avatar: AgentAvatar, motion: AvatarMotion, label: string): AvatarOptions | undefined {
   const definition = definitionOf(avatar.shape);
@@ -17,7 +17,7 @@ function optionsOf(avatar: AgentAvatar, motion: AvatarMotion, label: string): Av
     material: materialOf(avatar.finish),
     state: motion.state,
     mood: motion.mood,
-    // A paused avatar eases to rest and the engine's shared clock then sleeps; a moving one
+    // A paused avatar snaps to rest and the engine's shared clock then sleeps; a moving one
     // still follows the system's reduced-motion setting.
     reducedMotion: motion.paused ? true : 'system',
     renderer: 'canvas',
