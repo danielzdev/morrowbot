@@ -13,12 +13,19 @@ const escape = (text: string): string => text.replaceAll(/[.*+?^${}()|[\]\\]/g, 
 const EMAIL = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g;
 const SEPARATOR = /[\\/]/;
 
+/** Where text cut at whitespace can stop inside `secret`: `/Volumes/My Disk/sam` gives `/Volumes/My`. */
+const cutsOf = (secret: string): string[] =>
+  [...secret.matchAll(/\s+/g)].map((match) => secret.slice(0, match.index).trimEnd()).filter((head) => head !== '');
+
 /**
  * Makes host or provider text safe to show (spec §9.1): the home path becomes `~`, emails become
- * `<email>`, and the OS user name, as a whole word or path segment, becomes `<user>`.
+ * `<email>`, and the OS user name, as a whole word or path segment, becomes `<user>`. Text cut
+ * with `…` at a space inside the home path or user name hides that part too.
  */
 export function redact(text: string, info: AppInfo): string {
   let safe = text;
+  for (const head of cutsOf(info.homeDir)) safe = safe.replace(new RegExp(`${escape(head)}…$`), '~…');
+  for (const head of cutsOf(info.userName)) safe = safe.replace(new RegExp(`(?<!\\w)${escape(head)}…$`), '<user>…');
   if (info.homeDir !== '') safe = safe.replace(new RegExp(`${escape(info.homeDir)}(?=[\\\\/]|$|[^\\w.-])`, 'g'), '~');
   safe = safe.replace(EMAIL, '<email>');
   if (info.userName !== '') safe = safe.replace(new RegExp(`(?<!\\w)${escape(info.userName)}(?!\\w)`, 'g'), '<user>');

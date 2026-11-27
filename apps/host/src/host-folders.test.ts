@@ -86,7 +86,7 @@ it('files agents into folders, previews their last message, and unfiles them whe
             "kind": "assistant",
             "preview": "hello from pid <pid>:   water
 
-      the   ferns	",
+      the   ferns",
             "threadId": "id-4",
           },
         ],
@@ -131,7 +131,7 @@ it('files agents into folders, previews their last message, and unfiles them whe
             "kind": "assistant",
             "preview": "hello from pid <pid>:   water
 
-      the   ferns	",
+      the   ferns",
             "threadId": "id-4",
           },
         ],

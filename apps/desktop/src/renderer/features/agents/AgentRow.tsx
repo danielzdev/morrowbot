@@ -22,11 +22,13 @@ export function statusText(status: AgentStatus): { readonly text: string; readon
 }
 
 const PREVIEW_CHARS = 160;
+const LETTERS = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 
-/** One line of an already redacted preview: whitespace collapsed, at most 160 characters. */
+/** One line of an already redacted preview: whitespace collapsed, at most 160 letters (emoji kept whole). */
 export function shortPreview(redacted: string): string {
   const line = redacted.replaceAll(/\s+/g, ' ').trim();
-  return line.length <= PREVIEW_CHARS ? line : `${line.slice(0, PREVIEW_CHARS).trimEnd()}…`;
+  const letters = Array.from(LETTERS.segment(line), ({ segment }) => segment);
+  return letters.length <= PREVIEW_CHARS ? line : `${letters.slice(0, PREVIEW_CHARS).join('').trimEnd()}…`;
 }
 
 export interface AgentRowProps {

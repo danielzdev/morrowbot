@@ -21,6 +21,17 @@ it('redacts the home path, emails and the user name as a whole word, keeping oth
   ]);
 });
 
+it('hides a home path or user name cut at one of its spaces', () => {
+  const spaced: AppInfo = { ...INFO, homeDir: 'C:\\Users\\Sam Lee Jr', userName: 'Sam Lee' };
+  expect(['saved to C:\\Users\\Sam…', 'saved to C:\\Users\\Sam Lee…', 'thanks Sam…', 'C:\\Users\\Samuel…', 'Sam is here'].map((text) => redact(text, spaced))).toEqual([
+    'saved to ~…',
+    'saved to ~…',
+    'thanks <user>…',
+    'C:\\Users\\Samuel…',
+    'Sam is here',
+  ]);
+});
+
 it('shows MorrowBot folders and the workspace in full under home, and only the last two segments of any other path', () => {
   expect({
     data: displayPath('/Users/sam/.morrowbot/workspaces/agent-1', INFO),

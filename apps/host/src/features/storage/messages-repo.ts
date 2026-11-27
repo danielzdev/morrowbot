@@ -23,19 +23,18 @@ const MessageRow = z
   .pipe(Message);
 
 const PREVIEW_LENGTH = 400;
-const FETCH_LENGTH = 1000;
 const BLANKS = 'char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279)';
 
 const LastMessageRow = z
-  .object({ agent_id: z.string(), thread_id: z.string(), kind: z.string(), text: z.string(), longer: z.number(), created_at: z.string() })
-  .transform((row) => ({ agentId: row.agent_id, threadId: row.thread_id, kind: row.kind, preview: preview(row.text, row.longer !== 0), at: row.created_at }))
+  .object({ agent_id: z.string(), thread_id: z.string(), kind: z.string(), text: z.string(), created_at: z.string() })
+  .transform((row) => ({ agentId: row.agent_id, threadId: row.thread_id, kind: row.kind, preview: preview(row.text), at: row.created_at }))
   .pipe(LastMessage);
 
-function preview(text: string, longer: boolean): string {
-  if (!longer && text.length <= PREVIEW_LENGTH) return text;
+function preview(text: string): string {
+  if (text.length <= PREVIEW_LENGTH) return text;
   const head = text.slice(0, PREVIEW_LENGTH + 1);
   const end = head.search(/\s\S*$/);
-  return `${end > 0 ? head.slice(0, end) : ''}…`;
+  return `${end > 0 ? head.slice(0, end).trimEnd() : ''}…`;
 }
 
 export interface MessageRepository {
@@ -54,11 +53,11 @@ export function messageRepository(db: DatabaseSync): MessageRepository {
   const get = db.prepare('SELECT * FROM messages WHERE id = ?');
   const listByThread = db.prepare('SELECT * FROM messages WHERE thread_id = ? ORDER BY seq');
   const lastByAgent = db.prepare(
-    `SELECT agent_id, thread_id, kind, substr(body, 1, ${String(FETCH_LENGTH)}) AS text, length(body) > ${String(FETCH_LENGTH)} AS longer, created_at FROM (
-       SELECT t.agent_id, m.thread_id, m.kind, ltrim(m.text, ${BLANKS}) AS body, m.created_at, m.seq,
+    `SELECT agent_id, thread_id, kind, substr(body, 1, ${String(PREVIEW_LENGTH + 1)}) AS text, created_at FROM (
+       SELECT t.agent_id, m.thread_id, m.kind, trim(m.text, ${BLANKS}) AS body, m.created_at, m.seq,
          row_number() OVER (PARTITION BY t.agent_id ORDER BY m.seq DESC) AS rank
        FROM messages m JOIN threads t ON t.id = m.thread_id
-       WHERE trim(m.text, ${BLANKS}) <> ''
+       WHERE length(trim(m.text, ${BLANKS})) > 0
      ) WHERE rank = 1 ORDER BY seq DESC`,
   );
   return {
