@@ -16,7 +16,11 @@ import {
   ApiError,
   ContinueResponse,
   Folder,
+  InviteResponse,
+  MemberList,
   PairedDeviceList,
+  WhoAmI,
+  type CreateInviteRequest,
   PairingCodeResponse,
   PluginEntry,
   PluginList,
@@ -114,6 +118,13 @@ export interface Api {
   listDevices(): Promise<ApiResult<PairedDeviceList>>;
   /** Unpairs a device; the host closes its connections at once. */
   unpairDevice(id: string): Promise<ApiResult<null>>;
+  /** Who this app is on the server: its owner, or a member with the access it was invited with. */
+  whoAmI(): Promise<ApiResult<WhoAmI>>;
+  createInvite(request: CreateInviteRequest): Promise<ApiResult<InviteResponse>>;
+  /** Every member ever invited, revoked ones included. */
+  listMembers(): Promise<ApiResult<MemberList>>;
+  /** Revokes a member; the host closes its connections at once. */
+  revokeMember(id: string): Promise<ApiResult<null>>;
 }
 
 const at = (...segments: readonly string[]): string => `/api/${segments.map(encodeURIComponent).join('/')}`;
@@ -189,6 +200,10 @@ export function createApi(bridge: MorrowbotBridge): Api {
     createPairingCode: (url) => call(PairingCodeResponse, 'POST', at('pairing', 'codes'), url === null ? {} : { url }),
     listDevices: () => call(PairedDeviceList, 'GET', at('pairing', 'devices')),
     unpairDevice: (id) => call(NoContent, 'DELETE', at('pairing', 'devices', id)),
+    whoAmI: () => call(WhoAmI, 'GET', at('me')),
+    createInvite: (request) => call(InviteResponse, 'POST', at('members', 'invites'), request),
+    listMembers: () => call(MemberList, 'GET', at('members')),
+    revokeMember: (id) => call(NoContent, 'DELETE', at('members', id)),
   };
 }
 

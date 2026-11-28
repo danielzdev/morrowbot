@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ImageType, MAX_ATTACHMENTS } from './attachments.ts';
+import { HostTools } from './host-tools.ts';
 import { EntityId, Timestamp } from './ids.ts';
 
 /** How much a turn may change: `full` (unsandboxed shell) is not offered by any v1 provider. */
@@ -257,6 +258,8 @@ export const TurnRequest = z.strictObject({
   prompt: z.string().min(1),
   /** Images the user attached to the prompt, for providers whose models can see them. */
   images: z.array(TurnImage).max(MAX_ATTACHMENTS).default([]),
+  /** MorrowBot's own tools (agent messages, memories) for this turn only. */
+  hostTools: HostTools.default({ kind: 'none' }),
 });
 export type TurnRequest = z.infer<typeof TurnRequest>;
 

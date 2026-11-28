@@ -1,10 +1,8 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
-import type { ApiPairing } from './ports.ts';
+import type { Caller } from './access.ts';
+import type { ApiMembers, ApiPairing } from './ports.ts';
 import { failure, type Reply } from './reply.ts';
-
-/** Who sent a request: the desktop app (this launch's token), a paired device, or nobody known. */
-export type Caller = { readonly kind: 'host' } | { readonly kind: 'device'; readonly deviceId: string } | { readonly kind: 'anonymous' };
 
 export interface Listener {
   readonly hostname: string;
@@ -59,20 +57,14 @@ function hostOf(header: string): string | undefined {
   return url.host;
 }
 
-export function identify(request: IncomingMessage, token: string, pairing: ApiPairing): Caller {
+export function identify(request: IncomingMessage, token: string, pairing: ApiPairing, members: ApiMembers): Caller {
   const given = /^Bearer ([\w-]+)$/i.exec(request.headers.authorization ?? '')?.[1];
   if (given === undefined) return { kind: 'anonymous' };
   if (sameSecret(given, token)) return { kind: 'host' };
   const deviceId = pairing.authenticate(given);
-  return deviceId === undefined ? { kind: 'anonymous' } : { kind: 'device', deviceId };
-}
-
-/** Whether `caller` may use a route with this access. */
-export function admit(access: 'public' | 'host' | 'token', caller: Caller): Reply | undefined {
-  if (access === 'public') return undefined;
-  if (caller.kind === 'anonymous') return failure('unauthorized', 'Missing or wrong token');
-  if (access === 'host' && caller.kind !== 'host') return failure('forbidden', 'Only the desktop app may manage pairing');
-  return undefined;
+  if (deviceId !== undefined) return { kind: 'device', deviceId };
+  const member = members.authenticate(given);
+  return member === undefined ? { kind: 'anonymous' } : { kind: 'member', member };
 }
 
 function sameSecret(given: string, expected: string): boolean {

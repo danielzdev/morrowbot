@@ -13,6 +13,7 @@ export const InitializeResponse = z.looseObject({
     .looseObject({
       loadSession: z.boolean().nullish(),
       sessionCapabilities: z.looseObject({ close: z.unknown().optional() }).nullish(),
+      mcpCapabilities: z.looseObject({ http: z.boolean().nullish() }).nullish(),
     })
     .nullish(),
 });

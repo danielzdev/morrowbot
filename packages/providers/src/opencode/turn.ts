@@ -110,7 +110,7 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
     replaying: () => false,
   };
 
-  const opening = openSession(client, request.cwd, handlers);
+  const opening = openSession(client, request.cwd, request.hostTools, handlers);
   const opened = await unlessStopped(opening);
   if (opened === 'stopped') {
     opening

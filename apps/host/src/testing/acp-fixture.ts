@@ -4,6 +4,7 @@ import path from 'node:path';
 import { StartedSend, type ChatEvent, type ProviderBinding, type Thread } from '@morrowbot/contracts';
 import { z } from 'zod';
 import { startChatFixture, type ChatFixture } from './chat-fixture.ts';
+import { loggedTimes } from './logged.ts';
 import type { Reply, TestHostOptions } from './test-host.ts';
 
 const Logged = z.object({ daemon: z.number(), method: z.string(), params: z.unknown() });
@@ -16,6 +17,8 @@ export interface AcpFixture extends ChatFixture {
   readonly home: string;
   /** Every request and reply the fake daemons got, oldest first. */
   log(): Promise<Logged[]>;
+  /** The log once it holds `method` `count` times: a provider sends its cleanup without waiting for it. */
+  logged(method: string, count: number): Promise<Logged[]>;
   /** What every fake daemon was started with, oldest first. */
   launches(): Promise<Launch[]>;
   /** Merges into the fake's `state.json` at once. */
@@ -69,11 +72,13 @@ export async function startAcpFixture(setup: AcpFixtureSetup, options: Partial<T
   };
   const post = (thread: { readonly id: string }, text: string, sessionChoice: { readonly kind: string } = { kind: 'auto' }): Promise<Reply> =>
     chat.host.call('POST', `/api/threads/${thread.id}/messages`, { text, sessionChoice });
+  const log = async (): Promise<Logged[]> => (await lines('log.jsonl')).map((line) => Logged.parse(line));
   return {
     ...chat,
     home,
     agent: (chosen = binding) => chat.agent(chosen),
-    log: async () => (await lines('log.jsonl')).map((line) => Logged.parse(line)),
+    log,
+    logged: (method, count) => loggedTimes(log, method, count),
     launches: async () => (await lines('launches.jsonl')).map((line) => Launch.parse(line)),
     setState: async (patch) => {
       const now = z.record(z.string(), z.unknown()).parse(JSON.parse(await readFile(stateFile, 'utf8')));

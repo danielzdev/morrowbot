@@ -3,7 +3,7 @@ import { access, chmod, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { Agent, MessageList, StartedSend, Thread, UsageResponse } from '@morrowbot/contracts';
+import { Agent, MemoryList, MessageList, StartedSend, Thread, UsageResponse } from '@morrowbot/contracts';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { CODEX } from '../../testing/codex-fixture.ts';
@@ -107,6 +107,32 @@ describe.skipIf(!LIVE)('provider-openai on your Codex login', () => {
         coldResumeOneTurn: promptTokens(third) > 0 && promptTokens(third) < promptTokens(first) + promptTokens(second) && promptTokens(third) < 1.5 * promptTokens(second),
         usage: usage.usage.kind === 'available' && usage.usage.accountKey === info.accountKey,
       }).toEqual({ info: { kind: 'ready', keyed: true }, wrote: false, shellCalls: 0, outcomes: ['completed', 'completed', 'completed'], canary: true, coldResumeOneTurn: true, usage: true });
+    },
+    TURN_MS,
+  );
+
+  it(
+    "keeps a memory with MorrowBot's remember tool, then finds it with search_memories on the next turn of the resumed thread",
+    async () => {
+      await boot(CODEX_PATH);
+      const { thread } = await agentThread();
+      const saved = await send(thread, 'Call the morrowbot remember tool with the text "The deploy window is Friday". Do nothing else, then reply DONE.');
+      const found = await send(thread, 'Call the morrowbot search_memories tool with the query "deploy window", then reply with the text of the memory it found, or NONE.');
+      const tools = (generationId: string) =>
+        events.received.flatMap((event) => (event.kind === 'generation.tool-start' && event.generationId === generationId ? [event.name] : []));
+      const { memories } = MemoryList.parse((await host.call('GET', `/api/agents/${thread.agentId}/memories`)).body);
+      const said = await replies(thread);
+      expect({
+        tools: [tools(saved), tools(found)],
+        memories: memories.map(({ inclusion, text }) => `${inclusion}: ${text}`),
+        outcomes: said.map((reply) => reply.outcome),
+        recalled: said[1]?.text.includes('Friday'),
+      }).toEqual({
+        tools: [['morrowbot.remember'], ['morrowbot.search_memories']],
+        memories: ['searchable: The deploy window is Friday'],
+        outcomes: ['completed', 'completed'],
+        recalled: true,
+      });
     },
     TURN_MS,
   );

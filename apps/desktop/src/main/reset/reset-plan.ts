@@ -49,7 +49,7 @@ export async function dataPlanOf(context: ResetContext, keychain: Keychain): Pro
   const refusal = dataDirRefusal(context);
   if (refusal !== null) return { kind: 'refused', reason: refusal };
   if (context.workspaces === null) {
-    return { kind: 'refused', reason: "MorrowBot's host isn't running, so it can't check which folders your agents use. Restart MorrowBot and try again." };
+    return { kind: 'refused', reason: "MorrowBot can't list which folders its agents use right now, so it deletes nothing. Make sure this Mac's own server is running (Settings › Server), then try again." };
   }
   const workspaces = workspacesOf(context);
   const steps: ResetStep[] = [];

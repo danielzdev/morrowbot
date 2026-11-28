@@ -39,6 +39,7 @@ function request(session: TurnRequest['session'], prompt: string): TurnRequest {
     system: null,
     prompt,
     images: [],
+    hostTools: { kind: 'none' },
   };
 }
 

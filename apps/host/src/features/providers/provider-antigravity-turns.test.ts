@@ -1,6 +1,5 @@
 import { afterEach, expect, it } from 'vitest';
 import { AGY, type AgyFixture, FAKE_AGY, startAgyFixture, turnMethods } from '../../testing/agy-fixture.ts';
-import { until } from '../../testing/daemon-fixture.ts';
 import { DEFAULT_PLUGIN_TIMEOUTS } from '../../testing/test-host.ts';
 
 let agy: AgyFixture | undefined;
@@ -12,7 +11,6 @@ afterEach(async () => {
   agy = undefined;
 });
 
-const prompts = async (fixture: AgyFixture): Promise<number> => (await fixture.log()).filter((entry) => entry.method === 'session/prompt').length;
 
 function redact(fixture: AgyFixture, value: unknown): unknown {
   return JSON.parse(JSON.stringify(value).replaceAll(FAKE_AGY, '<fake-agy>').replaceAll(fixture.home, '$HOME').replace(/sess-\d+-/g, 'sess-<pid>-'));
@@ -34,14 +32,14 @@ it('Stop sends session/cancel for that turn only, and the other turn keeps runni
   const [stopped, running] = [await fixture.thread(agent, 'A'), await fixture.thread(agent, 'B')];
   await fixture.start(stopped, 'stall');
   const other = await fixture.start(running, 'stall');
-  await until(async () => (await prompts(fixture)) === 2);
+  await fixture.logged('session/prompt', 2);
   const pgids = fixture.daemonPgids();
   const from = (await fixture.log()).length;
   const reply = await fixture.host.call('POST', `/api/threads/${stopped.id}/stop`);
   const stillRunning = fixture.turnEvents(other).every((event) => event.kind !== 'generation.finished');
   await fixture.host.call('POST', `/api/threads/${running.id}/stop`);
   await fixture.events.finished(other);
-  await until(async () => (await fixture.log()).slice(from).filter((entry) => entry.method === 'session/close').length === 2);
+  await fixture.logged('session/close', 2);
   expect(
     redact(fixture, {
       status: reply.status,
@@ -79,7 +77,7 @@ it('a daemon that ignores session/cancel is killed after turnStopMs, the turn en
   const fixture = (agy = await startAgyFixture({ timeouts: { ...DEFAULT_PLUGIN_TIMEOUTS, turnStopMs: 300 } }));
   const thread = await fixture.thread(await fixture.agent());
   const first = await fixture.start(thread, 'ignore-cancel');
-  await until(async () => (await prompts(fixture)) === 1);
+  await fixture.logged('session/prompt', 1);
   const [pgid] = fixture.daemonPgids();
   await fixture.host.call('POST', `/api/threads/${thread.id}/stop`);
   await fixture.events.finished(first);
@@ -148,10 +146,11 @@ it('sets the picked model and thinking level on each new session, and refuses a 
   const fixture = (agy = await startAgyFixture());
   await fixture.send(await fixture.thread(await fixture.agent()), 'hello');
   const flash = await fixture.thread(await fixture.agent({ ...AGY, selection: { kind: 'model', id: 'fake-flash', choices: { thought_level: 'minimal' } } }));
-  const from = (await fixture.log()).length;
+  const from = (await fixture.logged('session/close', 1)).length;
   await fixture.send(flash, 'hello');
-  const sent = turnMethods((await fixture.log()).slice(from)).filter((method) => method !== 'client-reply');
-  const configured = (await fixture.log()).slice(from).filter((entry) => entry.method === 'session/set_config_option').map((entry) => entry.params);
+  const log = (await fixture.logged('session/close', 2)).slice(from);
+  const sent = turnMethods(log).filter((method) => method !== 'client-reply');
+  const configured = log.filter((entry) => entry.method === 'session/set_config_option').map((entry) => entry.params);
   const gone = await fixture.agent({ ...AGY, selection: { kind: 'model', id: 'fake-gone', choices: {} } });
   const refused = await fixture.thread(gone);
   const reply = await fixture.send(refused, 'hello');

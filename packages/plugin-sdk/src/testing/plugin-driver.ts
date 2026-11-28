@@ -103,5 +103,6 @@ export function turnFrame(turnId: string, cwd: string, spec: TurnSpec): HostMess
     system: null,
     prompt: JSON.stringify(spec),
     images: [],
+    hostTools: { kind: 'none' },
   };
 }

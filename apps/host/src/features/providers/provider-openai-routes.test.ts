@@ -1,7 +1,6 @@
 import { StartedSend } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { type CodexFixture, NATIVE, startCodexFixture, turnMethods } from '../../testing/codex-fixture.ts';
-import { until } from '../../testing/daemon-fixture.ts';
 
 let codex: CodexFixture;
 
@@ -36,8 +35,9 @@ it('native → custom runs stateless ephemeral turns with no prompt; custom → 
   await codex.setState(CUSTOM);
   const customFrom = await logLength();
   const custom = [await sendAndWait(thread, 'custom one'), await sendAndWait(thread, 'custom two')];
-  const customStarts = (await codex.log()).slice(customFrom).filter((entry) => entry.method === 'thread/start').map((entry) => entry.params);
-  const customMethods = await methodsSince(customFrom);
+  const customLog = (await codex.logged('thread/unsubscribe', 2)).slice(customFrom);
+  const customStarts = customLog.filter((entry) => entry.method === 'thread/start').map((entry) => entry.params);
+  const customMethods = turnMethods(customLog);
   await codex.setState({ config: NATIVE.config });
   const back = await sendAndWait(thread, 'native again');
   const seeded = await sendAndWait(thread, 'native again', { kind: 'new-seeded' });
@@ -89,7 +89,7 @@ it('a route change between route-info and the turn ends route-changed with nothi
   const agent = await codex.agent();
   const [stalled, changed] = [await codex.thread(agent, 'A'), await codex.thread(agent, 'B')];
   const running = StartedSend.parse((await codex.post(stalled, 'stall')).body).generationId;
-  await until(async () => (await codex.log()).some((entry) => entry.method === 'turn/start'));
+  await codex.logged('turn/start', 1);
   await codex.switchAfter(1, { config: { ...NATIVE.config, chatgpt_base_url: 'https://gateway.example.com/backend-api/' } });
   const from = await logLength();
   const result = await sendAndWait(changed, 'hello');

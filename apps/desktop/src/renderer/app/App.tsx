@@ -1,14 +1,15 @@
 import type { Agent } from '@morrowbot/contracts';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import type { MorrowbotBridge } from '../bridge.ts';
+import type { MorrowbotBridge, ServerMode } from '../bridge.ts';
 import { Sidebar } from '../features/agents/index.ts';
 import { BotAvatar, combineActivity, motionOf } from '../features/avatar/index.ts';
 import { chatMarkdown } from '../features/chat/index.ts';
 import type { PaletteItem } from '../features/palette/index.ts';
 import { pluginAlert } from '../features/plugins/index.ts';
 import { ProvidersSection } from '../features/providers/index.ts';
-import { SettingsModal, type SettingsLink } from '../features/settings/index.ts';
+import { hiddenSections, SettingsModal, type ServerRole, type SettingsLink } from '../features/settings/index.ts';
 import { AppInfo, redact } from '../shared/privacy.ts';
+import { answerProblem } from '../shared/server.ts';
 import { useStore } from '../shared/use-store.ts';
 import { liveFactsOf } from './derive.ts';
 import { createModels } from './models.ts';
@@ -37,8 +38,16 @@ function focusComposer(until = performance.now() + FOCUS_WAIT_MS): void {
   });
 }
 
-export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
+export interface AppProps {
+  readonly bridge: MorrowbotBridge;
+  readonly server: Exclude<ServerMode, { kind: 'choosing' }>;
+  /** A scoped member sees only its shared agents: no New agent, engines, usage or Extensions. */
+  readonly role: ServerRole;
+}
+
+export function App({ bridge, server, role }: AppProps) {
   const models = useMemo(() => createModels(bridge), [bridge]);
+  const owner = role !== 'scoped';
   const [page, setPage] = useState<Page>({ kind: 'chat' });
   const [settings, setSettings] = useState<SettingsLink | null>(null);
   const [filterRequest, setFilterRequest] = useState(0);
@@ -61,8 +70,10 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
   const { notify } = useStore(models.chatPrefs.state);
   useEffect(() => {
     void models.agents.load();
-    void models.providers.load();
-    void models.plugins.load();
+    if (owner) {
+      void models.providers.load();
+      void models.plugins.load();
+    }
     void bridge.appInfo().then((reply) => {
       const parsed = AppInfo.safeParse(reply);
       if (parsed.success) setInfo(parsed.data);
@@ -108,6 +119,11 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
     setInspector((open) => !open);
   };
   useAttention({ models, agentName: agent?.name ?? null, notify, safe, onOpen: openAgent });
+  const newAgent = owner
+    ? () => {
+        setDialog({ kind: 'new-agent', brain: 'prefill' });
+      }
+    : null;
   const newChat = (agentId: string): void => {
     models.agents.selectAgent(agentId);
     setPage({ kind: 'chat' });
@@ -136,13 +152,13 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
       <Shell
         onShortcut={(id) => {
           if (id === 'palette') setPalette(true);
-          if (id === 'usage') openSettings('usage');
+          if (id === 'usage' && owner) openSettings('usage');
           if (id === 'new-chat' && agent !== undefined) newChat(agent.id);
-          if (id === 'new-agent') setDialog({ kind: 'new-agent', brain: 'prefill' });
+          if (id === 'new-agent') newAgent?.();
           if (id === 'binding') setBindingRequest((count) => count + 1);
           if (id === 'settings') openSettings('general');
           if (id === 'filter-agents') setFilterRequest((count) => count + 1);
-          if (id === 'extensions') setPage({ kind: 'extensions' });
+          if (id === 'extensions' && owner) setPage({ kind: 'extensions' });
           if (id === 'find' && page.kind === 'chat') setFindRequest((count) => count + 1);
           if (id === 'inspector' && page.kind === 'chat' && agent !== undefined) toggleInspector();
         }}
@@ -163,10 +179,10 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
             }}
             onNewChat={(agentId) => { newChat(agentId); controls.dismiss(); }}
             onAgentSettings={(agentId) => { setDialog({ kind: 'agent-settings', agentId, section: 'general' }); controls.dismiss(); }}
-            onNewAgent={() => { setDialog({ kind: 'new-agent', brain: 'prefill' }); controls.dismiss(); }}
+            onNewAgent={newAgent === null ? null : () => { newAgent(); controls.dismiss(); }}
             onSettings={() => { openSettings('general'); }}
-            onUsage={() => { openSettings('usage'); }}
-            onExtensions={() => { setPage({ kind: 'extensions' }); controls.dismiss(); }}
+            onUsage={owner ? () => { openSettings('usage'); } : null}
+            onExtensions={owner ? () => { setPage({ kind: 'extensions' }); controls.dismiss(); } : null}
           />
         )}
         main={(chrome) => (
@@ -221,7 +237,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
               approvalFocus={approvalFocus}
               onApprovalFocused={() => { setApprovalFocus(null); }}
               onAgentSettings={(agentId, section) => { setDialog({ kind: 'agent-settings', agentId, section }); }}
-              onNewAgent={() => { setDialog({ kind: 'new-agent', brain: 'prefill' }); }}
+              onNewAgent={newAgent}
               onCopy={copyChat}
               onNewChat={newChat}
               onOpenSettings={openSettings}
@@ -268,6 +284,10 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
           )}
           usage={<UsagePane models={models} />}
           pairing={models.api}
+          members={{ ...models.api, copy: (text) => bridge.copyText(text) }}
+          server={server}
+          chooseServer={async (request) => answerProblem(await bridge.chooseServer(request))}
+          hidden={hiddenSections(server.kind, role)}
         />
       )}
     </>

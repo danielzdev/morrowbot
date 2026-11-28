@@ -1,3 +1,5 @@
+import { HOST_TOOLS_SERVER } from '@morrowbot/contracts';
+import type { HostTools } from '@morrowbot/plugin-sdk';
 import type { CodexDaemon } from './daemon.ts';
 import { HooksList, McpServerStatusList, type CodexConfig, type ThreadOpened } from './protocol.ts';
 
@@ -30,17 +32,18 @@ const TOOL_FEATURES = [
  * What every MorrowBot thread runs with: Codex's read-only sandbox, no approvals, the expected model
  * provider, and none of the user's command, MCP, app, plugin, agent or hook tools. Without its shell
  * tool, read-only Codex runs no command (checked on 0.171: the model reports it has no shell, and
- * nothing is written).
+ * nothing is written). The one MCP server it runs is MorrowBot's own, for this turn (`hostTools`).
  */
 export interface ThreadPolicy {
   readonly sandbox: 'read-only';
   readonly approvalPolicy: 'never';
   readonly modelProvider: string;
   readonly config: Readonly<Record<string, boolean>>;
+  readonly hostTools: HostTools;
 }
 
-export function threadPolicy(config: CodexConfig, modelProvider: string): ThreadPolicy {
-  const servers = Object.keys(config.mcp_servers ?? {}).sort();
+export function threadPolicy(config: CodexConfig, modelProvider: string, hostTools: HostTools): ThreadPolicy {
+  const servers = Object.keys(config.mcp_servers ?? {}).filter((name) => hostTools.kind === 'none' || name !== HOST_TOOLS_SERVER).sort();
   return {
     sandbox: 'read-only',
     approvalPolicy: 'never',
@@ -49,12 +52,33 @@ export function threadPolicy(config: CodexConfig, modelProvider: string): Thread
       ...Object.fromEntries(TOOL_FEATURES.map((name) => [`features.${name}`, false])),
       ...Object.fromEntries(servers.map((name) => [`mcp_servers.${name}.enabled`, false])),
     },
+    hostTools,
   };
 }
 
-/** Two threads loaded with the same key run in the same folder with the same provider, permissions and tools. */
+/**
+ * The `config` overrides a thread opens with: the policy's switches, and MorrowBot's MCP server as a
+ * whole table, so a server of the user's by the same name is replaced, not merged.
+ */
+export function threadConfig(policy: ThreadPolicy): Readonly<Record<string, unknown>> {
+  const tools = policy.hostTools;
+  switch (tools.kind) {
+    case 'none':
+      return policy.config;
+    case 'mcp':
+      return {
+        ...policy.config,
+        [`mcp_servers.${HOST_TOOLS_SERVER}`]: { url: tools.url, http_headers: { Authorization: `Bearer ${tools.token}` }, enabled: true, default_tools_approval_mode: 'approve' },
+      };
+  }
+}
+
+/**
+ * Two threads loaded with the same key run in the same folder with the same provider, permissions and
+ * tools. The key holds the turn's tool token, so a loaded thread is reopened with each turn's own.
+ */
 export function policyKey(policy: ThreadPolicy, cwd: string): string {
-  return JSON.stringify([cwd, policy.sandbox, policy.approvalPolicy, policy.modelProvider, Object.entries(policy.config).sort()]);
+  return JSON.stringify([cwd, policy.sandbox, policy.approvalPolicy, policy.modelProvider, Object.entries(policy.config).sort(), policy.hostTools]);
 }
 
 /** The sandbox policy sent with every `turn/start`. */
@@ -62,7 +86,7 @@ export const READ_ONLY_SANDBOX = { type: 'readOnly', networkAccess: false } as c
 
 /**
  * Checks the daemon's own report that a started or resumed thread runs read-only with no approvals,
- * no MCP server running and no hook. Returns why not, or null.
+ * no MCP server running but MorrowBot's and no hook. Returns why not, or null.
  */
 export async function checkThread(daemon: CodexDaemon, opened: ThreadOpened, policy: ThreadPolicy): Promise<string | null> {
   const { sandbox, approvalPolicy, activePermissionProfile } = opened;
@@ -78,7 +102,8 @@ export async function checkThread(daemon: CodexDaemon, opened: ThreadOpened, pol
     daemon.call('hooks/list', { threadId }, HooksList, CHECK_MS),
   ]);
   if (servers.kind !== 'ok' || servers.value.nextCursor) return 'Codex did not report which MCP servers the thread runs.';
-  const running = servers.value.data.filter((server) => server.runtimeStatus !== 'disabled').map((server) => server.name);
+  const ours = policy.hostTools.kind === 'mcp' ? HOST_TOOLS_SERVER : null;
+  const running = servers.value.data.filter((server) => server.runtimeStatus !== 'disabled' && server.name !== ours).map((server) => server.name);
   if (running.length > 0) return `MorrowBot could not turn off these Codex MCP servers: ${running.join(', ')}.`;
   if (hooks.kind !== 'ok') return 'Codex did not report which hooks the thread runs.';
   if (hooks.value.data.some((entry) => entry.hooks.length > 0)) return 'MorrowBot could not turn off your Codex hooks.';

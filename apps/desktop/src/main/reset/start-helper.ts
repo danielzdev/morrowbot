@@ -1,8 +1,9 @@
 import { spawn } from 'node:child_process';
-import { realpath } from 'node:fs/promises';
+import { access, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { AgentList } from '@morrowbot/contracts';
 import { z } from 'zod';
+import type { ServerMode } from '../../renderer/bridge.ts';
 import { proxyRequest, type HostTarget } from '../ipc-proxy.ts';
 import type { CleanupJob } from './cleanup-job.ts';
 import type { HelperHandle } from './reset-flow.ts';
@@ -54,8 +55,27 @@ export function startCleanupHelper(script: string, job: CleanupJob): Promise<Hel
   });
 }
 
+/**
+ * The agent workspaces a reset must never touch, or null when they cannot be known. With its own host, the host's
+ * agents. Without one (joined a server, or still choosing), a data folder that still holds a local database has local
+ * agents nobody can list, so null; otherwise there are no local agents, and the joined server's list, when it gives
+ * one, is kept too.
+ */
+export async function resetWorkspaces(mode: ServerMode, target: HostTarget | undefined, rendererUrl: string, dataDir: string): Promise<readonly string[] | null> {
+  switch (mode.kind) {
+    case 'local':
+      return hostWorkspaces(target, rendererUrl);
+    case 'remote':
+    case 'choosing': {
+      const localDatabase = await access(path.join(dataDir, 'morrowbot.sqlite')).then(() => true, () => false);
+      if (localDatabase) return null;
+      return mode.kind === 'remote' ? ((await hostWorkspaces(target, rendererUrl)) ?? []) : [];
+    }
+  }
+}
+
 /** Every agent's workspace folder, as given and with links resolved, or null when the host cannot list its agents. */
-export async function hostWorkspaces(host: HostTarget | undefined, rendererUrl: string): Promise<readonly string[] | null> {
+async function hostWorkspaces(host: HostTarget | undefined, rendererUrl: string): Promise<readonly string[] | null> {
   if (host === undefined) return null;
   try {
     const reply = await proxyRequest({

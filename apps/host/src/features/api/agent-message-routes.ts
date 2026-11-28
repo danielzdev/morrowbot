@@ -8,6 +8,7 @@ export function agentMessageRoutes({ agentMessages }: ApiServices): Route[] {
     {
       method: 'GET',
       path: '/api/agents/:id/messages',
+      access: { kind: 'agent', need: 'view' },
       handle: ({ params, query }) => {
         const messages = agentMessages.list(params.get('id'), query.get('threadId'));
         if (messages === undefined) return notFound('Agent or thread');
@@ -18,6 +19,7 @@ export function agentMessageRoutes({ agentMessages }: ApiServices): Route[] {
     {
       method: 'POST',
       path: '/api/agents/:id/messages',
+      access: { kind: 'agent', need: 'chat' },
       handle: async (context) => {
         const request = await parseBody(context, SendAgentMessageRequest);
         if (request.kind === 'rejected') return request.reply;

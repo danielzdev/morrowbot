@@ -5,6 +5,7 @@ import type {
   AttachmentContent,
   BlockedGroup,
   ChatEvent,
+  HostTools,
   Message,
   ProviderInfo,
   Thread,
@@ -132,7 +133,8 @@ export interface AgentDirectory {
   readInstructions(id: string): Promise<string | undefined>;
 }
 
-export type ReplyAnswer = { readonly kind: 'sent' } | { readonly kind: 'refused'; readonly reason: string };
+/** `answered`: the recipient already replied during the turn (with the `send_message` tool), so nothing more is sent. */
+export type ReplyAnswer = { readonly kind: 'sent' } | { readonly kind: 'answered' } | { readonly kind: 'refused'; readonly reason: string };
 
 /** Messages from other agents, each read once in a background turn (the agent-messages feature provides them). */
 export interface AgentInbox {
@@ -211,9 +213,17 @@ export interface TurnContext {
   readAttachment(attachment: Attachment): Promise<AttachmentContent>;
 }
 
+/** MorrowBot's own tools for one turn (the agent-tools feature provides them). */
+export interface TurnTools {
+  /** Tools that act only as the turn's agent, in its chat, until `close` with the same turn id. */
+  open(turn: { readonly turnId: string; readonly agentId: string; readonly threadId: string }): HostTools;
+  close(turnId: string): void;
+}
+
 export interface ChatServiceOptions {
   readonly store: ChatStore;
   readonly agents: AgentDirectory;
+  readonly tools: TurnTools;
   readonly inbox: AgentInbox;
   readonly context: TurnContext;
   readonly plugins: ProviderPlugins;

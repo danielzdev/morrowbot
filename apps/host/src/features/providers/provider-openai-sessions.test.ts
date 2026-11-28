@@ -4,7 +4,6 @@ import { DatabaseSync } from 'node:sqlite';
 import { StartedSend } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { type CodexFixture, NATIVE, startCodexFixture, turnMethods } from '../../testing/codex-fixture.ts';
-import { until } from '../../testing/daemon-fixture.ts';
 
 let codex: CodexFixture;
 
@@ -32,7 +31,7 @@ function tokens(generationId: string): unknown {
 }
 
 function redact(value: unknown): unknown {
-  return JSON.parse(JSON.stringify(value).replaceAll(codex.home, '$HOME'));
+  return JSON.parse(JSON.stringify(value).replaceAll(codex.home, '$HOME').replace(/Bearer [\w-]+/g, 'Bearer <token>').replace(/127\.0\.0\.1:\d+/g, '127.0.0.1:<port>'));
 }
 
 /** The methods sent since the log had `from` entries. */
@@ -58,6 +57,7 @@ it('after Recheck, cold-resumes the thread with its overrides and counts a repla
       "methods": [
         "thread/resume",
         "turn/start",
+        "thread/unsubscribe",
       ],
       "resume": {
         "approvalPolicy": "never",
@@ -77,6 +77,14 @@ it('after Recheck, cold-resumes the thread with its overrides and counts a repla
           "features.shell_tool": false,
           "features.skill_mcp_dependency_install": false,
           "features.unified_exec": false,
+          "mcp_servers.morrowbot": {
+            "default_tools_approval_mode": "approve",
+            "enabled": true,
+            "http_headers": {
+              "Authorization": "Bearer <token>",
+            },
+            "url": "http://127.0.0.1:<port>/mcp",
+          },
           "mcp_servers.node_repl.enabled": false,
         },
         "cwd": "$HOME/data/workspaces/id-1",
@@ -94,10 +102,10 @@ it('after Recheck, cold-resumes the thread with its overrides and counts a repla
   `);
 });
 
-it('cold-loads a loaded thread whose policy changed, and refuses before the prompt when Codex keeps it loaded', async () => {
+it('lets each turn’s thread go, resumes it cold under the current policy, and refuses before the prompt when Codex keeps it loaded', async () => {
   const thread = await codex.thread(await codex.agent());
   await sendAndWait(thread, 'hello');
-  await codex.setState({ config: { ...NATIVE.config, mcp_servers: { node_repl: {}, other: {} } } });
+  await codex.setState({ config: { ...NATIVE.config, mcp_servers: { node_repl: {}, other: {} } }, keepLoaded: true });
   const from = (await codex.log()).length;
   await sendAndWait(thread, 'with a new MCP server');
   const reloaded = await methodsSince(from);
@@ -115,9 +123,9 @@ it('cold-loads a loaded thread whose policy changed, and refuses before the prom
         "assistant(failed access-not-supported): ",
       ],
       "reloaded": [
-        "thread/unsubscribe",
         "thread/resume",
         "turn/start",
+        "thread/unsubscribe",
       ],
       "stuck": [
         "thread/unsubscribe",
@@ -130,8 +138,7 @@ it('refuses before the prompt when the daemon reports a hook it could not turn o
   await codex.setState({ hooks: [{ event: 'PreToolUse', command: 'echo hi' }] });
   const thread = await codex.thread(await codex.agent());
   await sendAndWait(thread, 'hello');
-  await until(async () => (await codex.log()).some((entry) => entry.method === 'thread/unsubscribe'));
-  expect({ methods: turnMethods(await codex.log()), history: await codex.history(thread) }).toMatchInlineSnapshot(`
+  expect({ methods: turnMethods(await codex.logged('thread/unsubscribe', 1)), history: await codex.history(thread) }).toMatchInlineSnapshot(`
     {
       "history": [
         "user: hello",

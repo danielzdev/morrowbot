@@ -131,10 +131,11 @@ it('a breach in one turn fails another turn on the same daemon at once and withd
   await agy.events.finished(broken);
   await agy.events.finished(read);
   const late = await agy.host.call('POST', `/api/threads/${reading.id}/approvals/${approvalId ?? 'missing'}`, { generationId: read, choiceId: 'allow' });
-  await until(async () => (await agy.log()).some((entry) => entry.method === 'permission-reply'));
-  const allowed = (await agy.log()).flatMap((entry) => (entry.method === 'permission-reply' ? [entry.params] : []));
-  expect({ read: agy.steps(read), histories: [await agy.history(reading), await agy.history(breaking)], lateAllow: late.status, repliesToAgy: allowed }).toMatchInlineSnapshot(`
+  await until(() => agy.daemonPgids().length === 0);
+  const allowed = (await agy.log()).filter((entry) => entry.method === 'permission-reply' && /"choice":"(allow|always)"/.test(JSON.stringify(entry.params)));
+  expect({ read: agy.steps(read), histories: [await agy.history(reading), await agy.history(breaking)], lateAllow: late.status, allowsAgyRead: allowed }).toMatchInlineSnapshot(`
     {
+      "allowsAgyRead": [],
       "histories": [
         [
           "user: read-outside please",
@@ -151,12 +152,6 @@ it('a breach in one turn fails another turn on the same daemon at once and withd
         "card: Antigravity wants to read ~/outside.txt [allow, deny]",
         "status: Antigravity (agy 1.5.18) ran "Edit File sneaky.txt" without asking. MorrowBot ended it and offers no Antigravity turns until the provider restarts.",
         "card resolved: {"kind":"cleared"}",
-      ],
-      "repliesToAgy": [
-        {
-          "choice": "cancelled",
-          "tool": "read",
-        },
       ],
     }
   `);

@@ -29,6 +29,8 @@ const CHANNELS = {
   signInTerminal: 'morrowbot:sign-in-terminal',
   resetPlan: 'morrowbot:reset-plan',
   runReset: 'morrowbot:run-reset',
+  serverMode: 'morrowbot:server-mode',
+  chooseServer: 'morrowbot:choose-server',
 };
 
 /**
@@ -68,6 +70,8 @@ const bridge = {
   signInTerminal: (providerId) => ipcRenderer.invoke(CHANNELS.signInTerminal, { providerId }),
   resetPlan: () => ipcRenderer.invoke(CHANNELS.resetPlan),
   runReset: (request) => ipcRenderer.invoke(CHANNELS.runReset, request),
+  serverMode: () => ipcRenderer.invoke(CHANNELS.serverMode),
+  chooseServer: (request) => ipcRenderer.invoke(CHANNELS.chooseServer, request),
 };
 
 contextBridge.exposeInMainWorld('morrowbot', bridge);

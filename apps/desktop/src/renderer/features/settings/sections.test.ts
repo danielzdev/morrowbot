@@ -12,8 +12,11 @@ import { ChatSection } from './ChatSection.tsx';
 import { DevicesSection } from './DevicesSection.tsx';
 import { GeneralSection } from './GeneralSection.tsx';
 import { KeyboardSection } from './KeyboardSection.tsx';
+import type { MembersPort } from './members.ts';
+import { MembersSection } from './MembersSection.tsx';
 import type { PairingPort } from './pairing.ts';
-import { INDEX, type SettingsLink, type SettingsSection } from './settings-index.ts';
+import { ServerSection } from './ServerSection.tsx';
+import { hiddenSections, INDEX, type SettingsLink, type SettingsSection } from './settings-index.ts';
 import { SettingsModal, type SettingsModalProps } from './SettingsModal.tsx';
 
 const APPEARANCE: Appearance = { theme: 'system', reduceMotion: 'system', chatWidth: 'normal', reducedMotion: false };
@@ -32,6 +35,13 @@ const PAIRING: PairingPort = {
   listDevices: () => Promise.resolve({ kind: 'ok', value: { devices: [] } }),
   unpairDevice: () => Promise.resolve({ kind: 'ok', value: null }),
 };
+const MEMBERS: MembersPort = {
+  createInvite: () => Promise.resolve({ kind: 'failed', status: 409, error: { kind: 'conflict', message: 'No address' } }),
+  listMembers: () => Promise.resolve({ kind: 'ok', value: { members: [] } }),
+  revokeMember: () => Promise.resolve({ kind: 'ok', value: null }),
+  listAgents: () => Promise.resolve({ kind: 'ok', value: { agents: [], folders: [], lastMessages: [] } }),
+  copy: () => Promise.resolve(),
+};
 const UPDATES: UpdatesModel = { status: new Store<UpdateStatus>({ kind: 'up-to-date' }), check: ignore, restart: ignore, close: ignore };
 const MODAL: SettingsModalProps = {
   link: 'general',
@@ -44,6 +54,10 @@ const MODAL: SettingsModalProps = {
   providers: () => null,
   usage: h('p', { class: 'usage-stub' }, 'usage'),
   pairing: PAIRING,
+  members: MEMBERS,
+  server: { kind: 'local' },
+  chooseServer: () => Promise.resolve(null),
+  hidden: new Set(),
 };
 
 const decode = (text: string): string => text.replaceAll('&amp;', '&').replaceAll('&#39;', "'").replaceAll('&quot;', '"').replaceAll('&lt;', '<').replaceAll('&gt;', '>');
@@ -61,6 +75,8 @@ const SECTIONS: Readonly<Record<SettingsSection, () => string>> = {
   keyboard: () => renderToString(h(KeyboardSection, { platform: 'mac', sendWith: 'enter' })),
   providers: () => renderToString(h(SettingsModal, { ...MODAL, link: 'providers' })),
   usage: () => '',
+  server: () => renderToString(h(ServerSection, { server: { kind: 'local' }, onChoose: () => Promise.resolve(null) })),
+  members: () => renderToString(h(MembersSection, { port: MEMBERS })),
   devices: () => renderToString(h(DevicesSection, { pairing: PAIRING })),
   about: () => renderToString(h(AboutSection, { info: INFO, update: { kind: 'up-to-date' }, onRevealData: ignore, onCheckForUpdates: ignore, onRestartToUpdate: ignore, reset: BRIDGE })),
 };
@@ -70,12 +86,13 @@ it('renders exactly the rows search knows about, with the same label and descrip
   expect(rendered).toEqual(INDEX.map(({ id, label, description }) => `${id} | ${label} | ${description}`));
 });
 
-function modal(link: SettingsLink): { readonly breadcrumb: string; readonly current: string | undefined; readonly firstRow: string | undefined; readonly item?: string } {
+function modal(link: SettingsLink, hidden: ReadonlySet<SettingsSection> = new Set()): { readonly breadcrumb: string; readonly current: string | undefined; readonly firstRow: string | undefined; readonly item?: string } {
   let item: string | undefined;
   const html = renderToString(
     h(SettingsModal, {
       ...MODAL,
       link,
+      hidden,
       providers: (slot) => {
         item = slot.initial ?? 'none';
         return null;
@@ -99,6 +116,8 @@ it('opens each deep link at its section, with the nav and breadcrumb pointing th
     devices: modal('devices/paired-devices'),
     about: modal('about'),
     provider: modal('providers/provider-openai'),
+    devicesOnJoinedServer: modal('devices', hiddenSections('remote', 'co-owner')),
+    usageAsScopedMember: modal('usage', hiddenSections('remote', 'scoped')),
   }).toEqual({
     general: { breadcrumb: 'Settings / General', current: 'General', firstRow: 'open-at-login' },
     appearance: { breadcrumb: 'Settings / Appearance', current: 'Appearance', firstRow: 'theme' },
@@ -107,5 +126,7 @@ it('opens each deep link at its section, with the nav and breadcrumb pointing th
     devices: { breadcrumb: 'Settings / Devices', current: 'Devices', firstRow: 'pair-phone' },
     about: { breadcrumb: 'Settings / About', current: 'About', firstRow: 'version' },
     provider: { breadcrumb: 'Settings / Providers', current: 'Providers', firstRow: 'providers', item: 'provider-openai' },
+    devicesOnJoinedServer: { breadcrumb: 'Settings / General', current: 'General', firstRow: 'open-at-login' },
+    usageAsScopedMember: { breadcrumb: 'Settings / General', current: 'General', firstRow: 'open-at-login' },
   });
 });

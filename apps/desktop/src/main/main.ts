@@ -5,15 +5,18 @@ import { APP_ID, PRODUCT_NAME } from './app-identity.ts';
 import { appFilesOf } from './app-files.ts';
 import { openEventStream, type EventStream } from './event-stream.ts';
 import { superviseHost } from './host-supervisor.ts';
+import { parseServerRequest, pickServer } from './join-server.ts';
 import { checkSender, IpcRefusedError, parseCopyText, parseSubscription, proxyRequest, type HostTarget, type IpcSender } from './ipc-proxy.ts';
 import { readSafeMode, writeSafeMode } from './launch-prefs.ts';
+import { readServerChoice, serverPlanOf, writeServerChoice } from './server-choice.ts';
+import { openServerConnection } from './server-connection.ts';
 import { NO_UPDATER, startUpdater, type Updater } from './updater.ts';
 import { hostEnvOf, profileOf, type UsableProfile } from './profile.ts';
 import { appInfoOf, loginItemOf, parseExternalUrl, parseOpenAtLogin, parseRelaunch, parseRevealTarget, pluginsDirOf, resolveReveal } from './shell-actions.ts';
 import { openSignInTerminal, parseSignInRequest } from './sign-in-terminal.ts';
 import { MAC_KEYCHAIN } from './reset/keychain.ts';
 import { parseResetRequest, resetFlow } from './reset/reset-flow.ts';
-import { hostWorkspaces, startCleanupHelper } from './reset/start-helper.ts';
+import { resetWorkspaces, startCleanupHelper } from './reset/start-helper.ts';
 
 const FILES = appFilesOf(app.isPackaged ? { kind: 'packaged', appPath: app.getAppPath() } : { kind: 'dev' });
 const RENDERER_URL = FILES.rendererUrl;
@@ -39,6 +42,8 @@ const CHANNELS: BridgeChannels = {
   signInTerminal: 'morrowbot:sign-in-terminal',
   resetPlan: 'morrowbot:reset-plan',
   runReset: 'morrowbot:run-reset',
+  serverMode: 'morrowbot:server-mode',
+  chooseServer: 'morrowbot:choose-server',
 };
 
 /** macOS keeps its traffic lights, inset into the window's own 48px top bar; elsewhere the system frame stays. */
@@ -113,7 +118,7 @@ function runApp(profile: UsableProfile): void {
       onLost: () => {
         window?.webContents.send(CHANNELS.hostLost);
         setTimeout(() => {
-          if (lifetime === 'running' && host.target() === target) connect(target, Math.min(delayMs * 2, RECONNECT_MAX_MS));
+          if (lifetime === 'running' && server.target() === target) connect(target, Math.min(delayMs * 2, RECONNECT_MAX_MS));
         }, delayMs);
       },
     });
@@ -125,7 +130,7 @@ function runApp(profile: UsableProfile): void {
     ...(FILES.builtinPluginsDir === null ? {} : { MORROWBOT_BUILTIN_PLUGINS_DIR: FILES.builtinPluginsDir }),
     ...(readSafeMode(dataDir) ? { MORROWBOT_SAFE_MODE: '1' } : {}),
   };
-  const host = superviseHost({ main: FILES.hostMain, env: hostEnv }, {
+  const startLocal = () => superviseHost({ main: FILES.hostMain, env: hostEnv }, {
     ready: (target) => {
       connect(target, RECONNECT_MS);
     },
@@ -142,10 +147,18 @@ function runApp(profile: UsableProfile): void {
       dialog.showErrorBox('MorrowBot host stopped', message);
     },
   });
+  const server = openServerConnection(serverPlanOf(readServerChoice(dataDir), dataDir), {
+    startLocal,
+    connectRemote: (target) => {
+      connect(target, RECONNECT_MS);
+    },
+  });
+  /** A joined server never reaches this computer: no folder picker, Finder or Terminal on its say-so. */
+  const clientOnly = (): boolean => server.mode().kind === 'remote';
 
   ipcMain.handle(CHANNELS.request, async (event, input: unknown) => {
     try {
-      return await proxyRequest({ sender: senderOf(event), rendererUrl: RENDERER_URL, input, host: host.target() });
+      return await proxyRequest({ sender: senderOf(event), rendererUrl: RENDERER_URL, input, host: server.target() });
     } catch (error) {
       if (error instanceof IpcRefusedError) console.warn(`MorrowBot: refused an IPC request: ${error.message}`);
       throw error;
@@ -164,7 +177,7 @@ function runApp(profile: UsableProfile): void {
   let picking = false;
   ipcMain.handle(CHANNELS.pickFolder, async (event) => {
     checkSender(senderOf(event), RENDERER_URL);
-    if (picking || window === undefined) return null;
+    if (picking || window === undefined || clientOnly()) return null;
     picking = true;
     try {
       const options: OpenDialogOptions = { properties: ['openDirectory', 'createDirectory'] };
@@ -185,7 +198,8 @@ function runApp(profile: UsableProfile): void {
 
   ipcMain.handle(CHANNELS.revealPath, async (event, input: unknown) => {
     const target = parseRevealTarget(fromRenderer(event, input));
-    shell.showItemInFolder(await resolveReveal(target, { dataDir, pluginsDir: pluginsDirOf(process.env, dataDir), host: host.target(), rendererUrl: RENDERER_URL }));
+    if (clientOnly() && target.kind !== 'data-dir') throw new IpcRefusedError("A joined server's folders are not on this computer");
+    shell.showItemInFolder(await resolveReveal(target, { dataDir, pluginsDir: pluginsDirOf(process.env, dataDir), host: server.target(), rendererUrl: RENDERER_URL }));
   });
 
   ipcMain.handle(CHANNELS.relaunch, (event, input: unknown) => {
@@ -194,15 +208,32 @@ function runApp(profile: UsableProfile): void {
     app.quit();
   });
 
-  ipcMain.handle(CHANNELS.signInTerminal, (event, input: unknown) =>
-    openSignInTerminal(parseSignInRequest(fromRenderer(event, input)), {
-      host: host.target(),
+  ipcMain.handle(CHANNELS.signInTerminal, (event, input: unknown) => {
+    const request = parseSignInRequest(fromRenderer(event, input));
+    if (clientOnly()) return { kind: 'unavailable', reason: 'Engines run on the server you joined; its owner signs them in there.' };
+    return openSignInTerminal(request, {
+      host: server.target(),
       rendererUrl: RENDERER_URL,
       dataDir,
       platform: process.platform,
       open: (file) => shell.openPath(file),
-    }),
-  );
+    });
+  });
+
+  ipcMain.handle(CHANNELS.serverMode, (event) => {
+    checkSender(senderOf(event), RENDERER_URL);
+    return server.mode();
+  });
+  ipcMain.handle(CHANNELS.chooseServer, async (event, input: unknown) => {
+    const request = parseServerRequest(fromRenderer(event, input));
+    const picked = await pickServer(request, process.platform);
+    if (picked.kind === 'failed') return picked;
+    writeServerChoice(dataDir, picked.choice);
+    if (server.choose(picked.choice)) return { kind: 'ready' };
+    app.relaunch();
+    app.quit();
+    return { kind: 'restarting' };
+  });
 
   ipcMain.handle(CHANNELS.appInfo, (event) => {
     checkSender(senderOf(event), RENDERER_URL);
@@ -234,7 +265,7 @@ function runApp(profile: UsableProfile): void {
     lifetime = 'stopping-host';
     updater.stop();
     events?.close();
-    return host.stop().finally(() => {
+    return server.stop().finally(() => {
       lifetime = 'host-stopped';
     });
   }
@@ -244,7 +275,7 @@ function runApp(profile: UsableProfile): void {
       platform: process.platform,
       homeDir: homedir(),
       profile: { kind: profile.kind, dataDir },
-      workspaces: await hostWorkspaces(host.target(), RENDERER_URL),
+      workspaces: await resetWorkspaces(server.mode(), server.target(), RENDERER_URL, dataDir),
     }),
     bundle: () => ({ packaged: app.isPackaged, execPath: process.execPath, updatePending: ['checking', 'downloading', 'ready'].includes(updater.status().kind) }),
     keychain: MAC_KEYCHAIN,

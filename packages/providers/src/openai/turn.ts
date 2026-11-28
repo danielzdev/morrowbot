@@ -61,9 +61,7 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
   const opened = await unlessStopped(opening);
   if (opened === 'stopped') {
     opening
-      .then((late) => {
-        if (late.kind === 'opened' && (ephemeral || late.isNew)) releaseThread(daemon, late.threadId);
-      })
+      .then((late) => (late.kind === 'opened' && (ephemeral || late.isNew) ? releaseThread(daemon, late.threadId) : undefined))
       .catch((error: unknown) => {
         console.error('provider-openai: could not release a thread opened after Stop', error);
       });
@@ -81,7 +79,7 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
     return await prompt();
   } finally {
     ended = true;
-    if (ephemeral || !session.bound) releaseThread(daemon, threadId);
+    if (ephemeral || !session.bound || request.hostTools.kind === 'mcp') await releaseThread(daemon, threadId);
   }
 
   async function prompt(): Promise<TurnEnd> {

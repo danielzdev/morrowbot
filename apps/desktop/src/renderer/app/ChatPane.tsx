@@ -40,6 +40,8 @@ export function ChatPane(props: {
   readonly onNewChat: () => void;
   readonly inspectorOpen: boolean;
   readonly onToggleInspector: () => void;
+  /** False for a scoped member: the server's engines are the owner's, so the host alone decides whether a turn may run. */
+  readonly ownerEngines: boolean;
 }) {
   const { models, agent } = props;
   const display = useMemo(() => chatDisplay(props.info, agent.workspace.dir), [props.info, agent.workspace.dir]);
@@ -139,11 +141,14 @@ export function ChatPane(props: {
             key={`composer-${session.threadId}`}
             session={session}
             agentName={agent.name}
-            disabledReason={saving ? 'Saving the new settings…' : sendBlock(agent.name, choice, agent.provider)}
+            disabledReason={saving ? 'Saving the new settings…' : props.ownerEngines ? sendBlock(agent.name, choice, agent.provider) : agent.provider.kind === 'unbound' ? `Ask the server's owner to choose an engine for ${agent.name}` : null}
             safe={display.safe}
             onOpenProviders={props.onOpenProviders}
             sendWith={sendWith}
             toolbar={
+              !props.ownerEngines ? (
+                <span class="binding-note">Engine and access set by the server's owner</span>
+              ) : (
               <BindingControl
                 agentName={agent.name}
                 choices={choices}
@@ -155,8 +160,9 @@ export function ChatPane(props: {
                 onOpenProviders={props.onOpenProviders}
                 onOpenBrain={() => { props.onAgentSettings('brain'); }}
               />
+              )
             }
-            notes={<BindingWarnings choice={choice} binding={agent.provider} onOpenProviders={props.onOpenProviders} />}
+            notes={props.ownerEngines ? <BindingWarnings choice={choice} binding={agent.provider} onOpenProviders={props.onOpenProviders} /> : null}
           />
         </>
       )}

@@ -20,6 +20,7 @@ it('runs read-only and isolated, with the model, system prompt file and seeded c
       seed: '<user>\nName a fish.\n</user>\n<assistant>\nKoi.\n</assistant>',
       prompt: 'Another?',
       images: [],
+      hostTools: { kind: 'none' },
       effort: null,
     })),
   ).toMatchInlineSnapshot(`
@@ -34,8 +35,10 @@ it('runs read-only and isolated, with the model, system prompt file and seeded c
         "--include-partial-messages",
         "--replay-user-messages",
         "--no-session-persistence",
-        "--safe-mode",
         "--strict-mcp-config",
+        "--setting-sources",
+        "",
+        "--disable-slash-commands",
         "--restricted",
         "--tools",
         "Read,Glob,Grep",
@@ -75,7 +78,7 @@ it('runs read-only and isolated, with the model, system prompt file and seeded c
 });
 
 it('sends an unseeded prompt as is, with no model or system flags', () => {
-  expect(shown(buildInvocation({ access: 'read-only', mode: 'background', selection: { kind: 'default' }, system: null, seed: null, prompt: 'hi', images: [], effort: null }))).toMatchInlineSnapshot(`
+  expect(shown(buildInvocation({ access: 'read-only', mode: 'background', selection: { kind: 'default' }, system: null, seed: null, prompt: 'hi', images: [], hostTools: { kind: 'none' }, effort: null }))).toMatchInlineSnapshot(`
     {
       "args": [
         "-p",
@@ -87,8 +90,10 @@ it('sends an unseeded prompt as is, with no model or system flags', () => {
         "--include-partial-messages",
         "--replay-user-messages",
         "--no-session-persistence",
-        "--safe-mode",
         "--strict-mcp-config",
+        "--setting-sources",
+        "",
+        "--disable-slash-commands",
         "--restricted",
         "--tools",
         "Read,Glob,Grep",
@@ -111,7 +116,7 @@ it('sends an unseeded prompt as is, with no model or system flags', () => {
 
 it('lets workspace-write edit with the file tools only, asking the host interactively and nobody in the background', () => {
   const flags = (mode: 'interactive' | 'background') =>
-    buildInvocation({ access: 'workspace-write', mode, selection: { kind: 'default' }, system: null, seed: null, prompt: 'hi', images: [], effort: null }).args.slice(11);
+    buildInvocation({ access: 'workspace-write', mode, selection: { kind: 'default' }, system: null, seed: null, prompt: 'hi', images: [], hostTools: { kind: 'none' }, effort: null }).args.slice(13);
   expect({ interactive: flags('interactive'), background: flags('background') }).toMatchInlineSnapshot(`
     {
       "background": [
@@ -138,12 +143,54 @@ it('lets workspace-write edit with the file tools only, asking the host interact
   `);
 });
 
+it("gives MorrowBot's tools as a --mcp-config file after the system prompt's, allowed without asking", () => {
+  const invocation = buildInvocation({
+    access: 'read-only',
+    mode: 'background',
+    selection: { kind: 'default' },
+    system: 'Be brief.',
+    seed: null,
+    prompt: 'hi',
+    images: [],
+    hostTools: { kind: 'mcp', url: 'http://127.0.0.1:4100/mcp', token: 't'.repeat(43) },
+    effort: null,
+  });
+  const [system, tools = 'null'] = invocation.files;
+  const config: unknown = JSON.parse(tools);
+  expect({ args: invocation.args.slice(-6), files: [system, config] }).toMatchInlineSnapshot(`
+    {
+      "args": [
+        "--append-system-prompt-file",
+        "/dev/fd/4",
+        "--mcp-config",
+        "/dev/fd/5",
+        "--allowedTools",
+        "mcp__morrowbot",
+      ],
+      "files": [
+        "Be brief.",
+        {
+          "mcpServers": {
+            "morrowbot": {
+              "headers": {
+                "Authorization": "Bearer ttttttttttttttttttttttttttttttttttttttttttt",
+              },
+              "type": "http",
+              "url": "http://127.0.0.1:4100/mcp",
+            },
+          },
+        },
+      ],
+    }
+  `);
+});
+
 it('passes the effort a model offers (its default when none was chosen) after the model, and refuses one it does not offer', () => {
   const opus = { kind: 'model', id: 'opus', choices: { effort: 'xhigh' } } as const;
   const effort = effortOf(opus);
   expect({
     effort,
-    args: buildInvocation({ access: 'read-only', mode: 'interactive', selection: opus, system: null, seed: null, prompt: 'hi', images: [], effort: effort.kind === 'level' ? effort.level : null }).args.slice(-4),
+    args: buildInvocation({ access: 'read-only', mode: 'interactive', selection: opus, system: null, seed: null, prompt: 'hi', images: [], hostTools: { kind: 'none' }, effort: effort.kind === 'level' ? effort.level : null }).args.slice(-4),
     noChoice: effortOf({ kind: 'model', id: 'opus', choices: {} }),
     providerDefault: effortOf({ kind: 'default' }),
     notOffered: effortOf({ kind: 'model', id: 'haiku', choices: { effort: 'ultra' } }),
@@ -188,7 +235,7 @@ it('passes no --effort for a model that reports no efforts, and refuses one aske
   const effort = effortOf(haiku);
   expect({
     effort,
-    args: buildInvocation({ access: 'read-only', mode: 'interactive', selection: haiku, system: null, seed: null, prompt: 'hi', images: [], effort: effort.kind === 'level' ? effort.level : null }).args.slice(-2),
+    args: buildInvocation({ access: 'read-only', mode: 'interactive', selection: haiku, system: null, seed: null, prompt: 'hi', images: [], hostTools: { kind: 'none' }, effort: effort.kind === 'level' ? effort.level : null }).args.slice(-2),
     asked: effortOf({ ...haiku, choices: { effort: 'high' } }).kind,
   }).toMatchInlineSnapshot(`
     {
@@ -213,6 +260,7 @@ it('sends attached images as base64 content blocks before the text', () => {
     seed: null,
     prompt: 'What is in this screenshot?',
     images: [{ mimeType: 'image/png', data: 'iVBORw0KGgo=' }],
+    hostTools: { kind: 'none' },
     effort: null,
   });
   expect(JSON.parse(frame)).toMatchInlineSnapshot(`

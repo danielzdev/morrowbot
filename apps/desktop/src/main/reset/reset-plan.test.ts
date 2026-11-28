@@ -11,6 +11,7 @@ async function installed(): Promise<string> {
   await fake.file('.morrowbot/morrowbot.sqlite');
   await fake.file('.morrowbot/morrowbot.sqlite-wal');
   await fake.file('.morrowbot/host.lock.db');
+  await fake.file('.morrowbot/server.json', '{"kind":"remote"}');
   await fake.file('.morrowbot/plugin-data/echo/account');
   await fake.file('.morrowbot/plugins/shared-workspace/notes.md');
   await fake.file('.morrowbot/workspaces/agent-1/todo.md');
@@ -70,6 +71,10 @@ it('resolves every choice for the installed app to exact paths, keeping workspac
           {
             "kind": "delete",
             "path": "~/.morrowbot/host.lock.db",
+          },
+          {
+            "kind": "delete",
+            "path": "~/.morrowbot/server.json",
           },
           {
             "kind": "delete",
@@ -142,6 +147,10 @@ it('resolves every choice for the installed app to exact paths, keeping workspac
           {
             "kind": "delete",
             "path": "~/.morrowbot/host.lock.db",
+          },
+          {
+            "kind": "delete",
+            "path": "~/.morrowbot/server.json",
           },
           {
             "kind": "delete",
@@ -249,9 +258,9 @@ it('refuses to delete data while the host cannot list workspaces, and to trash t
   expect({ hostDown, updatePending, notInApplications, wrongBundleId, linkedBundle }).toMatchInlineSnapshot(`
     {
       "hostDown": [
-        "MorrowBot's host isn't running, so it can't check which folders your agents use. Restart MorrowBot and try again.",
+        "MorrowBot can't list which folders its agents use right now, so it deletes nothing. Make sure this Mac's own server is running (Settings › Server), then try again.",
         "available",
-        "MorrowBot's host isn't running, so it can't check which folders your agents use. Restart MorrowBot and try again.",
+        "MorrowBot can't list which folders its agents use right now, so it deletes nothing. Make sure this Mac's own server is running (Settings › Server), then try again.",
       ],
       "linkedBundle": [
         "available",
