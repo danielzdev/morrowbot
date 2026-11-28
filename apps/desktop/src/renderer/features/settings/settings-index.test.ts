@@ -31,6 +31,7 @@ it('matches every word anywhere in a row, groups matches by section in nav order
         "key-filter-agents",
         "key-binding",
         "key-inspector",
+        "vault",
         "server",
         "invite",
         "data-folder",

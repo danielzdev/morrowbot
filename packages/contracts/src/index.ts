@@ -32,3 +32,4 @@ export * from './routines.ts';
 export * from './t3-watches.ts';
 export { lenient } from './lenient.ts';
 export * from './members.ts';
+export * from './vault.ts';

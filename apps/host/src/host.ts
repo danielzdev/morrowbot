@@ -27,6 +27,7 @@ import { findSkills, skillList } from './features/skills/index.ts';
 import { createRoutineService, type RoutineClock } from './features/routines/index.ts';
 import { lockDataDir, openStorage } from './features/storage/index.ts';
 import { cliProbe, createT3WatchService, type T3Probe, type T3WatchClock } from './features/t3-watch/index.ts';
+import { defaultVaultStore, openVault, secretStore, type VaultStoreChoice } from './features/vault/index.ts';
 import { agentInbox, agentToolPorts, chatStore, providerPlugins } from './host-ports.ts';
 import { routineSink } from './t3-routine-sink.ts';
 
@@ -54,6 +55,8 @@ export interface HostOptions {
   readonly routineClock?: RoutineClock;
   /** What the T3 watcher reads T3 Code with, and its clock. Defaults to the `t3` CLI and the system clock. */
   readonly t3Watch?: { readonly probe: T3Probe; readonly clock: T3WatchClock };
+  /** Where vault secrets go. Defaults to the login Keychain on macOS and a sealed file in the data folder elsewhere. */
+  readonly vaultStore?: VaultStoreChoice;
 }
 
 export interface Host {
@@ -151,7 +154,14 @@ export async function startHost(options: HostOptions): Promise<Host> {
       newId,
       now,
     });
-    const tools = await startToolServer({ ports: agentToolPorts(storage, agents, agentMessages, memories), version: options.version, report });
+    const vault = await openVault({
+      file: path.join(dataDir, 'vault.json'),
+      secrets: secretStore(options.vaultStore ?? defaultVaultStore(process.platform), dataDir),
+      newId,
+      now,
+      report,
+    });
+    const tools = await startToolServer({ ports: agentToolPorts(storage, agents, agentMessages, memories, vault), version: options.version, report });
     undo.push(() => tools.stop());
     const chat = createChatService({
       store: chatStore(storage),
@@ -259,6 +269,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
         agentMessages,
         routines,
         t3Watches,
+        vault,
       },
       fallback: healthListener(options.version),
       report,

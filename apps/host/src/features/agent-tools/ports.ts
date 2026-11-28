@@ -1,8 +1,8 @@
-import type { Agent, AgentMessage, CreateMemoryRequest, Memory, SendAgentMessageRequest, UpdateMemoryRequest } from '@morrowbot/contracts';
+import type { Agent, AgentMessage, CreateMemoryRequest, Memory, SendAgentMessageRequest, UpdateMemoryRequest, VaultItem } from '@morrowbot/contracts';
 
 export type SendAnswer = { readonly kind: 'sent'; readonly message: AgentMessage } | { readonly kind: 'refused'; readonly reason: string };
 
-/** What the tools act on (the agents, agent-messages and memories features provide it). */
+/** What the tools act on (the agents, agent-messages, memories and vault features provide it). */
 export interface ToolPorts {
   readonly agents: { list(): readonly Agent[] };
   readonly messages: {
@@ -17,4 +17,6 @@ export interface ToolPorts {
     update(agentId: string, id: string, request: UpdateMemoryRequest): Memory | undefined;
     delete(agentId: string, id: string): boolean;
   };
+  /** The vault's item names. Secret values never reach the tools. */
+  readonly vault: { list(): readonly VaultItem[] };
 }

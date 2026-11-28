@@ -25,12 +25,13 @@ export function agentInbox(storage: Storage, agentMessages: AgentMessageService)
   };
 }
 
-/** What the agent tools act on: every agent, the agent-messages service and the memories service. */
+/** What the agent tools act on: every agent, the agent-messages service, the memories service and the vault's names. */
 export function agentToolPorts(
   storage: Storage,
   agents: ToolPorts['agents'],
   agentMessages: AgentMessageService,
   memories: MemoryService,
+  vault: ToolPorts['vault'],
 ): ToolPorts {
   return {
     agents,
@@ -42,6 +43,7 @@ export function agentToolPorts(
       },
     },
     memories,
+    vault,
   };
 }
 

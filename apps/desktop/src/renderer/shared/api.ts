@@ -43,6 +43,10 @@ import {
   type TokenRange,
   type UpdateAgentRequest,
   type UpdateRoutineRequest,
+  VaultItem,
+  VaultItemList,
+  type CreateVaultItemRequest,
+  type UpdateVaultItemRequest,
 } from '@morrowbot/contracts';
 import { z } from 'zod';
 import type { ApiMethod, MorrowbotBridge } from '../bridge.ts';
@@ -125,6 +129,11 @@ export interface Api {
   listMembers(): Promise<ApiResult<MemberList>>;
   /** Revokes a member; the host closes its connections at once. */
   revokeMember(id: string): Promise<ApiResult<null>>;
+  /** The vault's items: names only, never a secret. */
+  listVault(): Promise<ApiResult<VaultItemList>>;
+  createVaultItem(request: z.input<typeof CreateVaultItemRequest>): Promise<ApiResult<VaultItem>>;
+  updateVaultItem(id: string, request: z.input<typeof UpdateVaultItemRequest>): Promise<ApiResult<VaultItem>>;
+  deleteVaultItem(id: string): Promise<ApiResult<null>>;
 }
 
 const at = (...segments: readonly string[]): string => `/api/${segments.map(encodeURIComponent).join('/')}`;
@@ -204,6 +213,10 @@ export function createApi(bridge: MorrowbotBridge): Api {
     createInvite: (request) => call(InviteResponse, 'POST', at('members', 'invites'), request),
     listMembers: () => call(MemberList, 'GET', at('members')),
     revokeMember: (id) => call(NoContent, 'DELETE', at('members', id)),
+    listVault: () => call(VaultItemList, 'GET', at('vault')),
+    createVaultItem: (request) => call(VaultItem, 'POST', at('vault'), request),
+    updateVaultItem: (id, request) => call(VaultItem, 'PATCH', at('vault', id), request),
+    deleteVaultItem: (id) => call(NoContent, 'DELETE', at('vault', id)),
   };
 }
 
