@@ -2,7 +2,7 @@ import type { AgentAvatar } from '@morrowbot/contracts';
 import { mountAvatar, type AvatarOptions, type MountedAvatar } from 'open-bot-avatar/dom';
 import { useEffect, useId, useRef } from 'preact/hooks';
 import { FinishFilter, hasFilter, materialOf } from './finish.tsx';
-import { engineStill, type AvatarMotion } from './motion.ts';
+import { engineStill, stateName, type AvatarMotion } from './motion.ts';
 import { avatarEntry } from './registry.ts';
 
 /** A resting avatar: no frames until something changes. */
@@ -24,7 +24,7 @@ function optionsOf(avatar: AgentAvatar, motion: AvatarMotion, label: string, red
 }
 
 const keyOf = (avatar: AgentAvatar, motion: AvatarMotion, label: string, reducedMotion: boolean): string =>
-  [avatar.shape, avatar.color, avatar.finish, motion.state, motion.mood, String(motion.paused), label, String(reducedMotion)].join('|');
+  [avatar.shape, avatar.color, avatar.finish, stateName(motion), motion.mood, String(motion.paused), label, String(reducedMotion)].join('|');
 
 /** An agent's live avatar. `label` names it for screen readers; leave it empty where the agent's name is shown beside it. */
 export function BotAvatar(props: {
@@ -63,7 +63,7 @@ export function BotAvatar(props: {
   }, [key]);
 
   return (
-    <span class={`bot-avatar finish-${avatar.finish}`} data-state={motion.state} style={{ width: `${String(size)}px`, height: `${String(size)}px` }}>
+    <span class={`bot-avatar finish-${avatar.finish}`} data-state={stateName(motion)} style={{ width: `${String(size)}px`, height: `${String(size)}px` }}>
       <FinishFilter id={filterId} finish={avatar.finish} size={size} />
       {avatarEntry(avatar.shape)?.definition === undefined && <span class="bot-avatar-fallback" style={{ background: avatar.color }} />}
       <span ref={host} class="bot-avatar-engine" style={hasFilter(avatar.finish) ? { filter: `url(#${filterId})` } : {}} />

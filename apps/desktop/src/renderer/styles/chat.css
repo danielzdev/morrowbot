@@ -86,6 +86,9 @@
   content-visibility: auto;
   contain-intrinsic-size: auto 48px;
 }
+.message:last-child {
+  content-visibility: visible;
+}
 .message.user {
   display: flex;
   flex-direction: column;

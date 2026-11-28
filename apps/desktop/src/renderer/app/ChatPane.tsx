@@ -15,7 +15,7 @@ import { InspectorPane } from './InspectorPane.tsx';
 import type { Models } from './models.ts';
 
 /** The agent's avatar beside its running turn and latest reply, in CSS pixels. */
-const CHAT_AVATAR_SIZE = 28;
+const CHAT_AVATAR_SIZE = 32;
 
 export interface Chrome {
   readonly sidebarButton: boolean;
@@ -98,7 +98,7 @@ export function ChatPane(props: {
     <div class="main">
       <ThreadHeader
         agent={agent}
-        avatar={<BotAvatar avatar={agent.avatar} motion={motion} size={20} reducedMotion={props.reducedMotion} />}
+        avatar={<BotAvatar avatar={agent.avatar} size={20} reducedMotion={props.reducedMotion} />}
         threads={threads?.kind === 'loaded' ? threads.value : []}
         threadsLoaded={threads?.kind === 'loaded'}
         openThreadId={threadId}

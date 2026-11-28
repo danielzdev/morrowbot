@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { combineActivity, engineStill, motionOf, type AvatarActivity } from './motion.ts';
+import { combineActivity, engineStill, motionOf, stateName, type AvatarActivity } from './motion.ts';
 import { AVATARS } from './registry.ts';
 
 const ACTIVITIES: readonly AvatarActivity[] = ['idle', 'queued', 'thinking', 'running-tool', 'streaming', 'needs-approval', 'completed'];
@@ -7,7 +7,7 @@ const ACTIVITIES: readonly AvatarActivity[] = ['idle', 'queued', 'thinking', 'ru
 it('shows each activity as its own engine state and mood; only an idle avatar is paused, and Reduce motion stills them all', () => {
   const line = (activity: AvatarActivity): string => {
     const motion = motionOf(activity);
-    return `${motion.state}/${motion.mood}${motion.paused ? ' paused' : ''} · engine ${String(engineStill(motion, false))}, reduced ${String(engineStill(motion, true))}`;
+    return `${stateName(motion)}/${motion.mood}${motion.paused ? ' paused' : ''} · engine ${String(engineStill(motion, false))}, reduced ${String(engineStill(motion, true))}`;
   };
   expect(Object.fromEntries(ACTIVITIES.map((activity) => [activity, line(activity)]))).toMatchInlineSnapshot(`
     {
@@ -17,7 +17,7 @@ it('shows each activity as its own engine state and mood; only an idle avatar is
       "queued": "waiting/neutral · engine system, reduced true",
       "running-tool": "working/neutral · engine system, reduced true",
       "streaming": "working/happy · engine system, reduced true",
-      "thinking": "thinking/neutral · engine system, reduced true",
+      "thinking": "pondering/neutral · engine system, reduced true",
     }
   `);
 });
