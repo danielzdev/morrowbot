@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "MorrowBot",
+  "description": "Lets your MorrowBot agents use this browser: tabs, pages, forms and screenshots, with you taking over for logins and payments.",
+  "version": "0.1.0",
+  "minimum_chrome_version": "116",
+  "permissions": ["debugger", "tabs", "scripting", "storage", "alarms"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": { "default_title": "MorrowBot", "default_popup": "options.html" },
+  "options_ui": { "page": "options.html", "open_in_tab": true },
+  "icons": { "16": "icons/16.png", "48": "icons/48.png", "128": "icons/128.png" }
+}

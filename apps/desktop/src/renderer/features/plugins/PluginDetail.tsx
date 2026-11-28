@@ -10,6 +10,8 @@ const PERMISSIONS: Readonly<Record<PluginPermission, string>> = {
   filesystem: 'Read and change files',
   shell: 'Run commands on this computer',
   secrets: 'Use saved passwords and keys',
+  accessibility: 'See and control apps on this Mac (Accessibility)',
+  'screen-recording': 'Take pictures of the screen (Screen Recording)',
 };
 
 /** The first letter of a name, as an extension's mark. */
