@@ -174,10 +174,7 @@ describe.skipIf(chromeMissing)('the Chromium driver on a real page', () => {
     await t.run({ kind: 'scroll', tabId, to: { kind: 'element', ref: refOf(snapshot, 'button "Bottom"') } });
     const toElement = await t.chrome.evaluate(tabId, 'window.scrollY > 2000');
     await t.chrome.evaluate(tabId, "scrollTo(0, 0); document.getElementById('log').textContent = ''");
-    await t.chrome.evaluate(tabId, "window.__seen = []; for (const type of ['pointerdown','mousedown','dragstart','dragenter','dragover','drop','dragend','scroll','mouseup']) addEventListener(type, (e) => window.__seen.push(type + '@' + Math.round(e.clientX ?? -1) + ',' + Math.round(e.clientY ?? -1) + ' y=' + Math.round(scrollY) + ' ' + (e.target.id ?? '')), true); 0");
-    console.log('DIAG START FAR DRAG', await t.chrome.evaluate(tabId, '`${innerWidth}x${innerHeight} y=${scrollY}`'));
-    const farResult = await t.run({ kind: 'drag', tabId, from: refOf(snapshot, 'button "Card"'), to: refOf(snapshot, 'region "Far bin"') });
-    console.log('DIAG FAR RESULT', JSON.stringify(farResult), await t.chrome.evaluate(tabId, 'JSON.stringify(window.__seen.filter((e, i, all) => !e.startsWith("scroll") || i === all.length - 1 || !all[i + 1].startsWith("scroll")))'));
+    await t.run({ kind: 'drag', tabId, from: refOf(snapshot, 'button "Card"'), to: refOf(snapshot, 'region "Far bin"') });
     const farDropped = await t.log(tabId);
     expect({ hovered, dropped, byPage, toElement, farDropped }).toMatchInlineSnapshot(`
       {

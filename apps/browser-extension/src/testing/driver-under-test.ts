@@ -35,26 +35,7 @@ export function driverUnderTest(): DriverUnderTest {
     pages = await servePages();
     driver = createCdpDriver({
       tabs: chrome.tabs,
-      attach: async (tabId) => {
-        const session = await ready(chrome).attach(tabId);
-        return {
-          on: (method, listener) => session.on(method, (params) => {
-            if (method.startsWith('Input.') || method.startsWith('Page.javascript')) console.log('DIAG event', method, JSON.stringify(params).slice(0, 200));
-            listener(params);
-          }),
-          send: async (method, params) => {
-            const started = Date.now();
-            try {
-              const answer = await session.send(method, params);
-              console.log('DIAG', Date.now() - started, 'ms', method, JSON.stringify(params ?? {}).slice(0, 160), JSON.stringify(answer).slice(0, 200));
-              return answer;
-            } catch (error) {
-              console.log('DIAG FAIL', Date.now() - started, 'ms', method, String(error));
-              throw error;
-            }
-          },
-        };
-      },
+      attach: chrome.attach,
       takeoverUi: {
         show: (tabId, view) => {
           banners.push(`show ${String(tabId)} ${view.reason}: ${view.message}`);

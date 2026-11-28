@@ -1,13 +1,12 @@
 import { z } from 'zod';
 import type { ScrollTarget } from '@morrowbot/contracts';
-import { BrowserFailure, call, nextEvent, type CdpSession } from './session.ts';
+import { BrowserFailure, call, type CdpSession } from './session.ts';
 
 const Quads = z.object({ quads: z.array(z.array(z.number())) });
 const Metrics = z.object({
   cssVisualViewport: z.object({ clientWidth: z.number(), clientHeight: z.number(), pageX: z.number(), pageY: z.number() }),
   cssContentSize: z.object({ width: z.number(), height: z.number() }),
 });
-const DragIntercepted = z.object({ data: z.record(z.string(), z.unknown()) });
 
 export interface Point {
   readonly x: number;
@@ -77,33 +76,15 @@ export async function scroll(session: CdpSession, to: ScrollTarget, nodeOf: (ref
   }
 }
 
-/**
- * Drags with the mouse. The drag starts at the source before the target is scrolled into view, so
- * the source's position is still right. When the page starts an HTML drag-and-drop, Chrome hands the
- * drag to us (`Input.setInterceptDrags`) and we drop it on the target ourselves; pointer-based drags
- * just follow the mouse.
- */
+/** Drags with the mouse: Chrome runs HTML drag-and-drop and pointer drags alike from DevTools mouse events. */
 export async function drag(session: CdpSession, from: Point, target: () => Promise<Point>): Promise<void> {
-  await session.send('Input.setInterceptDrags', { enabled: true });
-  const intercepted = nextEvent(session, ['Input.dragIntercepted'], (_method, params) => DragIntercepted.parse(params).data, 500);
   const move = (point: Point): Promise<unknown> => session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: point.x, y: point.y, button: 'left', buttons: 1 });
-  try {
-    await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: from.x, y: from.y });
-    await session.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: from.x, y: from.y, button: 'left', buttons: 1, clickCount: 1 });
-    for (let step = 1; step <= 3; step += 1) await move({ x: from.x + step * 4, y: from.y + step * 4 });
-    const data = await intercepted.promise;
-    const to = await target();
-    if (data !== null) {
-      for (const type of ['dragEnter', 'dragOver', 'drop']) {
-        await session.send('Input.dispatchDragEvent', { type, x: to.x, y: to.y, data });
-      }
-    } else {
-      const steps = 5;
-      for (let step = 1; step <= steps; step += 1) await move({ x: from.x + ((to.x - from.x) * step) / steps, y: from.y + ((to.y - from.y) * step) / steps });
-    }
-    await session.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: to.x, y: to.y, button: 'left', buttons: 0, clickCount: 1 });
-  } finally {
-    intercepted.cancel();
-    await session.send('Input.setInterceptDrags', { enabled: false });
-  }
+  await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: from.x, y: from.y });
+  await session.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: from.x, y: from.y, button: 'left', buttons: 1, clickCount: 1 });
+  for (let step = 1; step <= 3; step += 1) await move({ x: from.x + step * 4, y: from.y + step * 4 });
+  const to = await target();
+  const steps = 5;
+  for (let step = 1; step <= steps; step += 1) await move({ x: from.x + ((to.x - from.x) * step) / steps, y: from.y + ((to.y - from.y) * step) / steps });
+  await move(to);
+  await session.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: to.x, y: to.y, button: 'left', buttons: 0, clickCount: 1 });
 }
