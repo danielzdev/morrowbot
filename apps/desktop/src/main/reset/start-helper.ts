@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { lstat, realpath } from 'node:fs/promises';
 import path from 'node:path';
-import { AgentList } from '@morrowbot/contracts';
+import { AgentList, WhoAmI } from '@morrowbot/contracts';
 import { z } from 'zod';
 import type { ServerMode } from '../../renderer/bridge.ts';
 import { proxyRequest, type HostTarget } from '../ipc-proxy.ts';
@@ -135,16 +135,18 @@ export async function resetWorkspaces(mode: ServerMode, target: HostTarget | und
   }
 }
 
-/** Every agent's workspace folder, as given and with links resolved, or null when the host cannot list its agents. */
-async function hostWorkspaces(host: HostTarget | undefined, rendererUrl: string): Promise<readonly string[] | null> {
+/**
+ * Every agent's workspace folder, as given and with links resolved, or null when the host cannot list all of its
+ * agents: it does not answer, or this app is a scoped member there, who sees only the agents shared with it.
+ */
+export async function hostWorkspaces(host: HostTarget | undefined, rendererUrl: string): Promise<readonly string[] | null> {
   if (host === undefined) return null;
+  const get = (apiPath: string) => proxyRequest({ sender: { kind: 'frame', url: rendererUrl, isMainFrame: true }, rendererUrl, input: { method: 'GET', path: apiPath }, host });
   try {
-    const reply = await proxyRequest({
-      sender: { kind: 'frame', url: rendererUrl, isMainFrame: true },
-      rendererUrl,
-      input: { method: 'GET', path: '/api/agents' },
-      host,
-    });
+    const me = await get('/api/me');
+    const caller = WhoAmI.safeParse(me.body);
+    if (me.status !== 200 || !caller.success || (caller.data.kind === 'member' && caller.data.access.kind === 'scoped')) return null;
+    const reply = await get('/api/agents');
     const agents = AgentList.safeParse(reply.body);
     if (reply.status !== 200 || !agents.success) return null;
     const given = agents.data.agents.map(({ workspace }) => workspace.dir);

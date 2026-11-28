@@ -365,3 +365,20 @@ it("refuses only the choices that delete data when the login Keychain can't be c
     ]
   `);
 });
+
+it('protects the folders above a workspace link that was repointed after the plan was made', async () => {
+  await installed();
+  await fake.file('elsewhere/notes.md');
+  await fake.file('.morrowbot/plugin-data/echo/nested/todo.md');
+  await fake.link('ws-link', `${fake.home}/elsewhere`);
+  const context = fake.context('installed', '.morrowbot', [`${fake.home}/ws-link`, `${fake.home}/elsewhere`]);
+  const before = await deleteRefusalNow(context, `${fake.home}/.morrowbot/plugin-data`);
+  await rm(`${fake.home}/ws-link`);
+  await fake.link('ws-link', `${fake.home}/.morrowbot/plugin-data/echo/nested`);
+  expect({ before, after: await deleteRefusalNow(context, `${fake.home}/.morrowbot/plugin-data`) }).toMatchInlineSnapshot(`
+    {
+      "after": "An agent workspace, or holds one. Workspaces are never touched.",
+      "before": null,
+    }
+  `);
+});

@@ -8,11 +8,20 @@ import { comparable } from './reset-paths.ts';
 const STALE_MS = 30 * 60_000;
 
 /**
- * The lock a running cleanup holds for one data folder, in the temp folder so deleting the data folder leaves it.
- * Keyed by the folder as APFS compares it, so `~/.MorrowBot` finds the lock for `~/.morrowbot`.
+ * The lock a running cleanup holds for one data folder, in the temp folder so deleting the data folder's entries
+ * leaves it. Keyed by the folder's device and inode, so every path to it (another case, a firmlink) finds the same
+ * lock; by the folder as APFS compares its name while it does not exist.
  */
-export const resetLockOf = (dataDir: string): string =>
-  path.join(tmpdir(), `morrowbot-reset-${createHash('sha256').update(comparable(dataDir)).digest('hex').slice(0, 16)}.lock`);
+export function resetLockOf(dataDir: string): string {
+  let key: string;
+  try {
+    const stats = statSync(dataDir);
+    key = `inode:${String(stats.dev)}:${String(stats.ino)}`;
+  } catch {
+    key = `path:${comparable(dataDir)}`;
+  }
+  return path.join(tmpdir(), `morrowbot-reset-${createHash('sha256').update(key).digest('hex').slice(0, 16)}.lock`);
+}
 
 /** True while `pid` runs (EPERM: it runs as another user). */
 export function isAlive(pid: number): boolean {

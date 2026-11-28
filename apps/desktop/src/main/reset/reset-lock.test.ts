@@ -1,5 +1,8 @@
 import { utimesSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
+import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { expect, it } from 'vitest';
 import { clearResetLock, resetInProgress, resetLockOf, touchResetLock, writeResetLock } from './reset-lock.ts';
 
@@ -29,4 +32,14 @@ it('blocks starting only while a live helper holds a recently refreshed lock for
     helperGone: false,
     cleared: false,
   });
+});
+
+it.skipIf(process.platform !== 'darwin')('finds the lock through any other path to the same data folder, such as the Data volume firmlink', () => {
+  const dataDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'morrowbot-lock-')));
+  writeResetLock(dataDir, 4242);
+  const alive = (pid: number) => pid === 4242;
+  const viaFirmlink = resetInProgress(`/System/Volumes/Data${dataDir}`, alive);
+  clearResetLock(dataDir);
+  rmSync(dataDir, { recursive: true });
+  expect(viaFirmlink).toBe(true);
 });
