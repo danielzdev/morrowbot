@@ -11,6 +11,7 @@ export type {
 } from './plugin.ts';
 export { defineProvider } from './plugin.ts';
 export type { PluginFactory, PluginRuntime, RuntimeEnv } from './runtime.ts';
+export type { LoopbackServer, LoopbackServerOptions, LoopbackSocket } from './loopback.ts';
 export { standaloneRuntime } from './runtime.ts';
 export type { ApprovalAnswer, ApprovalAsk } from './approvals.ts';
 export { commandFilePath } from './command.ts';

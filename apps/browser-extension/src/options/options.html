@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MorrowBot</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main>
+      <h1>MorrowBot</h1>
+      <p id="status" class="status">Checking…</p>
+      <section>
+        <h2>Pairing token</h2>
+        <p class="hint">Paste this into MorrowBot › Extensions › Browser › Pairing token. Pairing another browser? Paste MorrowBot's token here instead and save.</p>
+        <div class="row">
+          <input id="token" type="text" spellcheck="false" autocomplete="off" />
+          <button id="copy" type="button">Copy</button>
+        </div>
+        <div class="row actions">
+          <button id="save-token" type="button" class="quiet">Save token</button>
+          <button id="regenerate" type="button" class="quiet">Make a new token</button>
+        </div>
+      </section>
+      <section>
+        <h2>Port</h2>
+        <p class="hint">Must match the Browser plugin's port. Most people never change it.</p>
+        <div class="row">
+          <input id="port" type="number" min="1024" max="65535" />
+          <button id="save-port" type="button">Save</button>
+        </div>
+      </section>
+    </main>
+    <script src="options.js"></script>
+  </body>
+</html>

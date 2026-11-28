@@ -105,3 +105,15 @@ mode switch the agent reports finished without asking ends the agent at once. `a
 card; everything else is denied), and `acp.createSessionStream` turns updates into turn chunks.
 A command or daemon may add its own variables with `env`. Small plugin examples live in
 `apps/host/src/features/plugins/fixtures/`.
+
+`runtime.serveLoopback` listens for WebSocket clients on `127.0.0.1` only. A client is refused
+before the upgrade unless its `Origin` matches, its `Host` is the loopback address, and it offers
+the plugin's subprotocol plus `token.<pairing token>`. Close the server in `shutdown`.
+
+## Browser
+
+`plugins/browser` is a tool plugin: it serves the browser bridge (`runtime.serveLoopback`) that the
+MorrowBot browser extension (`apps/browser-extension`) connects to, and defines the agent's
+`browser_*` tools in `src/tools.ts` and `src/secret-tools.ts`. Several browsers can be connected at
+once. Secrets reach a page only through a `SecretSource` (the Secrets Vault, once it ships), never
+through the agent.
