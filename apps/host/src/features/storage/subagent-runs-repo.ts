@@ -63,7 +63,14 @@ export function subagentRunRepository(db: DatabaseSync): SubagentRunRepository {
   );
   return {
     insert: (thread, record) => {
-      insertThread.run({ ...thread, parentThreadId: record.parentThreadId });
+      insertThread.run({
+        id: thread.id,
+        agentId: thread.agentId,
+        title: thread.title,
+        createdAt: thread.createdAt,
+        updatedAt: thread.updatedAt,
+        parentThreadId: record.parentThreadId,
+      });
       insertRun.run({
         threadId: record.threadId,
         parentGenerationId: record.parentGenerationId,

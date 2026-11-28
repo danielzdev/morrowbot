@@ -1,4 +1,4 @@
-import { COLLABORATOR_NOTICE, type AgentMessage, type TurnOutcome } from '@morrowbot/contracts';
+import { COLLABORATOR_NOTICE, type AgentMessage, type AgentMessageReadOutcome } from '@morrowbot/contracts';
 import type { ComponentChildren } from 'preact';
 import { useId, useState } from 'preact/hooks';
 import { messageTime } from '../../shared/format.ts';
@@ -28,12 +28,12 @@ function ExchangeCard(props: {
   readonly threadId: string;
   readonly peers: PeerDirectory;
   readonly actions: MarkdownActions;
-  readonly readEnd: TurnOutcome | undefined;
+  readonly readEnd: AgentMessageReadOutcome | undefined;
 }) {
   const { message, peers } = props;
   const sender = message.from.agentId;
   const incoming = directionOf(message, props.threadId) === 'incoming';
-  const note = readNote(props.readEnd);
+  const note = incoming ? readNote(props.readEnd) : null;
   return (
     <li class={`exchange-card ${incoming ? 'incoming' : 'outgoing'}`} style={{ '--peer': peers.color(sender) }} data-agent-message-id={message.id}>
       <div class="exchange-from">
@@ -62,7 +62,7 @@ export function AgentExchange(props: {
   readonly peers: PeerDirectory;
   readonly actions: MarkdownActions;
   /** How background turns that read these messages ended early, by message id. */
-  readonly readEnds: Readonly<Record<string, TurnOutcome>>;
+  readonly readEnds: Readonly<Record<string, AgentMessageReadOutcome>>;
 }) {
   const [open, setOpen] = useState(false);
   const bodyId = useId();

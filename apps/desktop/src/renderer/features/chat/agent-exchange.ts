@@ -1,4 +1,4 @@
-import { MAX_EXCHANGE_MESSAGES, type AgentMessage, type TurnOutcome } from '@morrowbot/contracts';
+import { MAX_EXCHANGE_MESSAGES, type AgentMessage, type AgentMessageReadOutcome } from '@morrowbot/contracts';
 
 export type Direction = 'outgoing' | 'incoming';
 
@@ -46,8 +46,8 @@ export function backgroundVerb(message: AgentMessage | undefined): string {
 }
 
 /** What a received message's card says when the background turn reading it ended early; null when it finished. */
-export function readNote(outcome: TurnOutcome | undefined): string | null {
-  switch (outcome?.kind) {
+export function readNote(outcome: AgentMessageReadOutcome | undefined): string | null {
+  switch (outcome) {
     case undefined:
     case 'completed':
       return null;

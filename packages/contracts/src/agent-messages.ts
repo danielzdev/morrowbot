@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import { EntityId, Timestamp } from './ids.ts';
 
+/** How a recipient's background read turn for an agent message ended (status only, never raw provider diagnostics). */
+export const AgentMessageReadOutcome = z.enum(['completed', 'cancelled', 'interrupted', 'failed']);
+export type AgentMessageReadOutcome = z.infer<typeof AgentMessageReadOutcome>;
+
 /** The most messages one exchange holds: a first message plus its chain of replies. A reply past it is refused. */
 export const MAX_EXCHANGE_MESSAGES = 6;
 /** The most messages two agents may send each other, both ways together, within `AGENT_PAIR_WINDOW_MS`. */
@@ -27,6 +31,8 @@ export const AgentMessage = z.strictObject({
   replyToMessageId: EntityId.nullable(),
   depth: z.number().int().min(0).max(MAX_EXCHANGE_MESSAGES - 1),
   createdAt: Timestamp,
+  /** How the recipient's background turn reading this message ended once settled; omitted while unread, still reading, or on sender views. */
+  readOutcome: AgentMessageReadOutcome.optional(),
 });
 export type AgentMessage = z.infer<typeof AgentMessage>;
 
