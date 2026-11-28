@@ -125,7 +125,7 @@ pre.instructions.disk {
   color: var(--warn);
 }
 
-/* Avatar picker: static labelled shapes, named swatches, finish */
+/* Avatar picker: static shape icons, named swatches, finish */
 .avatar-picker {
   display: flex;
   flex-wrap: wrap;
@@ -162,27 +162,25 @@ pre.instructions.disk {
   background: none;
   cursor: pointer;
 }
-.avatar-shapes,
 .avatar-swatches {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
 }
+.avatar-shapes {
+  display: grid;
+  grid-template-columns: repeat(5, 46px);
+  gap: 6px;
+}
 .avatar-tile {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  width: 64px;
-  padding: 4px 2px;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  padding: 0;
   background: var(--surface-2);
   border: 1px solid var(--hairline-strong);
-}
-.avatar-tile-label {
-  color: var(--text-2);
-  font: var(--t-meta);
-  white-space: nowrap;
 }
 .avatar-tile.selected,
 .swatch.selected,

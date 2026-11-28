@@ -96,7 +96,7 @@ function RadioRow<T>(props: {
 
 /**
  * Shape, colour and finish of an agent's avatar (spec §5.3): only the preview animates; the shape
- * thumbnails are static and labelled; named swatches plus a custom colour.
+ * thumbnails are static icons named by tooltip and accessible name; named swatches plus a custom colour.
  */
 export function AvatarPicker(props: {
   readonly value: AgentAvatar;
@@ -135,12 +135,7 @@ export function AvatarPicker(props: {
           render={({ id, label }, checked) => ({
             name: label,
             class: `avatar-tile ${checked ? 'selected' : ''}`,
-            children: (
-              <>
-                <BotAvatar avatar={{ ...value, shape: id }} size={32} />
-                <span class="avatar-tile-label">{label}</span>
-              </>
-            ),
+            children: <BotAvatar avatar={{ ...value, shape: id }} size={32} />,
           })}
         />
         <RadioRow

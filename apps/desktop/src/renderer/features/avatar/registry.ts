@@ -1,5 +1,6 @@
 import { AvatarFinish, AvatarShape } from '@morrowbot/contracts';
 import { getExample, type AvatarDefinition } from 'open-bot-avatar';
+import { CUSTOM_SHAPES } from './custom-shapes.ts';
 
 /** One avatar shape: today's ids stay valid forever; new shapes and packs are new entries. */
 export interface AvatarEntry {
@@ -19,10 +20,20 @@ const LABELS: Readonly<Record<AvatarShape, string>> = {
   lightbulb: 'Lightbulb',
   sprout: 'Sprout',
   'watering-can': 'Watering can',
+  star: 'Star',
+  cloud: 'Cloud',
+  bolt: 'Bolt',
+  flame: 'Flame',
+  heart: 'Heart',
+  book: 'Book',
+  ghost: 'Ghost',
+  shield: 'Shield',
 };
 
-/** The versioned avatar registry (spec §5.3): each core shape is one of the engine's built-in examples. */
-export const AVATARS: readonly AvatarEntry[] = AvatarShape.options.map((id) => ({ id, label: LABELS[id], version: 1, definition: getExample(id), pack: 'core' }));
+const definitionOf = (id: AvatarShape): AvatarDefinition | undefined => getExample(id) ?? CUSTOM_SHAPES.find((shape) => shape.id === id);
+
+/** The versioned avatar registry (spec §5.3): the engine's built-in examples, then MorrowBot's own shapes. */
+export const AVATARS: readonly AvatarEntry[] = AvatarShape.options.map((id) => ({ id, label: LABELS[id], version: 1, definition: definitionOf(id), pack: 'core' }));
 
 export const avatarEntry = (id: string): AvatarEntry | undefined => AVATARS.find((entry) => entry.id === id);
 

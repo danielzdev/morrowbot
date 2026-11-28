@@ -16,10 +16,8 @@ export interface TurnDeps {
   readonly checkWorkspace: (cwd: string, signal: AbortSignal) => Promise<WorkspaceCheck>;
   /** Why this OS is not supported, or null. */
   readonly platformReason: string | null;
-  /** Why turns are no longer offered in this run, or null. */
-  readonly breach: () => string | null;
-  /** Settles with that reason when agy breaks the read-only rules in any turn. */
-  readonly fenced: Promise<string>;
+  /** Shared one-shot breach fence for this provider run. */
+  readonly fence: Pick<acp.Fence, 'reason' | 'subscribe'>;
   readonly home: string | null;
 }
 
@@ -49,7 +47,7 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
     finalText: null,
   });
   const fence = (): ProviderError | null => {
-    const reason = deps.breach();
+    const reason = deps.fence.reason();
     return reason === null ? null : { kind: 'access-not-supported', reason };
   };
   /** A refusal; once agy broke the read-only rules, that is the reason, even after Stop. */
@@ -58,138 +56,162 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
     if (fenced !== null) return ended({ kind: 'failed', error: fenced }, { sessionTouched });
     return ended(stopped() ? { kind: 'cancelled' } : { kind: 'failed', error }, { sessionTouched });
   };
+  let stopAbort: (() => void) | undefined;
   const abort = new Promise<'stopped'>((resolveStop) => {
     if (stopped()) resolveStop('stopped');
-    else signal.addEventListener('abort', () => { resolveStop('stopped'); }, { once: true });
+    else {
+      const onAbort = (): void => { resolveStop('stopped'); };
+      signal.addEventListener('abort', onAbort, { once: true });
+      stopAbort = () => { signal.removeEventListener('abort', onAbort); };
+    }
   });
   const unlessStopped = <T>(work: Promise<T>): Promise<T | 'stopped'> => Promise.race([work, abort]);
 
-  const checked = await unlessStopped(preflight(request, deps, signal));
-  if (checked === 'stopped') return ended({ kind: 'cancelled' }, { sessionTouched: false });
-  if (checked.kind === 'refused') return refuse(checked.error);
-  const { live } = checked;
-  const { daemon } = live;
+  try {
+    const checked = await unlessStopped(preflight(request, deps, signal));
+    if (checked === 'stopped') return ended({ kind: 'cancelled' }, { sessionTouched: false });
+    if (checked.kind === 'refused') return refuse(checked.error);
+    const { live } = checked;
+    const { daemon } = live;
 
-  let armed = false;
-  let over = false;
-  let sessionId: string | null = null;
-  const cancelPrompt = (): void => {
-    if (sessionId !== null && daemon.alive()) daemon.notify('session/cancel', { sessionId });
-  };
-  const stream = acp.createSessionStream({
-    home: deps.home,
-    mode: ASKING_MODE,
-    emit,
-    onBreach: (found) => {
-      if (armed) daemon.breach(found);
-    },
-  });
-  /** No answer allows anything once agy broke the rules, or after Stop. */
-  const refusing = (): boolean => stopped() || deps.breach() !== null;
-  const answer = async (asked: acp.PermissionRequest): Promise<unknown> => {
-    const decision = acp.decide(asked, deps.home, 'Antigravity');
-    if (decision.kind === 'deny') {
-      emit({ kind: 'status', text: decision.status });
-      return acp.permissionResult(asked.options, null, stopped());
-    }
-    if (refusing()) return acp.permissionResult(asked.options, null, true);
-    const chosen = await Promise.race([context.ask({ summary: `Antigravity wants to ${decision.summary}`, choices: acp.APPROVAL_CHOICES }), deps.fenced.then(() => null)]);
-    return refusing() ? acp.permissionResult(asked.options, null, true) : acp.permissionResult(asked.options, chosen, false);
-  };
-  const handlers: acp.SessionHandlers = {
-    onUpdate: (update) => {
-      stream.hear(update);
-    },
-    onPermission: answer,
-    onRefused: (method) => {
-      emit({ kind: 'status', text: `Refused Antigravity's ${method}: MorrowBot runs it read-only.` });
-    },
-    replaying: () => false,
-  };
-
-  const opening = openSession(daemon, request.cwd, request.session, handlers);
-  const opened = await unlessStopped(opening);
-  if (opened === 'stopped') {
-    opening
-      .then((late) => {
-        if (late.kind !== 'opened') return;
-        late.detach();
-        closeSession(daemon, late.sessionId);
+    let armed = false;
+    let over = false;
+    let sessionId: string | null = null;
+    const cancelPrompt = (): void => {
+      if (sessionId !== null && daemon.alive()) daemon.notify('session/cancel', { sessionId });
+    };
+    const turnFenced = Promise.withResolvers<string>();
+    const stopFence = deps.fence.subscribe((reason) => {
+      turnFenced.resolve(reason);
+    });
+    turnFenced.promise
+      .then((reason) => {
+        if (over || sessionId === null) return;
+        emit({ kind: 'status', text: reason });
+        cancelPrompt();
       })
       .catch((error: unknown) => {
-        console.error('provider-antigravity: could not close a session opened after Stop', error);
+        console.error('provider-antigravity: could not stop a turn after agy broke the read-only rules', error);
       });
-    return ended({ kind: 'cancelled' }, { sessionTouched: false });
-  }
-  if (opened.kind === 'refused') {
-    if (opened.error.kind === 'signed-out') live.signedOut = true;
-    return refuse(opened.error);
-  }
-  sessionId = opened.sessionId;
-  live.signedOut = false;
-  live.tier = opened.tier ?? live.tier;
-  deps.fenced
-    .then((reason) => {
-      if (over) return;
-      emit({ kind: 'status', text: reason });
-      cancelPrompt();
-    })
-    .catch((error: unknown) => {
-      console.error('provider-antigravity: could not stop a turn after agy broke the read-only rules', error);
+    const turnFencedNull = turnFenced.promise.then(() => null);
+    const stream = acp.createSessionStream({
+      home: deps.home,
+      mode: ASKING_MODE,
+      emit,
+      onBreach: (found) => {
+        if (armed) daemon.breach(found);
+      },
     });
-  try {
-    const before = live.catalog.models();
-    const setup = { selection: request.selection, catalog: live.catalog, fresh: opened.isNew, forgetMode: () => { stream.forgetMode(); } };
-    const configured = await unlessStopped(configureSession(daemon, opened.sessionId, opened.options, setup));
-    const after = live.catalog.models();
-    if (after !== null && after !== before) emit({ kind: 'model-options-changed', models: [...after] });
-    if (configured === 'stopped') return ended({ kind: 'cancelled' }, { sessionTouched: false });
-    if (configured.kind === 'refused') {
-      if (configured.error.kind === 'signed-out') live.signedOut = true;
-      return refuse(configured.error);
-    }
-    armed = true;
-    const mode = stream.mode();
-    if (mode !== null && mode !== ASKING_MODE) daemon.breach({ kind: 'mode-changed', mode });
-    const fenceBefore = fence();
-    if (fenceBefore !== null) return refuse(fenceBefore);
-    const again = await unlessStopped(deps.checkWorkspace(request.cwd, signal));
-    if (again === 'stopped') return ended({ kind: 'cancelled' }, { sessionTouched: false });
-    const changed = workspaceError(again, deps.home) ?? fence();
-    if (changed !== null) return refuse(changed);
-    return await prompt(opened.sessionId, configured.model);
-  } finally {
-    over = true;
-    opened.detach();
-    closeSession(daemon, opened.sessionId);
-  }
-
-  async function prompt(id: string, model: string | null): Promise<TurnEnd> {
-    signal.addEventListener('abort', cancelPrompt, { once: true });
-    try {
-      if (stopped()) return ended({ kind: 'cancelled' }, { sessionTouched: false });
-      const reply = await Promise.race([daemon.call('session/prompt', { sessionId: id, prompt: acp.promptBlocks(promptText(request), request.images) }, acp.PromptResponse, PROMPT_MS), deps.fenced.then(() => null)]);
-      const touched = { actualModel: model, sessionTouched: true };
-      const fenceNow = fence();
-      if (reply === null || fenceNow !== null) {
-        const usage: TurnUsage = reply?.kind === 'ok' ? usageOf(reply.value) : { kind: 'unavailable' };
-        return ended({ kind: 'failed', error: fenceNow ?? { kind: 'access-not-supported', reason: 'Antigravity broke the read-only rules.' } }, { ...touched, usage });
+    /** No answer allows anything once agy broke the rules, or after Stop. */
+    const refusing = (): boolean => stopped() || deps.fence.reason() !== null;
+    const answer = async (asked: acp.PermissionRequest): Promise<unknown> => {
+      const decision = acp.decide(asked, deps.home, 'Antigravity');
+      if (decision.kind === 'deny') {
+        emit({ kind: 'status', text: decision.status });
+        return acp.permissionResult(asked.options, null, stopped());
       }
-      switch (reply.kind) {
-        case 'ok':
-          return ended(outcomeOf(reply.value.stopReason, stopped()), { ...touched, usage: usageOf(reply.value) });
-        case 'error': {
-          const error = vendorError(reply.code, reply.message);
-          if (error.kind === 'signed-out') live.signedOut = true;
-          return ended(stopped() ? { kind: 'cancelled' } : { kind: 'failed', error }, touched);
+      if (refusing()) return acp.permissionResult(asked.options, null, true);
+      const chosen = await Promise.race([context.ask({ summary: `Antigravity wants to ${decision.summary}`, choices: acp.APPROVAL_CHOICES }), turnFencedNull]);
+      return refusing() ? acp.permissionResult(asked.options, null, true) : acp.permissionResult(asked.options, chosen, false);
+    };
+    const handlers: acp.SessionHandlers = {
+      onUpdate: (update) => {
+        stream.hear(update);
+      },
+      onPermission: answer,
+      onRefused: (method) => {
+        emit({ kind: 'status', text: `Refused Antigravity's ${method}: MorrowBot runs it read-only.` });
+      },
+      replaying: () => false,
+    };
+
+    try {
+      const opening = openSession(daemon, request.cwd, request.session, handlers);
+      const opened = await unlessStopped(opening);
+      if (opened === 'stopped') {
+        opening
+          .then((late) => {
+            if (late.kind !== 'opened') return;
+            late.detach();
+            closeSession(daemon, late.sessionId);
+          })
+          .catch((error: unknown) => {
+            console.error('provider-antigravity: could not close a session opened after Stop', error);
+          });
+        return ended({ kind: 'cancelled' }, { sessionTouched: false });
+      }
+      if (opened.kind === 'refused') {
+        if (opened.error.kind === 'signed-out') live.signedOut = true;
+        return refuse(opened.error);
+      }
+      sessionId = opened.sessionId;
+      live.signedOut = false;
+      live.tier = opened.tier ?? live.tier;
+      try {
+        const earlyBreach = deps.fence.reason();
+        if (earlyBreach !== null) {
+          emit({ kind: 'status', text: earlyBreach });
+          cancelPrompt();
+          return refuse({ kind: 'access-not-supported', reason: earlyBreach });
         }
-        case 'unanswered':
-          if (daemon.alive()) cancelPrompt();
-          return ended({ kind: 'interrupted' }, touched);
+        const before = live.catalog.models();
+        const setup = { selection: request.selection, catalog: live.catalog, fresh: opened.isNew, forgetMode: () => { stream.forgetMode(); } };
+        const configured = await unlessStopped(configureSession(daemon, opened.sessionId, opened.options, setup));
+        const after = live.catalog.models();
+        if (after !== null && after !== before) emit({ kind: 'model-options-changed', models: [...after] });
+        if (configured === 'stopped') return ended({ kind: 'cancelled' }, { sessionTouched: false });
+        if (configured.kind === 'refused') {
+          if (configured.error.kind === 'signed-out') live.signedOut = true;
+          return refuse(configured.error);
+        }
+        armed = true;
+        const mode = stream.mode();
+        if (mode !== null && mode !== ASKING_MODE) daemon.breach({ kind: 'mode-changed', mode });
+        const fenceBefore = fence();
+        if (fenceBefore !== null) return refuse(fenceBefore);
+        const again = await unlessStopped(deps.checkWorkspace(request.cwd, signal));
+        if (again === 'stopped') return ended({ kind: 'cancelled' }, { sessionTouched: false });
+        const changed = workspaceError(again, deps.home) ?? fence();
+        if (changed !== null) return refuse(changed);
+        return await prompt(opened.sessionId, configured.model);
+      } finally {
+        opened.detach();
+        closeSession(daemon, opened.sessionId);
       }
     } finally {
-      signal.removeEventListener('abort', cancelPrompt);
+      over = true;
+      stopFence();
     }
+
+    async function prompt(id: string, model: string | null): Promise<TurnEnd> {
+      signal.addEventListener('abort', cancelPrompt, { once: true });
+      try {
+        if (stopped()) return ended({ kind: 'cancelled' }, { sessionTouched: false });
+        const reply = await Promise.race([daemon.call('session/prompt', { sessionId: id, prompt: acp.promptBlocks(promptText(request), request.images) }, acp.PromptResponse, PROMPT_MS), turnFencedNull]);
+        const touched = { actualModel: model, sessionTouched: true };
+        const fenceNow = fence();
+        if (reply === null || fenceNow !== null) {
+          const usage: TurnUsage = reply?.kind === 'ok' ? usageOf(reply.value) : { kind: 'unavailable' };
+          return ended({ kind: 'failed', error: fenceNow ?? { kind: 'access-not-supported', reason: 'Antigravity broke the read-only rules.' } }, { ...touched, usage });
+        }
+        switch (reply.kind) {
+          case 'ok':
+            return ended(outcomeOf(reply.value.stopReason, stopped()), { ...touched, usage: usageOf(reply.value) });
+          case 'error': {
+            const error = vendorError(reply.code, reply.message);
+            if (error.kind === 'signed-out') live.signedOut = true;
+            return ended(stopped() ? { kind: 'cancelled' } : { kind: 'failed', error }, touched);
+          }
+          case 'unanswered':
+            if (daemon.alive()) cancelPrompt();
+            return ended({ kind: 'interrupted' }, touched);
+        }
+      } finally {
+        signal.removeEventListener('abort', cancelPrompt);
+      }
+    }
+  } finally {
+    stopAbort?.();
   }
 }
 
@@ -209,13 +231,13 @@ async function preflight(request: TurnRequest, deps: TurnDeps, signal: AbortSign
   }
   if (request.mode !== 'interactive') return refused({ kind: 'background-not-allowed' });
   if (deps.platformReason !== null) return refused({ kind: 'access-not-supported', reason: deps.platformReason });
-  const breach = deps.breach();
+  const breach = deps.fence.reason();
   if (breach !== null) return refused({ kind: 'access-not-supported', reason: breach });
   const cli = await deps.checkCli(request.cwd);
   if (cli !== null) return refused(cli);
   const workspace = workspaceError(await deps.checkWorkspace(request.cwd, signal), deps.home);
   if (workspace !== null) return refused(workspace);
-  const late = deps.breach();
+  const late = deps.fence.reason();
   if (late !== null) return refused({ kind: 'access-not-supported', reason: late });
   const live = deps.live();
   if (live?.daemon.alive() !== true) return refused({ kind: 'transient', retryAfterMs: null });

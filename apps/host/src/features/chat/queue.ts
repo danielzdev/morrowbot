@@ -125,6 +125,7 @@ export function steerDelivered(core: ChatCore, turn: Turn, steerId: string): voi
   turn.steer = null;
   turn.source = { kind: 'chat', message: userMessage, prompt: item.text };
   turn.text = '';
+  turn.textBytes = 0;
   turn.seedTruncated = false;
   turn.silent = false;
   core.queueStates.delete(item.id);

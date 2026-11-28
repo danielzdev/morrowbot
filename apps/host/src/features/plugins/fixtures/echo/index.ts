@@ -113,6 +113,28 @@ runPlugin((runtime) =>
       }
       const command = reaction ? (/ on-reaction (\S+)$/m.exec(prompt)?.[1] ?? prompt) : prompt;
       if (prompt.split('\n')[0] === 'nothing-new') return end({ kind: 'completed', finishReason: 'stop' }, current, { finalText: QUIET_MARKER });
+      if (command === 'huge-final') return end({ kind: 'completed', finishReason: 'stop' }, current, { finalText: '01234567890123456789ab😀cd' });
+      if (command === 'flood-bytes') {
+        for (const chunk of ['0123456789', '0123456789', 'ab😀cd', 'zzzzzzzzzz', 'yyyyyyyyyy']) {
+          if (signal.aborted) break;
+          emit({ kind: 'text', text: chunk });
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+        return end(signal.aborted ? { kind: 'cancelled' } : { kind: 'completed', finishReason: 'stop' }, current);
+      }
+      if (command === 'flood-bytes-unstoppable') {
+        for (let i = 0; i < 10; i += 1) emit({ kind: 'text', text: 'X'.repeat(10) });
+        return new Promise(() => undefined);
+      }
+      if (command === 'flood-events') {
+        emit({ kind: 'text', text: 'hello' });
+        for (let i = 1; i <= 30; i += 1) {
+          if (signal.aborted) break;
+          emit({ kind: 'status', text: `step ${String(i)}` });
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+        return end(signal.aborted ? { kind: 'cancelled' } : { kind: 'completed', finishReason: 'stop' }, current);
+      }
       emit({ kind: 'text', text: `${String(config.greeting)} from pid ${String(process.pid)}:` });
       if (prompt.endsWith('describe-input')) {
         const images = request.images.map(({ mimeType, data }) => ({ mimeType, bytes: Buffer.from(data, 'base64').length }));

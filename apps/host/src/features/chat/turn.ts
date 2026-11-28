@@ -14,6 +14,7 @@ import type {
 } from '@morrowbot/contracts';
 import { answersSender, splitAnswer } from './background.ts';
 import type { EventLog } from './event-log.ts';
+import type { OutputLimitKind } from './output-budget.ts';
 import type { ChatServiceOptions, SessionState } from './ports.ts';
 import type { ReactionNote } from './reactions.ts';
 
@@ -73,6 +74,9 @@ export interface Turn {
   state: 'queued' | 'dispatching' | 'running' | 'settled';
   dispatched: boolean;
   text: string;
+  textBytes: number;
+  chunkCount: number;
+  outputExceeded: OutputLimitKind | null;
   flushTimer: NodeJS.Timeout | undefined;
   seedTruncated: boolean;
   /** The AGENTS.md hash read at dispatch, saved with a new session. */

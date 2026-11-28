@@ -106,6 +106,13 @@ function errorCopy(error: ProviderError, context: CopyContext): OutcomeCopy {
       return note('warning', "The agent's provider settings changed before this turn ran. Nothing was sent.", CONTINUE);
     case 'instructions-changed':
       return note('warning', "The agent's instructions changed before this turn ran. Nothing was sent.", CONTINUE);
+    case 'output-limit':
+      return note(
+        'warning',
+        error.limit === 'events'
+          ? 'The reply sent too many updates and was stopped.'
+          : "The reply hit MorrowBot's output size limit and was cut off.",
+      );
     case 'other': {
       const message = error.message === '' ? null : context.safe(error.message);
       return note('error', message ?? 'The provider failed.', CONTINUE);

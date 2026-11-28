@@ -23,7 +23,23 @@ export const AgentWorkspaceRequest = z.discriminatedUnion('kind', [
 export type AgentWorkspaceRequest = z.infer<typeof AgentWorkspaceRequest>;
 
 /** The bot's silhouette. */
-export const AvatarShape = z.enum(['chat', 'controller', 'barbell', 'mug', 'lightbulb', 'sprout', 'watering-can']);
+export const AvatarShape = z.enum([
+  'chat',
+  'controller',
+  'barbell',
+  'mug',
+  'lightbulb',
+  'sprout',
+  'watering-can',
+  'star',
+  'cloud',
+  'bolt',
+  'flame',
+  'heart',
+  'book',
+  'ghost',
+  'shield',
+]);
 export type AvatarShape = z.infer<typeof AvatarShape>;
 
 /** The bot's surface. */
