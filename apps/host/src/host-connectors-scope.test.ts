@@ -288,22 +288,26 @@ it('on an agent shared with a member, gives connectors only to turns the owner s
     '2099-01-01T00:00:00.000Z',
   );
   const sharedByOwner = kit.turn('agent-shared', 'owner');
-  const sharedByOther = kit.turn('agent-shared', 'other');
+  const sharedByMember = kit.turn('agent-shared', 'member');
+  const sharedByAgent = kit.turn('agent-shared', 'agent');
   const a = kit.turn('agent-a');
-  const aByOther = kit.turn('agent-a', 'other');
   expect({
     sharedOwnerTools: connectorToolNames(await sharedByOwner.list()).length,
-    sharedOtherTools: connectorToolNames(await sharedByOther.list()),
-    sharedOtherCall: said(await sharedByOther.call('notes__echo', { text: 'hi' })),
-    unsharedOtherTools: connectorToolNames(await aByOther.list()).length,
+    sharedMemberTools: connectorToolNames(await sharedByMember.list()),
+    sharedMemberCall: said(await sharedByMember.call('notes__echo', { text: 'hi' })),
+    sharedAgentTools: connectorToolNames(await sharedByAgent.list()),
+    unsharedAgentTools: connectorToolNames(await kit.turn('agent-a', 'agent').list()).length,
+    unsharedMemberTools: connectorToolNames(await kit.turn('agent-a', 'member').list()),
     leak: said(await a.call('notes__echo', { text: 'leak' })),
   }).toMatchInlineSnapshot(`
     {
       "leak": "Notes: The server answered with error -32000: Rejected token [hidden]",
-      "sharedOtherCall": "This agent is shared, so connectors are given only to turns the owner starts.",
-      "sharedOtherTools": [],
+      "sharedAgentTools": [],
+      "sharedMemberCall": "This agent is shared, so connectors are given only to turns the owner starts.",
+      "sharedMemberTools": [],
       "sharedOwnerTools": 4,
-      "unsharedOtherTools": 4,
+      "unsharedAgentTools": 4,
+      "unsharedMemberTools": [],
     }
   `);
 });

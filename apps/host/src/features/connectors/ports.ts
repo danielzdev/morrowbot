@@ -39,12 +39,12 @@ export interface ConnectorStore {
 }
 
 /**
- * The turn asking for connector tools: its agent, and whether the server owner started it. On an agent shared
- * with a scoped member, only the owner's turns get connectors (a member's, another agent's or an ended turn's never do).
+ * The turn asking for connector tools: its agent, and who started it. A scoped member's turn never gets
+ * connectors (even once the member is removed); on an agent shared with a member, another agent's turn gets none either.
  */
 export interface TurnOf {
   readonly agentId: string;
-  readonly startedBy: 'owner' | 'other';
+  readonly startedBy: 'owner' | 'member' | 'agent';
 }
 
 /** A connector tool as an agent's `tools/list` shows it. */

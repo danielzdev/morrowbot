@@ -21,9 +21,7 @@ export function gate(connector: StoredConnector, turn: TurnOf, context: AccessCo
   const { label, scope } = connector;
   const { agentId } = turn;
   if (context.safeMode) return { kind: 'refused', reason: 'MorrowBot is in safe mode, so connectors are off.' };
-  if (turn.startedBy !== 'owner' && context.sharedWithMembers(agentId)) {
-    return { kind: 'refused', reason: 'This agent is shared, so connectors are given only to turns the owner starts.' };
-  }
+  if (!ownerMayLend(turn, context)) return { kind: 'refused', reason: 'This agent is shared, so connectors are given only to turns the owner starts.' };
   if (!connector.enabled) return { kind: 'refused', reason: `${label} is turned off.` };
   if (scope.mode === 'selected' && !scope.agentIds.includes(agentId)) return { kind: 'refused', reason: `${label} isn't available to this agent.` };
   if (scope.scopeReviewRequired) return { kind: 'refused', reason: `${label} is paused until its scope is reviewed in Extensions.` };
@@ -31,6 +29,18 @@ export function gate(connector: StoredConnector, turn: TurnOf, context: AccessCo
   const state = context.runtime.state(connector.id);
   if (state.kind !== 'ready') return { kind: 'refused', reason: `${label} isn't connected right now.` };
   return { kind: 'usable', bindings: bindTools(connector, state.tools) };
+}
+
+/** Whether the turn may use the owner's connectors at all, whatever their scope: see `TurnOf`. */
+function ownerMayLend(turn: TurnOf, context: AccessContext): boolean {
+  switch (turn.startedBy) {
+    case 'owner':
+      return true;
+    case 'member':
+      return false;
+    case 'agent':
+      return !context.sharedWithMembers(turn.agentId);
+  }
 }
 
 /** The connector tools a turn of `turn.agentId` gets: only instances whose scope and status allow it now. */

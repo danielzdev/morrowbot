@@ -18,7 +18,7 @@ import { backgroundPrompt } from './background.ts';
 import { parentTurn, publishSubagent, stopChildren, stopTurn as stopWithChildren, subagentRefusal, subagentsOf, subagentView, type ParentTurn } from './children.ts';
 import { dispatch } from './dispatch.ts';
 import { EventLog, type Replay } from './event-log.ts';
-import { startedBy, type TurnInitiator } from './initiator.ts';
+import { attributionOf, forgetSettled, startedBy, type TurnInitiator } from './initiator.ts';
 import type { ChatListener, ChatServiceOptions, RecheckAnswer } from './ports.ts';
 import { agentReact, attachRefusal, dropNote, emojiReplies, nextNote, reactionPrompt, readOrGone, setUserReaction, stayQuiet, type ReplyToolAnswer, type SetReactionAnswer, type TurnGrant } from './reactions.ts';
 import { createSummaryFeed, type SummaryListener } from './thread-summary.ts';
@@ -70,8 +70,8 @@ export interface ChatService {
   stayQuiet(grant: TurnGrant): ReplyToolAnswer;
   /** Why `attach_files` cannot add to the running turn's reply, or undefined when it can. */
   attachRefusal(grant: TurnGrant): string | undefined;
-  /** Delivers a queued message now: into the running reply, or as the next turn when nothing runs. */
-  steerQueued(threadId: string, queuedId: string): QueueAnswer;
+  /** `by` delivers a queued message now: into the running reply, or as the next turn when nothing runs. */
+  steerQueued(threadId: string, queuedId: string, by: TurnInitiator): QueueAnswer;
   continueTurn(threadId: string, failedMessageId: string, choice: SessionChoice, by: TurnInitiator): Promise<AdmitResult>;
   /** Who started the running turn a tool grant belongs to; undefined once it has ended. */
   startedBy(grant: TurnGrant): TurnInitiator | undefined;
@@ -126,6 +126,7 @@ export function createChatService(options: ChatServiceOptions): ChatService {
     reactionNotes: new Map(),
     dispatch: (turn) => dispatch(core, turn),
     afterTurn: (turn, outcome) => {
+      forgetSettled(core, turn.generationId, outcome);
       afterTurn(core, turn, outcome);
       readNext(turn.threadId);
     },
@@ -235,6 +236,7 @@ export function createChatService(options: ChatServiceOptions): ChatService {
       return next;
     },
     deleteThread: async (id) => {
+      const forget = attributionOf(core, [id]);
       const removed = await exclusively(
         core.deletingThreads,
         id,
@@ -244,15 +246,19 @@ export function createChatService(options: ChatServiceOptions): ChatService {
       if (removed) {
         core.events.forget(id);
         core.reactionNotes.delete(id);
-        core.initiators.delete(id);
+        forget();
         summaries.forget(id);
       }
       return removed;
     },
     deleteAgent: async (id) => {
       const threadIds = store.threads.listByAgent(id).map((thread) => thread.id);
+      const forget = attributionOf(core, threadIds);
       const removed = await exclusively(core.deletingAgents, id, (turn) => turn.agentId === id, () => agents.delete(id));
-      if (removed) for (const threadId of threadIds) summaries.forget(threadId);
+      if (removed) {
+        forget();
+        for (const threadId of threadIds) summaries.forget(threadId);
+      }
       return removed;
     },
     listMessages: (threadId) => (store.threads.get(threadId) === undefined ? undefined : store.messages.listByThread(threadId)),
@@ -283,7 +289,7 @@ export function createChatService(options: ChatServiceOptions): ChatService {
     stayQuiet: (grant) => stayQuiet(core, grant),
     attachRefusal: (grant) => attachRefusal(core, grant),
     cancelQueued: (threadId, queuedId) => cancelQueued(core, threadId, queuedId),
-    steerQueued: (threadId, queuedId) => steerQueued(core, threadId, queuedId),
+    steerQueued: (threadId, queuedId, by) => steerQueued(core, threadId, queuedId, by),
     continueTurn: (threadId, failedMessageId, choice, by) => admit(core, threadId, { kind: 'continue', failedMessageId, by }, choice),
     startedBy: (grant) => startedBy(core, grant),
     stop,

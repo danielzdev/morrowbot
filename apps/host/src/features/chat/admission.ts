@@ -2,7 +2,7 @@ import { realpath } from 'node:fs/promises';
 import type { AgentMessage, AssistantMessage, Message, ProviderUnavailableReason, SessionChoice, SessionChoiceReason, TurnMode, UserMessage } from '@morrowbot/contracts';
 import { decideBackgroundSession, decideSession, profileAllowed, type SessionDecision } from './admission-rules.ts';
 import { bindingOf } from './children.ts';
-import { lesser, type TurnInitiator } from './initiator.ts';
+import { initiatorOfReply, lesser, type TurnInitiator } from './initiator.ts';
 import { reactionAgain } from './reactions.ts';
 import { instructionsHash } from './seed.ts';
 import { laneKey, laneOf, pump, type BoundProvider, type ChatCore, type Turn, type TurnSource } from './turn.ts';
@@ -201,7 +201,7 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
     released: Promise.withResolvers(),
     quiet: Promise.withResolvers(),
   };
-  core.initiators.set(threadId, initiatorOf(core, threadId, input));
+  core.initiators.set(generationId, initiatorOf(core, input));
   core.active.set(threadId, turn);
   switch (turnSource.kind) {
     case 'chat':
@@ -241,14 +241,14 @@ function modeOf(input: AdmitInput): TurnMode {
 }
 
 /** Who the turn answers. A Continue answers the failed turn's input again, so it is no more trusted than that turn was. */
-function initiatorOf(core: ChatCore, threadId: string, input: AdmitInput): TurnInitiator {
+function initiatorOf(core: ChatCore, input: AdmitInput): TurnInitiator {
   switch (input.kind) {
     case 'send':
     case 'queued':
     case 'reaction':
       return input.by;
     case 'continue':
-      return lesser(input.by, core.initiators.get(threadId) ?? 'member');
+      return lesser(input.by, initiatorOfReply(core, input.failedMessageId));
     case 'agent-message':
     case 'subagent':
       return 'agent';

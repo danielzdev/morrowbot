@@ -51,7 +51,7 @@ export interface ConnectorKit {
   /** Saves the connector, waits for its session to settle, and gives its id. */
   add(request: CreateConnectorRequest): Promise<string>;
   view(id: string): Connector;
-  /** A running turn of `agentId`; `startedBy` is whether the server owner started it (the default) or someone else. */
+  /** A running turn of `agentId`, started by the server owner unless `startedBy` says otherwise. */
   turn(agentId: string, startedBy?: TurnOf['startedBy']): KitTurn;
   close(): Promise<void>;
 }
@@ -90,7 +90,7 @@ export async function startConnectorKit(options: { readonly agentIds: readonly s
     report,
   });
   const starters = new Map<string, TurnOf['startedBy']>();
-  const turnOf = (grant: ToolGrant): TurnOf => ({ agentId: grant.agentId, startedBy: starters.get(grant.turnId) ?? 'other' });
+  const turnOf = (grant: ToolGrant): TurnOf => ({ agentId: grant.agentId, startedBy: starters.get(grant.turnId) ?? 'member' });
   const tools = await startToolServer({
     ports: {
       agents: { list: () => storage.agents.list() },

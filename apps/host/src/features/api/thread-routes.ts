@@ -147,7 +147,7 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
       method: 'POST',
       path: '/api/threads/:id/queue/:queuedId/steer',
       access: { kind: 'thread', need: 'chat' },
-      handle: ({ params }) => queueReply(chat.steerQueued(params.get('id'), params.get('queuedId')), noContent),
+      handle: ({ params, viewer }) => queueReply(chat.steerQueued(params.get('id'), params.get('queuedId'), initiatorOf(viewer)), noContent),
     },
     {
       method: 'POST',

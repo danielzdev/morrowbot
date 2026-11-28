@@ -1,5 +1,6 @@
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { QueuedSend, StartedSend, type Thread } from '@morrowbot/contracts';
+import { ContinueResponse, MessageList, QueuedSend, StartedSend, type ChatEvent, type Thread } from '@morrowbot/contracts';
 import { afterEach, expect, it } from 'vitest';
 import { stdioSetup } from './testing/connector-kit.ts';
 import { startMemberKit, type MemberKit } from './testing/member-kit.ts';
@@ -70,4 +71,67 @@ it('a member’s queued message steered into the owner’s running turn takes th
       "steer": 204,
     }
   `);
+});
+
+/** An owner's agent shared with a member, a `Notes` connector given to every agent, and the member's token. */
+async function sharedSetup(live: MemberKit): Promise<{ readonly thread: Thread; readonly token: string }> {
+  const shared = await live.named('Shared');
+  await live.chat.host.call('POST', '/api/connectors', { label: 'Notes', setup: stdioSetup('work', path.join(live.chat.dataDir, 'log')), scope: { mode: 'all', agentIds: [] } });
+  const guest = await live.join('Guest', { kind: 'scoped', agents: [{ agentId: shared.agent.id, canEdit: false, workspace: 'read-only', interAgentAllowlist: [] }] });
+  return { thread: shared.thread, token: guest.token };
+}
+
+const echoDir = (live: MemberKit): string => path.join(live.chat.dataDir, 'plugin-data', 'echo');
+
+async function latestId(live: MemberKit, thread: Thread): Promise<string> {
+  return MessageList.parse((await live.chat.host.call('GET', `/api/threads/${thread.id}/messages`)).body).messages.at(-1)?.id ?? '';
+}
+
+async function continued(live: MemberKit, thread: Thread): Promise<string | undefined> {
+  const failedMessageId = await latestId(live, thread);
+  const { generationId } = ContinueResponse.parse((await live.chat.host.call('POST', `/api/threads/${thread.id}/continue`, { failedMessageId, sessionChoice: { kind: 'auto' } })).body);
+  await live.chat.events.finished(generationId);
+  return lastReply(live, thread);
+}
+
+it('Continue answers the failed turn’s own input: a member’s stays without connectors after a quiet owner reaction, the owner’s own keeps them', async () => {
+  kit = await startMemberKit();
+  const live = kit;
+  const { thread, token } = await sharedSetup(live);
+  await live.chat.send(thread, 'Deployed. on-reaction stay_quiet {}');
+  const reacted = await latestId(live, thread);
+  const failed = StartedSend.parse((await live.as(token, 'POST', `/api/threads/${thread.id}/messages`, { text: `once-fail\n${ECHO_CALL('member retry')}`, sessionChoice: { kind: 'auto' } })).body);
+  await live.chat.events.finished(failed.generationId);
+  const quiet = (event: ChatEvent): boolean => event.kind === 'generation.background-finished' && event.threadId === thread.id;
+  await live.chat.host.call('PUT', `/api/threads/${thread.id}/reactions`, { messageId: reacted, emoji: '👍', reacted: true });
+  await live.chat.events.until(quiet);
+  const memberRetry = await continued(live, thread);
+
+  await rm(path.join(echoDir(live), 'failed-once'));
+  await live.chat.send(thread, `once-fail\n${ECHO_CALL('owner retry')}`);
+  const ownerRetry = await continued(live, thread);
+
+  expect({ memberRetry, ownerRetry }).toMatchInlineSnapshot(`
+    {
+      "memberRetry": "assistant(completed): notes__echo: error This agent is shared, so connectors are given only to turns the owner starts.",
+      "ownerRetry": "assistant(completed): notes__echo: work ran echo with {"text":"owner retry"}",
+    }
+  `);
+});
+
+it('a member’s message queued behind the owner’s reply runs next without connectors', async () => {
+  kit = await startMemberKit();
+  const live = kit;
+  const { thread, token } = await sharedSetup(live);
+  const owner = StartedSend.parse((await live.chat.host.call('POST', `/api/threads/${thread.id}/messages`, { text: 'gate' })).body);
+  const { queued } = QueuedSend.parse((await live.as(token, 'POST', `/api/threads/${thread.id}/messages`, { text: ECHO_CALL('queued'), sessionChoice: { kind: 'auto' } })).body);
+  await mkdir(echoDir(live), { recursive: true });
+  await writeFile(path.join(echoDir(live), 'gate'), '');
+  await live.chat.events.finished(owner.generationId);
+  const next = (event: ChatEvent): boolean => event.kind === 'generation.started' && event.userMessage?.id === queued.id;
+  await live.chat.events.until(next);
+  const started = live.chat.events.received.find(next);
+  if (started?.kind === 'generation.started') await live.chat.events.finished(started.generationId);
+
+  expect(await lastReply(live, thread)).toMatchInlineSnapshot(`"assistant(completed): notes__echo: error This agent is shared, so connectors are given only to turns the owner starts."`);
 });

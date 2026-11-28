@@ -52,7 +52,7 @@ export function agentToolPorts(options: {
 }): ToolPorts {
   const { storage, agents, agentMessages, memories, replies, replyFiles, vault, subagents, connectors, plugins, routines, t3Watches, t3Clock, defaultT3RoutineId, isPluginAllowedForAgent } =
     options;
-  const turnOf = (grant: ToolGrant): TurnOf => ({ agentId: grant.agentId, startedBy: options.startedBy(grant) === 'owner' ? 'owner' : 'other' });
+  const turnOf = (grant: ToolGrant): TurnOf => ({ agentId: grant.agentId, startedBy: options.startedBy(grant) ?? 'member' });
   const sharedWithMembers = (agentId: string): boolean => storage.members.allowlistsOf(agentId).length > 0;
   return {
     agents,

@@ -23,6 +23,8 @@ import { useAttention } from './use-attention.ts';
 import { UsagePane } from './UsagePane.tsx';
 
 const NO_INFO: AppInfo = { appVersion: '', homeDir: '', userName: '', dataDir: '' };
+/** Before the plugin list loads (or when it can't), the Extensions dot still shows connectors that need attention. */
+const NO_PLUGINS = { plugins: [], safeMode: false, problems: [] };
 
 const FOCUS_WAIT_MS = 2_000;
 
@@ -95,6 +97,15 @@ export function App({ bridge, server, role }: AppProps) {
       models.updates.close();
     };
   }, [models]);
+
+  useEffect(() => {
+    if (!owner) return;
+    const look = (): void => void models.connectors.load();
+    window.addEventListener('focus', look);
+    return () => {
+      window.removeEventListener('focus', look);
+    };
+  }, [models, owner]);
 
   useEffect(() => {
     if (palette || picked.current === null) return;
@@ -190,7 +201,7 @@ export function App({ bridge, server, role }: AppProps) {
             facts={(each) => liveFactsOf(cards, activity, each)}
             avatar={avatarOf}
             redact={preview}
-            alert={pluginList.kind === 'loaded' ? extensionsAlert(pluginList.value, [connectorList.kind === 'loaded' ? connectorNote(connectorList.value.connectors) : null]) : null}
+            alert={extensionsAlert(pluginList.kind === 'loaded' ? pluginList.value : NO_PLUGINS, [connectorList.kind === 'loaded' ? connectorNote(connectorList.value.connectors) : null])}
             filterRequest={filterRequest}
             onToggle={controls.toggle}
             onOpenAgent={(agentId, threadId) => {

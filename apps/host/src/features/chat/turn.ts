@@ -136,7 +136,7 @@ export interface ChatCore {
   readonly queueStates: Map<string, QueuedMessageState>;
   /** Who wrote each queued message this host run (see initiator.ts). */
   readonly queueAuthors: Map<string, TurnInitiator>;
-  /** Who started each thread's latest turn this host run, made less trusted by a message steered into it. */
+  /** Who started each turn this host run, by generation id, made less trusted by a message steered into it (see initiator.ts). */
   readonly initiators: Map<string, TurnInitiator>;
   /** Threads whose next queued message is being admitted, with that message's id. */
   readonly draining: Map<string, string>;

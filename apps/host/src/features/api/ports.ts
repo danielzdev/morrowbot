@@ -147,7 +147,7 @@ export interface ApiChat {
     by: ApiInitiator,
   ): { readonly kind: 'set'; readonly reactions: MessageReaction[] } | { readonly kind: 'not_found' } | { readonly kind: 'conflict'; readonly reason: string };
   cancelQueued(threadId: string, queuedId: string): ApiQueueAnswer;
-  steerQueued(threadId: string, queuedId: string): ApiQueueAnswer;
+  steerQueued(threadId: string, queuedId: string, by: ApiInitiator): ApiQueueAnswer;
   continueTurn(threadId: string, failedMessageId: string, choice: SessionChoice, by: ApiInitiator): Promise<ApiAdmitResult>;
   stop(threadId: string): Promise<StopGenerationResponse | { readonly kind: 'not_stored' }>;
   replyApproval(

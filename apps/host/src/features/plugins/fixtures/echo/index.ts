@@ -12,6 +12,7 @@ import { defineProvider, runPlugin, z, type AccessProfile, type PluginConfig, ty
  * A prompt whose first line is `nothing-new` gets only the stay-quiet marker back, as a routine's agent would send.
  * Each prompt line `host-tool <name> <json arguments>` calls that MorrowBot tool over the turn's MCP endpoint
  * and answers with the results; `{{message}}` in the arguments is the id of the agent message being read.
+ * Such a prompt whose first line is `once-fail` fails the first time, like the `once-fail` prompt.
  * In the turn a user's reaction starts, each quoted line ending `on-reaction <name> <json arguments>` is such a call.
  * Every turn saves its `hostTools` as `host-tools.json` in the data folder.
  */
@@ -107,6 +108,10 @@ runPlugin((runtime) =>
         }
       };
       const calls = toolCalls(prompt, reaction ? / on-reaction (\S+) (\{.*\})$/ : /^host-tool (\S+) (\{.*\})$/);
+      if (calls.length > 0 && prompt.split('\n')[0] === 'once-fail' && !existsSync(path.join(dataDir, 'failed-once'))) {
+        writeFileSync(path.join(dataDir, 'failed-once'), request.turnId);
+        return end({ kind: 'failed', error: { kind: 'other', message: 'echo failed once' } }, current);
+      }
       if (calls.length > 0) {
         await runTools(calls, /^Message (\S+) from the agent/m.exec(prompt)?.[1], true);
         return end({ kind: 'completed', finishReason: 'stop' }, current);

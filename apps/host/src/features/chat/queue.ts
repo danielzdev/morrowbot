@@ -57,10 +57,11 @@ export function cancelQueued(core: ChatCore, threadId: string, id: string): Queu
  * Steer now: the message goes into the running reply (natively, or by stopping it and running the
  * message next), or, when nothing runs, out as the next turn at once.
  */
-export function steerQueued(core: ChatCore, threadId: string, id: string): QueueAnswer {
+export function steerQueued(core: ChatCore, threadId: string, id: string, by: TurnInitiator): QueueAnswer {
   const queue = queueOf(core, threadId);
   const item = queue.find((entry) => entry.id === id);
   if (item === undefined) return { kind: 'not_found' };
+  core.queueAuthors.set(id, lesser(by, authorOf(core, id)));
   if (item.state.kind === 'steering' || core.draining.get(threadId) === id) return { kind: 'ok' };
   if (queue.some((entry) => entry.state.kind === 'steering') || core.draining.has(threadId)) {
     return { kind: 'conflict', reason: 'Another message is already on its way to the agent.' };
@@ -84,6 +85,7 @@ export function steerQueued(core: ChatCore, threadId: string, id: string): Queue
       break;
   }
   turn.steer = { id, via: 'native' };
+  core.initiators.set(turn.generationId, lesser(core.initiators.get(turn.generationId) ?? 'member', authorOf(core, id)));
   setState(core, threadId, [id], { kind: 'steering', via: 'native' });
   core.options.plugins.steerTurn(turn.pluginId, turn.generationId, id, steerPrompt(item.text));
   return { kind: 'ok' };
@@ -133,7 +135,6 @@ export function steerDelivered(core: ChatCore, turn: Turn, steerId: string): voi
   turn.textBytes = 0;
   turn.seedTruncated = false;
   turn.silent = false;
-  core.initiators.set(turn.threadId, lesser(core.initiators.get(turn.threadId) ?? 'member', authorOf(core, item.id)));
   core.queueStates.delete(item.id);
   core.queueAuthors.delete(item.id);
   core.events.publish({ kind: 'generation.steered', threadId: turn.threadId, generationId: turn.generationId, segment, userMessage });
@@ -163,7 +164,7 @@ export function afterTurn(core: ChatCore, turn: Turn, outcome: GenerationOutcome
   setState(core, threadId, waiting.map(({ id }) => id), { kind: 'held', reason: heldReason(outcome) });
 }
 
-/** Who wrote a queued message: one queued before this host run started counts as a member's. */
+/** Who wrote a queued message (or steered it, if less trusted): one queued before this host run started counts as a member's. */
 function authorOf(core: ChatCore, id: string): TurnInitiator {
   return core.queueAuthors.get(id) ?? 'member';
 }
