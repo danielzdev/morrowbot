@@ -26,7 +26,7 @@ function facts(name: string, change: Partial<AgentFacts> = {}, agentChange: Part
 const shown = (groups: ReturnType<typeof groupAgents>) =>
   groups.flatMap((group) => [`# ${sectionKey(group.section)}`, ...group.entries.map(({ agent, status }) => `${agent.name}: ${JSON.stringify(status)}`)]);
 
-it('pins agents that need you or are working on top, then Agents, then each folder; folders always show', () => {
+it('keeps every agent in its own folder or Agents whatever its status; folders always show', () => {
   const all = [
     facts('Reading Buddy', { approvalChats: ['t1'], working: 'running' }, { folderId: 'f-home' }),
     facts('errand Bot', { working: 'running' }),
@@ -41,19 +41,17 @@ it('pins agents that need you or are working on top, then Agents, then each fold
   ];
   expect(shown(groupAgents(all, FOLDERS, ''))).toMatchInlineSnapshot(`
     [
-      "# needs-you",
-      "Garden Pal: {"kind":"needs-you","reason":"provider"}",
-      "Notes: {"kind":"needs-you","reason":"failed"}",
-      "Reading Buddy: {"kind":"needs-approval","threadIds":["t1"]}",
-      "Zed Helper: {"kind":"needs-you","reason":"unbound"}",
-      "# working",
+      "# agents",
       "Alarm Clock: {"kind":"queued"}",
       "errand Bot: {"kind":"working"}",
-      "# agents",
+      "Garden Pal: {"kind":"needs-you","reason":"provider"}",
       "Lost Folder: {"kind":"idle"}",
+      "Notes: {"kind":"needs-you","reason":"failed"}",
       "Unopened: {"kind":"idle"}",
+      "Zed Helper: {"kind":"needs-you","reason":"unbound"}",
       "# folder-f-home",
       "Mail Sorter: {"kind":"unread"}",
+      "Reading Buddy: {"kind":"needs-approval","threadIds":["t1"]}",
       "# folder-f-work",
       "Inbox Helper: {"kind":"idle"}",
       "# folder-f-empty",
