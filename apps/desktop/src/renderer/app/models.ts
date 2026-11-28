@@ -1,6 +1,6 @@
 import type { ProviderInfo } from '@morrowbot/contracts';
 import type { MorrowbotBridge } from '../bridge.ts';
-import { createAgentsModel, type AgentsModel } from '../features/agents/index.ts';
+import { createAgentNotify, createAgentsModel, type AgentNotifyModel, type AgentsModel } from '../features/agents/index.ts';
 import { createChatHub, localDrafts, type ChatHub } from '../features/chat/index.ts';
 import { createPluginsModel, type PluginsModel } from '../features/plugins/index.ts';
 import { createProvidersModel, type ProviderCard, type ProvidersModel } from '../features/providers/index.ts';
@@ -13,6 +13,7 @@ import { createUpdates, type UpdatesModel } from '../shared/updates.ts';
 export interface Models {
   readonly api: Api;
   readonly agents: AgentsModel;
+  readonly agentNotify: AgentNotifyModel;
   readonly providers: ProvidersModel;
   readonly plugins: PluginsModel;
   readonly chats: ChatHub;
@@ -72,5 +73,5 @@ export function createModels(bridge: MorrowbotBridge): Models {
     },
   });
   const routines = createRoutinesModel({ api, bridge, onPosted: (agentId) => void agents.reloadThreads(agentId) });
-  return { api, agents, providers, plugins, chats, appearance: createAppearance(document.documentElement), chatPrefs: createChatPrefs(), updates: createUpdates(bridge), routines };
+  return { api, agents, agentNotify: createAgentNotify(), providers, plugins, chats, appearance: createAppearance(document.documentElement), chatPrefs: createChatPrefs(), updates: createUpdates(bridge), routines };
 }

@@ -20,7 +20,7 @@ function facts(name: string, change: Partial<AgentFacts> = {}, agentChange: Part
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...agentChange,
   };
-  return { agent, providerReady: true, approvalChats: [], failed: false, working: null, unread: false, lastMessage: null, ...change };
+  return { agent, providerReady: true, approvalChats: [], failed: false, working: null, unread: false, notify: 'all', lastMessage: null, ...change };
 }
 
 const shown = (groups: ReturnType<typeof groupAgents>) =>
@@ -77,5 +77,27 @@ it('filters by name and description, ignoring case, and hides sections with no m
       ],
       "none": [],
     }
+  `);
+});
+
+it('hides only the unread dot of a muted agent; a quiet agent keeps it, and approvals and problems always show', () => {
+  const all = [
+    facts('All New', { unread: true }),
+    facts('Quiet New', { unread: true, notify: 'quiet' }),
+    facts('Muted New', { unread: true, notify: 'muted' }),
+    facts('Muted Asking', { unread: true, approvalChats: ['t1'], notify: 'muted' }),
+    facts('Muted Failed', { unread: true, failed: true, notify: 'muted' }),
+    facts('Muted Working', { working: 'running', notify: 'muted' }),
+  ];
+  expect(shown(groupAgents(all, [], ''))).toMatchInlineSnapshot(`
+    [
+      "# agents",
+      "All New: {"kind":"unread"}",
+      "Muted Asking: {"kind":"needs-approval","threadIds":["t1"]}",
+      "Muted Failed: {"kind":"needs-you","reason":"failed"}",
+      "Muted New: {"kind":"idle"}",
+      "Muted Working: {"kind":"working"}",
+      "Quiet New: {"kind":"unread"}",
+    ]
   `);
 });

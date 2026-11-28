@@ -31,3 +31,4 @@ export * from './routines.ts';
 export * from './t3-watches.ts';
 export * from './browser-commands.ts';
 export * from './browser-bridge.ts';
+export { lenient } from './lenient.ts';

@@ -19,7 +19,7 @@ function many(count: number): readonly AgentFacts[] {
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
     };
-    return { agent, providerReady: true, approvalChats: [], failed: false, working: index % 50 === 7 ? 'running' : null, unread: false, lastMessage: null };
+    return { agent, providerReady: true, approvalChats: [], failed: false, working: index % 50 === 7 ? 'running' : null, unread: false, notify: 'all', lastMessage: null };
   });
 }
 

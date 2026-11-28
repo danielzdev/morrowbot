@@ -1,5 +1,6 @@
 import type { ComponentChildren } from 'preact';
 import { messageTime } from '../../shared/format.ts';
+import { Icon } from '../../shared/ui/Icon.tsx';
 import { Tooltip } from '../../shared/ui/Tooltip.tsx';
 import { NameInput } from '../../shared/ui/NameInput.tsx';
 import { markLabel, markOf, type RowMark } from './row-mark.ts';
@@ -70,9 +71,11 @@ export interface AgentRowProps {
  * or a needs-you badge). Right-click, the menu key or ⇧F10 opens its actions.
  */
 export function AgentRow(props: AgentRowProps) {
-  const { agent, status, lastMessage } = props.entry;
+  const { agent, status, notify, lastMessage } = props.entry;
   const mark = markOf(status);
-  const said = markLabel(mark);
+  const muted = notify === 'muted';
+  const words = [markLabel(mark), muted ? 'Muted' : null].filter((part) => part !== null);
+  const said = words.length === 0 ? null : words.join(', ');
   const unread = mark.kind === 'unread';
   const role = agent.description.split('\n')[0]?.trim() ?? '';
   const preview = lastMessage === null ? null : `${lastMessage.kind === 'user' ? 'You: ' : ''}${shortPreview(props.redact(lastMessage.preview))}`;
@@ -105,6 +108,12 @@ export function AgentRow(props: AgentRowProps) {
           <span class="agent-line">
             <span class="agent-name">{agent.name}</span>
             {role !== '' && <span class="agent-role">{role}</span>}
+            {muted && (
+              <span class="agent-muted" title="Muted">
+                <Icon name="bell-off" size={12} />
+                <span class="visually-hidden">Muted</span>
+              </span>
+            )}
             {lastMessage !== null && <span class="agent-time">{messageTime(lastMessage.at, props.now)}</span>}
           </span>
           <span class="agent-line">

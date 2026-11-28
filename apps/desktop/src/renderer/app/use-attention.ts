@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'preact/hooks';
+import { notifyOf, popsUp } from '../features/agents/index.ts';
 import type { Notify } from '../shared/chat-prefs.ts';
 import { useStore } from '../shared/use-store.ts';
 import { attentionCopy, attentionFrom, windowTitle } from './attention.ts';
@@ -6,7 +7,8 @@ import type { Models } from './models.ts';
 
 /**
  * Keeps the window title on what needs the user, and, while the window is in the background and
- * Settings › Chat › Notifications is on, raises a system notification that opens the chat.
+ * Settings › Chat › Notifications is on, raises a system notification that opens the chat, for agents
+ * whose own level is All (not Quiet or Muted).
  */
 export function useAttention(options: {
   readonly models: Models;
@@ -25,7 +27,8 @@ export function useAttention(options: {
     document.title = windowTitle(activity, options.agentName);
   }, [activity, options.agentName]);
   useEffect(() => {
-    const events = attentionFrom(before.current, activity);
+    const levels = models.agentNotify.state.get();
+    const events = attentionFrom(before.current, activity).filter(({ agentId }) => popsUp(notifyOf(levels, agentId)));
     before.current = activity;
     const { notify, safe, onOpen } = latest.current;
     if (events.length === 0 || notify === 'off' || document.hasFocus() || typeof Notification === 'undefined') return;

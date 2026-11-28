@@ -2,6 +2,7 @@
   "expo": {
     "name": "MorrowBot",
     "slug": "morrowbot",
+    "scheme": "morrowbot",
     "version": "0.0.0",
     "platforms": ["ios"],
     "orientation": "portrait",
@@ -9,8 +10,28 @@
     "ios": {
       "bundleIdentifier": "com.legendarykoi.morrowbot.mobile",
       "supportsTablet": true,
-      "deploymentTarget": "17.0"
+      "deploymentTarget": "17.0",
+      "infoPlist": {
+        "NSLocalNetworkUsageDescription": "MorrowBot connects to MorrowBot on your computer over your local network.",
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true,
+          "NSExceptionDomains": {
+            "ts.net": { "NSIncludesSubdomains": true, "NSExceptionAllowsInsecureHTTPLoads": true }
+          }
+        }
+      }
     },
-    "plugins": ["expo-dev-client"]
+    "plugins": [
+      "expo-dev-client",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "MorrowBot uses the camera to scan the pairing QR code shown on your computer.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      "expo-secure-store"
+    ]
   }
 }

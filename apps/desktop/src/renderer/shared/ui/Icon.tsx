@@ -23,9 +23,12 @@ export type IconName =
   | 'sun'
   | 'moon'
   | 'monitor'
+  | 'phone'
   | 'eye'
   | 'lock'
   | 'lock-off'
+  | 'bell'
+  | 'bell-off'
   | 'send'
   | 'stop'
   | 'keyboard'
@@ -139,6 +142,12 @@ const SHAPES: Readonly<Record<IconName, ComponentChildren>> = {
       <path d="M5.5 14h5M8 11v3" />
     </>
   ),
+  phone: (
+    <>
+      <rect x="4.5" y="1.5" width="7" height="13" rx="1.5" />
+      <path d="M7 12h2" />
+    </>
+  ),
   eye: (
     <>
       <path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z" />
@@ -157,6 +166,8 @@ const SHAPES: Readonly<Record<IconName, ComponentChildren>> = {
       <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2M2 2l12 12" />
     </>
   ),
+  bell: <path d="M4.5 11V7.5a3.5 3.5 0 0 1 7 0V11l1 1.5h-9zM6.75 14h2.5" />,
+  'bell-off': <path d="M4.5 11V7.5a3.5 3.5 0 0 1 7 0V11l1 1.5h-9zM6.75 14h2.5M2 2l12 12" />,
   send: <path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" />,
   paperclip: <path d="M13 7.5 8 12.5a3 3 0 0 1-4.5-4.5L9 2.5a2 2 0 0 1 3 3L6.5 11a1 1 0 0 1-1.5-1.5L10 4.5" />,
   file: <path d="M4 2h5l3 3v9H4zM9 2v3h3" />,

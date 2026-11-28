@@ -149,6 +149,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
         sidebar={(mode, controls) => (
           <Sidebar
             model={models.agents}
+            notify={models.agentNotify}
             mode={mode}
             facts={(each) => liveFactsOf(cards, activity, each)}
             avatar={avatarOf}
@@ -266,6 +267,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
             />
           )}
           usage={<UsagePane models={models} />}
+          pairing={models.api}
         />
       )}
     </>

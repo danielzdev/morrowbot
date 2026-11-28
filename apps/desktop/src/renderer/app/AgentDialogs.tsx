@@ -73,6 +73,7 @@ export function AgentDialogs(props: {
         <AgentSettingsDialog
           key={agent.id}
           model={models.agents}
+          notify={models.agentNotify}
           agent={agent}
           section={dialog.section}
           onSection={(section) => { props.onDialog({ ...dialog, section }); }}

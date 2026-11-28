@@ -25,6 +25,7 @@ import { findSkills, skillList } from './features/skills/index.ts';
 import { createRoutineService, type RoutineClock } from './features/routines/index.ts';
 import { lockDataDir, openStorage, type Storage } from './features/storage/index.ts';
 import { cliProbe, createT3WatchService, type T3Probe, type T3WatchClock } from './features/t3-watch/index.ts';
+import { routineSink } from './t3-routine-sink.ts';
 
 export { DataDirLockedError as HostLockedError } from './features/storage/index.ts';
 
@@ -191,8 +192,9 @@ export async function startHost(options: HostOptions): Promise<Host> {
     });
     routines.tick();
     const t3Watches = createT3WatchService({
-      store: { watches: storage.t3Watches, outbox: storage.t3Outbox, transaction: (work) => storage.transaction(work) },
+      store: { watches: storage.t3Watches, outbox: storage.t3Outbox, batches: storage.t3Batches, transaction: (work) => storage.transaction(work) },
       probe: options.t3Watch?.probe ?? cliProbe(config.t3Watch.bin),
+      sink: config.t3Watch.routineId === null ? null : routineSink(routines, config.t3Watch.routineId, (agentId) => chat.agentBusy(agentId)),
       clock: options.t3Watch?.clock ?? systemClock,
       dir: config.t3Watch.dir,
       projects: config.t3Watch.projects,

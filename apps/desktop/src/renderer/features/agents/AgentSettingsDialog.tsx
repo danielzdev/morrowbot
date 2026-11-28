@@ -7,6 +7,8 @@ import type { IconName } from '../../shared/ui/Icon.tsx';
 import { SettingsShell, type SettingsNavGroup } from '../../shared/ui/SettingsShell.tsx';
 import { AgentBrain } from './AgentBrain.tsx';
 import { AgentGeneral } from './AgentGeneral.tsx';
+import type { AgentNotifyModel } from './agent-notify.ts';
+import { AgentNotifications } from './AgentNotifications.tsx';
 import type { AgentsModel } from './agents-model.ts';
 import { DangerZone, WorkspaceSection } from './DangerZone.tsx';
 import { InstructionsEditor } from './InstructionsEditor.tsx';
@@ -14,7 +16,7 @@ import { MemoriesSection } from './MemoriesSection.tsx';
 import { SkillsSection } from './SkillsSection.tsx';
 import type { AvatarEditor } from './NewAgentDialog.tsx';
 
-export type AgentSection = 'general' | 'brain' | 'instructions' | 'skills' | 'memories' | 'routines' | 'workspace' | 'danger';
+export type AgentSection = 'general' | 'brain' | 'instructions' | 'skills' | 'memories' | 'routines' | 'notifications' | 'workspace' | 'danger';
 
 const TITLES: Readonly<Record<AgentSection, string>> = {
   general: 'General',
@@ -23,6 +25,7 @@ const TITLES: Readonly<Record<AgentSection, string>> = {
   skills: 'Skills',
   memories: 'Memories',
   routines: 'Routines',
+  notifications: 'Notifications',
   workspace: 'Workspace',
   danger: 'Danger zone',
 };
@@ -34,11 +37,12 @@ const ICONS: Readonly<Record<AgentSection, IconName>> = {
   skills: 'book',
   memories: 'bookmark',
   routines: 'clock',
+  notifications: 'bell',
   workspace: 'folder',
   danger: 'trash',
 };
 
-const NAV: readonly AgentSection[] = ['general', 'brain', 'instructions', 'skills', 'memories', 'routines', 'workspace'];
+const NAV: readonly AgentSection[] = ['general', 'brain', 'instructions', 'skills', 'memories', 'routines', 'notifications', 'workspace'];
 
 const isSection = (id: string): id is AgentSection => id in TITLES;
 
@@ -48,6 +52,7 @@ const isSection = (id: string): id is AgentSection => id in TITLES;
  */
 export function AgentSettingsDialog(props: {
   readonly model: AgentsModel;
+  readonly notify: AgentNotifyModel;
   readonly agent: Agent;
   readonly section: AgentSection;
   readonly onSection: (section: AgentSection) => void;
@@ -116,6 +121,7 @@ export function AgentSettingsDialog(props: {
         {props.section === 'skills' && <SkillsSection load={() => model.skills(agent.id)} redact={props.redact} onReveal={props.onRevealSkills} />}
         {props.section === 'memories' && <MemoriesSection editor={() => model.memoriesEditor(agent.id)} redact={props.redact} />}
         {props.section === 'routines' && props.routines}
+        {props.section === 'notifications' && <AgentNotifications notify={props.notify} agentId={agent.id} />}
         {props.section === 'workspace' && <WorkspaceSection agent={agent} pathLabel={props.workspaceLabel} onCopy={props.onCopyPath} onReveal={props.onRevealWorkspace} />}
         {props.section === 'danger' && <DangerZone agent={agent} onDelete={() => void model.deleteAgent(agent.id).then(props.onDeleted)} />}
       </SettingsShell>

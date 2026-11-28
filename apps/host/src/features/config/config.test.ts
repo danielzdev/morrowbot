@@ -56,6 +56,7 @@ it('turns on safe mode from the flag or the env, and places data in the dev fold
             "bin": "/home/user/.t3/bin/t3",
             "dir": "/home/user/.morrowbot-dev/t3-watch",
             "projects": [],
+            "routineId": null,
           },
         },
         "kind": "ok",
@@ -72,6 +73,7 @@ it('turns on safe mode from the flag or the env, and places data in the dev fold
             "bin": "/home/user/.t3/bin/t3",
             "dir": "/home/user/.morrowbot-dev/t3-watch",
             "projects": [],
+            "routineId": null,
           },
         },
         "kind": "ok",
@@ -88,6 +90,7 @@ it('turns on safe mode from the flag or the env, and places data in the dev fold
             "bin": "/home/user/.t3/bin/t3",
             "dir": "/data/t3-watch",
             "projects": [],
+            "routineId": null,
           },
         },
         "kind": "ok",
@@ -135,13 +138,13 @@ it('binds to loopback unless MORROWBOT_HOST_BIND names an IP address, kept in on
   `);
 });
 
-it('reads the T3 watcher settings, splitting the project list and refusing a relative watch folder', () => {
+it('reads the T3 watcher settings, splitting the project list, trimming the routine id and refusing a relative watch folder', () => {
   const watch = (env: NodeJS.ProcessEnv) => {
     const result = parse(env);
     return result.kind === 'ok' ? result.config.t3Watch : result.problems;
   };
   expect([
-    watch({ MORROWBOT_T3_WATCH_DIR: '/shared/t3-watch', MORROWBOT_T3_BIN: '/opt/t3', MORROWBOT_T3_PROJECTS: ' proj-a, /work/repo ,,' }),
+    watch({ MORROWBOT_T3_WATCH_DIR: '/shared/t3-watch', MORROWBOT_T3_BIN: '/opt/t3', MORROWBOT_T3_PROJECTS: ' proj-a, /work/repo ,,', MORROWBOT_T3_ROUTINE_ID: ' routine-1 ' }),
     watch({ MORROWBOT_T3_WATCH_DIR: 'relative' }),
   ]).toMatchInlineSnapshot(`
     [
@@ -152,6 +155,7 @@ it('reads the T3 watcher settings, splitting the project list and refusing a rel
           "proj-a",
           "/work/repo",
         ],
+        "routineId": "routine-1",
       },
       [
         "MORROWBOT_T3_WATCH_DIR: Expected an absolute path",

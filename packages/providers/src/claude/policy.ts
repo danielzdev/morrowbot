@@ -135,7 +135,10 @@ async function plistAsJson(run: PolicyScope['run'], file: string): Promise<unkno
     case 'failed':
       throw new Error(exit.message);
     case 'exited':
-      if (exit.code !== 0) throw new Error(`plutil exited with code ${String(exit.code)}: ${exit.stderr.trim()}`);
+      if (exit.code !== 0) {
+        const detail = exit.stderr.trim() !== '' ? exit.stderr.trim() : output.trim();
+        throw new Error(`plutil exited with code ${String(exit.code)}: ${detail}`);
+      }
       return JSON.parse(output);
   }
 }
