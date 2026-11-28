@@ -228,8 +228,8 @@ async function runTurn(served: Served, message: Extract<HostMessage, { kind: 'tu
 
 /** The turn frame, already parsed at the boundary, without its `kind`. */
 function requestOf(message: Extract<HostMessage, { kind: 'turn' }>): TurnRequest {
-  const { turnId, cwd, mode, access, vendorSettings, expectedAccountKey, expectedRouteKey, selection, session, system, prompt } = message;
-  return { turnId, cwd, mode, access, vendorSettings, expectedAccountKey, expectedRouteKey, selection, session, system, prompt };
+  const { turnId, cwd, mode, access, vendorSettings, expectedAccountKey, expectedRouteKey, selection, session, system, prompt, images } = message;
+  return { turnId, cwd, mode, access, vendorSettings, expectedAccountKey, expectedRouteKey, selection, session, system, prompt, images };
 }
 
 class UnsupportedError extends Error {}

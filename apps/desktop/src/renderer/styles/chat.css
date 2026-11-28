@@ -266,63 +266,113 @@
   gap: 6px;
   min-width: 0;
 }
+
+/* Attachments: chips above the message box, and what a sent message carried */
+.composer-box.dropping {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.composer-bar .toolbar {
+  margin-right: auto;
+}
+.attachment-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin: 0 0 var(--s-2);
+  padding: 0;
+  list-style: none;
+}
+.attachment-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  max-width: 240px;
+  padding: var(--s-1);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-md);
+  background: var(--surface-1);
+}
+.attachment-chip.uploading {
+  opacity: 0.7;
+}
+.attachment-chip.failed {
+  border-color: var(--danger);
+  background: var(--danger-bg);
+}
+.attachment-thumb,
+.attachment-icon {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-sm);
+  object-fit: cover;
+}
+.attachment-icon {
+  display: grid;
+  place-items: center;
+  background: var(--surface-3);
+  color: var(--text-2);
+}
+.attachment-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.attachment-name,
+.attachment-note {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.attachment-name {
+  font: var(--t-small);
+}
+.attachment-note {
+  color: var(--text-3);
+  font: var(--t-meta);
+}
+.attachment-chip.failed .attachment-note {
+  color: var(--danger);
+  white-space: normal;
+}
+.message.user {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--s-1);
+}
+.sent-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: flex-end;
+  gap: var(--s-2);
+  max-width: 80%;
+}
+.sent-image {
+  display: block;
+  max-width: 240px;
+  max-height: 180px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  object-fit: contain;
+  background: var(--surface-2);
+}
+.sent-image.loading {
+  width: 120px;
+  height: 90px;
+}
+.sent-file {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding: var(--s-1) var(--s-2);
+  border-radius: var(--r-md);
+  background: var(--surface-user);
+  font: var(--t-small);
+}
 .composer-sends {
   display: flex;
   gap: var(--s-2);
 }
 
-/* Queued messages, above the message box */
-.queue {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-1);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.queued {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-2) var(--s-3);
-  padding: var(--s-2) var(--s-3);
-  background: var(--surface-user);
-  border: 1px dashed var(--hairline-strong);
-  border-radius: var(--r-md);
-}
-.queued.steering {
-  border: 1px solid var(--accent);
-}
-.queued.held {
-  border-style: solid;
-}
-.queued-body {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 12rem;
-}
-.queued-status {
-  color: var(--text-3);
-  font: var(--t-meta);
-}
-.queued.steering .queued-status {
-  color: var(--accent);
-}
-.queued.held .queued-status {
-  color: var(--warn);
-}
-.queued-text {
-  display: -webkit-box;
-  overflow: hidden;
-  font: var(--t-ui);
-  white-space: pre-wrap;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-.queued-actions {
-  display: flex;
-  gap: var(--s-1);
-}

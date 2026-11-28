@@ -1,5 +1,7 @@
 import type {
   Agent,
+  Attachment,
+  AttachmentContent,
   BlockedGroup,
   ChatEvent,
   Message,
@@ -14,6 +16,7 @@ import type {
   UsageWindow,
   VendorSettings,
 } from '@morrowbot/contracts';
+import type { Prelude } from './prompt.ts';
 
 export type SessionState = 'clean' | 'diverged' | 'needs-seed';
 
@@ -112,6 +115,9 @@ export interface ChatStore {
     merge(pluginId: string, accountKey: string, observedAt: string, windows: readonly UsageWindow[]): void;
     read(pluginId: string, accountKey: string): { readonly observedAt: string; readonly windows: readonly UsageWindow[] } | undefined;
   };
+  readonly attachments: {
+    pending(threadId: string, ids: readonly string[]): Attachment[] | undefined;
+  };
   /** Threads a recorded turn process group still holds. */
   heldThreads(): Set<string>;
   transaction<T>(work: () => T): T;
@@ -186,9 +192,16 @@ export interface ProviderPlugins {
   onGroupBlocked(listener: (generationIds: readonly string[]) => void): () => void;
 }
 
+/** What a turn's prompt is made from besides the user's text (the skills, memories and attachments features provide it). */
+export interface TurnContext {
+  prelude(agentId: string, workspaceDir: string): Promise<Prelude>;
+  readAttachment(attachment: Attachment): Promise<AttachmentContent>;
+}
+
 export interface ChatServiceOptions {
   readonly store: ChatStore;
   readonly agents: AgentDirectory;
+  readonly context: TurnContext;
   readonly plugins: ProviderPlugins;
   readonly newId: () => string;
   readonly now: () => string;

@@ -1,11 +1,13 @@
 import type { ComponentChildren } from 'preact';
-import { useLayoutEffect, useRef } from 'preact/hooks';
+import { useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from '../../shared/ui/Icon.tsx';
 import type { SendWith } from '../../shared/chat-prefs.ts';
 import { isSendPress, PLATFORM } from '../../shared/keys.ts';
 import { useStore } from '../../shared/use-store.ts';
+import { AttachmentStrip } from './AttachmentStrip.tsx';
 import { ComposerBanners } from './ComposerBanners.tsx';
 import { QueueList } from './QueueList.tsx';
+import { ACCEPT, readFiles } from './read-files.ts';
 import type { ThreadSession } from './thread-session.ts';
 
 /** Why Send waits while the host can't be reached; the draft stays. */
@@ -37,7 +39,15 @@ export function Composer(props: {
 }) {
   const { session } = props;
   const screen = useStore(session.screen);
+  const items = useStore(session.attachments.items);
   const box = useRef<HTMLTextAreaElement>(null);
+  const picker = useRef<HTMLInputElement>(null);
+  const [dropping, setDropping] = useState(false);
+  const attach = (files: Iterable<File>): void => {
+    void readFiles(files).then((picked) => {
+      if (picked.length > 0) session.attachments.add(picked);
+    });
+  };
   useLayoutEffect(() => {
     if (box.current !== null) fit(box.current);
   }, [screen.draft]);
@@ -45,7 +55,14 @@ export function Composer(props: {
   const running = view?.activeTurn != null;
   const blocked = (view?.blockedGroups.length ?? 0) > 0;
   const disabledReason = props.disabledReason ?? (screen.connection === 'reconnecting' ? RECONNECTING : null);
-  const canSend = view !== null && !blocked && screen.busy === null && disabledReason === null && screen.draft.trim() !== '';
+  const uploading = items.some((item) => item.kind === 'uploading');
+  const files = items.some((item) => item.kind === 'ready');
+  const hasContent = screen.draft.trim() !== '' || files;
+  /** Only text can wait in the queue; files go once the reply ends. */
+  const filesWait = running && files;
+  const canSend = view !== null && !blocked && screen.busy === null && disabledReason === null && hasContent && !uploading && !filesWait;
+  const sendLabel =
+    screen.busy === 'sending' ? 'Sending…' : uploading ? 'Uploading files…' : filesWait ? 'Files can be sent once this reply ends' : running ? 'Queue: sent after this reply' : 'Send';
   return (
     <div class="composer">
       <ComposerBanners
@@ -57,7 +74,23 @@ export function Composer(props: {
         onOpenProviders={props.onOpenProviders}
       />
       {view !== null && <QueueList session={session} view={view} screen={screen} agentName={props.agentName} />}
-      <div class="composer-box">
+      <div
+        class={`composer-box${dropping ? ' dropping' : ''}`}
+        onDragOver={(event) => {
+          if (!event.dataTransfer?.types.includes('Files')) return;
+          event.preventDefault();
+          setDropping(true);
+        }}
+        onDragLeave={() => { setDropping(false); }}
+        onDrop={(event) => {
+          setDropping(false);
+          const files = event.dataTransfer?.files;
+          if (files === undefined || files.length === 0) return;
+          event.preventDefault();
+          attach(files);
+        }}
+      >
+        <AttachmentStrip items={items} onRemove={(key) => { session.attachments.remove(key); }} />
         <textarea
           ref={box}
           aria-label="Message"
@@ -67,6 +100,12 @@ export function Composer(props: {
           onInput={(event) => {
             session.setDraft(event.currentTarget.value);
           }}
+          onPaste={(event) => {
+            const files = event.clipboardData?.files;
+            if (files === undefined || files.length === 0) return;
+            event.preventDefault();
+            attach(files);
+          }}
           onKeyDown={(event) => {
             if (isSendPress(event, props.sendWith, PLATFORM)) {
               event.preventDefault();
@@ -75,6 +114,21 @@ export function Composer(props: {
           }}
         />
         <div class="composer-bar">
+          <input
+            ref={picker}
+            type="file"
+            multiple
+            accept={ACCEPT}
+            hidden
+            onChange={(event) => {
+              const { files } = event.currentTarget;
+              if (files !== null) attach(files);
+              event.currentTarget.value = '';
+            }}
+          />
+          <button class="icon-btn attach" aria-label="Attach files" title="Attach images or text files" onClick={() => picker.current?.click()}>
+            <Icon name="paperclip" />
+          </button>
           <div class="toolbar">{props.toolbar}</div>
           {disabledReason !== null && <span class="composer-reason">{disabledReason}</span>}
           <div class="composer-sends">
@@ -83,14 +137,8 @@ export function Composer(props: {
                 <Icon name="stop" />
               </button>
             )}
-            {(!running || screen.draft.trim() !== '') && (
-              <button
-                class="round-btn send"
-                aria-label={screen.busy === 'sending' ? 'Sending…' : running ? 'Queue' : 'Send'}
-                title={running ? 'Queue: sent after this reply' : 'Send'}
-                disabled={!canSend}
-                onClick={() => void session.send()}
-              >
+            {(!running || hasContent) && (
+              <button class="round-btn send" aria-label={sendLabel} title={sendLabel} disabled={!canSend} onClick={() => void session.send()}>
                 <Icon name="send" />
               </button>
             )}

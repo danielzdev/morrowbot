@@ -3,7 +3,11 @@
 Each plugin is one folder here (`plugins/<name>/`) and an npm workspace. The host
 starts every enabled plugin in its own Node process, so a crash cannot take down
 the host or other plugins. `--safe-mode` (or `MORROWBOT_SAFE_MODE=1`) starts the
-host with no plugin processes and no built-in providers at all.
+host with no plugin processes; the built-in providers still run, so chat keeps working.
+
+This folder ships inside the app as its built-in plugins folder
+(`MORROWBOT_BUILTIN_PLUGINS_DIR`); the user's own plugins live in `~/.morrowbot/plugins`.
+Both are read on every launch and by Rescan in Extensions. A built-in id wins over the user's.
 
 The Claude, Codex, Antigravity and OpenCode providers are not plugin folders: they are built into the host
 (`packages/providers`). They speak the same protocol through the same SDK runtime,

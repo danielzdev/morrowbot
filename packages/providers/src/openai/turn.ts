@@ -189,7 +189,10 @@ function turnStart(request: TurnRequest, threadId: string): Readonly<Record<stri
   const effort = selection.kind === 'model' ? selection.choices.reasoningEffort : undefined;
   return {
     threadId,
-    input: [{ type: 'text', text: promptText(request), text_elements: [] }],
+    input: [
+      ...request.images.map(({ mimeType, data }) => ({ type: 'image', url: `data:${mimeType};base64,${data}` })),
+      { type: 'text', text: promptText(request), text_elements: [] },
+    ],
     sandboxPolicy: READ_ONLY_SANDBOX,
     approvalPolicy: 'never',
     ...(selection.kind === 'model' ? { model: selection.id } : {}),

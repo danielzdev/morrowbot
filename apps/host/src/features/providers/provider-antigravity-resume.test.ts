@@ -38,6 +38,7 @@ function request(session: TurnRequest['session'], prompt: string): TurnRequest {
     session,
     system: null,
     prompt,
+    images: [],
   };
 }
 

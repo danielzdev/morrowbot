@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { StartedSend } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { type CodexFixture, NATIVE, startCodexFixture, turnMethods } from '../../testing/codex-fixture.ts';
+import { until } from '../../testing/daemon-fixture.ts';
 
 let codex: CodexFixture;
 
@@ -129,6 +130,7 @@ it('refuses before the prompt when the daemon reports a hook it could not turn o
   await codex.setState({ hooks: [{ event: 'PreToolUse', command: 'echo hi' }] });
   const thread = await codex.thread(await codex.agent());
   await sendAndWait(thread, 'hello');
+  await until(async () => (await codex.log()).some((entry) => entry.method === 'thread/unsubscribe'));
   expect({ methods: turnMethods(await codex.log()), history: await codex.history(thread) }).toMatchInlineSnapshot(`
     {
       "history": [

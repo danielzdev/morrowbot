@@ -42,7 +42,7 @@ export function Palette(props: {
 }) {
   const { models, actions } = props;
   const state = useStore(models.agents.state);
-  const cards = useStore(models.plugins.cards);
+  const cards = useStore(models.providers.cards);
   const activity = useStore(models.chats.activity);
   const [chats, setChats] = useState<ChatList>({ kind: 'loading' });
   useEffect(() => {

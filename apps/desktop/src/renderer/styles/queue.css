@@ -1,0 +1,55 @@
+/* Queued messages, above the message box. */
+.queue {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.queued {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2) var(--s-3);
+  padding: var(--s-2) var(--s-3);
+  background: var(--surface-user);
+  border: 1px dashed var(--hairline-strong);
+  border-radius: var(--r-md);
+}
+.queued.steering {
+  border: 1px solid var(--accent);
+}
+.queued.held {
+  border-style: solid;
+}
+.queued-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 12rem;
+}
+.queued-status {
+  color: var(--text-3);
+  font: var(--t-meta);
+}
+.queued.steering .queued-status {
+  color: var(--accent);
+}
+.queued.held .queued-status {
+  color: var(--warn);
+}
+.queued-text {
+  display: -webkit-box;
+  overflow: hidden;
+  font: var(--t-ui);
+  white-space: pre-wrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.queued-actions {
+  display: flex;
+  gap: var(--s-1);
+}

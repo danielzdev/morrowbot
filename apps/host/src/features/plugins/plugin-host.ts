@@ -1,10 +1,11 @@
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
-import type { PluginManifest, PluginStatus, PluginStatusEvent } from '@morrowbot/contracts';
+import type { PluginManifest, PluginOrigin, PluginProblem, PluginStatus, PluginStatusEvent } from '@morrowbot/contracts';
 import { ChildGroupRegistry, type ChildGroupClock, type ChildGroupStore, type ReleaseResult } from './child-groups.ts';
 import { daemons as daemonControl, type RecheckAnswer } from './daemons.ts';
-import { discoverPlugins, type PluginSource } from './discovery.ts';
+import { readCatalog, type PluginSource } from './discovery.ts';
+import { pluginControls, type RestartResult } from './plugin-controls.ts';
 import { pluginEnv } from './plugin-env.ts';
 import { connectPlugin, PluginRequestError, type PluginProcess, type PluginTimeouts } from './plugin-process.ts';
 import type { PluginRecord, PluginStore } from './plugin-store.ts';
@@ -27,13 +28,16 @@ export const DEFAULT_PLUGIN_TIMEOUTS: PluginTimeouts = {
 const HEALTH_INTERVAL_MS = 5 * 60_000;
 
 export interface PluginHostOptions {
+  /** The user's plugins folder. */
   readonly pluginsDir: string;
-  /** Providers built into MorrowBot, served in this process. Listed first; their ids are reserved. */
+  /** The plugins folder that ships inside the app, if any. Its ids win over the user's. */
+  readonly builtinPluginsDir: string | null;
+  /** Providers built into MorrowBot, served in this process. Listed first; their ids are reserved, and safe mode does not stop them. */
   readonly builtins: readonly PluginSource[];
   readonly store: PluginStore;
   /** Each plugin gets its own folder `<dataDir>/<plugin id>`. */
   readonly dataDir: string;
-  /** Starts no plugin processes. Enable and config changes are still saved for the next normal start. */
+  /** Starts no plugin processes (built-in providers still run). Enable and config changes are still saved for the next normal start. */
   readonly safeMode: boolean;
   /** Where process groups are recorded until they are confirmed gone. */
   readonly groups: ChildGroupStore;
@@ -52,14 +56,20 @@ export interface PluginHostOptions {
 
 export interface PluginSummary {
   readonly manifest: PluginManifest;
+  readonly source: PluginOrigin;
   readonly status: PluginStatus;
 }
 
 export interface PluginHost extends ProviderRequests {
-  /** Plugin folders that could not be loaded, and why. */
-  readonly problems: readonly string[];
+  readonly safeMode: boolean;
   readonly groups: ChildGroupRegistry;
+  /** Plugin folders the last discovery could not load, and why. */
+  problems(): readonly PluginProblem[];
   list(): PluginSummary[];
+  /** Discovers the plugin folders again: new plugins are added and started; the problems are replaced. */
+  rescan(): Promise<void>;
+  /** Stops the plugin's worker and starts a fresh one. */
+  restart(pluginId: string): Promise<RestartResult>;
   setEnabled(pluginId: string, enabled: boolean): Promise<void>;
   /** Saves new settings and restarts the plugin if they are valid; returns the problems otherwise. */
   setConfig(pluginId: string, input: unknown): Promise<ConfigResult>;
@@ -72,7 +82,7 @@ export interface PluginHost extends ProviderRequests {
   stop(): Promise<void>;
 }
 
-/** Discovers plugins and starts each enabled one in its own process (none in safe mode). */
+/** Discovers plugins and starts each enabled one in its own process (in safe mode, only the built-in providers). */
 export async function startPluginHost(options: PluginHostOptions): Promise<PluginHost> {
   const { store, safeMode } = options;
   const timeouts = options.timeouts ?? DEFAULT_PLUGIN_TIMEOUTS;
@@ -91,19 +101,23 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
     log,
   });
   await groups.recover();
-  const discovery = await discoverPlugins(options.pluginsDir);
-  const problems = [...discovery.problems];
+  const inHost = new Set(options.builtins.map(({ manifest }) => manifest.id));
+  const paused = (slot: Slot): boolean => safeMode && !inHost.has(slot.plugin.manifest.id);
+  const catalog = () => readCatalog(options.builtins, options.builtinPluginsDir, options.pluginsDir);
+  const found = await catalog();
+  let problems = found.problems;
   const slots = new Map<string, Slot>();
   let stopping: Promise<void> | undefined;
   let workers = 0;
-  for (const plugin of [...options.builtins, ...discovery.plugins]) {
-    const { id } = plugin.manifest;
-    if (slots.has(id)) {
-      problems.push(`${id}: a plugin folder uses the id of a provider built into MorrowBot, so it was skipped`);
-      continue;
-    }
-    slots.set(id, newSlot(plugin, safeMode ? { kind: 'safe-mode' } : { kind: 'stopped' }));
-  }
+  /** Adds a slot for each plugin not served yet, and returns the new ones. */
+  const addSlots = (plugins: readonly PluginSource[]): Slot[] =>
+    plugins.flatMap((plugin) => {
+      if (slots.has(plugin.manifest.id)) return [];
+      const slot = newSlot(plugin, safeMode && !inHost.has(plugin.manifest.id) ? { kind: 'safe-mode' } : { kind: 'stopped' });
+      slots.set(plugin.manifest.id, slot);
+      return [slot];
+    });
+  addSlots(found.plugins);
 
   function slotOf(pluginId: string): Slot {
     const slot = slots.get(pluginId);
@@ -232,7 +246,7 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
       slot.restartAfterExit = false;
       if (restarting) {
         setStatus(slot, { kind: 'stopped' });
-        if (clean && stopping === undefined && !safeMode) void restart(slot);
+        if (clean && stopping === undefined && !paused(slot)) void restart(slot);
         return;
       }
       switch (exit.kind) {
@@ -302,7 +316,7 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
     const before = statusOf(slot);
     slot.quarantine = undefined;
     announce(slot, before);
-    if (slot.process === undefined && stopping === undefined && !safeMode) void restart(slot);
+    if (slot.process === undefined && stopping === undefined && !paused(slot)) void restart(slot);
   });
 
   function stopAll(): Promise<void> {
@@ -323,58 +337,36 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
   }, HEALTH_INTERVAL_MS);
   healthTimer.unref();
 
-  if (!safeMode) {
-    const boots = await Promise.allSettled(
-      [...slots.values()].map((slot) =>
+  const boot = (list: readonly Slot[]) =>
+    Promise.allSettled(
+      list.filter((slot) => !paused(slot)).map((slot) =>
         enqueue(slot, async () => {
           await start(slot, await store.read(slot.plugin.manifest.id));
         }),
       ),
     );
-    const failed = boots.find((boot) => boot.status === 'rejected');
-    if (failed !== undefined) {
-      await stopAll();
-      throw failed.reason;
-    }
+  const failed = (await boot([...slots.values()])).find((each) => each.status === 'rejected');
+  if (failed !== undefined) {
+    await stopAll();
+    throw failed.reason;
   }
 
   const requests = providerRequests({ slotOf, statusOf, isServing: serving, groups, timeouts, retire: (slot, row) => daemons.retire(slot, row), killWorker });
 
+  const controls = pluginControls({ store, slotOf, enqueue, paused, start, stopProcess, setStatus });
+
   return {
     ...requests,
-    problems,
+    ...controls,
+    safeMode,
     groups,
-    list: () => [...slots.values()].map((slot) => ({ manifest: slot.plugin.manifest, status: statusOf(slot) })),
-    setEnabled: (pluginId, enabled) => {
-      const slot = slotOf(pluginId);
-      return enqueue(slot, async () => {
-        const record = await store.read(pluginId);
-        const next: PluginRecord = { enabled, config: record?.config ?? {} };
-        await store.write(pluginId, next);
-        slot.configRevision += 1;
-        if (safeMode) return;
-        if (!enabled) {
-          await stopProcess(slot);
-          setStatus(slot, { kind: 'disabled' });
-        } else if (slot.process === undefined) {
-          await start(slot, next);
-        }
-      });
-    },
-    setConfig: async (pluginId, input) => {
-      const slot = slotOf(pluginId);
-      const resolved = resolvePluginConfig(slot.plugin.manifest.settingsSchema, input);
-      if (resolved.kind === 'invalid') return resolved;
-      await enqueue(slot, async () => {
-        const record = await store.read(pluginId);
-        const next: PluginRecord = { enabled: record?.enabled ?? true, config: resolved.saved };
-        await store.write(pluginId, next);
-        slot.configRevision += 1;
-        if (safeMode || !next.enabled) return;
-        await stopProcess(slot);
-        await start(slot, next);
-      });
-      return resolved;
+    problems: () => problems,
+    list: () => [...slots.values()].map((slot) => ({ manifest: slot.plugin.manifest, source: slot.plugin.source, status: statusOf(slot) })),
+    rescan: async () => {
+      if (stopping !== undefined) throw new Error('The plugin host has stopped');
+      const next = await catalog();
+      problems = next.problems;
+      await boot(addSlots(next.plugins));
     },
     checkHealth: (pluginId) => checkHealth(slotOf(pluginId)),
     releaseGroup: (regId) => groups.releaseAnyway(regId),

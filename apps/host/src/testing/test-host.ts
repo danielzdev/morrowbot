@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { EventServerFrame, ThreadState, type ChatEvent, type Cursor } from '@morrowbot/contracts';
+import { EventServerFrame, ThreadState, type AgentMessage, type ChatEvent, type Cursor } from '@morrowbot/contracts';
 import WebSocket, { type RawData } from 'ws';
 import type { ChildGroupClock, PluginTimeouts, ProcessProbe } from '../features/plugins/index.ts';
 import { startHost, type Host } from '../host.ts';
@@ -30,6 +30,9 @@ export interface TestHostOptions {
   readonly dataDir: string;
   /** Defaults to an empty folder in `dataDir`. */
   readonly pluginsDir?: string;
+  /** The app's own plugins folder; none by default. */
+  readonly builtinPluginsDir?: string;
+  readonly safeMode?: boolean;
   readonly sequence?: Sequence;
   readonly timeouts?: PluginTimeouts;
   readonly probe?: ProcessProbe;
@@ -60,9 +63,10 @@ export async function startTestHost(options: TestHostOptions): Promise<TestHost>
     config: {
       hostname: '127.0.0.1',
       port: 0,
-      safeMode: false,
+      safeMode: options.safeMode ?? false,
       dataDir: options.dataDir,
       pluginsDir: options.pluginsDir ?? path.join(options.dataDir, 'plugins'),
+      builtinPluginsDir: options.builtinPluginsDir ?? null,
     },
     version: '0.0.0-test',
     hostName: 'Studio Host',
@@ -108,6 +112,8 @@ export async function startTestHost(options: TestHostOptions): Promise<TestHost>
 export class EventClient {
   readonly received: ChatEvent[] = [];
   readonly resyncs: string[] = [];
+  /** Agent messages announced on the socket. */
+  readonly posted: AgentMessage[] = [];
   private readonly waiters: { readonly match: (event: ChatEvent) => boolean; readonly resolve: () => void }[] = [];
   private readonly socket: WebSocket;
   private readonly call: (method: string, path: string) => Promise<Reply>;
@@ -119,6 +125,10 @@ export class EventClient {
       const frame = EventServerFrame.parse(JSON.parse(textOf(data)));
       if (frame.kind === 'resync') {
         this.resyncs.push(frame.threadId);
+        return;
+      }
+      if (frame.kind === 'agent-message.posted') {
+        this.posted.push(frame.message);
         return;
       }
       this.received.push(frame);

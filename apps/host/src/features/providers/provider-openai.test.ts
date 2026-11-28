@@ -142,6 +142,7 @@ it('streams a new thread, binds it to the account, counts its tokens, then reuse
           "kind": "generation.started",
           "state": "queued",
           "userMessage": {
+            "attachments": [],
             "createdAt": "2026-01-01T00:00:03.000Z",
             "id": "id-4",
             "kind": "user",

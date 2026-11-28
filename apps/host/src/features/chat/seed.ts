@@ -15,7 +15,7 @@ export const SEEDED_SESSION_BUDGET = { messages: 20, bytes: 32_768 };
  * dropping the oldest messages until it fits. Empty messages are left out. Null when nothing is left.
  */
 export function renderSeed(history: readonly Message[], budget: { readonly messages: number; readonly bytes: number }): Seed {
-  const blocks = history.filter((message) => message.text !== '').map((message) => `<${message.kind}>\n${message.text}\n</${message.kind}>`);
+  const blocks = history.map((message) => ({ kind: message.kind, body: bodyOf(message) })).filter(({ body }) => body !== '').map(({ kind, body }) => `<${kind}>\n${body}\n</${kind}>`);
   let kept = blocks.slice(-budget.messages);
   let truncated = kept.length < blocks.length;
   while (kept.length > 0 && Buffer.byteLength(kept.join('\n')) > budget.bytes) {
@@ -23,6 +23,12 @@ export function renderSeed(history: readonly Message[], budget: { readonly messa
     truncated = true;
   }
   return { text: kept.length === 0 ? null : kept.join('\n'), truncated };
+}
+
+/** A message's text, with the names of the files a user message carried (their content is not resent). */
+function bodyOf(message: Message): string {
+  if (message.kind === 'assistant' || message.attachments.length === 0) return message.text;
+  return `${message.text}\n[Attached: ${message.attachments.map(({ name }) => name).join(', ')}]`.trim();
 }
 
 /** The stateless budget: 256 KB, or the plugin's smaller `maxSeedBytes`. */

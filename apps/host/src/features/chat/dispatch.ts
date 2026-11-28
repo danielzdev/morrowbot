@@ -2,6 +2,7 @@ import { realpath } from 'node:fs/promises';
 import type { ProviderInfo, TurnChunk, TurnEnd, TurnRequest, TurnSession, UsageWindow } from '@morrowbot/contracts';
 import { profileAllowed } from './admission-rules.ts';
 import type { TurnSink } from './ports.ts';
+import { buildTurnInput, type TurnInput } from './prompt.ts';
 import { steerDelivered, steerRefused } from './queue.ts';
 import { instructionsHash, renderSeed, SEEDED_SESSION_BUDGET, statelessBudget, type Seed } from './seed.ts';
 import { laneKey, laneOf, localSettlement, settle, type ChatCore, type LiveUsage, type Turn } from './turn.ts';
@@ -25,7 +26,7 @@ export async function dispatch(core: ChatCore, turn: Turn): Promise<void> {
     settle(core, turn, localSettlement({ kind: 'failed', error: { kind: 'other', message: read.message } }));
     return;
   }
-  const { instructions } = read;
+  const { instructions, input } = read;
   const agent = agents.get(turn.agentId);
   const revision = plugins.revision(turn.pluginId);
   const info = plugins.cachedInfo(turn.pluginId);
@@ -72,7 +73,8 @@ export async function dispatch(core: ChatCore, turn: Turn): Promise<void> {
     selection: turn.binding.selection,
     session,
     system: turn.binding.vendorSettings === 'isolated' ? instructions : null,
-    prompt: turn.prompt,
+    prompt: input.prompt,
+    images: input.images,
   };
   try {
     store.transaction(() => {
@@ -101,17 +103,26 @@ export async function dispatch(core: ChatCore, turn: Turn): Promise<void> {
 }
 
 type TurnInputs =
-  | { readonly kind: 'read'; readonly instructions: string; readonly cwd: string }
+  | { readonly kind: 'read'; readonly instructions: string; readonly cwd: string; readonly input: TurnInput }
   | { readonly kind: 'unreadable'; readonly message: string };
 
-/** AGENTS.md as it is now, and the workspace's canonical path (a moved symlink no longer matches the admitted cwd). */
+/**
+ * AGENTS.md as it is now, the workspace's canonical path (a moved symlink no longer matches the admitted cwd),
+ * and the prompt: the agent's skills and essential memories, the message's attachments, then its text.
+ */
 async function readTurnInputs(core: ChatCore, turn: Turn): Promise<TurnInputs> {
+  const { agents, context } = core.options;
   try {
-    const [instructions, cwd] = await Promise.all([core.options.agents.readInstructions(turn.agentId), realpath(turn.workspaceDir)]);
-    return { kind: 'read', instructions: instructions ?? '', cwd };
+    const [instructions, cwd, prelude, attachments] = await Promise.all([
+      agents.readInstructions(turn.agentId),
+      realpath(turn.workspaceDir),
+      context.prelude(turn.agentId, turn.workspaceDir),
+      Promise.all(turn.sourceInput.attachments.map(async (attachment) => ({ attachment, content: await context.readAttachment(attachment) }))),
+    ]);
+    return { kind: 'read', instructions: instructions ?? '', cwd, input: buildTurnInput(prelude, turn.prompt, attachments) };
   } catch (error) {
     core.options.report(error);
-    return { kind: 'unreadable', message: "Could not read the agent's workspace or AGENTS.md" };
+    return { kind: 'unreadable', message: "Could not read the agent's workspace, AGENTS.md or the message's attachments" };
   }
 }
 

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ImageType, MAX_ATTACHMENTS } from './attachments.ts';
 import { EntityId, Timestamp } from './ids.ts';
 
 /** How much a turn may change: `full` (unsandboxed shell) is not offered by any v1 provider. */
@@ -236,6 +237,10 @@ export const TurnChunk = z.discriminatedUnion('kind', [
 ]);
 export type TurnChunk = z.infer<typeof TurnChunk>;
 
+/** An image sent with a prompt, as base64. */
+export const TurnImage = z.strictObject({ mimeType: ImageType, data: z.string().min(1) });
+export type TurnImage = z.infer<typeof TurnImage>;
+
 /** Everything a provider plugin needs to run one turn. `turnId` is the host's generation id. */
 export const TurnRequest = z.strictObject({
   turnId: EntityId,
@@ -250,6 +255,8 @@ export const TurnRequest = z.strictObject({
   /** The agent's AGENTS.md when the host owns the instructions; null when the CLI loads them itself. */
   system: z.string().nullable(),
   prompt: z.string().min(1),
+  /** Images the user attached to the prompt, for providers whose models can see them. */
+  images: z.array(TurnImage).max(MAX_ATTACHMENTS).default([]),
 });
 export type TurnRequest = z.infer<typeof TurnRequest>;
 

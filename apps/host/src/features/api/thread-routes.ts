@@ -91,11 +91,13 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
       handle: async (context) => {
         const request = await parseBody(context, SendMessageRequest);
         if (request.kind === 'rejected') return request.reply;
-        const result = await chat.send(context.params.get('id'), request.value.text, request.value.sessionChoice);
+        const { text, attachmentIds, sessionChoice } = request.value;
+        const result = await chat.send(context.params.get('id'), text, attachmentIds, sessionChoice);
         if (result.kind === 'queued') {
           const body: SendMessageResponse = { kind: 'queued', queued: result.queued };
           return json(202, body);
         }
+        if (result.kind === 'files_wait') return failure('conflict', 'Files can be sent once this reply ends. Send the text alone to queue it.');
         if (result.kind !== 'started') return refusal(result);
         if (result.userMessage === null) return failure('internal', 'The send started without its message');
         const body: SendMessageResponse = { kind: 'started', generationId: result.generationId, userMessage: result.userMessage };

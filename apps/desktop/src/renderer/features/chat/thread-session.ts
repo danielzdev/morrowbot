@@ -1,14 +1,15 @@
-import type { ApiError, AssistantMessage, EventServerFrame, SessionChoice, SessionChoiceReason } from '@morrowbot/contracts';
+import type { AgentMessage, ApiError, AssistantMessage, EventServerFrame, SessionChoice, SessionChoiceReason, ThreadState } from '@morrowbot/contracts';
 import type { MorrowbotBridge } from '../../bridge.ts';
 import type { Api, ApiResult } from '../../shared/api.ts';
 import { Store, type Loadable } from '../../shared/store.ts';
+import { attachmentImages, composerAttachments, type ComposerAttachments } from './composer-attachments.ts';
 import { memoryDrafts, type DraftStore } from './drafts.ts';
 import type { BannerReason } from './outcome-copy.ts';
-import { applyEvent, endApproval, pendingApprovals, viewOf, type ThreadView } from './thread-model.ts';
+import { applyEvent, endApproval, pendingApprovals, viewOf, withAgentMessages, type ThreadView } from './thread-model.ts';
 
 /** Something the composer asked the host to start. Kept so it can be retried exactly. */
 export type PendingAction =
-  | { readonly kind: 'send'; readonly text: string }
+  | { readonly kind: 'send'; readonly text: string; readonly attachmentIds: readonly string[] }
   | { readonly kind: 'continue'; readonly failedMessageId: string };
 
 /** Why the last send or Continue did not start. In every case the host wrote nothing, so the draft stays. */
@@ -34,6 +35,10 @@ export interface ThreadScreen {
 export interface ThreadSession {
   readonly threadId: string;
   readonly screen: Store<ThreadScreen>;
+  /** The files waiting above the message box for the next send. */
+  readonly attachments: ComposerAttachments;
+  /** A sent image as a data URL, for the chat's bubbles; null when it can't be loaded. */
+  readonly image: (id: string) => Promise<string | null>;
   /** Fetches `/state`, replaces the view, and follows events from its cursor. */
   load(): Promise<void>;
   /** A frame from the host's event stream. */
@@ -114,18 +119,31 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
       return change.view === undefined ? next : { ...next, answering: next.answering.filter((id) => stillPending(next.view, id)) };
     });
   };
+  const attachments = composerAttachments(api, threadId);
+  const image = attachmentImages(api);
   let streamUp = true;
   let loads = 0;
   let loading = false;
   let closed = false;
   let blockedTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Agent messages announced while a load is in flight, so none falls between its fetch and live delivery. */
+  let heard: AgentMessage[] = [];
+
+  /** The chat's `/state` and its agent messages: both, or the first failure. */
+  async function snapshot(): Promise<ApiResult<{ readonly state: ThreadState; readonly agentMessages: readonly AgentMessage[] }>> {
+    const state = await api.threadState(threadId);
+    if (state.kind === 'failed') return state;
+    const exchanged = await api.agentMessages(state.value.thread.agentId, threadId);
+    return exchanged.kind === 'failed' ? exchanged : { kind: 'ok', value: { state: state.value, agentMessages: exchanged.value.messages } };
+  }
 
   async function load(): Promise<void> {
     const mine = ++loads;
     loading = true;
     clearTimeout(blockedTimer);
     bridge.unsubscribe(threadId);
-    const result = await api.threadState(threadId);
+    heard = [];
+    const result = await snapshot();
     if (mine !== loads || closed) return;
     loading = false;
     const before = screen.get().view;
@@ -138,9 +156,11 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
       patch({ connection: streamUp ? 'live' : 'reconnecting', view: { kind: 'failed', message: result.status === 404 ? 'This chat no longer exists.' : result.error.message } });
       return;
     }
-    const view = viewOf(result.value, before.kind === 'loaded' ? before.value : null);
+    const previous = before.kind === 'loaded' ? before.value : null;
+    const view = withAgentMessages(viewOf(result.value.state, previous, result.value.agentMessages), heard);
+    heard = [];
     patch({ connection: streamUp ? 'live' : 'reconnecting', view: { kind: 'loaded', value: view } });
-    bridge.subscribe(threadId, result.value.cursor);
+    bridge.subscribe(threadId, result.value.state.cursor);
     if (view.blockedGroups.length > 0) {
       blockedTimer = setTimeout(() => void load(), options.blockedRefreshMs ?? 5_000);
     }
@@ -152,8 +172,19 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
     void load();
   }
 
+  function hear(message: AgentMessage): void {
+    const current = screen.get().view;
+    if (loading || current.kind !== 'loaded') heard.push(message);
+    else patch({ view: { kind: 'loaded', value: withAgentMessages(current.value, [message]) } });
+  }
+
   function handle(frame: EventServerFrame): void {
-    if (closed || frame.kind === 'usage.updated' || frame.threadId !== threadId) return;
+    if (closed || frame.kind === 'usage.updated') return;
+    if (frame.kind === 'agent-message.posted') {
+      hear(frame.message);
+      return;
+    }
+    if (frame.threadId !== threadId) return;
     if (frame.kind === 'resync') {
       resync();
       return;
@@ -182,22 +213,29 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
     patch({ busy: 'sending', problem: null });
     const result =
       action.kind === 'send'
-        ? await api.send(threadId, action.text, sessionChoice)
+        ? await api.send(threadId, action.text, action.attachmentIds, sessionChoice)
         : await api.continueTurn(threadId, action.failedMessageId, sessionChoice);
     if (result.kind === 'ok') {
       const { draft } = screen.get();
       patch({ busy: null, draft: action.kind === 'send' && draft.trim() === action.text ? '' : draft });
+      if (action.kind === 'send') attachments.sent(action.attachmentIds);
       return;
     }
     patch({ busy: null, problem: problemOf(result.error, action, sessionChoice) });
     if (result.error.kind === 'conflict') await load();
   }
 
-  /** The refused action, with a send taking the draft as it is now so an edit is never lost. */
-  function pendingAction(action: PendingAction): PendingAction | undefined {
-    if (action.kind === 'continue') return action;
+  /** A send of the draft and the uploaded files as they are now, so an edit is never lost; undefined when there is nothing to send yet. */
+  function draftAction(): PendingAction | undefined {
     const text = screen.get().draft.trim();
-    return text === '' ? undefined : { kind: 'send', text };
+    const attachmentIds = attachments.readyIds();
+    if (attachmentIds === null || (text === '' && attachmentIds.length === 0)) return undefined;
+    return { kind: 'send', text, attachmentIds };
+  }
+
+  /** The refused action, with a send taking the draft as it is now. */
+  function pendingAction(action: PendingAction): PendingAction | undefined {
+    return action.kind === 'continue' ? action : draftAction();
   }
 
   /** Runs one queue action; a refusal (it was delivered or changed meanwhile) shows the host's reason and reloads. */
@@ -225,6 +263,8 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
   return {
     threadId,
     screen,
+    attachments,
+    image,
     load,
     handle,
     setStream: (up) => {
@@ -236,9 +276,8 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
       patch({ draft });
     },
     send: async () => {
-      const text = screen.get().draft.trim();
-      if (text === '') return;
-      await run({ kind: 'send', text }, { kind: 'auto' });
+      const action = draftAction();
+      if (action !== undefined) await run(action, { kind: 'auto' });
     },
     choose: async (choice) => {
       const action = problemAction();

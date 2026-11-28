@@ -1,5 +1,14 @@
 import {
   Agent,
+  Attachment,
+  AttachmentContent,
+  Memory,
+  MemoryList,
+  SkillList,
+  CreateMemoryRequest as CreateMemoryRequestSchema,
+  type UpdateMemoryRequest,
+  type UploadAttachmentRequest,
+  AgentMessageList,
   AgentInstructionsView,
   InstructionsCopyReply,
   PutInstructionsReply,
@@ -58,7 +67,17 @@ export interface Api {
   renameThread(id: string, title: string): Promise<ApiResult<Thread>>;
   deleteThread(id: string): Promise<ApiResult<null>>;
   threadState(id: string): Promise<ApiResult<ThreadState>>;
-  send(threadId: string, text: string, sessionChoice: SessionChoice): Promise<ApiResult<SendMessageResponse>>;
+  send(threadId: string, text: string, attachmentIds: readonly string[], sessionChoice: SessionChoice): Promise<ApiResult<SendMessageResponse>>;
+  uploadAttachment(threadId: string, request: UploadAttachmentRequest): Promise<ApiResult<Attachment>>;
+  attachmentContent(id: string): Promise<ApiResult<AttachmentContent>>;
+  skills(agentId: string): Promise<ApiResult<SkillList>>;
+  /** All the agent's memories, or those matching `query`. */
+  memories(agentId: string, query: string): Promise<ApiResult<MemoryList>>;
+  createMemory(agentId: string, request: z.input<typeof CreateMemoryRequestSchema>): Promise<ApiResult<Memory>>;
+  updateMemory(agentId: string, id: string, request: UpdateMemoryRequest): Promise<ApiResult<Memory>>;
+  deleteMemory(agentId: string, id: string): Promise<ApiResult<null>>;
+  /** The agent messages shown in one of the agent's chats, oldest first. */
+  agentMessages(agentId: string, threadId: string): Promise<ApiResult<AgentMessageList>>;
   continueTurn(threadId: string, failedMessageId: string, sessionChoice: SessionChoice): Promise<ApiResult<ContinueResponse>>;
   stop(threadId: string): Promise<ApiResult<StopGenerationResponse>>;
   /** Takes a message the agent has not seen out of the queue. */
@@ -69,6 +88,8 @@ export interface Api {
   listPlugins(): Promise<ApiResult<PluginList>>;
   setPluginEnabled(id: string, enabled: boolean): Promise<ApiResult<PluginEntry>>;
   setPluginConfig(id: string, config: PluginConfig): Promise<ApiResult<PluginEntry>>;
+  restartPlugin(id: string): Promise<ApiResult<PluginEntry>>;
+  rescanPlugins(): Promise<ApiResult<PluginList>>;
   providerInfo(id: string, refresh: boolean): Promise<ApiResult<ProviderInfoResponse>>;
   recheck(id: string): Promise<ApiResult<ProviderInfoResponse>>;
   usage(id: string, refresh: boolean): Promise<ApiResult<UsageResponse>>;
@@ -114,7 +135,17 @@ export function createApi(bridge: MorrowbotBridge): Api {
     renameThread: (id, title) => call(Thread, 'PATCH', at('threads', id), { title }),
     deleteThread: (id) => call(NoContent, 'DELETE', at('threads', id)),
     threadState: (id) => call(ThreadState, 'GET', at('threads', id, 'state')),
-    send: (threadId, text, sessionChoice) => call(SendMessageResponse, 'POST', at('threads', threadId, 'messages'), { text, sessionChoice }),
+    send: (threadId, text, attachmentIds, sessionChoice) =>
+      call(SendMessageResponse, 'POST', at('threads', threadId, 'messages'), { text, attachmentIds, sessionChoice }),
+    uploadAttachment: (threadId, request) => call(Attachment, 'POST', at('threads', threadId, 'attachments'), request),
+    attachmentContent: (id) => call(AttachmentContent, 'GET', at('attachments', id)),
+    skills: (agentId) => call(SkillList, 'GET', at('agents', agentId, 'skills')),
+    memories: (agentId, query) => call(MemoryList, 'GET', `${at('agents', agentId, 'memories')}${query === '' ? '' : `?q=${encodeURIComponent(query)}`}`),
+    createMemory: (agentId, request) => call(Memory, 'POST', at('agents', agentId, 'memories'), request),
+    updateMemory: (agentId, id, request) => call(Memory, 'PATCH', at('agents', agentId, 'memories', id), request),
+    deleteMemory: (agentId, id) => call(NoContent, 'DELETE', at('agents', agentId, 'memories', id)),
+    agentMessages: (agentId, threadId) =>
+      call(AgentMessageList, 'GET', `${at('agents', agentId, 'messages')}?${new URLSearchParams({ threadId }).toString()}`),
     continueTurn: (threadId, failedMessageId, sessionChoice) =>
       call(ContinueResponse, 'POST', at('threads', threadId, 'continue'), { failedMessageId, sessionChoice }),
     stop: (threadId) => call(StopGenerationResponse, 'POST', at('threads', threadId, 'stop')),
@@ -125,6 +156,8 @@ export function createApi(bridge: MorrowbotBridge): Api {
     listPlugins: () => call(PluginList, 'GET', at('plugins')),
     setPluginEnabled: (id, enabled) => call(PluginEntry, 'PUT', at('plugins', id, 'enabled'), { enabled }),
     setPluginConfig: (id, config) => call(PluginEntry, 'PUT', at('plugins', id, 'config'), { config }),
+    restartPlugin: (id) => call(PluginEntry, 'POST', at('plugins', id, 'restart')),
+    rescanPlugins: () => call(PluginList, 'POST', at('plugins', 'rescan')),
     providerInfo: (id, refresh) => call(ProviderInfoResponse, 'GET', `${at('plugins', id, 'info')}${refresh ? '?refresh=1' : ''}`),
     recheck: (id) => call(ProviderInfoResponse, 'POST', at('plugins', id, 'recheck')),
     usage: (id, refresh) => call(UsageResponse, 'GET', `${at('plugins', id, 'usage')}${refresh ? '?refresh=1' : ''}`),

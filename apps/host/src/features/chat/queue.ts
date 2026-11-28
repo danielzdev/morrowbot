@@ -103,7 +103,7 @@ export function steerDelivered(core: ChatCore, turn: Turn, steerId: string): voi
   const at = now();
   const base: AssistantMessage = { kind: 'assistant', id: newId(), threadId: turn.threadId, text: turn.text, outcome: { kind: 'steered' }, createdAt: at };
   const segment: AssistantMessage = turn.seedTruncated ? { ...base, seedTruncated: true } : base;
-  const userMessage: UserMessage = { kind: 'user', id: item.id, threadId: turn.threadId, text: item.text, createdAt: at };
+  const userMessage: UserMessage = { kind: 'user', id: item.id, threadId: turn.threadId, text: item.text, createdAt: at, attachments: [] };
   try {
     store.transaction(() => {
       store.messages.insert(segment);
@@ -203,5 +203,7 @@ function refusalReason(result: Exclude<AdmitResult, { kind: 'started' }>): strin
       return "Not sent: the agent's provider settings changed.";
     case 'session_choice_required':
       return "Not sent: the provider's saved session needs your choice. Edit it and send it from the message box.";
+    case 'attachments_missing':
+      return 'Not sent: an attached file is no longer there.';
   }
 }

@@ -12,10 +12,12 @@ export type AdmitResult =
   | { readonly kind: 'provider_unavailable'; readonly reason: ProviderUnavailableReason }
   | { readonly kind: 'binding_changed' }
   | { readonly kind: 'session_choice_required'; readonly reason: SessionChoiceReason }
-  | { readonly kind: 'not_continuable'; readonly reason: string };
+  | { readonly kind: 'not_continuable'; readonly reason: string }
+  /** An attachment the send names is not an unsent upload of this thread. */
+  | { readonly kind: 'attachments_missing' };
 
 export type AdmitInput =
-  | { readonly kind: 'send'; readonly text: string }
+  | { readonly kind: 'send'; readonly text: string; readonly attachmentIds: readonly string[] }
   | { readonly kind: 'continue'; readonly failedMessageId: string }
   /** A queued message, delivered as the user message with its own id; `prompt` is what the provider reads. */
   | { readonly kind: 'queued'; readonly id: string; readonly text: string; readonly prompt: string };
@@ -106,6 +108,8 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
   const messages = store.messages.listByThread(threadId);
   const source = sourceOf(core, messages, input);
   if (source.kind === 'refused') return { kind: 'not_continuable', reason: source.reason };
+  const attachments = source.kind === 'new' ? store.attachments.pending(threadId, source.attachmentIds) : [];
+  if (attachments === undefined) return { kind: 'attachments_missing' };
   const history = source.kind === 'existing' ? messages.slice(0, messages.indexOf(source.message)) : messages;
   const key = { pluginId, accountKey, routeKey, cwd, threadId };
   const row = capabilities.sessions && accountKey !== '' ? store.sessions.find(key) : undefined;
@@ -125,7 +129,7 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
   const userMessage: UserMessage =
     source.kind === 'existing'
       ? source.message
-      : { kind: 'user', id: source.kind === 'queued' ? source.id : core.options.newId(), threadId, text: source.text, createdAt: at };
+      : { kind: 'user', id: source.kind === 'queued' ? source.id : core.options.newId(), threadId, text: source.text, createdAt: at, attachments };
   const written = source.kind !== 'existing';
   store.transaction(() => {
     if (written) {
@@ -223,7 +227,7 @@ function check(core: ChatCore, threadId: string): Checked {
 }
 
 type Source =
-  | { readonly kind: 'new'; readonly text: string }
+  | { readonly kind: 'new'; readonly text: string; readonly attachmentIds: readonly string[] }
   | { readonly kind: 'queued'; readonly id: string; readonly text: string; readonly prompt: string }
   | { readonly kind: 'existing'; readonly message: UserMessage }
   | { readonly kind: 'refused'; readonly reason: string };
@@ -232,7 +236,7 @@ type Source =
 function sourceOf(core: ChatCore, messages: readonly Message[], input: AdmitInput): Source {
   switch (input.kind) {
     case 'send':
-      return { kind: 'new', text: input.text };
+      return { kind: 'new', text: input.text, attachmentIds: input.attachmentIds };
     case 'queued':
       return input;
     case 'continue':

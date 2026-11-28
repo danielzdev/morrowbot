@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { Attachment, MAX_ATTACHMENTS } from './attachments.ts';
 import { EntityId, Timestamp } from './ids.ts';
 import { TurnOutcome } from './provider.ts';
 
@@ -8,7 +9,7 @@ export type GenerationOutcome = z.infer<typeof GenerationOutcome>;
 
 const MessageBase = { id: EntityId, threadId: EntityId, text: z.string(), createdAt: Timestamp };
 
-export const UserMessage = z.strictObject({ kind: z.literal('user'), ...MessageBase });
+export const UserMessage = z.strictObject({ kind: z.literal('user'), ...MessageBase, attachments: z.array(Attachment).max(MAX_ATTACHMENTS) });
 export type UserMessage = z.infer<typeof UserMessage>;
 
 export const AssistantMessage = z.strictObject({

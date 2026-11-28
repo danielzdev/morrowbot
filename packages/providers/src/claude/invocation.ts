@@ -69,7 +69,7 @@ function approvalFlags(mode: TurnMode): readonly string[] {
 
 /** Builds the `claude` command line and stdin frame for one stateless turn. */
 export function buildInvocation(
-  request: Pick<TurnRequest, 'mode' | 'selection' | 'system' | 'prompt'> & {
+  request: Pick<TurnRequest, 'mode' | 'selection' | 'system' | 'prompt' | 'images'> & {
     readonly access: ClaudeAccess;
     readonly seed: string | null;
     /** Checked against the model's offered efforts already (`effortOf`). */
@@ -86,7 +86,7 @@ export function buildInvocation(
       ...(request.effort === null ? [] : ['--effort', request.effort]),
       ...(system === null ? [] : ['--append-system-prompt-file', commandFilePath(0)]),
     ],
-    frame: `${JSON.stringify({ type: 'user', message: { role: 'user', content: prompt(request.seed, request.prompt) } })}\n`,
+    frame: `${JSON.stringify({ type: 'user', message: { role: 'user', content: content(prompt(request.seed, request.prompt), request.images) } })}\n`,
     files: system === null ? [] : [system],
   };
 }
@@ -97,6 +97,12 @@ export function buildInvocation(
  */
 export function steerFrame(text: string, uuid: string): string {
   return `${JSON.stringify({ type: 'user', uuid, message: { role: 'user', content: text } })}\n`;
+}
+
+/** A plain string, or with images the content blocks: the images first, then the text. */
+function content(text: string, images: TurnRequest['images']): string | readonly Readonly<Record<string, unknown>>[] {
+  if (images.length === 0) return text;
+  return [...images.map(({ mimeType, data }) => ({ type: 'image', source: { type: 'base64', media_type: mimeType, data } })), { type: 'text', text }];
 }
 
 /** The host renders `seed` as `<user>` / `<assistant>` blocks; the new prompt is the last user block. */
