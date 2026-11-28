@@ -1,9 +1,18 @@
-import type { AvatarDefinition } from 'open-bot-avatar';
+import type { AvatarShape } from './agents.ts';
 
-const shape = (id: string, name: string, path: string, eyes: AvatarDefinition['eyes']): AvatarDefinition => ({ version: 1, id, name, body: { path }, eyes });
+/** A silhouette in open-bot-avatar's definition format: one filled path in a 0 0 100 100 viewBox and an eye pair. */
+export interface AvatarOutline {
+  readonly version: 1;
+  readonly id: AvatarShape;
+  readonly name: string;
+  readonly body: { readonly path: string };
+  readonly eyes: { readonly x: number; readonly y: number; readonly spacing: number; readonly scale: number };
+}
 
-/** Ori Kami's own silhouettes beside the engine's starter examples: outlines wind clockwise, corners rounded. */
-export const CUSTOM_SHAPES: readonly AvatarDefinition[] = [
+const shape = (id: AvatarShape, name: string, path: string, eyes: AvatarOutline['eyes']): AvatarOutline => ({ version: 1, id, name, body: { path }, eyes });
+
+/** Ori Kami's own silhouettes beside open-bot-avatar's starter examples: outlines wind clockwise, corners rounded. */
+export const CUSTOM_AVATAR_OUTLINES: readonly AvatarOutline[] = [
   shape(
     'star',
     'Star',

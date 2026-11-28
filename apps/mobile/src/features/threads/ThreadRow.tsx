@@ -1,11 +1,12 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { BotAvatar } from '../../lib/bot-avatar/index.ts';
 import { relativeTime } from '../../lib/relative-time.ts';
 import { RowIndicatorView } from '../../lib/RowIndicator.tsx';
 import { radii, spacing, typography } from '../../lib/theme.ts';
 import { useTheme } from '../../lib/useTheme.ts';
 import { threadIndicator, type ThreadItem } from './thread-groups.ts';
 
-/** One thread: its agent's chip, the title and age over the agent, with its badge or working dots. */
+/** One thread: its agent's avatar, the title and age over the agent, with its badge or working dots. */
 export function ThreadRow(props: {
   readonly item: ThreadItem;
   readonly selected: boolean;
@@ -29,9 +30,7 @@ export function ThreadRow(props: {
         (props.selected || pressed) && { backgroundColor: props.selected ? colors.selected : colors.hover },
       ]}
     >
-      <View style={[styles.chip, { backgroundColor: agent.avatar.color }]}>
-        <Text style={styles.chipLetter}>{Array.from(agent.name)[0]?.toLocaleUpperCase() ?? ''}</Text>
-      </View>
+      <BotAvatar avatar={agent.avatar} size={CHIP} />
       <View style={styles.text}>
         <View style={styles.line}>
           <Text numberOfLines={2} style={[typography.ui, styles.grow, { color: colors.text1, fontWeight: unread ? '600' : '400' }]}>
@@ -64,8 +63,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[3],
     borderRadius: radii.md,
   },
-  chip: { width: CHIP, height: CHIP, borderRadius: radii.sm, alignItems: 'center', justifyContent: 'center' },
-  chipLetter: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
   text: { flex: 1, gap: 2 },
   line: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
   grow: { flex: 1 },

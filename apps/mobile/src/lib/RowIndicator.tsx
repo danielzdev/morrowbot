@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, StyleSheet, Text, View } from 'react-native';
+import { useReduceMotion } from './reduce-motion.ts';
 import { radii, spacing, typography } from './theme.ts';
 import { useTheme } from './useTheme.ts';
 
@@ -12,22 +13,6 @@ export type RowIndicator =
   | { readonly kind: 'unread' }
   | { readonly kind: 'working'; readonly label: 'Working' | 'Queued'; readonly animated: boolean }
   | { readonly kind: 'none' };
-
-function useReduceMotion(): boolean {
-  const [reduce, setReduce] = useState(false);
-  useEffect(() => {
-    let live = true;
-    void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
-      if (live) setReduce(enabled);
-    });
-    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduce);
-    return () => {
-      live = false;
-      subscription.remove();
-    };
-  }, []);
-  return reduce;
-}
 
 const DOT = 5;
 const STEP_MS = 160;
