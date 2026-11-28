@@ -53,7 +53,7 @@ export async function answerMcp(message: unknown, scope: McpScope, version: stri
           ...tools
             .filter(({ visible }) => visible === undefined || visible(grant.agentId))
             .map(({ name, description, inputSchema }) => ({ name, description, inputSchema })),
-          ...scope.connectors.tools(grant.agentId),
+          ...scope.connectors.tools(grant),
         ],
       });
     case 'tools/call':
@@ -82,7 +82,7 @@ async function callTool(id: RequestId, params: unknown, scope: McpScope): Promis
 /** A connector tool: a name of the form `<label key>__<tool>`, checked and called by the connectors feature. */
 async function callConnector(id: RequestId, name: string, args: unknown, scope: McpScope): Promise<McpAnswer> {
   if (!name.includes('__')) return error(id, -32602, `Unknown tool: ${name}`);
-  const outcome = await scope.connectors.call(scope.grant.agentId, name, args, scope.signal);
+  const outcome = await scope.connectors.call(scope.grant, name, args, scope.signal);
   switch (outcome.kind) {
     case 'result':
       return result(id, {

@@ -1,5 +1,6 @@
 import type { AssistantMessage, Attachment, GenerationOutcome, QueuedMessage, QueuedMessageState, UserMessage } from '@morrowbot/contracts';
 import { admit, type AdmitInput, type AdmitResult } from './admission.ts';
+import { lesser, type TurnInitiator } from './initiator.ts';
 import type { QueuedRecord } from './ports.ts';
 import { interruptedPrompt, steerPrompt } from './steer-prompt.ts';
 import type { ChatCore, Turn } from './turn.ts';
@@ -51,7 +52,7 @@ export function sendsQueue(core: ChatCore, threadId: string): boolean {
   return core.active.has(threadId) || core.draining.has(threadId);
 }
 
-export function enqueue(core: ChatCore, threadId: string, text: string, attachmentIds: readonly string[]): EnqueueResult {
+export function enqueue(core: ChatCore, threadId: string, text: string, attachmentIds: readonly string[], by: TurnInitiator): EnqueueResult {
   const { store } = core.options;
   const attachments = attachmentIds.length === 0 ? [] : store.attachments.pending(threadId, attachmentIds);
   if (attachments === undefined) return { kind: 'attachments_missing' };
@@ -62,6 +63,7 @@ export function enqueue(core: ChatCore, threadId: string, text: string, attachme
   const record: QueuedRecord = { id: core.options.newId(), threadId, text, attachmentIds: [...attachmentIds], createdAt: core.options.now() };
   store.queued.insert(record);
   core.queueStates.set(record.id, QUEUED);
+  core.queueAuthors.set(record.id, by);
   publishQueue(core, threadId);
   return { kind: 'queued', queued: { id: record.id, threadId, text, attachments, createdAt: record.createdAt, state: QUEUED } };
 }
@@ -78,6 +80,7 @@ export function cancelQueued(core: ChatCore, threadId: string, id: string): Queu
     if (record.attachmentIds.length > 0) core.options.store.attachments.touch(threadId, record.attachmentIds, core.options.now());
   });
   core.queueStates.delete(id);
+  core.queueAuthors.delete(id);
   publishQueue(core, threadId);
   return { kind: 'ok' };
 }
@@ -86,13 +89,14 @@ export function cancelQueued(core: ChatCore, threadId: string, id: string): Queu
  * Steer now: the message goes into the running reply (natively, or by stopping it and running the
  * message next), or, when nothing runs, out as the next turn at once.
  */
-export function steerQueued(core: ChatCore, threadId: string, id: string): QueueAnswer {
+export function steerQueued(core: ChatCore, threadId: string, id: string, by: TurnInitiator): QueueAnswer {
   const thread = core.options.store.threads.get(threadId);
   if (thread === undefined) return { kind: 'not_found' };
   if (thread.archivedAt !== null) return { kind: 'conflict', reason: 'Restore this chat before sending a message.' };
   const records = core.options.store.queued.listByThread(threadId);
   const record = records.find((entry) => entry.id === id);
   if (record === undefined) return { kind: 'not_found' };
+  core.queueAuthors.set(id, lesser(by, authorOf(core, id)));
   const stateOf = (entryId: string): QueuedMessageState => core.queueStates.get(entryId) ?? RESTARTED;
   if (stateOf(id).kind === 'steering' || core.draining.get(threadId) === id) return { kind: 'ok' };
   if (records.some((entry) => stateOf(entry.id).kind === 'steering') || core.draining.has(threadId)) {
@@ -124,6 +128,7 @@ export function steerQueued(core: ChatCore, threadId: string, id: string): Queue
     return { kind: 'ok' };
   }
   turn.steer = { id, via: 'native' };
+  core.initiators.set(turn.generationId, lesser(core.initiators.get(turn.generationId) ?? 'member', authorOf(core, id)));
   setState(core, threadId, [id], { kind: 'steering', via: 'native' });
   core.options.plugins.steerTurn(turn.pluginId, turn.generationId, id, steerPrompt(record.text));
   return { kind: 'ok' };
@@ -174,6 +179,7 @@ export function steerDelivered(core: ChatCore, turn: Turn, steerId: string): voi
   turn.seedTruncated = false;
   turn.silent = false;
   core.queueStates.delete(item.id);
+  core.queueAuthors.delete(item.id);
   core.events.publish({ kind: 'generation.steered', threadId: turn.threadId, generationId: turn.generationId, segment, userMessage });
   publishQueue(core, turn.threadId);
 }
@@ -203,6 +209,11 @@ export function afterTurn(core: ChatCore, turn: Turn, outcome: GenerationOutcome
   setState(core, threadId, waiting.map(({ id }) => id), { kind: 'held', reason: heldReason(outcome) });
 }
 
+/** Who wrote a queued message (or steered it, if less trusted): one queued before this host run started counts as a member's. */
+function authorOf(core: ChatCore, id: string): TurnInitiator {
+  return core.queueAuthors.get(id) ?? 'member';
+}
+
 function heldReason(outcome: Exclude<GenerationOutcome, { kind: 'completed' }>): string {
   switch (outcome.kind) {
     case 'cancelled':
@@ -227,6 +238,7 @@ async function deliver(core: ChatCore, threadId: string, item: QueuedRecord, how
       text: item.text,
       attachmentIds: item.attachmentIds,
       prompt: how === 'next' ? item.text : interruptedPrompt(item.text),
+      by: authorOf(core, item.id),
     };
     if (how === 'next') {
       result = await admit(core, threadId, input, { kind: 'auto' });
@@ -242,6 +254,7 @@ async function deliver(core: ChatCore, threadId: string, item: QueuedRecord, how
   }
   if (result.kind === 'started') {
     core.queueStates.delete(item.id);
+    core.queueAuthors.delete(item.id);
     publishQueue(core, threadId);
     return;
   }

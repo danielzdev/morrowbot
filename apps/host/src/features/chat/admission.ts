@@ -2,6 +2,7 @@ import { realpath } from 'node:fs/promises';
 import type { AgentMessage, AssistantMessage, Message, ProviderUnavailableReason, SessionChoice, SessionChoiceReason, TurnMode, UserMessage } from '@morrowbot/contracts';
 import { decideBackgroundSession, decideSession, profileAllowed, type SessionDecision } from './admission-rules.ts';
 import { bindingOf } from './children.ts';
+import { initiatorOfReply, lesser, type TurnInitiator } from './initiator.ts';
 import { reactionAgain } from './reactions.ts';
 import { instructionsHash } from './seed.ts';
 import { laneKey, laneOf, pump, type BoundProvider, type ChatCore, type Turn, type TurnSource } from './turn.ts';
@@ -20,13 +21,14 @@ export type AdmitResult =
 
 /** A user's send, Continue or reaction, or another agent's message read in the background (each with the prompt it is read with). */
 export type AdmitInput =
-  | { readonly kind: 'send'; readonly text: string; readonly attachmentIds: readonly string[]; readonly mode: TurnMode }
-  | { readonly kind: 'continue'; readonly failedMessageId: string }
+  | { readonly kind: 'send'; readonly text: string; readonly attachmentIds: readonly string[]; readonly mode: TurnMode; readonly by: TurnInitiator }
+  /** `by` clicked Continue; the turn also answers whoever started the failed one. */
+  | { readonly kind: 'continue'; readonly failedMessageId: string; readonly by: TurnInitiator }
   /** A queued message, delivered as the user message with its own id; `prompt` is what the provider reads. */
-  | { readonly kind: 'queued'; readonly id: string; readonly text: string; readonly attachmentIds: readonly string[]; readonly prompt: string }
+  | { readonly kind: 'queued'; readonly id: string; readonly text: string; readonly attachmentIds: readonly string[]; readonly prompt: string; readonly by: TurnInitiator }
   | { readonly kind: 'agent-message'; readonly message: AgentMessage; readonly prompt: string }
   /** The user's reaction to the agent's reply `message`, read with `prompt`. */
-  | { readonly kind: 'reaction'; readonly message: AssistantMessage; readonly emoji: string; readonly prompt: string }
+  | { readonly kind: 'reaction'; readonly message: AssistantMessage; readonly emoji: string; readonly prompt: string; readonly by: TurnInitiator }
   /** A sub-agent's one prompt, run in its own chat while the turn that started it runs. */
   | { readonly kind: 'subagent'; readonly text: string };
 
@@ -207,6 +209,7 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
     released: Promise.withResolvers(),
     quiet: Promise.withResolvers(),
   };
+  core.initiators.set(generationId, initiatorOf(core, input));
   core.active.set(threadId, turn);
   switch (turnSource.kind) {
     case 'chat':
@@ -242,6 +245,21 @@ function modeOf(input: AdmitInput): TurnMode {
     case 'agent-message':
     case 'reaction':
       return 'interactive';
+  }
+}
+
+/** Who the turn answers. A Continue answers the failed turn's input again, so it is no more trusted than that turn was. */
+function initiatorOf(core: ChatCore, input: AdmitInput): TurnInitiator {
+  switch (input.kind) {
+    case 'send':
+    case 'queued':
+    case 'reaction':
+      return input.by;
+    case 'continue':
+      return lesser(input.by, initiatorOfReply(core, input.failedMessageId));
+    case 'agent-message':
+    case 'subagent':
+      return 'agent';
   }
 }
 
