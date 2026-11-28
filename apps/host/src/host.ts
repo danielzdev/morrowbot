@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { mkdir, realpath } from 'node:fs/promises';
 import { hostname } from 'node:os';
 import path from 'node:path';
-import type { PluginStatusEvent } from '@morrowbot/contracts';
+import { SendAgentMessageRequest, type PluginStatusEvent } from '@morrowbot/contracts';
 import { createAgentMessageService, type SendRefusal } from './features/agent-messages/index.ts';
 import { createAgentService, createFolderService } from './features/agents/index.ts';
 import { startApiServer } from './features/api/index.ts';
@@ -132,7 +132,9 @@ export async function startHost(options: HostOptions): Promise<Host> {
       inbox: {
         waiting: (threadId) => storage.agentMessages.waiting(threadId),
         reply: (message, text) => {
-          const sent = agentMessages.send(message.to.agentId, { kind: 'reply', replyToMessageId: message.id, text, expectsReply: false });
+          const request = SendAgentMessageRequest.safeParse({ kind: 'reply', replyToMessageId: message.id, text, expectsReply: false });
+          if (!request.success) return { kind: 'refused', reason: request.error.issues.map((issue) => issue.message).join('; ') };
+          const sent = agentMessages.send(message.to.agentId, request.data);
           return sent.kind === 'sent' ? { kind: 'sent' } : { kind: 'refused', reason: refusalReason(sent) };
         },
       },

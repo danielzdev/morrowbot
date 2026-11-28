@@ -1,6 +1,6 @@
 import { realpath } from 'node:fs/promises';
 import type { AgentMessage, Message, ProviderUnavailableReason, SessionChoice, SessionChoiceReason, UserMessage } from '@morrowbot/contracts';
-import { decideSession, profileAllowed } from './admission-rules.ts';
+import { decideBackgroundSession, decideSession, profileAllowed, type SessionDecision } from './admission-rules.ts';
 import { instructionsHash } from './seed.ts';
 import { laneKey, laneOf, pump, type BoundProvider, type ChatCore, type Turn, type TurnInput } from './turn.ts';
 
@@ -109,15 +109,16 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
   const history = source.kind === 'existing' ? messages.slice(0, messages.indexOf(source.message)) : messages;
   const key = { pluginId, accountKey, routeKey, cwd, threadId };
   const row = capabilities.sessions && accountKey !== '' ? store.sessions.find(key) : undefined;
-  const decision = decideSession({
+  const sessionInputs = {
     sessions: capabilities.sessions,
     accountKey,
     row,
     systemHash: instructionsHash(instructions),
     vendorSettings: binding.vendorSettings,
     history,
-    choice,
-  });
+  };
+  const decision: SessionDecision =
+    source.kind === 'background' ? { kind: 'plan', plan: decideBackgroundSession(sessionInputs) } : decideSession({ ...sessionInputs, choice });
   if (decision.kind === 'choice-required') return { kind: 'session_choice_required', reason: decision.reason };
   const { plan } = decision;
   const at = core.options.now();

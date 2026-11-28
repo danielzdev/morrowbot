@@ -149,3 +149,53 @@ it('reads a message that arrived while the chat was busy once it is idle, even a
     }
   `);
 });
+
+it('reads a message in a chat whose session diverged, resuming it without asking the user', async () => {
+  await chat.configure({ sessions: true });
+  const lead = await agentWithChat('Lead');
+  const helper = await agentWithChat('Helper');
+  await chat.send(lead.thread, 'first');
+  await chat.send(lead.thread, 'fail');
+  await send(helper.agent.id, { kind: 'new', toAgentId: lead.agent.id, fromThreadId: helper.thread.id, text: 'FYI: CI is green.' });
+  await chat.events.until(quietlyFinished(lead.thread.id));
+
+  expect({ leadEvents: kinds(lead.thread.id).slice(-3), leadHistory: await chat.history(lead.thread) }).toMatchInlineSnapshot(`
+    {
+      "leadEvents": [
+        "generation.background-started",
+        "generation.status",
+        "generation.background-finished",
+      ],
+      "leadHistory": [
+        "user: first",
+        "assistant(completed): hello from pid <pid>: first",
+        "user: fail",
+        "assistant(failed other): hello from pid <pid>:",
+      ],
+    }
+  `);
+});
+
+it('shows the user an answer too long to send back, instead of losing it', async () => {
+  const lead = await agentWithChat('Lead');
+  const helper = await agentWithChat('Helper');
+  await send(lead.agent.id, { kind: 'new', toAgentId: helper.agent.id, fromThreadId: lead.thread.id, text: 'x'.repeat(99_990), expectsReply: true });
+  await chat.events.until((event) => event.kind === 'generation.finished' && event.threadId === helper.thread.id);
+  const [notice] = await chat.history(helper.thread);
+
+  expect({ helperEvents: kinds(helper.thread.id), notice: notice?.split('\n').slice(0, 3), replies: chat.events.posted.length }).toMatchInlineSnapshot(`
+    {
+      "helperEvents": [
+        "generation.background-started",
+        "generation.status",
+        "generation.finished",
+      ],
+      "notice": [
+        "assistant(completed): My reply could not be sent: Too big: expected string to have <=100000 characters",
+        "",
+        "hello from pid <pid>: You are reading a message from another agent in the background: the user does not see this turn. Your answer is sent to "Lead" as your reply.",
+      ],
+      "replies": 1,
+    }
+  `);
+});
