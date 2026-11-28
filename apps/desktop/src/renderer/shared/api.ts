@@ -16,6 +16,8 @@ import {
   ApiError,
   ContinueResponse,
   Folder,
+  PairedDeviceList,
+  PairingCodeResponse,
   PluginEntry,
   PluginList,
   ProviderInfoResponse,
@@ -106,6 +108,12 @@ export interface Api {
   updateRoutine(id: string, request: UpdateRoutineRequest): Promise<ApiResult<Routine>>;
   deleteRoutine(id: string): Promise<ApiResult<null>>;
   runRoutine(id: string): Promise<ApiResult<RunRoutineResponse>>;
+  /** A one-time pairing code; `url` is where the phone reaches the host, needed when the host is not bound to one address. */
+  createPairingCode(url: string | null): Promise<ApiResult<PairingCodeResponse>>;
+  /** Every device ever paired, unpaired ones included (`revokedAt` set). */
+  listDevices(): Promise<ApiResult<PairedDeviceList>>;
+  /** Unpairs a device; the host closes its connections at once. */
+  unpairDevice(id: string): Promise<ApiResult<null>>;
 }
 
 const at = (...segments: readonly string[]): string => `/api/${segments.map(encodeURIComponent).join('/')}`;
@@ -178,6 +186,9 @@ export function createApi(bridge: MorrowbotBridge): Api {
     updateRoutine: (id, request) => call(Routine, 'PATCH', at('routines', id), request),
     deleteRoutine: (id) => call(NoContent, 'DELETE', at('routines', id)),
     runRoutine: (id) => call(RunRoutineResponse, 'POST', at('routines', id, 'run'), {}),
+    createPairingCode: (url) => call(PairingCodeResponse, 'POST', at('pairing', 'codes'), url === null ? {} : { url }),
+    listDevices: () => call(PairedDeviceList, 'GET', at('pairing', 'devices')),
+    unpairDevice: (id) => call(NoContent, 'DELETE', at('pairing', 'devices', id)),
   };
 }
 
