@@ -17,6 +17,8 @@ export interface ComposerAttachments {
   readonly items: Store<readonly ComposerAttachment[]>;
   /** Uploads each file to the chat; one past the limit, or refused, shows as a failed chip. */
   add(files: readonly PickedFile[]): void;
+  /** Puts already-uploaded files back into the composer (e.g. when editing a queued message). */
+  restore(attachments: readonly Attachment[], previewOf: (id: string) => Promise<string | null>): void;
   remove(key: number): void;
   /** The ids a send carries: every uploaded file, or null while one is still uploading. */
   readyIds(): readonly string[] | null;
@@ -53,6 +55,27 @@ export function composerAttachments(api: Pick<Api, 'uploadAttachment'>, threadId
         } else {
           items.update((current) => [...current, { kind: 'uploading', key, name: file.request.name, preview: file.preview }]);
           void upload(key, file);
+        }
+      }
+    },
+    restore: (restored, previewOf) => {
+      for (const attachment of restored) {
+        const current = items.get();
+        if (current.some((item) => item.kind === 'ready' && item.attachment.id === attachment.id)) continue;
+        const taken = current.filter((item) => item.kind !== 'failed').length;
+        const key = ++next;
+        if (taken >= MAX_ATTACHMENTS) {
+          items.update((list) => [...list, { kind: 'failed', key, name: attachment.name, reason: `A message can carry ${String(MAX_ATTACHMENTS)} files.` }]);
+          continue;
+        }
+        items.update((list) => [...list, { kind: 'ready', key, attachment, preview: null }]);
+        if (attachment.kind === 'image') {
+          void previewOf(attachment.id).then((preview) => {
+            if (preview === null) return;
+            items.update((list) =>
+              list.map((each) => (each.key === key && each.kind === 'ready' ? { ...each, preview } : each)),
+            );
+          });
         }
       }
     },

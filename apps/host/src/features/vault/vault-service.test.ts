@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { CreateVaultItemRequest, UpdateVaultItemRequest } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it } from 'vitest';
+import { z } from 'zod';
 import { encryptedFileStore } from './file-store.ts';
 import { keyFileStore } from './master-key.ts';
 import type { SecretStore } from './secret-store.ts';
@@ -26,6 +27,31 @@ afterEach(async () => {
 });
 
 const sealedStore = (): SecretStore => encryptedFileStore({ file: path.join(sealedDir, 'vault-secrets.json'), keys: keyFileStore(path.join(dir, 'vault.key')) });
+
+async function storedValues(): Promise<number> {
+  const text = await readFile(path.join(sealedDir, 'vault-secrets.json'), 'utf8');
+  return Object.keys(z.object({ secrets: z.record(z.string(), z.unknown()) }).parse(JSON.parse(text)).secrets).length;
+}
+
+function stopsAt(step: 'write' | 'remove'): { readonly store: SecretStore; readonly reached: Promise<undefined> } {
+  const inner = sealedStore();
+  const reached = Promise.withResolvers<undefined>();
+  const stop = async (): Promise<void> => {
+    reached.resolve(undefined);
+    await new Promise<void>(() => undefined);
+  };
+  return {
+    reached: reached.promise,
+    store: {
+      read: (ref) => inner.read(ref),
+      write: async (ref, secret) => {
+        await inner.write(ref, secret);
+        if (step === 'write') await stop();
+      },
+      remove: (ref) => (step === 'remove' ? stop() : inner.remove(ref)),
+    },
+  };
+}
 
 function open(store: SecretStore = secrets): Promise<VaultService> {
   let id = 0;
@@ -86,7 +112,7 @@ it('creates, updates and deletes items, keeping names in vault.json and secrets 
     deleted,
     afterReopen: reopened.list(),
     resolvedAfter: [used(await reopened.resolve(login)), used(await reopened.resolve(header))],
-    storedValues: (await sealedStore().list()).length,
+    storedValues: (await storedValues()),
   }).toMatchInlineSnapshot(`
     {
       "afterReopen": [
@@ -197,10 +223,10 @@ it('drops a deleted item even when erasing its value fails, and erases that valu
     () => 'erase failed',
   );
   const listed = vault.list().length;
-  const valuesLeft = (await sealedStore().list()).length;
+  const valuesLeft = (await storedValues());
   await chmod(sealedDir, 0o700);
   await open();
-  expect({ deleted, listed, valuesLeft, valuesAfterReopen: (await sealedStore().list()).length }).toEqual({
+  expect({ deleted, listed, valuesLeft, valuesAfterReopen: (await storedValues()) }).toEqual({
     deleted: 'erase failed',
     listed: 0,
     valuesLeft: 1,
@@ -208,19 +234,75 @@ it('drops a deleted item even when erasing its value fails, and erases that valu
   });
 });
 
-it('keeps the old secret when a change is cut short before vault.json is saved, and erases the new value on the next open', async () => {
-  const vault = await open();
-  const id = idOf(await create(vault, { kind: 'api_key', label: 'Weather', key: 'old' }));
-  await secrets.write('ref-of-a-change-cut-short', JSON.stringify({ kind: 'api_key', key: 'new' }));
-  const reopened = await open();
-  expect({ resolved: used(await reopened.resolve(id)), values: (await sealedStore().list()).length }).toEqual({ resolved: { label: 'Weather', key: 'old' }, values: 1 });
+it('keeps the secret vault.json points at, and every value saved since, when a change is cut short before vault.json is saved', async () => {
+  const id = idOf(await create(await open(), { kind: 'api_key', label: 'Weather', key: 'old' }));
+  const updating = stopsAt('write');
+  void update(await open(updating.store), id, { kind: 'api_key', key: 'new' });
+  await updating.reached;
+  const afterUpdate = await storedValues();
+  const creating = stopsAt('write');
+  void create(await open(creating.store), { kind: 'api_key', label: 'Search', key: 'never listed' });
+  await creating.reached;
+  const afterCreate = await storedValues();
+  const reopened = await open(sealedStore());
+  expect({ afterUpdate, afterCreate, listed: reopened.list().map(({ label }) => label), resolved: used(await reopened.resolve(id)), valuesAfterReopen: await storedValues() }).toEqual({
+    afterUpdate: 2,
+    afterCreate: 3,
+    listed: ['Weather'],
+    resolved: { label: 'Weather', key: 'old' },
+    valuesAfterReopen: 3,
+  });
+});
+
+it('erases the old value of a change cut short after vault.json is saved, and keeps the new one', async () => {
+  const id = idOf(await create(await open(), { kind: 'api_key', label: 'Weather', key: 'old' }));
+  const updating = stopsAt('remove');
+  const cut = await open(updating.store);
+  void update(cut, id, { kind: 'api_key', key: 'new' });
+  await updating.reached;
+  const reopened = await open(sealedStore());
+  expect({ resolved: used(await reopened.resolve(id)), values: await storedValues() }).toEqual({ resolved: { label: 'Weather', key: 'new' }, values: 1 });
+});
+
+it('keeps the secrets of items an older restored vault.json does not list, so they are back when the newer file is put back', async () => {
+  const file = path.join(dir, 'vault.json');
+  const inner = sealedStore();
+  const backups: string[] = [];
+  const backedUp: SecretStore = {
+    read: (ref) => inner.read(ref),
+    write: async (ref, secret) => {
+      backups.push(await readFile(file, 'utf8').catch(() => 'missing'));
+      await inner.write(ref, secret);
+    },
+    remove: (ref) => inner.remove(ref),
+  };
+  const vault = await open(backedUp);
+  const kept = idOf(await create(vault, { kind: 'api_key', label: 'Weather', key: 'kept' }));
+  const added = idOf(await create(vault, { kind: 'api_key', label: 'Search', key: 'added later' }));
+  const [, takenWhileSearchWasSaved = ''] = backups;
+  const newer = z.object({ entries: z.array(z.unknown()) }).parse(JSON.parse(await readFile(file, 'utf8')));
+  await writeFile(file, takenWhileSearchWasSaved);
+  const restored = await open(sealedStore());
+  const listed = restored.list().map(({ label }) => label);
+  const valuesAfterRestore = await storedValues();
+  await writeFile(file, JSON.stringify({ version: 1, entries: newer.entries }));
+  const back = await open(sealedStore());
+  expect({ listed, valuesAfterRestore, back: [used(await back.resolve(kept)), used(await back.resolve(added))] }).toEqual({
+    listed: ['Weather'],
+    valuesAfterRestore: 2,
+    back: [
+      { label: 'Weather', key: 'kept' },
+      { label: 'Search', key: 'added later' },
+    ],
+  });
 });
 
 it('replaces a secret that can no longer be read, when the change names every part of it', async () => {
   const vault = await open();
   const login = idOf(await create(vault, { kind: 'login', label: 'Forge', username: 'robot', password: 'old', twoStepKey: 'JBSWY3DPEHPK3PXP' }));
   const key = idOf(await create(vault, { kind: 'api_key', label: 'Weather', key: 'old' }));
-  for (const ref of await secrets.list()) await secrets.remove(ref);
+  const saved = z.object({ entries: z.array(z.object({ secretRef: z.string() })) }).parse(JSON.parse(await readFile(path.join(dir, 'vault.json'), 'utf8')));
+  for (const { secretRef } of saved.entries) await secrets.remove(secretRef);
   expect({
     passwordOnly: await update(vault, login, { kind: 'login', password: 'new' }),
     wholeLogin: (await update(vault, login, { kind: 'login', password: 'new', twoStepKey: null })).kind,

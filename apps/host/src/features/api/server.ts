@@ -7,6 +7,7 @@ import { authorize, viewerOf, type Caller } from './access.ts';
 import { agentMessageRoutes } from './agent-message-routes.ts';
 import { agentRoutes } from './agent-routes.ts';
 import { attachmentRoutes } from './attachment-routes.ts';
+import { cardRoutes } from './card-routes.ts';
 import { connectorRoutes } from './connector-routes.ts';
 import { folderRoutes } from './folder-routes.ts';
 import { memoryRoutes } from './memory-routes.ts';
@@ -78,6 +79,7 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
   const routes = [
     ...agentRoutes(options.services),
     ...agentMessageRoutes(options.services),
+    ...cardRoutes(options.services),
     ...folderRoutes(options.services),
     ...threadRoutes(options.services),
     ...attachmentRoutes(options.services),
@@ -219,6 +221,7 @@ async function route(routes: readonly Route[], path: string, request: IncomingMe
     source: request.socket.remoteAddress ?? '',
     viewer: admission.viewer,
     whoAmI: whoAmIOf(caller),
+    range: request.headers.range,
     body: () => readJson(request, access.kind === 'public' ? PUBLIC_BODY_BYTES : found.route.bodyBytes),
   });
 }

@@ -5,6 +5,7 @@ import { BlockedBanner } from '../../shared/BlockedBanner.tsx';
 import { useStore } from '../../shared/use-store.ts';
 import type { ChatActivity } from './activity.ts';
 import type { PeerDirectory } from './AgentExchange.tsx';
+import { replyFiles } from './reply-files.ts';
 import { approvalHeadingId } from './ApprovalCard.tsx';
 import type { ChatDisplay } from './display.ts';
 import { FindBar } from './FindBar.tsx';
@@ -23,7 +24,7 @@ export interface ChatViewProps {
   readonly agentName: string;
   readonly providerName: string | null;
   readonly display: ChatDisplay;
-  readonly bridge: Pick<MorrowbotBridge, 'openExternal' | 'copyText'>;
+  readonly bridge: Pick<MorrowbotBridge, 'openExternal' | 'copyText' | 'fileAction'>;
   /** Bumped by every ⌘F. */
   readonly findRequest: number;
   /** Opened from a sidebar row with an Approval badge: focus the pending approval's heading once (spec §4.3), never its Allow button. */
@@ -41,6 +42,12 @@ export interface ChatViewProps {
   readonly avatar: (activity: ChatActivity) => ComponentChildren;
   /** What this chat is doing, as the sidebar shows it. */
   readonly activity: ChatActivity;
+  /** The server's owner, whose click alone acts on Ori Kami's own cards. */
+  readonly owner: boolean;
+  /** Extensions, at a plugin a card offers; null where Extensions is not open to this user. */
+  readonly onOpenPlugin: ((pluginId: string) => void) | null;
+  /** A card changed one of the agent's settings. */
+  readonly onAgentChanged: (agentId: string) => void;
 }
 
 /** The chat canvas: history in a window of recent messages, the live turn, FindBar and announcements. */
@@ -81,11 +88,23 @@ export function ChatView(props: ChatViewProps) {
       onReact: (messageId, emoji) => void session.react(messageId, emoji),
       agentName: props.agentName,
       image: session.image,
+      files: replyFiles({ fileAction: (request) => latest.current.bridge.fileAction(request) }),
       peers: props.peers,
       engine: props.engine,
       avatar: props.avatar,
+      cards: {
+        peers: props.peers,
+        owner: props.owner,
+        onOpenPlugin: props.onOpenPlugin === null ? null : (pluginId) => { latest.current.onOpenPlugin?.(pluginId); },
+        onAct: (cardId, action) => {
+          const agentId = cardAgent(session, cardId);
+          void session.actOnCard(cardId, action).then((ok) => {
+            if (ok && action.kind === 'set' && agentId !== undefined) latest.current.onAgentChanged(agentId);
+          });
+        },
+      },
     }),
-    [session, props.display, props.providerName, props.peers, props.agentName, props.engine, props.avatar],
+    [session, props.display, props.providerName, props.peers, props.agentName, props.engine, props.avatar, props.owner, props.onOpenPlugin === null],
   );
 
   const announce = (text: string): void => { setSaid((before) => ({ text, n: before.n + 1 })); };
@@ -209,7 +228,7 @@ export function ChatView(props: ChatViewProps) {
         {fresh ? (
           <div class="hero">{props.hero}</div>
         ) : (
-          <Timeline view={loaded} start={begin} answering={screen.answering} idle={idle} locked={props.locked} offline={screen.connection !== 'live'} ctx={ctx} onShowEarlier={showEarlier} activity={props.activity} />
+          <Timeline view={loaded} start={begin} answering={screen.answering} cardActing={screen.cardActing} idle={idle} locked={props.locked} offline={screen.connection !== 'live'} ctx={ctx} onShowEarlier={showEarlier} activity={props.activity} />
         )}
       </div>
       {pill && (
@@ -222,4 +241,10 @@ export function ChatView(props: ChatViewProps) {
       </div>
     </div>
   );
+}
+
+/** The agent whose card `cardId` is, as the session shows it. */
+function cardAgent(session: ThreadSession, cardId: string): string | undefined {
+  const view = session.screen.get().view;
+  return view.kind === 'loaded' ? view.value.cards.find(({ id }) => id === cardId)?.agentId : undefined;
 }

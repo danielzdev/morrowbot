@@ -1,4 +1,4 @@
-import type { AgentMessage, Message, MessageReaction } from '@morrowbot/contracts';
+import type { AgentMessage, Message, MessageReaction, ThreadCard } from '@morrowbot/contracts';
 import type { ComponentChildren } from 'preact';
 import { memo } from 'preact/compat';
 import { useEffect, useId, useMemo, useState } from 'preact/hooks';
@@ -14,8 +14,11 @@ import { outcomeCopy, type CopyContext, type OutcomeAction } from './outcome-cop
 import { OutcomeNote } from './OutcomeNote.tsx';
 import { reactionsByMessage } from './reactions.ts';
 import { ReactionPicker, ReactionPills } from './Reactions.tsx';
+import { ReplyAttachments, type ReplyFiles } from './ReplyAttachments.tsx';
 import { SentAttachments } from './SentAttachments.tsx';
 import { SubagentGroup, type EngineLabel } from './SubagentGroup.tsx';
+import { cardsByMessage, stagedCards } from './thread-cards.ts';
+import { ThreadCards, type CardContext } from './ThreadCards.tsx';
 import type { ActiveTurnView, ApprovalStep, FinishedTurn, ThreadView, TurnStep } from './thread-model.ts';
 import { TurnSteps } from './ToolGroup.tsx';
 import { timelineItems } from './timeline-items.ts';
@@ -35,10 +38,13 @@ export interface TimelineContext {
   readonly agentName: string;
   /** A sent image as a data URL; null when it can't be loaded. */
   readonly image: (id: string) => Promise<string | null>;
+  /** The files agents attached to their replies. */
+  readonly files: ReplyFiles;
   readonly peers: PeerDirectory;
   readonly engine: EngineLabel;
   /** This chat's agent's avatar, moving as `activity` shows. */
   readonly avatar: (activity: ChatActivity) => ComponentChildren;
+  readonly cards: CardContext;
 }
 
 function Since({ startedAt }: { readonly startedAt: number }) {
@@ -64,6 +70,7 @@ function approvalFor(ctx: TimelineContext, answering: readonly string[], offline
 
 const NO_ANSWERS: readonly string[] = [];
 const NO_REACTIONS: readonly MessageReaction[] = [];
+const NO_CARDS: readonly ThreadCard[] = [];
 
 const STEERED_IN = 'Steered in · seen by the agent';
 
@@ -76,10 +83,14 @@ const MessageItem = memo(function MessageItem(props: {
   readonly busy: boolean;
   /** A user message sent into the reply above it with Steer now. */
   readonly steeredIn: boolean;
-  /** The latest reply's avatar: celebrating just after its turn, then resting. Null on other messages. */
-  readonly avatar: 'completed' | 'idle' | null;
+  /** The latest reply's avatar during its brief completion beat; null once idle or on other messages. */
+  readonly avatar: 'completed' | null;
   /** The emoji on this message. */
   readonly reactions: readonly MessageReaction[];
+  /** The cards on this reply, and those whose click is on its way. */
+  readonly cards: readonly ThreadCard[];
+  readonly cardActing: readonly string[];
+  readonly offline: boolean;
   readonly ctx: TimelineContext;
 }) {
   const { message, finished, ctx } = props;
@@ -108,6 +119,8 @@ const MessageItem = memo(function MessageItem(props: {
       )}
       {finished !== undefined && <TurnSteps steps={finished.steps} display={ctx.display} approval={approvalFor(ctx, NO_ANSWERS, false)} />}
       {message.text !== '' && <div data-find-id={message.id}><Markdown text={message.text} actions={ctx.actions} /></div>}
+      {message.attachments.length > 0 && <ReplyAttachments attachments={message.attachments} files={ctx.files} />}
+      <ThreadCards cards={props.cards} staged={false} acting={props.cardActing} offline={props.offline} ctx={ctx.cards} />
       <OutcomeNote
         copy={copy}
         seedTruncated={message.seedTruncated === true}
@@ -125,7 +138,13 @@ const MessageItem = memo(function MessageItem(props: {
   );
 });
 
-function ActiveTurn(props: { readonly turn: ActiveTurnView; readonly answering: readonly string[]; readonly offline: boolean; readonly ctx: TimelineContext }) {
+function ActiveTurn(props: {
+  readonly turn: ActiveTurnView;
+  readonly answering: readonly string[];
+  readonly offline: boolean;
+  readonly cards: readonly ThreadCard[];
+  readonly ctx: TimelineContext;
+}) {
   const { turn, ctx } = props;
   const { phase, label } = phaseOf(turn, ctx.display);
   const detail = turn.state === 'queued' ? (turn.queueNote ?? 'Waiting for a free slot') : extraDetail(turn.detail, label);
@@ -139,6 +158,7 @@ function ActiveTurn(props: { readonly turn: ActiveTurnView; readonly answering: 
       </div>
       <TurnSteps steps={turn.steps} display={ctx.display} approval={approvalFor(ctx, props.answering, props.offline)} />
       {turn.text !== '' && <div data-find-id={ACTIVE_ID}><Markdown text={turn.text} actions={ctx.actions} /></div>}
+      <ThreadCards cards={props.cards} staged acting={NO_ANSWERS} offline={props.offline} ctx={ctx.cards} />
     </div>
   );
 }
@@ -195,6 +215,8 @@ export function Timeline(props: {
   readonly view: ThreadView;
   readonly start: number;
   readonly answering: readonly string[];
+  /** Cards whose click is on its way to the host. */
+  readonly cardActing: readonly string[];
   /** Nothing runs or sends, so the latest reply's Continue may run. */
   readonly idle: boolean;
   readonly locked: boolean;
@@ -210,6 +232,7 @@ export function Timeline(props: {
   const last = messages.at(-1);
   const steeredIn = useMemo(() => new Set(messages.flatMap((message, index) => (message.kind === 'user' && steered(messages[index - 1]) ? [message.id] : []))), [messages]);
   const reactions = useMemo(() => reactionsByMessage(view.reactions), [view.reactions]);
+  const cards = useMemo(() => cardsByMessage(view.cards), [view.cards]);
   const items = useMemo(() => timelineItems(messages, view.agentMessages, view.subagents, start), [messages, view.agentMessages, view.subagents, start]);
   const active = view.activeTurn;
   const reading = active?.trigger.kind === 'agent-message' ? active.trigger.agentMessageId : null;
@@ -245,14 +268,19 @@ export function Timeline(props: {
                 latest={item.message === last}
                 steeredIn={steeredIn.has(item.message.id)}
                 reactions={reactions.get(item.message.id) ?? NO_REACTIONS}
+                cards={cards.get(item.message.id) ?? NO_CARDS}
+                cardActing={props.cardActing}
+                offline={props.offline}
                 busy={item.message === last && (!props.idle || props.locked || props.offline)}
-                avatar={item.message === last && item.message.kind === 'assistant' && active?.trigger.kind !== 'chat' ? (props.activity === 'completed' ? 'completed' : 'idle') : null}
+                avatar={item.message === last && item.message.kind === 'assistant' && active?.trigger.kind !== 'chat' && props.activity === 'completed' ? 'completed' : null}
                 ctx={ctx}
               />
             );
         }
       })}
-      {active?.trigger.kind === 'chat' && <ActiveTurn turn={active} answering={props.answering} offline={props.offline} ctx={ctx} />}
+      {active?.trigger.kind === 'chat' && (
+        <ActiveTurn turn={active} answering={props.answering} offline={props.offline} cards={stagedCards(view.cards, active.generationId)} ctx={ctx} />
+      )}
       {active?.trigger.kind === 'agent-message' && (
         <BackgroundTurn
           turn={active}

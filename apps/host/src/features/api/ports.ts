@@ -7,6 +7,7 @@ import type {
   Agent,
   Attachment,
   AttachmentContent,
+  ReplyAttachment,
   CreateMemoryRequest,
   Memory,
   SkillList,
@@ -20,6 +21,7 @@ import type {
   Member,
   CreateRoutineRequest,
   BlockedGroup,
+  CardAction,
   ChatEvent,
   ChatSettings,
   MessageReaction,
@@ -52,6 +54,7 @@ import type {
   T3Watch,
   T3WatchAck,
   Thread,
+  ThreadCard,
   ThreadState,
   ThreadSummary,
   TokenRange,
@@ -94,6 +97,7 @@ export interface WriteFailure {
 export type ApiUpdateAgentResult =
   | { readonly kind: 'updated'; readonly agent: Agent }
   | { readonly kind: 'not-found' }
+  | { readonly kind: 'conflict'; readonly current: Agent }
   | { readonly kind: 'invalid'; readonly reason: string };
 
 export interface ApiFolders {
@@ -116,7 +120,17 @@ export type ApiAdmitResult =
   | { readonly kind: 'attachments_missing' };
 
 /** A send starts a turn, or waits in the thread's queue while a turn runs. */
-export type ApiSendResult = ApiAdmitResult | { readonly kind: 'queued'; readonly queued: QueuedMessage } | { readonly kind: 'files_wait' };
+export type ApiSendResult = ApiAdmitResult | { readonly kind: 'queued'; readonly queued: QueuedMessage };
+
+export type ApiArchiveThreadResult =
+  | { readonly kind: 'archived'; readonly thread: Thread }
+  | { readonly kind: 'not_found' }
+  | { readonly kind: 'conflict'; readonly reason: string };
+
+export type ApiThreadArchiveFilter = 'active' | 'archived' | 'all';
+
+/** Who starts a turn through the API. */
+export type ApiInitiator = 'owner' | 'member';
 
 export type ApiQueueAnswer =
   | { readonly kind: 'ok' }
@@ -126,23 +140,27 @@ export type ApiQueueAnswer =
 export type ApiReplay = { readonly kind: 'events'; readonly events: readonly ChatEvent[] } | { readonly kind: 'resync' };
 
 export interface ApiChat {
-  listThreads(agentId: string): Thread[] | undefined;
+  listThreads(agentId: string, filter?: ApiThreadArchiveFilter): Thread[] | undefined;
   listThreadSummaries(): ThreadSummary[];
   createThread(agentId: string, request: CreateThreadRequest): Thread | undefined;
   getThread(id: string): Thread | undefined;
   renameThread(id: string, title: string): Thread | undefined;
+  archiveThread(id: string): ApiArchiveThreadResult;
+  restoreThread(id: string): Thread | undefined;
   deleteThread(id: string): Promise<boolean>;
   deleteAgent(id: string): Promise<boolean>;
   listMessages(threadId: string): Message[] | undefined;
   state(threadId: string): ThreadState | undefined;
-  send(threadId: string, text: string, attachmentIds: readonly string[], choice: SessionChoice): Promise<ApiSendResult>;
+  /** `by` is who sends it: a scoped member's turns get no connectors. */
+  send(threadId: string, text: string, attachmentIds: readonly string[], choice: SessionChoice, by: ApiInitiator): Promise<ApiSendResult>;
   setReaction(
     threadId: string,
     request: SetReactionRequest,
+    by: ApiInitiator,
   ): { readonly kind: 'set'; readonly reactions: MessageReaction[] } | { readonly kind: 'not_found' } | { readonly kind: 'conflict'; readonly reason: string };
   cancelQueued(threadId: string, queuedId: string): ApiQueueAnswer;
-  steerQueued(threadId: string, queuedId: string): ApiQueueAnswer;
-  continueTurn(threadId: string, failedMessageId: string, choice: SessionChoice): Promise<ApiAdmitResult>;
+  steerQueued(threadId: string, queuedId: string, by: ApiInitiator): ApiQueueAnswer;
+  continueTurn(threadId: string, failedMessageId: string, choice: SessionChoice, by: ApiInitiator): Promise<ApiAdmitResult>;
   stop(threadId: string): Promise<StopGenerationResponse | { readonly kind: 'not_stored' }>;
   replyApproval(
     threadId: string,
@@ -229,8 +247,10 @@ export interface ApiAttachments {
     request: UploadAttachmentRequest,
   ): Promise<{ readonly kind: 'saved'; readonly attachment: Attachment } | { readonly kind: 'not-found' } | { readonly kind: 'invalid'; readonly reason: string }>;
   content(id: string): Promise<AttachmentContent | undefined>;
-  /** The thread an attachment was uploaded to, or undefined for an unknown id. */
+  /** The thread an attachment was uploaded to, or a reply attachment's chat; undefined for an unknown id. */
   threadOf(id: string): string | undefined;
+  /** A file an agent attached to its reply, and where its bytes are kept. */
+  reply(id: string): { readonly attachment: ReplyAttachment; readonly file: string } | undefined;
 }
 
 /** Each call is undefined for an unknown agent (or memory). */
@@ -338,7 +358,25 @@ export interface ApiConnectors {
   settled(id: string): Promise<void>;
 }
 
+/** Cards agents put in chats; `act` is the user's click, and sends a chosen label with `send`. */
+export interface ApiCards {
+  list(threadId: string): ThreadCard[];
+  act(
+    threadId: string,
+    cardId: string,
+    action: CardAction,
+    clicker: { readonly owner: boolean },
+    send: (text: string) => Promise<boolean>,
+  ): Promise<
+    | { readonly kind: 'done'; readonly card: ThreadCard }
+    | { readonly kind: 'not_found' }
+    | { readonly kind: 'not_sent' }
+    | { readonly kind: 'forbidden' | 'conflict' | 'invalid'; readonly reason: string }
+  >;
+}
+
 export interface ApiServices {
+  readonly cards: ApiCards;
   readonly connectors: ApiConnectors;
   readonly agents: ApiAgents;
   readonly attachments: ApiAttachments;

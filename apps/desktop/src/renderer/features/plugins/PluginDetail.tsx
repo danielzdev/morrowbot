@@ -1,19 +1,21 @@
-import type { PluginConfig, PluginEntry, PluginPermission, PluginProblem } from '@morrowbot/contracts';
+import type { PluginConfig, PluginEntry, PluginProblem } from '@morrowbot/contracts';
+import { useState } from 'preact/hooks';
+import { PERMISSION_LABELS } from '../../shared/permission-labels.ts';
 import { ItemMark } from '../../shared/ui/ItemMark.tsx';
 import { DetailSection, Pill } from '../../shared/ui/ListDetail.tsx';
 import { SettingsForm } from '../../shared/ui/SettingsForm.tsx';
 import { Toggle } from '../../shared/ui/Toggle.tsx';
+import {
+  CONFLICT_LINE,
+  isPluginEnabledForAgent,
+  nextDisabledForAgent,
+  withoutKey,
+  type AgentExtensionsPort,
+  type ExtensionRowProblem,
+} from './agent-extensions.ts';
 import { healthOf, problemHealth } from './plugin-health.ts';
 import type { PluginWork } from './plugins-model.ts';
 
-const PERMISSIONS: Readonly<Record<PluginPermission, string>> = {
-  network: 'Use the internet',
-  filesystem: 'Read and change files',
-  shell: 'Run commands on this computer',
-  secrets: 'Use saved passwords and keys',
-  accessibility: 'See and control apps on this Mac (Accessibility)',
-  'screen-recording': 'Take pictures of the screen (Screen Recording)',
-};
 
 export const sourceLabel = (entry: PluginEntry): string => (entry.source === 'built-in' ? 'Built-in' : 'Yours');
 
@@ -26,12 +28,85 @@ export interface PluginActions {
   readonly onDirty: (dirty: boolean) => void;
 }
 
-/** The one place a plugin is managed (spec IA §4): header, health, permissions, settings and Restart. */
+/** Per-agent toggle list inside a tool plugin's detail pane, right below the app-wide switch. */
+function PluginAgentsSection(props: {
+  readonly pluginId: string;
+  readonly pluginName: string;
+  readonly enabledAppWide: boolean;
+  readonly agentExtensions: AgentExtensionsPort;
+  readonly redact: (text: string) => string;
+}) {
+  const { pluginId, pluginName, enabledAppWide, agentExtensions } = props;
+  const [problems, setProblems] = useState<Readonly<Record<string, ExtensionRowProblem>>>({});
+
+  const toggle = async (agentId: string, enabled: boolean): Promise<void> => {
+    const agent = agentExtensions.agents.find(({ id }) => id === agentId);
+    if (agent === undefined) return;
+    setProblems((now) => withoutKey(now, agentId));
+    const outcome = await agentExtensions.setDisabled(agent.id, nextDisabledForAgent(agent, pluginId, enabled), agent.revision);
+    switch (outcome.kind) {
+      case 'saved':
+        return;
+      case 'conflict':
+        setProblems((now) => ({ ...now, [agentId]: { kind: 'conflict', current: outcome.current } }));
+        return;
+      case 'refused':
+        setProblems((now) => ({ ...now, [agentId]: { kind: 'refused', message: outcome.message } }));
+        return;
+    }
+  };
+
+  const reloadRow = (agentId: string): void => {
+    const problem = problems[agentId];
+    if (problem?.kind === 'conflict') agentExtensions.adopt(problem.current);
+    setProblems((now) => withoutKey(now, agentId));
+  };
+
+  return (
+    <DetailSection title="Agents">
+      {!enabledAppWide && <p class="muted">Turned off for all agents above.</p>}
+      {agentExtensions.agents.length === 0 ? (
+        <p class="muted">No agents yet.</p>
+      ) : (
+        <ul class="plugin-agents" aria-label={`Agents using ${pluginName}`}>
+          {agentExtensions.agents.map((agent) => {
+            const problem = problems[agent.id];
+            const conflicted = problem?.kind === 'conflict';
+            const checked = enabledAppWide && isPluginEnabledForAgent(agent, pluginId);
+            return (
+              <li key={agent.id} class={`plugin-agent-row${enabledAppWide ? '' : ' dimmed'}`}>
+                <div class="plugin-agent-line">
+                  <span class="plugin-agent-name">{agent.name}</span>
+                  <Toggle
+                    label={`${pluginName} for ${agent.name}`}
+                    checked={checked}
+                    disabled={!enabledAppWide || agentExtensions.savingAgents.includes(agent.id) || conflicted}
+                    onChange={(next) => void toggle(agent.id, next)}
+                  />
+                </div>
+                {problem?.kind === 'conflict' && (
+                  <div class="row" role="alert">
+                    <span class="note warn">{CONFLICT_LINE}</span>
+                    <button type="button" class="btn secondary" onClick={() => { reloadRow(agent.id); }}>Reload row</button>
+                  </div>
+                )}
+                {problem?.kind === 'refused' && <p class="note error" role="alert">{props.redact(problem.message)}</p>}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </DetailSection>
+  );
+}
+
+/** The one place a plugin is managed (spec IA §4): header, health, per-agent toggles, permissions, settings and Restart. */
 export function PluginDetail(props: {
   readonly entry: PluginEntry;
   readonly safeMode: boolean;
   readonly work: PluginWork | undefined;
   readonly problem: string | undefined;
+  readonly agentExtensions?: AgentExtensionsPort;
   readonly redact: (text: string) => string;
   readonly actions: PluginActions;
 }) {
@@ -50,7 +125,10 @@ export function PluginDetail(props: {
           </div>
         </div>
         <Pill tone={health.tone}>{health.label}</Pill>
-        <Toggle label={`${manifest.name} on`} checked={entry.enabled} disabled={props.work !== undefined} onChange={actions.onEnabled} />
+        <label class="toggle-pair">
+          {manifest.kind === 'tool' && <span class="toggle-pair-label">All agents</span>}
+          <Toggle label={`${manifest.name} on`} checked={entry.enabled} disabled={props.work !== undefined} onChange={actions.onEnabled} />
+        </label>
       </header>
 
       {(health.detail !== null || props.problem !== undefined) && (
@@ -80,13 +158,23 @@ export function PluginDetail(props: {
         )}
       </div>
 
+      {manifest.kind === 'tool' && props.agentExtensions !== undefined && (
+        <PluginAgentsSection
+          pluginId={manifest.id}
+          pluginName={manifest.name}
+          enabledAppWide={entry.enabled}
+          agentExtensions={props.agentExtensions}
+          redact={redact}
+        />
+      )}
+
       <DetailSection title="Permissions">
         {manifest.permissions.length === 0 ? (
           <p class="muted">Needs no special access.</p>
         ) : (
           <ul class="fact-list">
             {manifest.permissions.map((permission) => (
-              <li key={permission}>{PERMISSIONS[permission]}</li>
+              <li key={permission}>{PERMISSION_LABELS[permission]}</li>
             ))}
           </ul>
         )}

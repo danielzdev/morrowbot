@@ -14,6 +14,7 @@ import type {
 } from '@morrowbot/contracts';
 import { answersSender, splitAnswer } from './background.ts';
 import type { EventLog } from './event-log.ts';
+import type { TurnInitiator } from './initiator.ts';
 import type { OutputLimitKind } from './output-budget.ts';
 import type { ChatServiceOptions, SessionState } from './ports.ts';
 import type { ReactionNote } from './reactions.ts';
@@ -133,6 +134,10 @@ export interface ChatCore {
   readonly deletingAgents: Set<string>;
   /** Each queued message's state this host run (see queue.ts); the messages themselves are stored. */
   readonly queueStates: Map<string, QueuedMessageState>;
+  /** Who wrote each queued message this host run (see initiator.ts). */
+  readonly queueAuthors: Map<string, TurnInitiator>;
+  /** Who started each turn this host run, by generation id, made less trusted by a message steered into it (see initiator.ts). */
+  readonly initiators: Map<string, TurnInitiator>;
   /** Threads whose next queued message is being admitted, with that message's id. */
   readonly draining: Map<string, string>;
   /** Each thread's reactions of the user's that the agent has not read yet, oldest first (kept this host run only). */
@@ -193,8 +198,9 @@ export function settle(core: ChatCore, turn: Turn, result: Settlement): Assistan
   const { newId, now } = core.options;
   const createdAt = now();
   const outcome = replyOutcome(turn, result.outcome);
-  const text = shownText(core, turn, turn.text !== '' ? turn.text : (result.finalText ?? ''), result.outcome);
-  const base: AssistantMessage | null = text === null ? null : { kind: 'assistant', id: newId(), threadId: turn.threadId, text, outcome, createdAt };
+  const attachments = core.options.store.replyAttachments.listOpen(turn.generationId).map(({ attachment }) => attachment);
+  const text = shownText(core, turn, turn.text !== '' ? turn.text : (result.finalText ?? ''), result.outcome, attachments.length > 0);
+  const base: AssistantMessage | null = text === null ? null : { kind: 'assistant', id: newId(), threadId: turn.threadId, text, outcome, attachments, createdAt };
   const message: AssistantMessage | null = base !== null && turn.seedTruncated ? { ...base, seedTruncated: true } : base;
   if (!persistSettlement(core, turn, message, result, createdAt)) {
     turn.settled.resolve({ kind: 'not-stored' });
@@ -228,16 +234,16 @@ export function settle(core: ChatCore, turn: Turn, result: Settlement): Assistan
  * What the chat shows for a settled turn: a chat turn's reply, or a background turn's notice to the user
  * (null for none). A completed background turn's answer is sent to the agent that asked; an answer that
  * cannot be sent is shown to the user instead, so it is never lost. A completed turn the agent ended with
- * `stay_quiet`, or a reaction's turn that wrote nothing, shows nothing; a failed or stopped one still does.
+ * `stay_quiet`, or a reaction's turn that wrote and attached nothing, shows nothing; a failed or stopped one still does.
  */
-function shownText(core: ChatCore, turn: Turn, text: string, outcome: TurnOutcome): string | null {
+function shownText(core: ChatCore, turn: Turn, text: string, outcome: TurnOutcome, attached: boolean): string | null {
   const { source } = turn;
   const completed = outcome.kind === 'completed';
   switch (source.kind) {
     case 'chat':
       return completed && turn.silent ? null : text;
     case 'reaction':
-      return completed && (turn.silent || text.trim() === '') ? null : text;
+      return completed && (turn.silent || (text.trim() === '' && !attached)) ? null : text;
     case 'agent-message': {
       if (outcome.kind !== 'completed') return null;
       const { reply, notice } = splitAnswer(text);
@@ -266,6 +272,8 @@ function persistSettlement(core: ChatCore, turn: Turn, message: AssistantMessage
       }
       store.generations.settle(turn.generationId, message?.id ?? null);
       store.toolSteps.close(turn.generationId, message?.id ?? null);
+      store.cards.close(turn.generationId, message?.id ?? null);
+      store.replyAttachments.close(turn.generationId, message?.id ?? null);
       if (turn.source.kind === 'agent-message') store.agentMessages.setReadOutcome(turn.source.message.id, result.outcome.kind);
       if (!turn.dispatched) return;
       store.generations.insertUsage({

@@ -6,8 +6,8 @@ import type { Version } from './version.ts';
 /**
  * The profiles the 2.1.332 fixtures have proven, all isolated. Read-only and workspace-write are
  * confined to the workspace by `--restricted`, with no shell; workspace-write asks before protected
- * paths such as `.git/`. Full has the shell and reaches the whole computer without asking. Only the
- * owner may choose it; nothing picks it by default. Workspace-write and full have run on macOS only.
+ * paths such as `.git/`. Full has the shell and reaches the whole computer without asking; only
+ * the owner may grant it (new owner agents default to it when offered). Workspace-write and full have run on macOS only.
  */
 const PROFILES: readonly AccessProfile[] = [
   { access: 'read-only', vendorSettings: 'isolated', modes: ['interactive', 'background'], readsOutsideCwd: false },

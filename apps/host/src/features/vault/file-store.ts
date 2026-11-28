@@ -23,7 +23,7 @@ export interface FileStoreOptions {
 /**
  * Every secret value sealed with AES-256-GCM under one master key, in one JSON file written atomically (owner-only).
  * Each value gets a fresh 96-bit nonce and is bound to its reference as associated data, so an edited, truncated or
- * swapped value fails to open instead of turning into another secret. Listing and removing never need the key.
+ * swapped value fails to open instead of turning into another secret. Removing never needs the key.
  */
 export function encryptedFileStore(options: FileStoreOptions): SecretStore {
   const once = <T>(open: () => Promise<T>): (() => Promise<T>) => {
@@ -65,7 +65,6 @@ export function encryptedFileStore(options: FileStoreOptions): SecretStore {
         await save(next);
         secrets.delete(ref);
       }),
-    list: async () => [...(await entries()).keys()],
   };
 }
 

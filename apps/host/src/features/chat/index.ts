@@ -8,3 +8,5 @@ export type { AdmitResult } from './admission.ts';
 export type { UsageAnswer } from './usage.ts';
 export type { Replay } from './event-log.ts';
 export type { AgentDirectory, ChatListener, ChatServiceOptions, ChatStore, ProviderPlugins, SubagentRecord, TurnSink } from './ports.ts';
+export type { StageAnswer } from './cards.ts';
+export type { TurnInitiator } from './initiator.ts';

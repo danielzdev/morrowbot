@@ -262,7 +262,7 @@ it('Stop cancels a full-access turn cleanly via session/cancel and keeps the dae
   await fixture.events.finished(generationId);
   await fixture.logged('session/close', 1);
   await fixture.send(thread, 'hello');
-  const sent = (await fixture.log()).filter((entry) => entry.method.startsWith('session/')).map((entry) => entry.method);
+  const sent = (await fixture.logged('session/close', 2)).filter((entry) => entry.method.startsWith('session/')).map((entry) => entry.method);
   expect({ stop: stop.status, sameDaemon: fixture.daemonPgids()[0] === pgid, sent, history: await fixture.history(thread) }).toMatchInlineSnapshot(`
     {
       "history": [

@@ -8,6 +8,12 @@ const HubContext = createContext<ChatHub | null>(null);
 /** Gives every chat screen below it the host to talk to. Lists load whenever the link is `online`. */
 export function ChatHostProvider(props: { readonly host: ChatHost; readonly online: boolean; readonly children: ReactNode }) {
   const hub = useMemo(() => createChatHub(props.host), [props.host]);
+  useEffect(
+    () => () => {
+      hub.dispose();
+    },
+    [hub],
+  );
   useEffect(() => {
     if (props.online) hub.refresh();
   }, [hub, props.online]);

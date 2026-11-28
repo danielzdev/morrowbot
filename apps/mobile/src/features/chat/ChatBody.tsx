@@ -7,10 +7,13 @@ import { deriveBottomControlInsets, parseNativeLayoutMetrics, type NativeLayoutM
 import { radii, spacing, typography } from '../../lib/theme.ts';
 import { useTheme } from '../../lib/useTheme.ts';
 import type { DetailProps, WorkspaceNavigation } from '../../lib/workspace.ts';
+import { openAttachMenu } from './attach-menu.ts';
 import { AgentSettingsSheet } from './AgentSettingsSheet.tsx';
+import { AttachmentStrip } from './AttachmentStrip.tsx';
 import { chatRequests, useChatHub } from './chat-context.tsx';
 import { threadFor } from './chat-hub.ts';
-import { composerButton } from './chat-session.ts';
+import { canPick, roomLeft } from './composer-attachments.ts';
+import { composerButtons, queuedControls } from './composer-controls.ts';
 import { Composer } from './Composer.tsx';
 import { useKeyboardOverlap } from './keyboard-overlap.ts';
 import { MessageList } from './MessageList.tsx';
@@ -23,7 +26,8 @@ const EDGE = spacing[3];
 function composerFrame(metrics: NativeLayoutMetrics | null, keyboardOverlap: number) {
   const bottom = deriveBottomControlInsets(metrics);
   const placement = deriveActionSlotPlacement(metrics);
-  const actions = placement.kind === 'floating' ? placement.right + ACTION_SLOT_METRICS.buttonSize + spacing[2] : 0;
+  const hasVerticalBar = metrics !== null && metrics.verticalBarEdge !== 'none';
+  const actions = !hasVerticalBar && placement.kind === 'floating' ? placement.right + ACTION_SLOT_METRICS.buttonSize + spacing[2] : 0;
   return {
     left: bottom.left + EDGE,
     right: Math.max(bottom.right + EDGE, actions),
@@ -69,6 +73,20 @@ function ChatThread(props: {
           finished={view.value.finished}
           activeTurn={view.value.activeTurn}
           queue={view.value.queue}
+          agentName={props.agent.name}
+          queueControls={(message) => queuedControls(screen, message)}
+          onQueued={(action, queuedId) => {
+            switch (action) {
+              case 'now':
+                void session.steer(queuedId);
+                return;
+              case 'edit':
+                void session.editQueued(queuedId);
+                return;
+              case 'cancel':
+                void session.cancelQueued(queuedId);
+            }
+          }}
           answering={screen.answering}
           stale={stale}
           bottomInset={composerHeight + frame.bottom}
@@ -106,12 +124,27 @@ function ChatThread(props: {
         <Composer
           agent={props.agent}
           draft={screen.draft}
-          button={composerButton(screen)}
+          buttons={composerButtons(screen)}
           onDraft={(text) => {
             session.setDraft(text);
           }}
           onSend={() => void session.send()}
           onStop={() => void session.stop()}
+          attachments={
+            <AttachmentStrip
+              items={screen.attachments}
+              onRetry={(key) => {
+                session.attachments.retry(key);
+              }}
+              onRemove={(key) => {
+                session.attachments.remove(key);
+              }}
+            />
+          }
+          canAttach={view.kind === 'loaded' && !stale && canPick(screen.attachments)}
+          onAttach={() => {
+            openAttachMenu(session.attachments, roomLeft(screen.attachments));
+          }}
         />
       </View>
     </View>
@@ -165,7 +198,7 @@ export function ChatBody(props: DetailProps<'chat'>) {
     const noChats = agent !== undefined && threads.kind === 'loaded' && threads.value.length === 0;
     return (
       <View style={styles.center}>
-        <Text style={[typography.ui, { color: colors.text3 }]}>
+        <Text style={[typography.ui, styles.centerText, { color: colors.text3 }]}>
           {waiting ? 'Loading chat…' : noChats ? `${agent.name} has no chats yet.` : 'This chat is not on the host any more.'}
         </Text>
         {noChats ? (
@@ -183,6 +216,7 @@ export function ChatBody(props: DetailProps<'chat'>) {
     <View style={styles.fill}>
       <ChatThread key={thread.id} agent={agent} thread={thread} threads={threads.value} navigation={navigation} />
       <AgentSettingsSheet
+        key={agent.id}
         agent={agent}
         visible={settingsOpen}
         onClose={() => {
@@ -200,6 +234,7 @@ export function ChatBody(props: DetailProps<'chat'>) {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing[3], padding: spacing[6] },
+  centerText: { textAlign: 'center' },
   composer: { position: 'absolute', gap: spacing[2] },
   problem: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], borderRadius: radii.lg, borderWidth: 1, padding: spacing[3] },
   problemText: { flex: 1 },

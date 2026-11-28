@@ -117,7 +117,7 @@ export function ExtensionsList(props: SidebarProps) {
         <Text style={[typography.ui, { color: colors.text3 }]}>{query.trim() === '' ? EMPTY[segment] : 'No matches.'}</Text>
       ) : null}
       {segment === 'plugins' && rows.length > 0 ? (
-        <Text style={[typography.small, { color: colors.text3 }]}>A plugin turned off is off for every agent.</Text>
+        <Text style={[typography.small, { color: colors.text3 }]}>Turn off a plugin for every agent here, or open one to toggle per agent.</Text>
       ) : null}
     </ScrollView>
   );

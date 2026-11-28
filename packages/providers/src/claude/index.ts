@@ -7,6 +7,7 @@ export const manifest = {
   protocolVersion: 1,
   id: 'provider-claude',
   name: 'Claude (subscription)',
+  description: 'Runs Claude Code on your own Claude subscription.',
   version: '0.1.0',
   kind: 'provider',
   main: 'src/claude/index.ts',

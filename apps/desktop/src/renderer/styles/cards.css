@@ -1,0 +1,213 @@
+/* Thread cards: an agent's own card in a dashed frame naming the agent, and Ori Kami's own cards in a solid one. */
+.thread-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: var(--s-2) 0;
+  max-width: 36rem;
+}
+
+/* Agent cards: dashed edge, inset surface, and a frame bar the card's blocks can never draw over. */
+.agent-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px dashed var(--hairline-strong);
+  border-radius: var(--r-md);
+  background: var(--surface-1);
+  overflow: hidden;
+}
+.agent-card-frame {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-1) var(--s-3);
+  border-bottom: 1px dashed var(--hairline-strong);
+  background: var(--surface-chrome);
+  color: var(--text-2);
+  font: var(--t-meta);
+}
+.agent-card-avatar {
+  display: inline-flex;
+}
+.agent-card-from {
+  color: var(--text-1);
+}
+.agent-card-kind {
+  margin-left: auto;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.agent-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  font: var(--t-body);
+  overflow-wrap: anywhere;
+}
+.ui-header {
+  font: var(--t-ui-strong);
+  color: var(--text-1);
+}
+.ui-text {
+  color: var(--text-1);
+  white-space: pre-wrap;
+}
+.ui-kv {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--s-1) var(--s-4);
+  font: var(--t-ui);
+}
+.ui-kv-row {
+  display: contents;
+}
+.ui-kv dt {
+  color: var(--text-3);
+}
+.ui-kv dd {
+  margin: 0;
+  color: var(--text-1);
+}
+.ui-list {
+  margin: 0;
+  padding-left: var(--s-5);
+  font: var(--t-ui);
+}
+.ui-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1);
+}
+.ui-badge {
+  padding: 0 var(--s-2);
+  border-radius: var(--r-pill);
+  font: var(--t-meta);
+  line-height: 1.25rem;
+  background: var(--fill-secondary);
+  color: var(--text-2);
+}
+.ui-badge.tone-info {
+  background: var(--info-bg);
+  color: var(--info);
+}
+.ui-badge.tone-success {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+.ui-badge.tone-warning {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+.ui-divider {
+  border: 0;
+  border-top: 1px solid var(--hairline-strong);
+  margin: 0;
+}
+.ui-choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.ui-answer {
+  color: var(--text-2);
+  font: var(--t-ui);
+}
+.ui-answer-label {
+  color: var(--text-1);
+  font: var(--t-ui-strong);
+}
+
+/* Ori Kami's own cards: the solid card with a frame naming Ori Kami and the agent that suggested it. */
+.host-card-frame {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--text-2);
+  font: var(--t-meta);
+}
+.host-card-from {
+  color: var(--text-1);
+}
+.host-card-by {
+  margin-left: auto;
+  color: var(--text-3);
+}
+.plugin-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.plugin-card-title {
+  display: flex;
+  flex-direction: column;
+}
+.plugin-card-name {
+  font: var(--t-title);
+}
+.plugin-card-meta {
+  color: var(--text-3);
+  font: var(--t-small);
+}
+.plugin-card-description {
+  color: var(--text-1);
+  font: var(--t-ui);
+}
+.plugin-card-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--s-1) var(--s-4);
+  font: var(--t-ui);
+}
+.plugin-card-label {
+  color: var(--text-3);
+}
+.plugin-card-permissions {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.plugin-card-none {
+  color: var(--text-2);
+}
+.card-ending.installed {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  color: var(--ok);
+  font: var(--t-ui-strong);
+}
+.card-ending.cancelled {
+  color: var(--text-3);
+  font: var(--t-ui);
+}
+.setting-card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+}
+.setting-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.setting-card-label {
+  font: var(--t-ui-strong);
+}
+.setting-card-detail {
+  color: var(--text-2);
+  font: var(--t-ui);
+}
+.setting-card-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--text-2);
+  font: var(--t-small);
+}

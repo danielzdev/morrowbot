@@ -23,6 +23,8 @@ export interface ChatHub {
   session(threadId: string): ThreadSession;
   /** Loads every open chat again, e.g. after a process group was released elsewhere. */
   reloadAll(): void;
+  /** Closes an archived chat's live session and clears its activity without erasing any local draft. */
+  detach(threadId: string): void;
   forget(threadId: string): void;
   close(): void;
 }
@@ -147,6 +149,11 @@ export function createChatHub(options: ChatHubOptions): ChatHub {
       return session;
     },
     reloadAll,
+    detach: (threadId) => {
+      sessions.get(threadId)?.close();
+      sessions.delete(threadId);
+      stopWatching(threadId);
+    },
     forget: (threadId) => {
       drafts.write(threadId, '');
       sessions.get(threadId)?.close();

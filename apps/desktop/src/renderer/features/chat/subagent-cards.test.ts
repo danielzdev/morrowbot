@@ -24,7 +24,7 @@ function subagent(id: string, second: number, status: SubagentStatus, pluginId =
 const DONE: SubagentStatus = { kind: 'finished', outcome: { kind: 'completed', finishReason: 'stop' }, reply: 'Looks good', finishedAt: at(9) };
 
 const STATE: ThreadState = {
-  thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: at(0), updatedAt: at(0) },
+  thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: at(0), updatedAt: at(0), archivedAt: null },
   messages: [],
   reactions: [],
   toolSteps: [],
@@ -66,7 +66,7 @@ it('keeps each sub-agent’s latest status from subagent.changed, even after its
 
 it('shows sub-agents between the message that started them and the reply, apart from agent messages', () => {
   const user: Message = { kind: 'user', id: 'ask', threadId: 't', text: 'Review this', createdAt: at(0), attachments: [] };
-  const reply: Message = { kind: 'assistant', id: 'reply', threadId: 't', text: 'Done', outcome: { kind: 'completed', finishReason: 'stop' }, createdAt: at(10) };
+  const reply: Message = { kind: 'assistant', attachments: [], id: 'reply', threadId: 't', text: 'Done', outcome: { kind: 'completed', finishReason: 'stop' }, createdAt: at(10) };
   const items = timelineItems([user, reply], [], [subagent('a', 1, DONE), subagent('b', 2, DONE), subagent('late', 11, { kind: 'running' })], 0);
   expect(items.map((item) => (item.kind === 'subagents' ? item.runs.map(({ id }) => id) : item.kind === 'message' ? item.message.id : item.kind))).toMatchInlineSnapshot(`
     [

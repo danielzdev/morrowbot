@@ -48,6 +48,8 @@ export interface HostRequest<T> {
   readonly path: string;
   readonly reply: z.ZodType<T>;
   readonly body?: unknown;
+  /** How long to wait for the reply; 10 s unless a request carries a large body. */
+  readonly timeoutMs?: number;
 }
 
 /** An event in a thread's history, carrying the thread's cursor. */

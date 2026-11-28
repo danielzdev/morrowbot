@@ -87,6 +87,16 @@ const InstructionsText = z.string().max(1_000_000);
 
 const AgentName = z.string().trim().min(1).max(200);
 const AgentDescription = z.string().max(2000);
+const DisabledExtensions = z
+  .array(PluginId)
+  .max(1000)
+  .refine((ids) => new Set(ids).size === ids.length, { error: 'List each extension once' });
+
+/** Returns `disabledExtensions` with `pluginId` enabled (removed) or disabled (added once). */
+export function withAgentExtension(disabledExtensions: readonly string[], pluginId: string, enabled: boolean): string[] {
+  const without = disabledExtensions.filter((id) => id !== pluginId);
+  return enabled ? without : [...without, pluginId];
+}
 
 export const Agent = z.strictObject({
   id: EntityId,
@@ -98,6 +108,10 @@ export const Agent = z.strictObject({
   folderId: EntityId.nullable(),
   /** Whether the agent may answer with only an emoji or nothing; Settings › Chat may override it. */
   emojiReplies: AgentEmojiReplies.default('allowed'),
+  /** Tool plugin ids turned off for this agent only; an empty list means every enabled tool plugin is on. */
+  disabledExtensions: DisabledExtensions.default([]),
+  /** Incremented on every saved change to this agent; updates may pass it to catch concurrent edits. */
+  revision: z.int().min(0).default(0),
   createdAt: Timestamp,
   updatedAt: Timestamp,
 });
@@ -111,6 +125,7 @@ export const CreateAgentRequest = z.strictObject({
   provider: ProviderBinding.default({ kind: 'unbound' }),
   folderId: EntityId.nullable().default(null),
   emojiReplies: AgentEmojiReplies.default('allowed'),
+  disabledExtensions: DisabledExtensions.default([]),
   /** Written to the new workspace's `AGENTS.md` only if no file or symlink is there yet. */
   initialInstructions: InstructionsText.nullable().default(null),
 });
@@ -124,6 +139,9 @@ export const UpdateAgentRequest = z.strictObject({
   /** `null` moves the agent out of its folder; left out, the folder is unchanged. */
   folderId: EntityId.nullable().optional(),
   emojiReplies: AgentEmojiReplies.optional(),
+  disabledExtensions: DisabledExtensions.optional(),
+  /** When set, the host writes only if the agent is still at this revision; otherwise 409 `agent-conflict`. */
+  revision: z.int().min(0).optional(),
 });
 export type UpdateAgentRequest = z.infer<typeof UpdateAgentRequest>;
 

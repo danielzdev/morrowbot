@@ -76,6 +76,7 @@ it('a message sent during a reply waits as queued, unseen, and runs as the next 
         ],
         "queue": [
           {
+            "attachments": [],
             "createdAt": "2026-01-01T00:00:04.000Z",
             "id": "id-5",
             "state": {
@@ -99,6 +100,7 @@ it('a message sent during a reply waits as queued, unseen, and runs as the next 
         [],
       ],
       "queued": {
+        "attachments": [],
         "createdAt": "2026-01-01T00:00:04.000Z",
         "id": "id-5",
         "state": {
@@ -147,6 +149,7 @@ it('Steer now on a provider that takes steers mid-turn saves the reply so far, t
       "steer": 204,
       "steered": {
         "segment": {
+          "attachments": [],
           "createdAt": "2026-01-01T00:00:05.000Z",
           "id": "id-6",
           "kind": "assistant",
@@ -268,6 +271,7 @@ it('a queued message survives a host restart, held until the user sends it', asy
   expect(JSON.parse(hidePid(JSON.stringify((await state(chat, thread)).queue)))).toMatchInlineSnapshot(`
     [
       {
+        "attachments": [],
         "createdAt": "2026-01-01T00:00:04.000Z",
         "id": "id-5",
         "state": {

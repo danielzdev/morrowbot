@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { PluginList } from '@morrowbot/contracts';
+import { lenient, PluginList } from '@morrowbot/contracts';
 import { z } from 'zod';
 import type {
   ProviderInstallCapabilities,
@@ -25,6 +25,7 @@ const InstallMode = z.enum(['install', 'update']);
 const DEFAULT_TIMEOUT_MS = 5 * 60_000;
 const KILL_GRACE_MS = 3_000;
 const MAX_OUTPUT_BYTES = 8_192;
+const PluginListReply = lenient(PluginList);
 
 export interface InstallRequest {
   readonly providerId: string;
@@ -181,7 +182,7 @@ async function isBuiltinOnHost(providerId: string, host: HostTarget | undefined,
     input: { method: 'GET', path: '/api/plugins' },
     host,
   });
-  const list = PluginList.safeParse(reply.body);
+  const list = PluginListReply.safeParse(reply.body);
   const entry = list.success ? list.data.plugins.find(({ manifest }) => manifest.id === providerId) : undefined;
   if (entry?.manifest.kind !== 'provider') return 'not-found';
   return entry.source === 'built-in' ? 'ok' : 'not-builtin';

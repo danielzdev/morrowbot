@@ -7,6 +7,7 @@ export const manifest = {
   protocolVersion: 1,
   id: 'provider-openai',
   name: 'OpenAI Codex (subscription)',
+  description: 'Runs OpenAI Codex on your own ChatGPT subscription.',
   version: '0.1.0',
   kind: 'provider',
   main: 'src/openai/index.ts',

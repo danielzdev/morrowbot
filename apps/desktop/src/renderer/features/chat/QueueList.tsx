@@ -1,4 +1,6 @@
-import type { QueuedMessage, QueuedMessageState } from '@morrowbot/contracts';
+import type { Attachment, QueuedMessage, QueuedMessageState } from '@morrowbot/contracts';
+import { useEffect, useState } from 'preact/hooks';
+import { Icon } from '../../shared/ui/Icon.tsx';
 import type { ThreadScreen, ThreadSession } from './thread-session.ts';
 import type { ThreadView } from './thread-model.ts';
 
@@ -11,6 +13,33 @@ function statusOf(state: QueuedMessageState, agent: string): string {
     case 'held':
       return state.reason;
   }
+}
+
+function QueuedChip(props: { readonly attachment: Attachment; readonly image: (id: string) => Promise<string | null> }) {
+  const { attachment, image } = props;
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (attachment.kind !== 'image') return;
+    let live = true;
+    void image(attachment.id).then((loaded) => {
+      if (live) setUrl(loaded);
+    });
+    return () => {
+      live = false;
+    };
+  }, [attachment.id, attachment.kind, image]);
+  return (
+    <li class="queued-chip" title={attachment.name}>
+      {url !== null ? (
+        <img class="queued-chip-thumb" src={url} alt="" />
+      ) : (
+        <span class="queued-chip-icon" aria-hidden="true">
+          <Icon name="file" size={13} />
+        </span>
+      )}
+      <span class="queued-chip-name">{attachment.name}</span>
+    </li>
+  );
 }
 
 /**
@@ -49,7 +78,14 @@ export function QueueList(props: { readonly session: ThreadSession; readonly vie
         <li key={item.id} class={`queued ${item.state.kind}`}>
           <div class="queued-body">
             <span class="queued-status">{statusOf(item.state, props.agentName)}</span>
-            <span class="queued-text">{item.text}</span>
+            {item.attachments.length > 0 && (
+              <ul class="queued-attachments" aria-label="Attached files">
+                {item.attachments.map((attachment) => (
+                  <QueuedChip key={attachment.id} attachment={attachment} image={session.image} />
+                ))}
+              </ul>
+            )}
+            {item.text.trim() !== '' && <span class="queued-text">{item.text}</span>}
           </div>
           {actions(item)}
         </li>

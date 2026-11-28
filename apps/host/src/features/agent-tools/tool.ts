@@ -28,7 +28,7 @@ export function tool<S extends z.ZodType>(definition: {
   readonly description: string;
   readonly input: S;
   readonly visible?: (agentId: string) => boolean;
-  readonly run: (grant: ToolGrant, input: z.output<S>) => ToolResult | Promise<ToolResult>;
+  readonly run: (grant: ToolGrant, input: z.output<S>, signal: AbortSignal) => ToolResult | Promise<ToolResult>;
 }): Tool {
   const inputSchema = z.toJSONSchema(definition.input, { io: 'input' });
   delete inputSchema.$schema;
@@ -37,9 +37,9 @@ export function tool<S extends z.ZodType>(definition: {
     description: definition.description,
     inputSchema,
     ...(definition.visible === undefined ? {} : { visible: definition.visible }),
-    call: (grant, args) => {
+    call: (grant, args, signal) => {
       const parsed = definition.input.safeParse(args ?? {});
-      return parsed.success ? definition.run(grant, parsed.data) : refused(z.prettifyError(parsed.error));
+      return parsed.success ? definition.run(grant, parsed.data, signal) : refused(z.prettifyError(parsed.error));
     },
   };
 }

@@ -21,6 +21,8 @@ beforeEach(async () => {
     provider: { kind: 'unbound' },
     folderId: null,
     emojiReplies: 'allowed',
+    disabledExtensions: [],
+    revision: 0,
     createdAt: AT,
     updatedAt: AT,
   });
@@ -316,11 +318,13 @@ it('round-trips a seed-truncated assistant message', () => {
     threadId: 't1',
     text: 'x',
     outcome: { kind: 'interrupted' },
+    attachments: [],
     seedTruncated: true,
     createdAt: AT,
   });
   expect(storage.messages.get('m1')).toMatchInlineSnapshot(`
     {
+      "attachments": [],
       "createdAt": "2026-01-01T00:00:00.000Z",
       "id": "m1",
       "kind": "assistant",

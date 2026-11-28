@@ -1,4 +1,4 @@
-import { ClaimInviteResponse, ClaimPairingResponse, parseJoinTarget, type DevicePlatform } from '@morrowbot/contracts';
+import { ClaimInviteResponse, ClaimPairingResponse, lenient, parseJoinTarget, type DevicePlatform } from '@morrowbot/contracts';
 import { z } from 'zod';
 import type { ServerRequest } from '../renderer/bridge.ts';
 import { checkSender, IpcRefusedError, type IpcSender } from './ipc-proxy.ts';
@@ -23,6 +23,8 @@ export function parseServerRequest(options: { readonly sender: IpcSender; readon
 export type JoinResult = { readonly kind: 'joined'; readonly choice: RemoteChoice } | { readonly kind: 'failed'; readonly message: string };
 
 const ErrorBody = z.object({ error: z.object({ message: z.string() }) });
+const InviteClaimReply = lenient(ClaimInviteResponse);
+const PairingClaimReply = lenient(ClaimPairingResponse);
 
 /**
  * Claims an invite (as a server member) or a pairing code (as one of the owner's own devices) on the server named in
@@ -48,7 +50,7 @@ export async function joinServer(request: JoinRequest, device: { readonly name: 
     const parsed = ErrorBody.safeParse(body);
     return { kind: 'failed', message: parsed.success ? parsed.data.error.message : `The server answered ${String(response.status)}.` };
   }
-  const claimed = (target.kind === 'invite' ? ClaimInviteResponse : ClaimPairingResponse).safeParse(body);
+  const claimed = (target.kind === 'invite' ? InviteClaimReply : PairingClaimReply).safeParse(body);
   if (!claimed.success) return { kind: 'failed', message: "That address answered, but it isn't an Ori Kami server." };
   return { kind: 'joined', choice: { kind: 'remote', url: target.url, token: claimed.data.token, hostName: claimed.data.hostName } };
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { z } from 'zod';
-import { AgentAvatar, collaboratorPrompt, CreateAgentRequest, createdBefore, HealthResponse, HostUrl, mainThread, pairingUri, PluginManifest, type Thread } from './index.ts';
+import { AgentAvatar, collaboratorPrompt, CreateAgentRequest, createdBefore, HealthResponse, HostUrl, mainThread, pairingUri, PluginManifest, QueuedMessage, Thread } from './index.ts';
 
 function issues(result: z.ZodSafeParseResult<unknown>) {
   return result.success
@@ -226,8 +226,8 @@ describe('collaboratorPrompt', () => {
 describe('mainThread', () => {
   it('picks the first-created thread by createdAt then host createdSeq, ignoring UUID order', () => {
     const AT = '2026-01-01T00:00:00.000Z';
-    const first: Thread = { id: 'zzzz-first', agentId: 'a', title: 'Main', createdAt: AT, updatedAt: AT, createdSeq: 1 };
-    const second: Thread = { id: 'aaaa-second', agentId: 'a', title: 'Side', createdAt: AT, updatedAt: '2026-01-02T00:00:00.000Z', createdSeq: 2 };
+    const first: Thread = { id: 'zzzz-first', agentId: 'a', title: 'Main', createdAt: AT, updatedAt: AT, archivedAt: null, createdSeq: 1 };
+    const second: Thread = { id: 'aaaa-second', agentId: 'a', title: 'Side', createdAt: AT, updatedAt: '2026-01-02T00:00:00.000Z', archivedAt: null, createdSeq: 2 };
     expect({
       inOrder: mainThread([first, second])?.id,
       newestUpdatedFirst: mainThread([second, first])?.id,
@@ -239,6 +239,24 @@ describe('mainThread', () => {
         "inOrder": "zzzz-first",
         "newestUpdatedFirst": "zzzz-first",
         "secondBeforeFirst": false,
+      }
+    `);
+  });
+
+  it('skips archived threads and defaults omitted archivedAt and queued attachments for older hosts', () => {
+    const AT = '2026-01-01T00:00:00.000Z';
+    const archivedOlder = Thread.parse({ id: 't1', agentId: 'a', title: 'Old main', createdAt: AT, updatedAt: AT, archivedAt: '2026-01-02T00:00:00.000Z', createdSeq: 1 });
+    const legacyActive = Thread.parse({ id: 't2', agentId: 'a', title: 'Active', createdAt: '2026-01-02T00:00:00.000Z', updatedAt: '2026-01-02T00:00:00.000Z', createdSeq: 2 });
+    const legacyQueued = QueuedMessage.parse({ id: 'q1', threadId: 't2', text: 'hi', createdAt: AT, state: { kind: 'queued' } });
+    expect({
+      mainId: mainThread([archivedOlder, legacyActive])?.id,
+      legacyArchivedAt: legacyActive.archivedAt,
+      legacyAttachments: legacyQueued.attachments,
+    }).toMatchInlineSnapshot(`
+      {
+        "legacyArchivedAt": null,
+        "legacyAttachments": [],
+        "mainId": "t2",
       }
     `);
   });

@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { lstat, realpath } from 'node:fs/promises';
 import path from 'node:path';
-import { AgentList, WhoAmI } from '@morrowbot/contracts';
+import { AgentList, lenient, WhoAmI } from '@morrowbot/contracts';
 import { z } from 'zod';
 import type { ServerMode } from '../../renderer/bridge.ts';
 import { proxyRequest, type HostTarget } from '../ipc-proxy.ts';
@@ -12,6 +12,8 @@ import { clearResetLock, writeResetLock } from './reset-lock.ts';
 const READY_MS = 15_000;
 const Ready = z.strictObject({ kind: z.literal('ready') });
 const Committed = z.strictObject({ kind: z.literal('committed') });
+const WhoAmIReply = lenient(WhoAmI);
+const AgentListReply = lenient(AgentList);
 
 /**
  * Starts the cleanup helper detached under Electron-as-Node, so it outlives main, sends it the job over IPC, and
@@ -144,10 +146,10 @@ export async function hostWorkspaces(host: HostTarget | undefined, rendererUrl: 
   const get = (apiPath: string) => proxyRequest({ sender: { kind: 'frame', url: rendererUrl, isMainFrame: true }, rendererUrl, input: { method: 'GET', path: apiPath }, host });
   try {
     const me = await get('/api/me');
-    const caller = WhoAmI.safeParse(me.body);
+    const caller = WhoAmIReply.safeParse(me.body);
     if (me.status !== 200 || !caller.success || (caller.data.kind === 'member' && caller.data.access.kind === 'scoped')) return null;
     const reply = await get('/api/agents');
-    const agents = AgentList.safeParse(reply.body);
+    const agents = AgentListReply.safeParse(reply.body);
     if (reply.status !== 200 || !agents.success) return null;
     const given = agents.data.agents.map(({ workspace }) => workspace.dir);
     if (!given.every((dir) => path.isAbsolute(dir))) return null;

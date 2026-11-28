@@ -9,6 +9,8 @@ export const Thread = z.strictObject({
   title: ThreadTitle,
   createdAt: Timestamp,
   updatedAt: Timestamp,
+  /** When the chat was archived, or null while active. Older hosts omit it. */
+  archivedAt: Timestamp.nullable().default(null),
   /** Host-assigned creation order (`threads.rowid`), breaking same-millisecond ties deterministically. */
   createdSeq: z.number().int().positive().optional(),
 });
@@ -31,7 +33,10 @@ export function createdBefore(a: Thread, b: Thread): boolean {
   return false;
 }
 
-/** An agent's main chat: its first by host creation order (`createdAt`, then `createdSeq`). It receives new messages from other agents. */
+/** An agent's main chat: its first active chat by host creation order (`createdAt`, then `createdSeq`). It receives new messages from other agents. */
 export function mainThread(threads: readonly Thread[]): Thread | null {
-  return threads.reduce<Thread | null>((first, thread) => (first === null || createdBefore(thread, first) ? thread : first), null);
+  return threads.reduce<Thread | null>(
+    (first, thread) => (thread.archivedAt !== null ? first : first === null || createdBefore(thread, first) ? thread : first),
+    null,
+  );
 }

@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Connector, type ConnectorSetup, type CreateConnectorRequest } from '@morrowbot/contracts';
-import { startToolServer, type ToolServer } from '../features/agent-tools/index.ts';
-import { createConnectorRuntime, createConnectorService, type ConnectorService } from '../features/connectors/index.ts';
+import { startToolServer, type ToolGrant, type ToolServer } from '../features/agent-tools/index.ts';
+import { createConnectorRuntime, createConnectorService, type ConnectorService, type TurnOf } from '../features/connectors/index.ts';
 import { openStorage, type Storage } from '../features/storage/index.ts';
 import { keyValue, openVault, vaultBackend, type VaultService } from '../features/vault/index.ts';
 import { postMcp } from './host-tools-client.ts';
@@ -51,7 +51,8 @@ export interface ConnectorKit {
   /** Saves the connector, waits for its session to settle, and gives its id. */
   add(request: CreateConnectorRequest): Promise<string>;
   view(id: string): Connector;
-  turn(agentId: string): KitTurn;
+  /** A running turn of `agentId`, started by the server owner unless `startedBy` says otherwise. */
+  turn(agentId: string, startedBy?: TurnOf['startedBy']): KitTurn;
   close(): Promise<void>;
 }
 
@@ -69,6 +70,8 @@ export async function startConnectorKit(options: { readonly agentIds: readonly s
       provider: { kind: 'unbound' },
       folderId: null,
       emojiReplies: 'allowed',
+      disabledExtensions: [],
+      revision: 0,
       createdAt: now(),
       updatedAt: now(),
     });
@@ -88,14 +91,21 @@ export async function startConnectorKit(options: { readonly agentIds: readonly s
     now,
     report,
   });
+  const starters = new Map<string, TurnOf['startedBy']>();
+  const turnOf = (grant: ToolGrant): TurnOf => ({ agentId: grant.agentId, startedBy: starters.get(grant.turnId) ?? 'member' });
   const tools = await startToolServer({
     ports: {
       agents: { list: () => storage.agents.list() },
       messages: { get: () => undefined, send: () => ({ kind: 'refused', reason: 'Messages are not part of connector tests' }) },
       memories: { list: () => undefined, create: () => undefined, update: () => undefined, delete: () => false },
-      replies: { react: () => ({ kind: 'refused', reason: 'Replies are not part of connector tests' }), stayQuiet: () => ({ kind: 'refused', reason: 'Replies are not part of connector tests' }) },
+      replies: { react: () => ({ kind: 'refused', reason: 'Replies are not part of connector tests' }), stayQuiet: () => ({ kind: 'refused', reason: 'Replies are not part of connector tests' }), attachRefusal: () => 'Replies are not part of connector tests' },
+      replyAttachments: { attach: () => Promise.resolve({ attached: [], refused: [] }) },
+      cards: { propose: () => Promise.resolve({ kind: 'refused', reason: 'Cards are not part of connector tests' }), searchMarketplace: () => Promise.resolve({ kind: 'refused', reason: 'Cards are not part of connector tests' }), sharedWithMembers: () => false },
       vault: { list: () => [] },
-      connectors: { tools: (agentId) => connectors.toolsFor(agentId), call: (agentId, name, args, signal) => connectors.call(agentId, name, args, signal) },
+      connectors: {
+        tools: (grant) => connectors.toolsFor(turnOf(grant)),
+        call: (grant, name, args, signal) => connectors.call(turnOf(grant), name, args, signal),
+      },
       subagents: {
         isSubagent: () => false,
         spawn: () => Promise.resolve(NO_SUBAGENTS),
@@ -121,8 +131,9 @@ export async function startConnectorKit(options: { readonly agentIds: readonly s
       return saved.connector.id;
     },
     view: (id) => Connector.parse(connectors.get(id)),
-    turn: (agentId) => {
+    turn: (agentId, startedBy = 'owner') => {
       const turnId = `turn-${String(++turns)}`;
+      starters.set(turnId, startedBy);
       const open = tools.open({ turnId, agentId, threadId: `thread-${agentId}` });
       if (open.kind !== 'mcp') throw new Error('no tools');
       let id = 0;

@@ -2,6 +2,7 @@ import {
   Agent,
   AgentInstructionsView,
   AgentList,
+  Attachment,
   ContinueResponse,
   PluginEntry,
   PluginList,
@@ -44,13 +45,21 @@ function toChat<T>(reply: HostResult<T>): ChatResult<T> {
 
 const part = encodeURIComponent;
 
+/** An 8 MB image is about 11 MB of JSON: allow a slow link a while. */
+const UPLOAD_TIMEOUT_MS = 120_000;
+
 /**
  * The chat and Extensions API of the paired host, over its transport: every reply is parsed with
  * `@morrowbot/contracts`, and `watch` is the transport's fetch-`/state`-then-subscribe watcher.
  */
 export function createLiveChatHost(transport: HostTransport): ChatHost {
   const call = async <T>(request: HostRequest<T>): Promise<ChatResult<T>> => toChat(await transport.request(request));
+  const agentListeners = new Set<(agent: Agent) => void>();
+  const agentDeletedListeners = new Set<(agentId: string) => void>();
   const pluginListeners = new Set<(entry: PluginEntry) => void>();
+  const emitAgent = (agent: Agent): void => {
+    for (const listener of [...agentListeners]) listener(agent);
+  };
 
   return {
     hostName: transport.host.hostName,
@@ -60,8 +69,10 @@ export function createLiveChatHost(transport: HostTransport): ChatHost {
       const body: CreateThreadRequest = { title: 'New chat' };
       return call({ method: 'POST', path: `/api/agents/${part(agentId)}/threads`, reply: Thread, body });
     },
-    send: (threadId, text) => {
-      const body: SendMessageRequest = { text, attachmentIds: [], sessionChoice: { kind: 'auto' } };
+    uploadAttachment: (threadId, body) =>
+      call({ method: 'POST', path: `/api/threads/${part(threadId)}/attachments`, reply: Attachment, body, timeoutMs: UPLOAD_TIMEOUT_MS }),
+    send: (threadId, text, attachmentIds) => {
+      const body: SendMessageRequest = { text, attachmentIds: [...attachmentIds], sessionChoice: { kind: 'auto' } };
       return call({ method: 'POST', path: `/api/threads/${part(threadId)}/messages`, reply: SendMessageResponse, body });
     },
     continueTurn: (threadId, failedMessageId) => {
@@ -69,11 +80,24 @@ export function createLiveChatHost(transport: HostTransport): ChatHost {
       return call({ method: 'POST', path: `/api/threads/${part(threadId)}/continue`, reply: ContinueResponse, body });
     },
     stop: (threadId) => call({ method: 'POST', path: `/api/threads/${part(threadId)}/stop`, reply: StopGenerationResponse }),
+    steerQueued: (threadId, queuedId) =>
+      call({ method: 'POST', path: `/api/threads/${part(threadId)}/queue/${part(queuedId)}/steer`, reply: NoContent }),
+    cancelQueued: (threadId, queuedId) =>
+      call({ method: 'DELETE', path: `/api/threads/${part(threadId)}/queue/${part(queuedId)}`, reply: NoContent }),
     answerApproval: (threadId, approvalId, body) =>
       call({ method: 'POST', path: `/api/threads/${part(threadId)}/approvals/${part(approvalId)}`, reply: NoContent, body }),
     providerInfo: (pluginId) => call({ method: 'GET', path: `/api/plugins/${part(pluginId)}/info`, reply: ProviderInfoResponse }),
-    updateAgent: (agentId, body) => call({ method: 'PATCH', path: `/api/agents/${part(agentId)}`, reply: Agent, body }),
-    deleteAgent: (agentId) => call({ method: 'DELETE', path: `/api/agents/${part(agentId)}`, reply: NoContent }),
+    updateAgent: async (agentId, body) => {
+      const result = await call({ method: 'PATCH', path: `/api/agents/${part(agentId)}`, reply: Agent, body });
+      if (result.kind === 'ok') emitAgent(result.value);
+      return result;
+    },
+    deleteAgent: async (agentId) => {
+      const result = await call({ method: 'DELETE', path: `/api/agents/${part(agentId)}`, reply: NoContent });
+      if (result.kind === 'ok') for (const listener of [...agentDeletedListeners]) listener(agentId);
+      return result;
+    },
+    adoptAgent: emitAgent,
     instructions: (agentId) => call({ method: 'GET', path: `/api/agents/${part(agentId)}/instructions`, reply: AgentInstructionsView }),
     plugins: () => call({ method: 'GET', path: '/api/plugins', reply: PluginList }),
     setPluginEnabled: async (pluginId, enabled) => {
@@ -81,6 +105,18 @@ export function createLiveChatHost(transport: HostTransport): ChatHost {
       const result = await call({ method: 'PUT', path: `/api/plugins/${part(pluginId)}/enabled`, reply: PluginEntry, body });
       if (result.kind === 'ok') for (const listener of [...pluginListeners]) listener(result.value);
       return result;
+    },
+    onAgentChanged: (listener) => {
+      agentListeners.add(listener);
+      return () => {
+        agentListeners.delete(listener);
+      };
+    },
+    onAgentDeleted: (listener) => {
+      agentDeletedListeners.add(listener);
+      return () => {
+        agentDeletedListeners.delete(listener);
+      };
     },
     onPluginChanged: (listener) => {
       pluginListeners.add(listener);

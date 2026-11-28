@@ -1,12 +1,17 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { AgentInstructionsView, ApiError, ConnectorScope, ProviderUnavailableReason, SessionChoiceReason } from '@morrowbot/contracts';
+import type { Agent, AgentInstructionsView, ApiError, ConnectorScope, ProviderUnavailableReason, SessionChoiceReason } from '@morrowbot/contracts';
 import type { z } from 'zod';
+import { sendFile, type FileReply } from './file-reply.ts';
 
 export type Reply =
   | { readonly kind: 'json'; readonly status: number; readonly body: unknown }
-  | { readonly kind: 'empty'; readonly status: number };
+  | { readonly kind: 'empty'; readonly status: number; readonly headers?: Readonly<Record<string, string>> }
+  | FileReply;
 
-type ErrorKind = Exclude<ApiError['error']['kind'], 'provider-unavailable' | 'binding-changed' | 'session-choice-required' | 'instructions-conflict' | 'scope-conflict'>;
+type ErrorKind = Exclude<
+  ApiError['error']['kind'],
+  'provider-unavailable' | 'binding-changed' | 'session-choice-required' | 'instructions-conflict' | 'scope-conflict' | 'agent-conflict'
+>;
 
 const STATUS: Record<ErrorKind, number> = {
   invalid_request: 400,
@@ -75,6 +80,12 @@ export function scopeConflict(current: ConnectorScope): Reply {
   return json(409, body);
 }
 
+/** An agent record changed since the caller read it; nothing was written (409). */
+export function agentConflict(current: Agent): Reply {
+  const body: ApiError = { error: { kind: 'agent-conflict', current, message: 'Changed elsewhere.' } };
+  return json(409, body);
+}
+
 export function notFound(what: string): Reply {
   return failure('not_found', `${what} not found`);
 }
@@ -92,7 +103,10 @@ export function send(response: ServerResponse, reply: Reply): void {
       response.writeHead(reply.status, { 'content-type': 'application/json' }).end(JSON.stringify(reply.body));
       break;
     case 'empty':
-      response.writeHead(reply.status).end();
+      response.writeHead(reply.status, reply.headers).end();
+      break;
+    case 'file':
+      sendFile(response, reply);
       break;
   }
 }

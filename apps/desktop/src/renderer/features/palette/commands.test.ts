@@ -96,6 +96,30 @@ it('finds across every group by label first, then by detail, and fuzzily by word
   `);
 });
 
+it('lists connectors only while searching, found by label or by what they need', () => {
+  const items = [item('actions', 'Extensions'), item('connectors', 'Gmail · Work', 'Reconnect needed · via Composio'), item('connectors', 'Notes', 'Connected · MCP')];
+  const find = (query: string) => Object.fromEntries(searchPalette(items, query).map((section) => [section.group, section.items.map(({ label }) => label)]));
+  expect({ idle: find(''), byLabel: find('gmail'), byStatus: find('reconnect') }).toMatchInlineSnapshot(`
+    {
+      "byLabel": {
+        "connectors": [
+          "Gmail · Work",
+        ],
+      },
+      "byStatus": {
+        "connectors": [
+          "Gmail · Work",
+        ],
+      },
+      "idle": {
+        "actions": [
+          "Extensions",
+        ],
+      },
+    }
+  `);
+});
+
 it('moves the highlight with wrap-around', () => {
   expect([stepActive(0, 1, 3), stepActive(2, 1, 3), stepActive(0, -1, 3), stepActive(0, 1, 0)]).toEqual([1, 0, 2, 0]);
 });

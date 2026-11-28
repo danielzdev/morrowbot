@@ -9,12 +9,15 @@ import { serial } from './serial.ts';
 import { base32Bytes, totp } from './totp.ts';
 
 /**
- * `<dataDir>/vault.json`: each item's names, and the reference its secret value is saved under in the `SecretStore`.
- * Every change to a secret saves the new value under a new reference first, so writing this file is the one moment a
- * change happens; values no entry points at (left by a change cut short) are erased when the vault opens.
+ * `<dataDir>/vault.json`: each item's names, the reference its secret value is saved under in the `SecretStore`, and
+ * the references a replaced or deleted secret was saved under (`retired`), whose values are still to be erased. Every
+ * change to a secret saves the new value under a new, never reused reference first, so writing this file is the one
+ * moment a change happens. Opening the vault erases only retired values: a retired reference never comes back, so no
+ * copy of the file, older or newer, can point at one. A value a change cut short left under a new reference is kept.
  */
-const Entry = z.strictObject({ item: VaultItem, secretRef: z.string().min(1).max(128) });
-const VaultFile = z.strictObject({ version: z.literal(1), entries: z.array(Entry) });
+const Ref = z.string().min(1).max(128);
+const Entry = z.strictObject({ item: VaultItem, secretRef: Ref });
+const VaultFile = z.strictObject({ version: z.literal(1), entries: z.array(Entry), retired: z.array(Ref).default([]) });
 type Entry = z.infer<typeof Entry>;
 
 /** The secret part of an item, as the store keeps it (JSON). */
@@ -61,8 +64,8 @@ export interface VaultOptions {
 const KIND_NAMES: Readonly<Record<VaultItemKind, string>> = { login: 'a login', api_key: 'an API key', header_secret: 'a header secret' };
 
 /**
- * Loads `vault.json`, erases secret values no item points at, and serves the vault. A missing `vault.json` is an empty
- * vault that erases nothing, so values sealed for a file moved aside are still there when it is put back. A
+ * Loads `vault.json`, erases the values of replaced and deleted secrets, and serves the vault. A missing `vault.json` is
+ * an empty vault that erases nothing, so values sealed for a file moved aside are still there when it is put back. A
  * `vault.json` that cannot be read is reported and left as it is: the vault then lists no items and refuses every
  * change, so no secret is erased or overwritten until the file is fixed or moved aside.
  */
@@ -76,10 +79,12 @@ export async function openVault(options: VaultOptions): Promise<VaultService> {
     return closedVault(UNREADABLE);
   }
   let entries: Entry[] = loaded.kind === 'read' ? loaded.entries : [];
+  let retired: readonly string[] = loaded.kind === 'read' ? loaded.retired : [];
   const inTurn = serial();
-  const persist = async (next: Entry[]): Promise<void> => {
-    await writeFileAtomic(options.file, `${JSON.stringify({ version: 1, entries: next }, null, 2)}\n`);
+  const persist = async (next: Entry[], nextRetired: readonly string[] = retired): Promise<void> => {
+    await writeFileAtomic(options.file, `${JSON.stringify({ version: 1, entries: next, retired: nextRetired }, null, 2)}\n`);
     entries = next;
+    retired = nextRetired;
   };
   const entryOf = (id: string): Entry | undefined => entries.find(({ item }) => item.id === id);
   const readSecret = async ({ item, secretRef }: Entry): Promise<Secret> => {
@@ -88,15 +93,15 @@ export async function openVault(options: VaultOptions): Promise<VaultService> {
     if (parsed?.success !== true || parsed.data.kind !== item.kind) throw new SecretStoreError(`The vault has no readable secret for item ${item.id}`);
     return parsed.data;
   };
-  const erase = (ref: string): Promise<void> => secrets.remove(ref).catch(report);
+  const remove = async (ref: string): Promise<void> => {
+    await secrets.remove(ref);
+    retired = retired.filter((other) => other !== ref);
+  };
+  const erase = (ref: string): Promise<void> => remove(ref).catch(report);
 
-  if (loaded.kind === 'read') {
-    try {
-      const live = new Set(entries.map(({ secretRef }) => secretRef));
-      for (const ref of await secrets.list()) if (!live.has(ref)) await erase(ref);
-    } catch (error) {
-      report(error);
-    }
+  if (retired.length > 0) {
+    for (const ref of retired) await erase(ref);
+    await persist(entries).catch(report);
   }
 
   return {
@@ -124,8 +129,9 @@ export async function openVault(options: VaultOptions): Promise<VaultService> {
         if (change.kind === 'invalid') return change;
         const secretRef = change.secret === null ? current.secretRef : newRef();
         if (change.secret !== null) await secrets.write(secretRef, JSON.stringify(change.secret));
+        const next = entries.map((entry) => (entry === current ? { item: change.item, secretRef } : entry));
         try {
-          await persist(entries.map((entry) => (entry === current ? { item: change.item, secretRef } : entry)));
+          await persist(next, secretRef === current.secretRef ? retired : [...retired, current.secretRef]);
         } catch (error) {
           if (secretRef !== current.secretRef) await erase(secretRef);
           throw error;
@@ -137,8 +143,11 @@ export async function openVault(options: VaultOptions): Promise<VaultService> {
       inTurn(async () => {
         const current = entryOf(id);
         if (current === undefined) return false;
-        await persist(entries.filter((entry) => entry !== current));
-        await secrets.remove(current.secretRef);
+        await persist(
+          entries.filter((entry) => entry !== current),
+          [...retired, current.secretRef],
+        );
+        await remove(current.secretRef);
         return true;
       }),
     resolve: (id) =>
@@ -230,7 +239,7 @@ const unreadable: Change = {
 
 const UNREADABLE = 'vault.json in the data folder is not a vault file Ori Kami can read; fix it or move it aside to start with an empty vault';
 
-type Loaded = { readonly kind: 'read'; readonly entries: Entry[] } | { readonly kind: 'missing' } | { readonly kind: 'unreadable' };
+type Loaded = { readonly kind: 'read'; readonly entries: Entry[]; readonly retired: readonly string[] } | { readonly kind: 'missing' } | { readonly kind: 'unreadable' };
 
 async function load(file: string): Promise<Loaded> {
   let text: string;
@@ -240,7 +249,7 @@ async function load(file: string): Promise<Loaded> {
     return error instanceof Error && 'code' in error && error.code === 'ENOENT' ? { kind: 'missing' } : { kind: 'unreadable' };
   }
   const parsed = VaultFile.safeParse(parseJson(text));
-  return parsed.success ? { kind: 'read', entries: parsed.data.entries } : { kind: 'unreadable' };
+  return parsed.success ? { kind: 'read', entries: parsed.data.entries, retired: parsed.data.retired } : { kind: 'unreadable' };
 }
 
 /** The vault while `vault.json` cannot be read: no items, every change refused with `reason`, and no secret to read. */

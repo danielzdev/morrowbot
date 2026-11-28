@@ -13,7 +13,7 @@ import {
   UpdateThreadRequest,
 } from '@morrowbot/contracts';
 import { refusal } from './admit-reply.ts';
-import { sees } from './access.ts';
+import { initiatorOf, sees } from './access.ts';
 import type { ApiQueueAnswer, ApiServices } from './ports.ts';
 import { failure, json, noContent, notFound, type Reply } from './reply.ts';
 import { parseBody, type Route } from './route.ts';
@@ -33,8 +33,18 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
       method: 'GET',
       path: '/api/agents/:id/threads',
       access: { kind: 'agent', need: 'view' },
-      handle: ({ params }) => {
-        const threads = chat.listThreads(params.get('id'));
+      handle: ({ params, query }) => {
+        const archived = query.get('archived');
+        const filter =
+          archived === null || archived === 'exclude'
+            ? 'active'
+            : archived === 'only'
+              ? 'archived'
+              : archived === 'all'
+                ? 'all'
+                : undefined;
+        if (filter === undefined) return failure('invalid_request', 'archived: Use exclude, only, or all');
+        const threads = chat.listThreads(params.get('id'), filter);
         if (threads === undefined) return notFound('Agent');
         const body: ThreadList = { threads };
         return json(200, body);
@@ -72,6 +82,31 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
       },
     },
     {
+      method: 'POST',
+      path: '/api/threads/:id/archive',
+      access: { kind: 'thread', need: 'edit' },
+      handle: ({ params }) => {
+        const result = chat.archiveThread(params.get('id'));
+        switch (result.kind) {
+          case 'archived':
+            return json(200, result.thread);
+          case 'not_found':
+            return notFound('Thread');
+          case 'conflict':
+            return failure('conflict', result.reason);
+        }
+      },
+    },
+    {
+      method: 'POST',
+      path: '/api/threads/:id/restore',
+      access: { kind: 'thread', need: 'edit' },
+      handle: ({ params }) => {
+        const thread = chat.restoreThread(params.get('id'));
+        return thread === undefined ? notFound('Thread') : json(200, thread);
+      },
+    },
+    {
       method: 'DELETE',
       path: '/api/threads/:id',
       access: { kind: 'thread', need: 'edit' },
@@ -105,12 +140,11 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
         const request = await parseBody(context, SendMessageRequest);
         if (request.kind === 'rejected') return request.reply;
         const { text, attachmentIds, sessionChoice } = request.value;
-        const result = await chat.send(context.params.get('id'), text, attachmentIds, sessionChoice);
+        const result = await chat.send(context.params.get('id'), text, attachmentIds, sessionChoice, initiatorOf(context.viewer));
         if (result.kind === 'queued') {
           const body: SendMessageResponse = { kind: 'queued', queued: result.queued };
           return json(202, body);
         }
-        if (result.kind === 'files_wait') return failure('conflict', 'Files can be sent once this reply ends. Send the text alone to queue it.');
         if (result.kind !== 'started') return refusal(result);
         if (result.userMessage === null) return failure('internal', 'The send started without its message');
         const body: SendMessageResponse = { kind: 'started', generationId: result.generationId, userMessage: result.userMessage };
@@ -124,7 +158,7 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
       handle: async (context) => {
         const request = await parseBody(context, SetReactionRequest);
         if (request.kind === 'rejected') return request.reply;
-        const result = chat.setReaction(context.params.get('id'), request.value);
+        const result = chat.setReaction(context.params.get('id'), request.value, initiatorOf(context.viewer));
         switch (result.kind) {
           case 'set': {
             const body: SetReactionResponse = { reactions: result.reactions };
@@ -147,7 +181,7 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
       method: 'POST',
       path: '/api/threads/:id/queue/:queuedId/steer',
       access: { kind: 'thread', need: 'chat' },
-      handle: ({ params }) => queueReply(chat.steerQueued(params.get('id'), params.get('queuedId')), noContent),
+      handle: ({ params, viewer }) => queueReply(chat.steerQueued(params.get('id'), params.get('queuedId'), initiatorOf(viewer)), noContent),
     },
     {
       method: 'POST',
@@ -157,7 +191,7 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
         const request = await parseBody(context, ContinueRequest);
         if (request.kind === 'rejected') return request.reply;
         const { failedMessageId, sessionChoice } = request.value;
-        const result = await chat.continueTurn(context.params.get('id'), failedMessageId, sessionChoice);
+        const result = await chat.continueTurn(context.params.get('id'), failedMessageId, sessionChoice, initiatorOf(context.viewer));
         if (result.kind !== 'started') return refusal(result);
         const body: ContinueResponse = { generationId: result.generationId };
         return json(202, body);

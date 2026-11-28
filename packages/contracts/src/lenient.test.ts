@@ -56,6 +56,7 @@ describe('lenient', () => {
               "threadId": "t1",
             },
             {
+              "attachments": [],
               "createdAt": "2026-11-27T12:00:00.000Z",
               "id": "m2",
               "kind": "assistant",
@@ -102,6 +103,7 @@ describe('lenient', () => {
                 "config": {},
                 "enabled": true,
                 "manifest": {
+                  "description": "",
                   "envPreset": "none",
                   "id": "claude",
                   "kind": "provider",

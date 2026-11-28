@@ -141,6 +141,7 @@ it('a turn a crash left open keeps its tool calls on the interrupted reply, the 
   expect({ reply: recovered.messages.at(-1), toolSteps: recovered.toolSteps }).toMatchInlineSnapshot(`
     {
       "reply": {
+        "attachments": [],
         "createdAt": "2026-01-01T02:00:00.000Z",
         "id": "recovered",
         "kind": "assistant",

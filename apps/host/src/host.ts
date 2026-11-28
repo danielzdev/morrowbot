@@ -7,7 +7,7 @@ import { createAgentMessageService } from './features/agent-messages/index.ts';
 import { startToolServer, type ToolGrant, type ToolServer } from './features/agent-tools/index.ts';
 import { createAgentService, createFolderService } from './features/agents/index.ts';
 import { startApiServer } from './features/api/index.ts';
-import { createAttachmentService, type AttachmentService } from './features/attachments/index.ts';
+import { createAttachmentService, createReplyAttachments, type AttachmentService } from './features/attachments/index.ts';
 import { createChatService, type TurnOutputBudget } from './features/chat/index.ts';
 import { createConnectorRuntime, createConnectorService } from './features/connectors/index.ts';
 import type { HostConfig } from './features/config/index.ts';
@@ -29,6 +29,7 @@ import { createRoutineService, type RoutineClock } from './features/routines/ind
 import { lockDataDir, openStorage } from './features/storage/index.ts';
 import { cliProbe, createT3WatchService, type T3Probe, type T3WatchClock, type T3WatchService } from './features/t3-watch/index.ts';
 import { keyValue, loginFill, openVault, vaultBackend, type VaultKeyChoice } from './features/vault/index.ts';
+import { cardService } from './host-cards.ts';
 import { DATABASE, providerFence } from './host-fence.ts';
 import { agentInbox, agentToolPorts, chatStore, providerPlugins, subagentService } from './host-ports.ts';
 import { routineSink } from './t3-routine-sink.ts';
@@ -160,6 +161,10 @@ export async function startHost(options: HostOptions): Promise<Host> {
       now,
     });
     await attachments.sweep();
+    const replyFiles = createReplyAttachments({ dir: path.join(dataDir, 'reply-attachments'), records: storage.replyAttachments, workspaceOf: (id) => agents.get(id)?.workspace.dir, newId, now });
+    const sweepFiles = async (): Promise<void> => {
+      await Promise.all([attachments.sweep(), replyFiles.sweep()]);
+    };
     const memories = createMemoryService({ records: storage.memories, agentExists: (id) => agents.get(id) !== undefined, newId, now });
     const skillsDir = path.join(dataDir, 'skills');
     const members = createMemberService({ records: storage.members, workspaceOf: (id) => agents.get(id)?.workspace.kind, newId, now });
@@ -209,7 +214,9 @@ export async function startHost(options: HostOptions): Promise<Host> {
       report,
       ...(options.turnOutputBudget === undefined ? {} : { turnOutputBudget: options.turnOutputBudget }),
     });
+    await replyFiles.sweep();
     const subagents = subagentService(storage, chat, plugins, newId, now);
+    const cards = cardService(storage, chat, plugins, agents);
     const routines = createRoutineService({
       store: { routines: storage.routines, runs: storage.routineRuns, waits: storage.waits, transaction: (work) => storage.transaction(work) },
       chat: {
@@ -245,8 +252,10 @@ export async function startHost(options: HostOptions): Promise<Host> {
           agents,
           agentMessages,
           memories,
-          replies: { react: (grant, emoji) => chat.agentReact(grant, emoji), stayQuiet: (grant) => chat.stayQuiet(grant) },
-          vault,
+          replies: { react: (grant, emoji) => chat.agentReact(grant, emoji), stayQuiet: (grant) => chat.stayQuiet(grant), attachRefusal: (grant) => chat.attachRefusal(grant) },
+          startedBy: (grant) => chat.startedBy(grant),
+          replyFiles,
+          cards, vault,
           subagents,
           connectors,
           plugins,
@@ -254,7 +263,12 @@ export async function startHost(options: HostOptions): Promise<Host> {
           t3Watches,
           t3Clock,
           defaultT3RoutineId: config.t3Watch.routineId,
-          ...(options.isPluginAllowedForAgent === undefined ? {} : { isPluginAllowedForAgent: options.isPluginAllowedForAgent }),
+          isPluginAllowedForAgent: (agentId, pluginId) => {
+            const agent = agents.get(agentId);
+            if (agent === undefined) return false;
+            if (agent.disabledExtensions.includes(pluginId)) return false;
+            return options.isPluginAllowedForAgent === undefined ? true : options.isPluginAllowedForAgent(agentId, pluginId);
+          },
         }),
         version: options.version,
         report,
@@ -271,15 +285,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
     const stopReading = agentMessages.subscribe((message) => {
       chat.readAgentMessages(message.to.threadId);
     });
-    undo.push(() => {
-      stopReading();
-    });
-    undo.push(() => {
-      routines.close();
-    });
-    undo.push(() => {
-      t3Watches.close();
-    });
+    undo.push(() => { stopReading(); }, () => { routines.close(); }, () => { t3Watches.close(); });
     chat.readAgentMessages(null);
     routines.tick();
     const token = randomBytes(32).toString('base64url');
@@ -293,10 +299,11 @@ export async function startHost(options: HostOptions): Promise<Host> {
         folders,
         chat: {
           ...chat,
-          deleteThread: (id) => afterwards(chat.deleteThread(id), () => attachments.sweep(), report),
-          deleteAgent: (id) => afterwards(chat.deleteAgent(id), () => attachments.sweep(), report),
+          deleteThread: (id) => afterwards(chat.deleteThread(id), sweepFiles, report),
+          deleteAgent: (id) => afterwards(chat.deleteAgent(id), sweepFiles, report),
         },
-        attachments: { ...attachments, threadOf: (id) => storage.attachments.threadOf(id) },
+        attachments: { ...attachments, threadOf: (id) => storage.attachments.threadOf(id) ?? storage.replyAttachments.get(id)?.threadId, reply: (id) => replyFiles.find(id) },
+        cards,
         memories,
         skills: {
           list: async (agentId) => {

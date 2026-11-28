@@ -268,7 +268,7 @@ it('keeps sub-agents across a restart, drops one a crash caught before it starte
   const storage = openStorage(path.join(dataDir, 'orikami.sqlite'), () => at);
   const [started] = storage.subagents.listByParent(thread.id);
   if (started === undefined) throw new Error('no sub-agent was saved');
-  const unstarted = { id: 'unstarted', agentId: agent.id, title: 'Sub-agent', createdAt: at, updatedAt: at };
+  const unstarted = { id: 'unstarted', agentId: agent.id, title: 'Sub-agent', createdAt: at, updatedAt: at, archivedAt: null };
   storage.subagents.insert(unstarted, { ...started, threadId: unstarted.id, createdAt: at });
   storage.close();
   chat = await startChatFixture({ dataDir, pluginsDir: path.join(dataDir, 'plugins'), sequence: restarted });

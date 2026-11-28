@@ -56,8 +56,23 @@ export function createLiveDirectory(
   const stopListening = transport.listen((event) => {
     if (event.kind !== 'thread.changed') return;
     const { summary } = event;
+    const next = changed(threads, summary, screens.get());
+    if (summary.thread.archivedAt !== null) {
+      const replacement = next.summaries
+        .filter(({ thread, lastMessage }) => thread.agentId === summary.thread.agentId && lastMessage !== null)
+        .map(({ lastMessage }) => lastMessage)
+        .reduce((newest, candidate) => (newest === null || (candidate !== null && candidate.at > newest.at) ? candidate : newest), null);
+      setThreads(next, (directory) => {
+        const dropped = directory.lastMessages.filter(
+          (record) => !(record.hostId === hostId && record.message.threadId === summary.thread.id),
+        );
+        if (dropped.length === directory.lastMessages.length) return directory;
+        return { ...directory, lastMessages: replacement === null ? dropped : withLastMessage(dropped, hostId, replacement) };
+      });
+      return;
+    }
     const { lastMessage } = summary;
-    setThreads(changed(threads, summary, screens.get()), (directory) =>
+    setThreads(next, (directory) =>
       lastMessage === null ? directory : { ...directory, lastMessages: withLastMessage(directory.lastMessages, hostId, lastMessage) },
     );
   });

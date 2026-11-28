@@ -15,7 +15,7 @@ import { choiceFor, providerChoicesOf, threadStatusOf } from './derive.ts';
 import { InspectorPane } from './InspectorPane.tsx';
 import type { Models } from './models.ts';
 
-/** The agent's avatar beside its running turn and latest reply, in CSS pixels. */
+/** The agent's avatar beside its running turn and brief completion beat, in CSS pixels. */
 const CHAT_AVATAR_SIZE = 32;
 
 export interface Chrome {
@@ -46,6 +46,10 @@ export function ChatPane(props: {
   readonly onToggleInspector: () => void;
   /** False for a scoped member: the server's engines are the owner's, so the host alone decides whether a turn may run. */
   readonly ownerEngines: boolean;
+  /** True only for the server's owner, who may grant full access (shell commands). */
+  readonly allowFull: boolean;
+  /** Extensions, at a plugin a chat card offers; null for a member. */
+  readonly onOpenPlugin: ((pluginId: string) => void) | null;
 }) {
   const { models, agent } = props;
   const display = useMemo(() => chatDisplay(props.info, agent.workspace.dir), [props.info, agent.workspace.dir]);
@@ -112,6 +116,7 @@ export function ChatPane(props: {
         avatar={<BotAvatar avatar={agent.avatar} size={20} reducedMotion={props.reducedMotion} />}
         threads={threads?.kind === 'loaded' ? threads.value : []}
         threadsLoaded={threads?.kind === 'loaded'}
+        archivedThreads={state.archivedThreads[agent.id]}
         openThreadId={threadId}
         statusOf={(id) => threadStatusOf(activity, id)}
         unread={(id) => id in state.unread}
@@ -123,6 +128,9 @@ export function ChatPane(props: {
           models.agents.openThread(agent.id, id);
         }}
         onRename={(id, title) => void models.agents.renameThread(agent.id, id, title)}
+        onLoadArchived={() => void models.agents.loadArchivedThreads(agent.id)}
+        onArchive={(id) => void models.agents.archiveThread(agent.id, id)}
+        onRestore={(id) => void models.agents.restoreThread(agent.id, id)}
         onDelete={(id) => void models.agents.deleteThread(agent.id, id)}
         onCopy={props.onCopy}
         inspectorOpen={props.inspectorOpen}
@@ -156,6 +164,9 @@ export function ChatPane(props: {
             engine={engine}
             avatar={chatAvatar}
             activity={activity[session.threadId]?.activity ?? 'idle'}
+            owner={props.ownerEngines}
+            onOpenPlugin={props.onOpenPlugin}
+            onAgentChanged={(agentId) => void refetchAgent(models, agentId)}
             hero={
               <>
                 <BotAvatar avatar={agent.avatar} motion={motion} size={64} reducedMotion={props.reducedMotion} />
@@ -185,6 +196,7 @@ export function ChatPane(props: {
                 choice={choice}
                 binding={agent.provider}
                 openRequest={props.bindingRequest}
+                allowFull={props.allowFull}
                 onCommit={commit}
                 redact={display.redact}
                 onOpenProviders={props.onOpenProviders}
@@ -202,4 +214,11 @@ export function ChatPane(props: {
     )}
     </div>
   );
+}
+
+/** Fetches one agent again, such as after a chat card changed one of its settings. */
+async function refetchAgent(models: Models, agentId: string): Promise<void> {
+  const result = await models.api.listAgents();
+  const agent = result.kind === 'ok' ? result.value.agents.find(({ id }) => id === agentId) : undefined;
+  if (agent !== undefined) models.agents.adoptAgent(agent);
 }
