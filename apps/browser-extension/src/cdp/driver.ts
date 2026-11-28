@@ -1,5 +1,5 @@
 import { BrowserCommandKind, type BrowserCommand, type BrowserDialog, type BrowserEvent, type BrowserResult, type BrowserTabId, type BrowserValue } from '@morrowbot/contracts';
-import { ZodError } from 'zod';
+import { z, ZodError } from 'zod';
 import type { BrowserDriver, TabsApi } from '../core/driver.ts';
 import { createTakeovers, type TakeoverUi, type Takeovers } from '../core/takeover.ts';
 import { fillSecret, isChecked, replaceText, selectOptions, uploadFiles } from './forms.ts';
@@ -7,7 +7,7 @@ import { centerOf, click, drag, hover, scroll } from './input.ts';
 import { pressKey } from './keys.ts';
 import { navigate, screenshot, watchDialogs } from './page.ts';
 import { nodeOf, type RefTable } from './refs.ts';
-import { BrowserFailure, nextEvent, type CdpSession } from './session.ts';
+import { BrowserFailure, call, nextEvent, type CdpSession } from './session.ts';
 import { takeSnapshot } from './snapshot.ts';
 
 export interface CdpDriverDeps {
@@ -20,19 +20,21 @@ export interface CdpDriverDeps {
 /** A `BrowserDriver` for Chromium browsers, through the DevTools protocol. */
 export interface CdpDriver extends BrowserDriver {
   readonly takeovers: Takeovers;
-  /** The tab closed or the debugger let go of it (the person pressed Cancel on the debugging bar). */
-  forget(tabId: BrowserTabId): void;
+  /** The debugger let go of the tab (the person pressed Cancel on the debugging bar); the next command attaches again. */
+  detached(tabId: BrowserTabId): void;
+  /** The tab closed: forget everything about it. */
+  closed(tabId: BrowserTabId): void;
 }
 
 interface TabState {
   readonly session: CdpSession;
   refs: RefTable;
   dialog: BrowserDialog | null;
-  /** DOM nodes a vault secret was typed into: their values stay hidden from snapshots. */
+  /** DOM nodes a vault secret was typed into: their values stay hidden from snapshots, and no screenshot shows them. Kept across reattaching. */
   readonly secretNodes: Set<number>;
-  /** Of those, the ones that show their text on screen (a one-time code): no screenshots while any is on the page. */
-  readonly visibleSecrets: Set<number>;
 }
+
+const Described = z.object({ node: z.object({ attributes: z.array(z.string()).optional() }) });
 
 const WHILE_DIALOG = new Set<BrowserCommandKind>(['list-tabs', 'open-tab', 'switch-tab', 'close-tab', 'snapshot', 'handle-dialog', 'start-takeover', 'end-takeover']);
 const WHILE_TAKEOVER = new Set<BrowserCommandKind>(['list-tabs', 'open-tab', 'end-takeover']);
@@ -44,6 +46,7 @@ export function createCdpDriver({ tabs, attach, takeoverUi }: CdpDriverDeps): Cd
   };
   const takeovers = createTakeovers(takeoverUi, emit);
   const states = new Map<BrowserTabId, Promise<TabState>>();
+  const secretsOf = new Map<BrowserTabId, Set<number>>();
 
   const stateOf = (tabId: BrowserTabId): Promise<TabState> => {
     const known = states.get(tabId);
@@ -51,7 +54,9 @@ export function createCdpDriver({ tabs, attach, takeoverUi }: CdpDriverDeps): Cd
     const opening = (async (): Promise<TabState> => {
       await tabs.get(tabId);
       const session = await attach(tabId);
-      const state: TabState = { session, refs: new Map(), dialog: null, secretNodes: new Set(), visibleSecrets: new Set() };
+      const secretNodes = secretsOf.get(tabId) ?? new Set();
+      secretsOf.set(tabId, secretNodes);
+      const state: TabState = { session, refs: new Map(), dialog: null, secretNodes };
       watchDialogs(session, (dialog) => {
         state.dialog = dialog;
         emit(dialog === null ? { kind: 'dialog-closed', tabId } : { kind: 'dialog-opened', tabId, dialog });
@@ -65,8 +70,12 @@ export function createCdpDriver({ tabs, attach, takeoverUi }: CdpDriverDeps): Cd
     return opening;
   };
 
-  const forget = (tabId: BrowserTabId): void => {
+  const detached = (tabId: BrowserTabId): void => {
     states.delete(tabId);
+  };
+  const closed = (tabId: BrowserTabId): void => {
+    states.delete(tabId);
+    secretsOf.delete(tabId);
   };
 
   const execute = async (command: BrowserCommand): Promise<BrowserValue> => {
@@ -84,7 +93,7 @@ export function createCdpDriver({ tabs, attach, takeoverUi }: CdpDriverDeps): Cd
         return { kind: 'tab', tab: await tabs.get(command.tabId) };
       case 'close-tab':
         await tabs.close(command.tabId);
-        forget(command.tabId);
+        closed(command.tabId);
         return done;
       case 'start-takeover':
         await tabs.get(command.tabId);
@@ -165,11 +174,11 @@ export function createCdpDriver({ tabs, attach, takeoverUi }: CdpDriverDeps): Cd
         await scroll(session, command.to, node);
         return done;
       case 'drag':
-        await drag(session, await centerOf(session, node(command.from)), await centerOf(session, node(command.to)));
+        await drag(session, await centerOf(session, node(command.from)), () => centerOf(session, node(command.to)));
         return done;
       case 'screenshot':
-        if (await showsSecret(session, state.visibleSecrets)) {
-          throw new BrowserFailure('failed', 'A one-time code from the vault is on screen; take the screenshot after the page moves on.');
+        if (await showsSecret(session, state.secretNodes)) {
+          throw new BrowserFailure('failed', 'A value from the vault is visible on the page; take the screenshot after the page moves on.');
         }
         return { kind: 'image', mimeType: 'image/png', base64: await screenshot(session, command.area, node) };
       case 'upload-files':
@@ -183,7 +192,6 @@ export function createCdpDriver({ tabs, attach, takeoverUi }: CdpDriverDeps): Cd
         const target = node(command.ref);
         await fillSecret(session, target, command.field, command.origin, command.value);
         state.secretNodes.add(target);
-        if (command.field === 'one-time-code') state.visibleSecrets.add(target);
         return done;
       }
       case 'switch-tab':
@@ -208,7 +216,8 @@ export function createCdpDriver({ tabs, attach, takeoverUi }: CdpDriverDeps): Cd
   return {
     commands: BrowserCommandKind.options,
     takeovers,
-    forget,
+    detached,
+    closed,
     onEvent: (listener) => {
       listeners.add(listener);
     },
@@ -223,16 +232,20 @@ export function createCdpDriver({ tabs, attach, takeoverUi }: CdpDriverDeps): Cd
   };
 }
 
-/** True while any of `nodes` is still in the page; forgets the ones that are gone. */
+/** True while any of `nodes` is in the page and shows its text (anything but a password input); forgets the ones that are gone. */
 async function showsSecret(session: CdpSession, nodes: Set<number>): Promise<boolean> {
+  let shown = false;
   for (const backendNodeId of [...nodes]) {
-    const alive = await session.send('DOM.describeNode', { backendNodeId }).then(
-      () => true,
-      () => false,
-    );
-    if (!alive) nodes.delete(backendNodeId);
+    const described = await call(session, 'DOM.describeNode', { backendNodeId }, Described).catch(() => null);
+    if (described === null) {
+      nodes.delete(backendNodeId);
+      continue;
+    }
+    const attributes = described.node.attributes ?? [];
+    const typeAt = attributes.findIndex((entry, index) => index % 2 === 0 && entry.toLowerCase() === 'type');
+    if (typeAt < 0 || attributes[typeAt + 1]?.toLowerCase() !== 'password') shown = true;
   }
-  return nodes.size > 0;
+  return shown;
 }
 
 /**

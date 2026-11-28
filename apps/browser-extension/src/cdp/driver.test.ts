@@ -1,7 +1,7 @@
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { BrowserCommand, BrowserEvent, BrowserResult } from '@morrowbot/contracts';
 import { chromeMissing, launchChrome, type ChromeUnderTest } from '../testing/chrome.ts';
 import { servePages } from '../testing/pages.ts';
@@ -190,6 +190,31 @@ describe.skipIf(chromeMissing)('the Chromium driver on a real page', () => {
     `);
   });
 
+  it('returns from a navigation that opens a leave-page dialog, and goes on once it is accepted', async () => {
+    const { tabId, tree: snapshot } = await open('leave');
+    await run({ kind: 'click', tabId, ref: refOf(snapshot, 'button "Edit"'), button: 'left', clickCount: 1 });
+    const started = Date.now();
+    const navigated = await run({ kind: 'navigate', tabId, to: { kind: 'url', url: pages.url('form') } });
+    const returnedWithinSeconds = Math.ceil((Date.now() - started) / 1000);
+    const during = await run({ kind: 'snapshot', tabId });
+    const accepted = await run({ kind: 'handle-dialog', tabId, action: { kind: 'accept', promptText: null } });
+    await vi.waitFor(async () => {
+      expect((await chrome.tabs.get(tabId)).title).toBe('Sign in');
+    });
+    expect({ navigated: navigated.kind, returnedWithinSeconds, dialog: during.kind === 'ok' && during.value.kind === 'snapshot' ? during.value.dialog : during, accepted: accepted.kind }).toMatchInlineSnapshot(`
+      {
+        "accepted": "ok",
+        "dialog": {
+          "defaultPrompt": "",
+          "message": "",
+          "type": "beforeunload",
+        },
+        "navigated": "ok",
+        "returnedWithinSeconds": 1,
+      }
+    `);
+  });
+
   it('hovers, drags with HTML drag and drop, and scrolls', async () => {
     const { tabId, tree: snapshot } = await open('pointer');
     await run({ kind: 'hover', tabId, ref: refOf(snapshot, 'button "Hover me"') });
@@ -201,10 +226,14 @@ describe.skipIf(chromeMissing)('the Chromium driver on a real page', () => {
     const byPage = await chrome.evaluate(tabId, 'Math.round(window.scrollY)');
     await run({ kind: 'scroll', tabId, to: { kind: 'element', ref: refOf(snapshot, 'button "Bottom"') } });
     const toElement = await chrome.evaluate(tabId, 'window.scrollY > 2000');
-    expect({ hovered, dropped, byPage, toElement }).toMatchInlineSnapshot(`
+    await chrome.evaluate(tabId, "scrollTo(0, 0); document.getElementById('log').textContent = ''");
+    await run({ kind: 'drag', tabId, from: refOf(snapshot, 'button "Card"'), to: refOf(snapshot, 'region "Far bin"') });
+    const farDropped = await log(tabId);
+    expect({ hovered, dropped, byPage, toElement, farDropped }).toMatchInlineSnapshot(`
       {
         "byPage": 500,
         "dropped": "dropped card",
+        "farDropped": "dropped far card",
         "hovered": "hovered",
         "toElement": true,
       }
@@ -269,9 +298,32 @@ describe.skipIf(chromeMissing)('the Chromium driver on a real page', () => {
         "screenshot": {
           "code": "failed",
           "kind": "error",
-          "message": "A one-time code from the vault is on screen; take the screenshot after the page moves on.",
+          "message": "A value from the vault is visible on the page; take the screenshot after the page moves on.",
         },
         "typed": "424242",
+      }
+    `);
+  });
+
+  it('keeps a vault password hidden after the debugger lets go, and once the page shows it', async () => {
+    const { tabId, tree: snapshot } = await open('form');
+    const origin = new URL(pages.url('form')).origin;
+    await run({ kind: 'fill-secret', tabId, ref: refOf(snapshot, 'textbox "Password"'), field: 'password', origin, value: 's3cret-value' });
+    const whileMasked = await run({ kind: 'screenshot', tabId, area: { kind: 'viewport' } });
+    driver.detached(tabId);
+    await chrome.evaluate(tabId, "document.querySelector('[name=password]').type = 'text'");
+    const shown = await tree(tabId);
+    const screenshot = await run({ kind: 'screenshot', tabId, area: { kind: 'viewport' } });
+    expect({ whileMasked: whileMasked.kind, passwordLine: shown.split('\n').find((line) => line.includes('"Password"')), leaked: shown.includes('s3cret'), screenshot }).toMatchInlineSnapshot(`
+      {
+        "leaked": false,
+        "passwordLine": "  - textbox "Password" [ref=e4] [focused] value=<hidden>",
+        "screenshot": {
+          "code": "failed",
+          "kind": "error",
+          "message": "A value from the vault is visible on the page; take the screenshot after the page moves on.",
+        },
+        "whileMasked": "ok",
       }
     `);
   });

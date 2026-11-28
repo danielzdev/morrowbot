@@ -14,6 +14,7 @@ import { chromeMissing, launchChrome, type ChromeUnderTest } from './testing/chr
 import { servePages } from './testing/pages.ts';
 
 const TOKEN = 'e2e-token-e2e-token-e2e-token-e2e-token';
+const INSTANCE = 'e2e-instance-0001';
 let chrome: ChromeUnderTest;
 let pages: Awaited<ReturnType<typeof servePages>>;
 let bridge: Bridge;
@@ -50,7 +51,7 @@ beforeAll(async () => {
   bridge = await startBridge({ serve: standaloneRuntime().serveLoopback, port: 0, pairingToken: TOKEN });
   const { port } = bridge;
   connection = startConnection({
-    pairing: () => Promise.resolve({ port, token: TOKEN }),
+    pairing: () => Promise.resolve({ port, token: TOKEN, instanceId: INSTANCE }),
     openSocket: nodeSocket,
     driver: createCdpDriver({ tabs: chrome.tabs, attach: chrome.attach, takeoverUi: { show: () => Promise.resolve(), hide: () => Promise.resolve() } }),
     browser: { family: 'chromium', name: 'Chrome', version: 'test' },
@@ -141,7 +142,7 @@ it.skipIf(chromeMissing)('the extension keeps retrying when its pairing cannot b
   const seen: string[] = [];
   let reads = 0;
   const second = startConnection({
-    pairing: () => (reads++ === 0 ? Promise.reject(new Error('storage is busy')) : Promise.resolve({ port: bridge.port, token: TOKEN })),
+    pairing: () => (reads++ === 0 ? Promise.reject(new Error('storage is busy')) : Promise.resolve({ port: bridge.port, token: TOKEN, instanceId: 'e2e-instance-0002' })),
     openSocket: nodeSocket,
     driver: createCdpDriver({ tabs: chrome.tabs, attach: chrome.attach, takeoverUi: { show: () => Promise.resolve(), hide: () => Promise.resolve() } }),
     browser: { family: 'chromium', name: 'Chrome', version: 'test' },

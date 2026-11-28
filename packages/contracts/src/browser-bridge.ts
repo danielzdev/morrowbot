@@ -28,6 +28,9 @@ export const EXTENSION_ORIGIN = /^(chrome-extension|moz-extension|safari-web-ext
 const Protocol = z.literal(BROWSER_BRIDGE_PROTOCOL);
 const RequestNumber = z.number().int().nonnegative();
 
+/** One installed copy of the extension, kept in its storage; the plugin gives it the same browser id each time it reconnects. */
+export const ExtensionInstanceId = z.string().regex(/^[A-Za-z0-9_-]{16,64}$/);
+
 export const BrowserFamily = z.enum(['chromium', 'firefox', 'safari']);
 export type BrowserFamily = z.infer<typeof BrowserFamily>;
 
@@ -37,6 +40,7 @@ export const ExtensionMessage = z.discriminatedUnion('kind', [
     protocol: Protocol,
     browser: z.strictObject({ family: BrowserFamily, name: z.string().min(1), version: z.string() }),
     extensionVersion: z.string().min(1),
+    instanceId: ExtensionInstanceId,
     /** The commands this extension answers; any other gets `unsupported` from the plugin without asking. */
     commands: z.array(BrowserCommandKind),
   }),

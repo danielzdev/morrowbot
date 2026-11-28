@@ -22,6 +22,7 @@ export interface BrowserLink {
   onEvent(listener: (event: BrowserEvent) => void): () => void;
   /** Settles when the browser disconnects. */
   readonly gone: Promise<void>;
+  close(code: number, reason: string): void;
 }
 
 export interface LinkOptions {
@@ -86,6 +87,9 @@ export function acceptLink(socket: LoopbackSocket, options: LinkOptions): void {
         return () => listeners.delete(listener);
       },
       gone: gone.promise.then(() => undefined),
+      close: (code, reason) => {
+        socket.close(code, reason);
+      },
     };
     send({ kind: 'welcome', protocol: BROWSER_BRIDGE_PROTOCOL, browserId });
     options.onReady(link);

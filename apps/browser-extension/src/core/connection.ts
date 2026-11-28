@@ -88,13 +88,13 @@ export function startConnection(deps: ConnectionDeps): Connection {
       return;
     }
     if (stopped || mine !== generation) return;
-    const { port, token } = pairing;
+    const { port, token, instanceId } = pairing;
     lastPort = port;
     deps.onStatus({ kind: 'connecting', port });
     let pingTimer: ReturnType<typeof setInterval> | undefined;
     const opened: BridgeSocket = deps.openSocket(`ws://127.0.0.1:${String(port)}/`, [BROWSER_BRIDGE_SUBPROTOCOL, `${LOOPBACK_TOKEN_PREFIX}${token}`], {
       open: () => {
-        send(opened, { kind: 'hello', protocol: BROWSER_BRIDGE_PROTOCOL, browser: deps.browser, extensionVersion: deps.extensionVersion, commands: [...deps.driver.commands] });
+        send(opened, { kind: 'hello', protocol: BROWSER_BRIDGE_PROTOCOL, browser: deps.browser, extensionVersion: deps.extensionVersion, instanceId, commands: [...deps.driver.commands] });
         pingTimer = setInterval(() => {
           send(opened, { kind: 'ping' });
         }, PING_MS);

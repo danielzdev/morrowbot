@@ -1,8 +1,8 @@
-import { BROWSER_BRIDGE_DEFAULT_PORT, PairingToken } from '@morrowbot/contracts';
+import { BROWSER_BRIDGE_DEFAULT_PORT, ExtensionInstanceId, PairingToken } from '@morrowbot/contracts';
 import { z } from 'zod';
 
-/** Where the extension finds the MorrowBot plugin and how it proves it was paired. */
-export const Pairing = z.object({ port: z.number().int().min(1024).max(65535), token: PairingToken });
+/** Where the extension finds the MorrowBot plugin, how it proves it was paired, and which installed copy it is. */
+export const Pairing = z.object({ port: z.number().int().min(1024).max(65535), token: PairingToken, instanceId: ExtensionInstanceId });
 export type Pairing = z.infer<typeof Pairing>;
 
 const KEY = 'pairing';
@@ -18,7 +18,7 @@ export async function loadPairing(storage: chrome.storage.StorageArea): Promise<
   const stored: unknown = (await storage.get(KEY))[KEY];
   const parsed = Pairing.safeParse(stored);
   if (parsed.success) return parsed.data;
-  const fresh: Pairing = { port: BROWSER_BRIDGE_DEFAULT_PORT, token: newToken() };
+  const fresh: Pairing = { port: BROWSER_BRIDGE_DEFAULT_PORT, token: newToken(), instanceId: newToken() };
   await savePairing(storage, fresh);
   return fresh;
 }

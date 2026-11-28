@@ -25,7 +25,11 @@ const PAGES: Readonly<Record<string, string>> = {
 <div id="bin" class="box" role="region" aria-label="Bin" ondragover="event.preventDefault()" ondrop="event.preventDefault(); document.getElementById('log').textContent = 'dropped ' + event.dataTransfer.getData('text/plain')"></div>
 <p id="log" role="status"></p>
 <div style="height: 3000px"></div>
-<button id="bottom">Bottom</button>`,
+<button id="bottom">Bottom</button>
+<div id="far" class="box" role="region" aria-label="Far bin" ondragover="event.preventDefault()" ondrop="event.preventDefault(); document.getElementById('log').textContent = 'dropped far ' + event.dataTransfer.getData('text/plain')"></div>`,
+  leave: `<title>Draft</title>
+<script>onbeforeunload = (event) => { event.preventDefault(); };</script>
+<button onclick="this.textContent = 'Edited'">Edit</button>`,
 };
 
 /** Serves the test pages on 127.0.0.1. */

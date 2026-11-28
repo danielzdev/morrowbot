@@ -12,6 +12,8 @@ const Captured = z.object({ data: z.string() });
 const FrameNavigated = z.object({ frame: z.object({ parentId: z.string().optional() }), type: z.string().optional() });
 const DialogOpening = z.object({ message: z.string(), type: BrowserDialog.shape.type, defaultPrompt: z.string().optional() });
 
+type First = { readonly kind: 'started'; readonly sameDocument: boolean } | { readonly kind: 'event'; readonly loaded: boolean };
+
 /** Navigates and waits for the page to load (or a dialog to open). False when it was still loading at the time limit. */
 export async function navigate(session: CdpSession, to: NavigateTarget): Promise<boolean> {
   const loaded = nextEvent(
@@ -25,8 +27,11 @@ export async function navigate(session: CdpSession, to: NavigateTarget): Promise
     LOAD_WAIT_MS,
   );
   try {
-    const sameDocument = await start(session, to);
-    if (sameDocument) return true;
+    const started = start(session, to);
+    started.catch(() => undefined);
+    const first = await Promise.race([started.then((sameDocument): First => ({ kind: 'started', sameDocument })), loaded.promise.then((event): First => ({ kind: 'event', loaded: event ?? false }))]);
+    if (first.kind === 'event') return first.loaded;
+    if (first.sameDocument) return true;
     return (await loaded.promise) ?? false;
   } finally {
     loaded.cancel();

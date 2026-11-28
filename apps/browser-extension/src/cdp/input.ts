@@ -78,26 +78,28 @@ export async function scroll(session: CdpSession, to: ScrollTarget, nodeOf: (ref
 }
 
 /**
- * Drags with the mouse. When the page starts an HTML drag-and-drop, Chrome hands the drag to us
- * (`Input.setInterceptDrags`) and we drop it on the target ourselves; pointer-based drags just follow the mouse.
+ * Drags with the mouse. The drag starts at the source before the target is scrolled into view, so
+ * the source's position is still right. When the page starts an HTML drag-and-drop, Chrome hands the
+ * drag to us (`Input.setInterceptDrags`) and we drop it on the target ourselves; pointer-based drags
+ * just follow the mouse.
  */
-export async function drag(session: CdpSession, from: Point, to: Point): Promise<void> {
+export async function drag(session: CdpSession, from: Point, target: () => Promise<Point>): Promise<void> {
   await session.send('Input.setInterceptDrags', { enabled: true });
   const intercepted = nextEvent(session, ['Input.dragIntercepted'], (_method, params) => DragIntercepted.parse(params).data, 500);
+  const move = (point: Point): Promise<unknown> => session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: point.x, y: point.y, button: 'left', buttons: 1 });
   try {
     await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: from.x, y: from.y });
     await session.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: from.x, y: from.y, button: 'left', buttons: 1, clickCount: 1 });
-    const steps = 5;
-    for (let step = 1; step <= steps; step += 1) {
-      const x = from.x + ((to.x - from.x) * step) / steps;
-      const y = from.y + ((to.y - from.y) * step) / steps;
-      await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y, button: 'left', buttons: 1 });
-    }
+    for (let step = 1; step <= 3; step += 1) await move({ x: from.x + step * 4, y: from.y + step * 4 });
     const data = await intercepted.promise;
+    const to = await target();
     if (data !== null) {
       for (const type of ['dragEnter', 'dragOver', 'drop']) {
         await session.send('Input.dispatchDragEvent', { type, x: to.x, y: to.y, data });
       }
+    } else {
+      const steps = 5;
+      for (let step = 1; step <= steps; step += 1) await move({ x: from.x + ((to.x - from.x) * step) / steps, y: from.y + ((to.y - from.y) * step) / steps });
     }
     await session.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: to.x, y: to.y, button: 'left', buttons: 0, clickCount: 1 });
   } finally {

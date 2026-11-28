@@ -9,7 +9,7 @@ import { chromeTabs } from './tabs.ts';
 const KEEPALIVE = 'morrowbot-keepalive';
 
 const debuggerApi = chromeDebugger((tabId) => {
-  driver.forget(tabId);
+  driver.detached(tabId);
 });
 const driver = createCdpDriver({ tabs: chromeTabs, attach: debuggerApi.attach, takeoverUi: chromeOverlay });
 
@@ -51,7 +51,7 @@ const connection = startConnection({
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   driver.takeovers.tabClosed(tabId);
-  driver.forget(tabId);
+  driver.closed(tabId);
 });
 
 chrome.tabs.onUpdated.addListener((tabId, change) => {

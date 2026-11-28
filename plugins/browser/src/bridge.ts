@@ -23,6 +23,7 @@ export interface Bridge {
 
 export async function startBridge(options: BridgeOptions): Promise<Bridge> {
   const links = new Map<string, BrowserLink>();
+  const idOfInstance = new Map<string, string>();
   const waiters = new Set<(link: BrowserLink) => void>();
   const server = await options.serve({
     port: options.port,
@@ -34,12 +35,18 @@ export async function startBridge(options: BridgeOptions): Promise<Bridge> {
       acceptLink(socket, {
         helloTimeoutMs: options.helloTimeoutMs ?? 5000,
         nameFor: (hello) => {
+          const known = idOfInstance.get(hello.instanceId);
+          if (known !== undefined) return known;
           const base = hello.browser.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || hello.browser.family;
+          const taken = new Set(idOfInstance.values());
           let count = 1;
-          while (links.has(`${base}-${String(count)}`)) count += 1;
-          return `${base}-${String(count)}`;
+          while (taken.has(`${base}-${String(count)}`)) count += 1;
+          const browserId = `${base}-${String(count)}`;
+          idOfInstance.set(hello.instanceId, browserId);
+          return browserId;
         },
         onReady: (link) => {
+          links.get(link.browserId)?.close(4003, 'This browser connected again');
           links.set(link.browserId, link);
           for (const wake of waiters) wake(link);
         },

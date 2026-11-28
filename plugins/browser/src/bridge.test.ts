@@ -73,9 +73,13 @@ async function connect(port: number): Promise<FakeExtension> {
   };
 }
 
+function hello(name: string, commands: BrowserCommandKind[], instanceId = `${name.toLowerCase()}-instance-0001`): ExtensionMessage {
+  return { kind: 'hello', protocol: 1, browser: { family: 'chromium', name, version: '140' }, extensionVersion: '0.1.0', instanceId, commands };
+}
+
 async function greet(port: number, name: string, commands: BrowserCommandKind[]): Promise<FakeExtension> {
   const extension = await connect(port);
-  extension.send({ kind: 'hello', protocol: 1, browser: { family: 'chromium', name, version: '140' }, extensionVersion: '0.1.0', commands });
+  extension.send(hello(name, commands));
   await extension.next();
   return extension;
 }
@@ -97,7 +101,7 @@ it('greets each browser with its own id and answers unlisted commands without as
   const started = await start();
   const tools = browserTools({ bridge: started, secrets: noSecretSource, uploads: { kind: 'off' } });
   const brave = await connect(started.port);
-  brave.send({ kind: 'hello', protocol: 1, browser: { family: 'chromium', name: 'Brave', version: '140' }, extensionVersion: '0.1.0', commands: ['list-tabs'] });
+  brave.send(hello('Brave', ['list-tabs']));
   const welcome = await brave.next();
   const listing = call(tools, 'browser_tabs', {});
   await answerNext(brave, tabs);
@@ -159,6 +163,48 @@ it('asks which browser when several are connected, and says when none is', async
       "sent": {
         "kind": "snapshot",
         "tabId": 1,
+      },
+    }
+  `);
+});
+
+it('gives each installed extension back its own id when it reconnects, in any order', async () => {
+  const started = await start();
+  const join = async (instanceId: string): Promise<{ readonly extension: FakeExtension; readonly id: string }> => {
+    const extension = await connect(started.port);
+    extension.send(hello('Chrome', [], instanceId));
+    const welcome = await extension.next();
+    return { extension, id: welcome.kind === 'welcome' ? welcome.browserId : welcome.kind };
+  };
+  const work = await join('work-profile-0001');
+  const home = await join('home-profile-0001');
+  work.extension.close();
+  home.extension.close();
+  while (started.browsers().length > 0) await new Promise((resolve) => setTimeout(resolve, 10));
+  const homeAgain = await join('home-profile-0001');
+  const workAgain = await join('work-profile-0001');
+  const workOnceMore = await join('work-profile-0001');
+  expect({
+    before: { work: work.id, home: home.id },
+    after: { work: workAgain.id, home: homeAgain.id },
+    duplicate: { id: workOnceMore.id, older: await workAgain.extension.closed, listed: started.browsers().map((link) => link.browserId) },
+  }).toMatchInlineSnapshot(`
+    {
+      "after": {
+        "home": "chrome-2",
+        "work": "chrome-1",
+      },
+      "before": {
+        "home": "chrome-2",
+        "work": "chrome-1",
+      },
+      "duplicate": {
+        "id": "chrome-1",
+        "listed": [
+          "chrome-2",
+          "chrome-1",
+        ],
+        "older": "4003 This browser connected again",
       },
     }
   `);
@@ -260,4 +306,3 @@ it('waits for the person to finish a takeover, and ends it when the turn stops',
     }
   `);
 });
-
