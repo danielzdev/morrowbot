@@ -11,7 +11,7 @@ import { BubbleColorPicker, BubblePreview } from '../../shared/ui/BubbleColorPic
 import { Segmented } from '../../shared/ui/Segmented.tsx';
 import { useStore } from '../../shared/use-store.ts';
 import type { AgentsModel } from './agents-model.ts';
-import type { AvatarEditor } from './NewAgentDialog.tsx';
+import type { AvatarEditor } from './NewAgentForm.tsx';
 
 type AgentColorMode = 'global' | BubbleColorOverride['kind'];
 

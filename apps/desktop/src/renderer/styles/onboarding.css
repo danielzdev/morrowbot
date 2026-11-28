@@ -8,9 +8,13 @@
   margin: 0 auto;
   padding: var(--s-12) var(--s-6) var(--s-8);
 }
-.choose-server {
+.choose-server,
+.first-run {
   max-height: 100dvh;
   overflow-y: auto;
+}
+.welcome.wide {
+  max-width: 640px;
 }
 .welcome-hero {
   display: flex;

@@ -1,5 +1,5 @@
 import type { Agent } from '@morrowbot/contracts';
-import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { MorrowbotBridge, ServerMode } from '../bridge.ts';
 import { Sidebar } from '../features/agents/index.ts';
 import { BotAvatar, combineActivity, motionOf } from '../features/avatar/index.ts';
@@ -15,6 +15,7 @@ import { useStore } from '../shared/use-store.ts';
 import { liveFactsOf } from './derive.ts';
 import { createModels } from './models.ts';
 import { AgentDialogs, type AgentDialog } from './AgentDialogs.tsx';
+import { FirstRun } from './FirstRun.tsx';
 import { Pages, type Page } from './Pages.tsx';
 import { Palette } from './Palette.tsx';
 import { Shell } from './Shell.tsx';
@@ -62,6 +63,8 @@ export function App({ bridge, server, role }: AppProps) {
   const [bindingRequest, setBindingRequest] = useState(0);
   const [dialog, setDialog] = useState<AgentDialog | null>(null);
   const [inspector, setInspector] = useState(false);
+  /** First-run setup stays up from the moment an owner has no agents until it creates one and closes. */
+  const [setup, setSetup] = useState(false);
   const [info, setInfo] = useState<AppInfo | null>(null);
   const copies = useRef(0);
   const jumps = useRef(0);
@@ -114,6 +117,11 @@ export function App({ bridge, server, role }: AppProps) {
     item.run();
   }, [palette]);
 
+  const noAgents = owner && state.agents.kind === 'loaded' && state.agents.value.length === 0;
+  useLayoutEffect(() => {
+    if (noAgents) setSetup(true);
+  }, [noAgents]);
+
   const agent = state.agents.kind === 'loaded' ? state.agents.value.find(({ id }) => id === state.selectedAgentId) : undefined;
   const safe = (text: string): string => redact(text, info ?? NO_INFO);
   const preview = (text: string): string => (info === null ? '…' : safe(text));
@@ -150,7 +158,7 @@ export function App({ bridge, server, role }: AppProps) {
   useAttention({ models, agentName: agent?.name ?? null, notify, safe, onOpen: openAgent });
   const newAgent = owner
     ? () => {
-        setDialog({ kind: 'new-agent', brain: 'prefill' });
+        setDialog({ kind: 'new-agent' });
       }
     : null;
   const newChat = (agentId: string): void => {
@@ -178,6 +186,21 @@ export function App({ bridge, server, role }: AppProps) {
     });
   };
 
+  if (setup || noAgents) {
+    return (
+      <FirstRun
+        models={models}
+        bridge={bridge}
+        info={info}
+        reducedMotion={appearance.reducedMotion}
+        allowFull={role === 'owner'}
+        onDone={(created) => {
+          setSetup(false);
+          newChat(created.id);
+        }}
+      />
+    );
+  }
   return (
     <>
       <Shell
@@ -232,7 +255,7 @@ export function App({ bridge, server, role }: AppProps) {
                 avatar={avatarOf}
                 actions={{
                   newChat,
-                  newAgent: () => { setDialog({ kind: 'new-agent', brain: 'prefill' }); },
+                  newAgent: () => { setDialog({ kind: 'new-agent' }); },
                   changeBinding: page.kind === 'chat' && agent !== undefined ? () => { setBindingRequest((count) => count + 1); } : null,
                   openSettings,
                   openExtensions: () => { showExtensions(); },
@@ -277,7 +300,6 @@ export function App({ bridge, server, role }: AppProps) {
               onOpenSettings={openSettings}
               inspectorOpen={inspector}
               onToggleInspector={toggleInspector}
-              onFirstAgent={(brain) => { setDialog({ kind: 'new-agent', brain }); }}
               onOpenPlugin={owner ? (pluginId) => { leave(() => { setPage({ kind: 'extensions', jump: { id: ++jumps.current, target: { kind: 'plugin', pluginId } } }); }); } : null}
             />
           </>

@@ -16,6 +16,14 @@
   background: var(--surface-3);
   border-top: 1px solid var(--hairline);
 }
+.new-agent-form.inline {
+  padding: 0;
+}
+.new-agent-form .page-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
 .form-section {
   display: flex;
   flex-direction: column;
