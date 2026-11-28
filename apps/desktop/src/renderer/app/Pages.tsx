@@ -17,6 +17,8 @@ export type Page = { readonly kind: 'chat' } | { readonly kind: 'extensions'; re
 export function Pages(props: {
   readonly page: Page;
   readonly onPage: (page: Page) => void;
+  /** Extensions hands up its "Discard changes?" check while open, and null when it closes. */
+  readonly onLeaveCheck: (check: ((action: () => void) => void) | null) => void;
   readonly models: Models;
   readonly bridge: MorrowbotBridge;
   readonly agent: Agent | undefined;
@@ -51,6 +53,7 @@ export function Pages(props: {
             info={info}
             reducedMotion={props.reducedMotion}
             jump={page.jump}
+            onLeaveCheck={props.onLeaveCheck}
             onOpenProvider={(id) => { props.onOpenSettings(`providers/${id}`); }}
             onExit={() => { props.onPage({ kind: 'chat' }); }}
           />

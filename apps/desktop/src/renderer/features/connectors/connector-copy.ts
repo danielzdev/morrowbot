@@ -95,17 +95,19 @@ export function scopeChip(scope: Pick<ConnectorScope, 'mode' | 'agentIds'>): str
   return count === 0 ? 'No agents' : count === 1 ? '1 agent' : `${String(count)} agents`;
 }
 
-/** Who a Disconnect or Remove affects (spec IA §4): the agents its saved scope names. */
+/** Who a Disconnect or Remove affects (spec IA §4): the agents its saved scope names, or every agent there is now. */
 export function usedBy(scope: Pick<ConnectorScope, 'mode' | 'agentIds'>, agents: readonly Pick<Agent, 'id' | 'name'>[]): string {
-  if (scope.mode === 'all') return 'All agents use this.';
-  const count = scope.agentIds.length;
-  const names = agents.filter(({ id }) => scope.agentIds.includes(id)).map(({ name }) => name);
+  const ids = scope.mode === 'all' ? agents.map(({ id }) => id) : scope.agentIds;
+  const count = ids.length;
+  const names = agents.filter(({ id }) => ids.includes(id)).map(({ name }) => name);
   const [first, second] = names;
-  if (count === 0) return 'No agents use this.';
-  if (first === undefined) return count === 1 ? '1 agent uses this.' : `${String(count)} agents use this.`;
-  if (count === 1) return `${first} uses this.`;
-  if (count === 2 && second !== undefined) return `${first} and ${second} use this.`;
-  return `${first}, ${String(count - 1)} other ${count === 2 ? 'agent uses' : 'agents use'} this.`;
+  const [subject, verb] =
+    first === undefined ? [count === 1 ? '1 agent' : `${String(count)} agents`, count === 1 ? 'uses' : 'use']
+    : count === 1 ? [first, 'uses']
+    : count === 2 && second !== undefined ? [`${first} and ${second}`, 'use']
+    : [`${first}, ${String(count - 1)} other ${count === 2 ? 'agent' : 'agents'}`, count === 2 ? 'uses' : 'use'];
+  if (scope.mode === 'all') return count === 0 ? 'All agents get this; there are none yet.' : `All agents use this: ${subject}.`;
+  return count === 0 ? 'No agents use this.' : `${subject} ${verb} this.`;
 }
 
 /** A first label for another account of a service already added ("Gmail · 2"), or '' for its first. */

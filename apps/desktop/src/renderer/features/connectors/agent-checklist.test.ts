@@ -1,6 +1,6 @@
 import { Connector, type ConnectorScope, type ConnectorStatus } from '@morrowbot/contracts';
 import { expect, it } from 'vitest';
-import { checklistRows, pendingWrites, reloadRow, settle, stage, switchWarning, type Checklist } from './agent-checklist.ts';
+import { checklistRows, hasChanges, pendingWrites, reloadRow, settle, stage, switchWarning, type Checklist } from './agent-checklist.ts';
 
 const EVERYONE = ['errand', 'money', 'reading'];
 const AT = '2026-01-01T00:00:00.000Z';
@@ -114,6 +114,17 @@ it('sends a refused row again, and not a change to a row that stopped working', 
     rows: ['shared · given · All agents · dimmed · none', 'notes · given · refused'],
     writes: ['notes'],
   });
+});
+
+it('keeps a change staged, and Cancel offered, while its row stops working and comes back', () => {
+  const checklist = stage({}, shared, 'errand', false);
+  const off = connector('shared', { mode: 'all', revision: 4 }, { kind: 'turned_off' });
+  expect([shared, off, shared].map((each) => [shown([each], checklist)[0], hasChanges([each], checklist)])).toEqual([
+    ['shared · not given · staged', true],
+    ['shared · given · All agents · dimmed · none', true],
+    ['shared · not given · staged', true],
+  ]);
+  expect(hasChanges([notes], checklist)).toBe(false);
 });
 
 it('asks before leaving an All-agents connector, naming who keeps it', () => {

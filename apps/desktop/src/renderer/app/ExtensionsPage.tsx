@@ -21,6 +21,7 @@ export function ExtensionsPage(props: {
   readonly reducedMotion: boolean;
   readonly jump: ExtensionsJump | null;
   readonly onOpenProvider: (providerId: string) => void;
+  readonly onLeaveCheck: (check: ((action: () => void) => void) | null) => void;
   readonly onExit: () => void;
 }) {
   const { models, info, jump } = props;
@@ -51,6 +52,7 @@ export function ExtensionsPage(props: {
       }}
       jump={jump === null ? null : { id: jump.id, arrive: () => { connectors.arrive(jump.target); } }}
       onOpenProvider={props.onOpenProvider}
+      onLeaveCheck={props.onLeaveCheck}
       onExit={props.onExit}
     />
   );

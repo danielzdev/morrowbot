@@ -62,6 +62,8 @@ export function App({ bridge, server, role }: AppProps) {
   const [info, setInfo] = useState<AppInfo | null>(null);
   const copies = useRef(0);
   const jumps = useRef(0);
+  /** Extensions' "Discard changes?" check, while it is open: leaving the page goes through it. */
+  const leaveCheck = useRef<((action: () => void) => void) | null>(null);
   const state = useStore(models.agents.state);
   const cards = useStore(models.providers.cards);
   const pluginList = useStore(models.plugins.list);
@@ -111,11 +113,18 @@ export function App({ bridge, server, role }: AppProps) {
   };
   const agentsUsing = (providerId: string): readonly string[] =>
     state.agents.kind === 'loaded' ? state.agents.value.filter(({ provider }) => provider.kind === 'bound' && provider.pluginId === providerId).map(({ name }) => name) : [];
+  const leave = (action: () => void): void => {
+    const check = page.kind === 'extensions' ? leaveCheck.current : null;
+    if (check === null) action();
+    else check(action);
+  };
   const openAgent = (agentId: string, threadId: string | null): void => {
-    models.agents.selectAgent(agentId);
-    if (threadId !== null) models.agents.openThread(agentId, threadId);
-    setApprovalFocus(threadId);
-    setPage({ kind: 'chat' });
+    leave(() => {
+      models.agents.selectAgent(agentId);
+      if (threadId !== null) models.agents.openThread(agentId, threadId);
+      setApprovalFocus(threadId);
+      setPage({ kind: 'chat' });
+    });
   };
   const toggleInspector = (): void => {
     setInspector((open) => !open);
@@ -130,10 +139,12 @@ export function App({ bridge, server, role }: AppProps) {
       }
     : null;
   const newChat = (agentId: string): void => {
-    models.agents.selectAgent(agentId);
-    setPage({ kind: 'chat' });
-    void models.agents.newThread(agentId).then(() => {
-      focusComposer();
+    leave(() => {
+      models.agents.selectAgent(agentId);
+      setPage({ kind: 'chat' });
+      void models.agents.newThread(agentId).then(() => {
+        focusComposer();
+      });
     });
   };
   const copyChat = (threadId: string): void => {
@@ -231,6 +242,7 @@ export function App({ bridge, server, role }: AppProps) {
             <Pages
               page={page}
               onPage={setPage}
+              onLeaveCheck={(check) => { leaveCheck.current = check; }}
               models={models}
               bridge={bridge}
               agent={agent}

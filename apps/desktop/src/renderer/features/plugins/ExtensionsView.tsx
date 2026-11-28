@@ -44,6 +44,8 @@ export interface ExtensionsViewProps {
   readonly bridge: Pick<MorrowbotBridge, 'revealPath' | 'relaunch'>;
   /** "Configure in Providers →" for a plugin that adds a community provider. */
   readonly onOpenProvider: (providerId: string) => void;
+  /** Hands the dirty check to the app while Extensions is open, so leaving by the sidebar asks too; null on close. */
+  readonly onLeaveCheck: (check: ((action: () => void) => void) | null) => void;
   /** Esc: back to chat, after the dirty check. */
   readonly onExit: () => void;
 }
@@ -94,6 +96,13 @@ export function ExtensionsView(props: ExtensionsViewProps) {
   const guard = useCallback((action: () => void) => {
     guarded.current(action);
   }, []);
+  const { onLeaveCheck } = props;
+  useEffect(() => {
+    onLeaveCheck(guard);
+    return () => {
+      onLeaveCheck(null);
+    };
+  }, [guard, onLeaveCheck]);
   const jump = useRef(props.jump);
   jump.current = props.jump;
   const jumpId = props.jump?.id;

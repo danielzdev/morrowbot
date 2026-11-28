@@ -62,6 +62,11 @@ export function checklistRows(connectors: readonly Connector[], checklist: Check
   });
 }
 
+/** Whether anything is staged for a connector that still exists, shown or not: a row that stops working keeps its change. */
+export function hasChanges(connectors: readonly Connector[], checklist: Checklist): boolean {
+  return connectors.some(({ id }) => checklist[id] !== undefined);
+}
+
 /** The scope Save writes for one staged row. Leaving an All-agents connector selects every other agent there is now. */
 export function writeOf(staged: Staged, agentId: string, everyAgentId: readonly string[]): SetConnectorScopeRequest {
   const from: ScopeChoice = staged.base.mode === 'all' ? { mode: 'selected', agentIds: everyAgentId } : staged.base;

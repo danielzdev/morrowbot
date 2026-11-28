@@ -3,7 +3,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { ItemMark } from '../../shared/ui/ItemMark.tsx';
 import { Pill } from '../../shared/ui/ListDetail.tsx';
 import { useStore } from '../../shared/use-store.ts';
-import { checklistRows, pendingWrites, reloadRow, settle, stage, switchWarning, type Checklist, type ChecklistRow } from './agent-checklist.ts';
+import { checklistRows, hasChanges, pendingWrites, reloadRow, settle, stage, switchWarning, type Checklist, type ChecklistRow } from './agent-checklist.ts';
 import { CONFLICT_LINE, sourceTag, statusPill } from './connector-copy.ts';
 import type { ConnectorsModel } from './connectors-model.ts';
 
@@ -93,7 +93,7 @@ export function AgentExtensionsSection(props: {
   }, [model]);
   const rows = list.kind === 'loaded' ? checklistRows(list.value.connectors, checklist, agent.id) : [];
   const writes = pendingWrites(rows, checklist, agent.id, props.agents.map(({ id }) => id));
-  const dirty = rows.some(({ change }) => change.kind !== 'none');
+  const dirty = list.kind === 'loaded' && hasChanges(list.value.connectors, checklist);
   useEffect(() => {
     props.onDirty(dirty);
   }, [dirty]);

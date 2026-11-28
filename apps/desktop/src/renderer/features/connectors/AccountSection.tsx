@@ -40,7 +40,7 @@ export function AccountSection(props: {
     onDirty(false);
   }, [onDirty]);
 
-  const setup = setupEditOf(shown.setup);
+  const setup = setupEditOf(shown.setup, connector.setup);
   const labelProblem = labelProblemOf(shown.label) ?? (refused?.field === 'label' ? refused.message : null);
   const ready = shown.label.trim() !== '' && labelProblemOf(shown.label) === null && setup.kind === 'ready';
   const edit = (change: Partial<Draft>): void => {
@@ -62,11 +62,12 @@ export function AccountSection(props: {
         onSubmit={(event) => {
           event.preventDefault();
           if (!dirty || !ready || busy) return;
+          const submitted = draft;
           setSaving(true);
           setRefused(null);
           void model.updateAccount(connector.id, { label: shown.label, setup: setup.value }).then((result) => {
             setSaving(false);
-            if (result.kind === 'saved') setDraft(null);
+            if (result.kind === 'saved') setDraft((current) => (current === submitted ? null : current));
             else setRefused(result);
           });
         }}

@@ -78,7 +78,7 @@ function checked<T>(schema: z.ZodType<T>, candidate: unknown): Checked<T> {
 }
 
 /** Arguments, one per line; blank lines at the end are not arguments. */
-function argsOf(text: string): string[] {
+function linesOf(text: string): string[] {
   const lines = text.split(/\r?\n/);
   while (lines.at(-1) === '') lines.pop();
   return lines;
@@ -95,7 +95,7 @@ const accountOf = (draft: ComposioDraft): ComposioAccount =>
 type SecretShape = 'new' | 'edit';
 
 /** The draft as an unchecked request body, or why it is not complete enough to check. */
-function candidateOf(draft: SetupDraft, shape: SecretShape): Checked<unknown> {
+function candidateOf(draft: SetupDraft, shape: SecretShape, argsOf: (text: string) => string[]): Checked<unknown> {
   const secret = (row: SecretRow) => (shape === 'new' ? set(row) : edit(row));
   switch (draft.kind) {
     case 'stdio': {
@@ -121,12 +121,47 @@ function candidateOf(draft: SetupDraft, shape: SecretShape): Checked<unknown> {
 
 /** A new connector's setup. */
 export function newSetupOf(draft: SetupDraft): Checked<ConnectorSetup> {
-  const candidate = candidateOf(draft, 'new');
+  const candidate = candidateOf(draft, 'new', linesOf);
   return candidate.kind === 'ready' ? checked(ConnectorSetup, candidate.value) : candidate;
 }
 
-/** An edit of a saved setup: blank saved secrets are kept, typed ones are set, removed names are dropped. */
-export function setupEditOf(draft: SetupDraft): Checked<ConnectorSetupEdit> {
-  const candidate = candidateOf(draft, 'edit');
-  return candidate.kind === 'ready' ? checked(ConnectorSetupEdit, candidate.value) : candidate;
+type Target = Pick<Extract<ConnectorSetupView, { kind: 'stdio' }>, 'kind' | 'command' | 'args'> | Pick<Extract<ConnectorSetupView, { kind: 'http' }>, 'kind' | 'url'> | Pick<Extract<ConnectorSetupView, { kind: 'composio' }>, 'kind' | 'serverUrl' | 'toolkit' | 'account'>;
+
+/** What a setup reaches, without its secrets, as the host compares it: a change points the connector somewhere new. */
+function targetOf(setup: Target): string {
+  switch (setup.kind) {
+    case 'stdio':
+      return JSON.stringify(['stdio', setup.command, setup.args]);
+    case 'http':
+      return JSON.stringify(['http', setup.url]);
+    case 'composio':
+      return JSON.stringify(['composio', setup.serverUrl, setup.toolkit, setup.account]);
+  }
+}
+
+function keepsSecrets(edit: ConnectorSetupEdit): boolean {
+  switch (edit.kind) {
+    case 'stdio':
+      return edit.env.some(({ kind }) => kind === 'keep');
+    case 'http':
+      return edit.headers.some(({ kind }) => kind === 'keep');
+    case 'composio':
+      return edit.apiKey.kind === 'keep';
+  }
+}
+
+export const RETARGET_LINE = 'This points the connector somewhere new: enter its keys and secret values again.';
+
+/**
+ * An edit of the saved setup `saved`: blank saved secrets are kept, typed ones are set, removed names are dropped.
+ * Untouched arguments are sent exactly as saved. Pointing it somewhere new asks for every secret again.
+ */
+export function setupEditOf(draft: SetupDraft, saved: ConnectorSetupView): Checked<ConnectorSetupEdit> {
+  const savedArgs = saved.kind === 'stdio' ? saved.args : null;
+  const args = (text: string): string[] => (savedArgs !== null && text === savedArgs.join('\n') ? [...savedArgs] : linesOf(text));
+  const candidate = candidateOf(draft, 'edit', args);
+  if (candidate.kind === 'invalid') return candidate;
+  const edit = checked(ConnectorSetupEdit, candidate.value);
+  if (edit.kind === 'ready' && keepsSecrets(edit.value) && targetOf(edit.value) !== targetOf(saved)) return { kind: 'invalid', reason: RETARGET_LINE };
+  return edit;
 }
