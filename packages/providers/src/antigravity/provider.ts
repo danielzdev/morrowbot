@@ -1,4 +1,4 @@
-import { defineProvider, type PluginRuntime, type ProviderError, type ProviderInfo, type ProviderPlugin, type RouteInfo } from '@morrowbot/plugin-sdk';
+import { acp, defineProvider, type PluginRuntime, type ProviderError, type ProviderInfo, type ProviderPlugin, type RouteInfo } from '@morrowbot/plugin-sdk';
 import { startDaemon } from './daemon.ts';
 import { platformReason, readyInfo } from './info.ts';
 import { createModelCatalog } from './models.ts';
@@ -20,13 +20,9 @@ export function createAntigravityProvider(runtime: PluginRuntime): ProviderPlugi
   let started: Started | undefined;
   let live: Live | undefined;
   let starting: Promise<Live | string> | undefined;
-  let breach: string | null = null;
-  /** Settles, once, when agy breaks the read-only rules: every turn on the daemon stops then. */
-  const fenced = Promise.withResolvers<string>();
+  const fence = acp.createFence();
   const onBreach = (reason: string): void => {
-    if (breach !== null) return;
-    breach = reason;
-    fenced.resolve(reason);
+    fence.trip(reason);
   };
 
   const current = (): Started => {
@@ -74,11 +70,12 @@ export function createAntigravityProvider(runtime: PluginRuntime): ProviderPlugi
       case 'above':
         break;
     }
+    const breach = fence.reason();
     if (breach !== null) return readyInfo(version, { tier: live?.tier ?? null, models: live?.catalog.models() ?? null, breach }, runtime.platform);
     const running = await ensureDaemon();
     if (typeof running === 'string') return { kind: 'error', message: running };
     if (running.signedOut) return { kind: 'signed-out', signIn: { kind: 'run-in-terminal', argv: [executable.path, 'acp', '--gemini-dir', geminiDir, '--login'] } };
-    return readyInfo(version, { tier: running.tier, models: running.catalog.models(), breach }, runtime.platform);
+    return readyInfo(version, { tier: running.tier, models: running.catalog.models(), breach: fence.reason() }, runtime.platform);
   };
 
   const routeInfo = (): RouteInfo =>
@@ -123,8 +120,7 @@ export function createAntigravityProvider(runtime: PluginRuntime): ProviderPlugi
         checkCli,
         checkWorkspace: (cwd, signal) => checkWorkspace(runtime.runCommand, cwd, signal),
         platformReason: platformReason(runtime.platform),
-        breach: () => breach,
-        fenced: fenced.promise,
+        fence,
         home: runtime.env.HOME ?? null,
       }),
   });

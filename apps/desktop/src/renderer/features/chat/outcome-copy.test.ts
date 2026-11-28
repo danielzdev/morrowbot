@@ -19,6 +19,7 @@ const ERRORS: { readonly [K in ProviderError['kind']]: Extract<ProviderError, { 
   'access-not-supported': { kind: 'access-not-supported', reason: 'Edits need /Users/sam/.claude to be writable.' },
   'binding-changed': { kind: 'binding-changed' },
   'instructions-changed': { kind: 'instructions-changed' },
+  'output-limit': { kind: 'output-limit', limit: 'bytes' },
   other: { kind: 'other', message: 'Claude exited: see /Users/sam/logs for sam@example.com' },
 };
 
@@ -53,6 +54,7 @@ it('words every outcome and ProviderError kind, with at most one action', () => 
       "failed/not-installed": "error | Claude's CLI is not installed. | [Open Providers]",
       "failed/other": "error | Claude exited: see ~/logs for <email> | [Continue]",
       "failed/outdated": "error | Claude's CLI is outdated. | [Open Providers]",
+      "failed/output-limit": "warning | The reply hit MorrowBot's output size limit and was cut off.",
       "failed/rate-limited": "warning | Claude's 5-hour limit is reached | resets 2026-11-27T11:10:00.000Z | [Continue]",
       "failed/route-changed": "warning | The provider's endpoint changed. | [Start a new seeded session]",
       "failed/session-lost": "error | Claude lost its saved session. | [Continue]",

@@ -1,4 +1,6 @@
 export { createChatService } from './chat-service.ts';
+export { DEFAULT_TURN_OUTPUT_BUDGET } from './output-budget.ts';
+export type { OutputLimitKind, TurnOutputBudget } from './output-budget.ts';
 export type { ApprovalResult, ChatService, RecheckResult, SendResult, SubagentStart } from './chat-service.ts';
 export type { ParentTurn } from './children.ts';
 export type { QueueAnswer } from './queue.ts';

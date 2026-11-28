@@ -8,7 +8,7 @@ import { startToolServer, type ToolGrant, type ToolServer } from './features/age
 import { createAgentService, createFolderService } from './features/agents/index.ts';
 import { startApiServer } from './features/api/index.ts';
 import { createAttachmentService, type AttachmentService } from './features/attachments/index.ts';
-import { createChatService } from './features/chat/index.ts';
+import { createChatService, type TurnOutputBudget } from './features/chat/index.ts';
 import { createConnectorRuntime, createConnectorService } from './features/connectors/index.ts';
 import type { HostConfig } from './features/config/index.ts';
 import { healthListener } from './features/health/index.ts';
@@ -60,6 +60,8 @@ export interface HostOptions {
   readonly vaultKeys?: VaultKeyChoice;
   /** Hook for per-agent tool plugin scoping (#36). Defaults to allowing all enabled tool plugins. */
   readonly isPluginAllowedForAgent?: (agentId: string, pluginId: string) => boolean;
+  /** Per-turn cap on streamed bytes and events; defaults to `DEFAULT_TURN_OUTPUT_BUDGET`. */
+  readonly turnOutputBudget?: TurnOutputBudget;
 }
 
 export interface Host {
@@ -204,6 +206,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
       now,
       hostEpoch: randomUUID(),
       report,
+      ...(options.turnOutputBudget === undefined ? {} : { turnOutputBudget: options.turnOutputBudget }),
     });
     const subagents = subagentService(storage, chat, plugins, newId, now);
     const routines = createRoutineService({
