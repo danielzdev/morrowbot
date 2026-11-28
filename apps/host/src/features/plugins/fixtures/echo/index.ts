@@ -8,6 +8,7 @@ import { defineProvider, runPlugin, z, type AccessProfile, type PluginConfig, ty
  * The `account` file in its data folder, when present, overrides the account it is signed in to.
  * With `sessions` on it keeps fake vendor sessions, so the host's session rules can be exercised.
  * `steerable` takes a steer mid-turn; `gate` runs until a `gate` file appears in its data folder.
+ * `tools-gate` reads a file (ok), then runs a command that fails once the `gate` file appears.
  * A prompt whose first line is `nothing-new` gets only the stay-quiet marker back, as a routine's agent would send.
  * Each prompt line `host-tool <name> <json arguments>` calls that MorrowBot tool over the turn's MCP endpoint
  * and answers with the results; `{{message}}` in the arguments is the id of the agent message being read.
@@ -112,6 +113,28 @@ runPlugin((runtime) =>
       }
       const command = reaction ? (/ on-reaction (\S+)$/m.exec(prompt)?.[1] ?? prompt) : prompt;
       if (prompt.split('\n')[0] === 'nothing-new') return end({ kind: 'completed', finishReason: 'stop' }, current, { finalText: QUIET_MARKER });
+      if (command === 'huge-final') return end({ kind: 'completed', finishReason: 'stop' }, current, { finalText: '01234567890123456789ab😀cd' });
+      if (command === 'flood-bytes') {
+        for (const chunk of ['0123456789', '0123456789', 'ab😀cd', 'zzzzzzzzzz', 'yyyyyyyyyy']) {
+          if (signal.aborted) break;
+          emit({ kind: 'text', text: chunk });
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+        return end(signal.aborted ? { kind: 'cancelled' } : { kind: 'completed', finishReason: 'stop' }, current);
+      }
+      if (command === 'flood-bytes-unstoppable') {
+        for (let i = 0; i < 10; i += 1) emit({ kind: 'text', text: 'X'.repeat(10) });
+        return new Promise(() => undefined);
+      }
+      if (command === 'flood-events') {
+        emit({ kind: 'text', text: 'hello' });
+        for (let i = 1; i <= 30; i += 1) {
+          if (signal.aborted) break;
+          emit({ kind: 'status', text: `step ${String(i)}` });
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+        return end(signal.aborted ? { kind: 'cancelled' } : { kind: 'completed', finishReason: 'stop' }, current);
+      }
       emit({ kind: 'text', text: `${String(config.greeting)} from pid ${String(process.pid)}:` });
       if (prompt.endsWith('describe-input')) {
         const images = request.images.map(({ mimeType, data }) => ({ mimeType, bytes: Buffer.from(data, 'base64').length }));
@@ -177,6 +200,15 @@ runPlugin((runtime) =>
           await runTools(toolCalls(steered, /^host-tool (\S+) (\{.*\})$/), undefined, false);
           return end({ kind: 'completed', finishReason: 'stop' }, current);
         }
+        case 'tools-gate':
+          emit({ kind: 'tool-start', toolUseId: 'read-1', name: 'Read', input: { file_path: 'notes.md' } });
+          emit({ kind: 'tool-end', toolUseId: 'read-1', outcome: 'ok' });
+          emit({ kind: 'tool-start', toolUseId: 'bash-1', name: 'Bash', input: { command: 'make test' } });
+          while (!existsSync(path.join(dataDir, 'gate')) && !signal.aborted) await new Promise((resolve) => setTimeout(resolve, 20));
+          if (signal.aborted) return end({ kind: 'cancelled' }, current);
+          emit({ kind: 'tool-end', toolUseId: 'bash-1', outcome: 'error' });
+          emit({ kind: 'text', text: ' tests failed' });
+          return end({ kind: 'completed', finishReason: 'stop' }, current);
         case 'gate':
           while (!existsSync(path.join(dataDir, 'gate')) && !signal.aborted) await new Promise((resolve) => setTimeout(resolve, 20));
           return end(signal.aborted ? { kind: 'cancelled' } : { kind: 'completed', finishReason: 'stop' }, current);

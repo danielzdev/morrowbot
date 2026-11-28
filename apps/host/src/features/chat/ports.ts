@@ -11,6 +11,7 @@ import type {
   LastMessage,
   Message,
   MessageReaction,
+  MessageToolSteps,
   ProviderInfo,
   Thread,
   TurnChunk,
@@ -18,11 +19,13 @@ import type {
   TurnOutcome,
   TurnRequest,
   TurnUsage,
+  ToolStep,
   ReactionActor,
   UsageResult,
   UsageWindow,
   VendorSettings,
 } from '@morrowbot/contracts';
+import type { TurnOutputBudget } from './output-budget.ts';
 import type { Prelude } from './prompt.ts';
 
 export type SessionState = 'clean' | 'diverged' | 'needs-seed';
@@ -80,6 +83,20 @@ export interface ChatStore {
     lastInThread(threadId: string): LastMessage | null;
     /** Whether the thread's newest message is a reply that failed. */
     endsFailed(threadId: string): boolean;
+  };
+  /** Each turn's tool calls, saved as they start and end (see the storage feature's tool-steps repository). */
+  readonly toolSteps: {
+    start(step: {
+      readonly generationId: string;
+      readonly toolUseId: string;
+      readonly name: string;
+      readonly input: ToolStep['input'];
+      readonly startedAt: string;
+    }): void;
+    end(generationId: string, toolUseId: string, outcome: 'ok' | 'error', endedAt: string): void;
+    listOpen(generationId: string): ToolStep[];
+    close(generationId: string, messageId: string | null): void;
+    listByThread(threadId: string): MessageToolSteps[];
   };
   readonly reactions: {
     /** False when the actor already has this emoji on the message. */
@@ -267,6 +284,8 @@ export interface ChatServiceOptions {
   readonly hostEpoch: string;
   /** Called with errors that have no caller to return to, such as a failed write after a generation. */
   readonly report: (error: unknown) => void;
+  /** Per-turn cap on streamed bytes and events; defaults to `DEFAULT_TURN_OUTPUT_BUDGET`. */
+  readonly turnOutputBudget?: TurnOutputBudget;
 }
 
 export type ChatListener = (event: ChatEvent) => void;

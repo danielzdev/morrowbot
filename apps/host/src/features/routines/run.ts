@@ -121,6 +121,10 @@ function providerFailure(error: ProviderError): string {
       return 'The provider is signed out.';
     case 'background-not-allowed':
       return 'This provider does not allow unattended runs.';
+    case 'output-limit':
+      return error.limit === 'events'
+        ? 'The provider sent too many updates and was stopped.'
+        : 'The provider output exceeded the size limit and was stopped.';
     case 'account-changed':
     case 'not-installed':
     case 'outdated':

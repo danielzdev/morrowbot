@@ -126,6 +126,7 @@ export const SAMPLE_ACTIVE: Readonly<Record<string, ThreadState['activeTurn']>> 
         ],
       },
     ],
+    toolSteps: [],
   },
 };
 

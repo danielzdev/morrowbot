@@ -26,6 +26,7 @@ import { t3WatchRepository, type T3WatchRepository } from './t3-watches-repo.ts'
 import { subagentRunRepository, type SubagentRunRepository } from './subagent-runs-repo.ts';
 import { threadRepository, type ThreadRepository } from './threads-repo.ts';
 import { tokenTotalsRepository, type TokenTotalsRepository } from './token-totals-repo.ts';
+import { toolStepRepository, type ToolStepRepository } from './tool-steps-repo.ts';
 import { usageSnapshotRepository, type UsageSnapshotRepository } from './usage-repo.ts';
 import { waitRepository, type WaitRepository } from './waits-repo.ts';
 
@@ -34,6 +35,7 @@ export interface Storage {
   readonly folders: FolderRepository;
   readonly threads: ThreadRepository;
   readonly messages: MessageRepository;
+  readonly toolSteps: ToolStepRepository;
   readonly reactions: ReactionRepository;
   readonly chatSettings: ChatSettingsRepository;
   readonly queued: QueuedRepository;
@@ -75,6 +77,7 @@ export function openStorage(file: string, now: () => string): Storage {
       folders: folderRepository(db),
       threads: threadRepository(db),
       messages: messageRepository(db),
+      toolSteps: toolStepRepository(db),
       reactions: reactionRepository(db),
       chatSettings: chatSettingsRepository(db),
       queued: queuedRepository(db),

@@ -10,6 +10,7 @@ import {
   PairingCode,
   PluginList,
   ProviderInfoResponse,
+  ThreadState,
   TokenUsageResponse,
 } from './index.ts';
 
@@ -190,6 +191,58 @@ describe('lenient', () => {
           true,
         ],
       ]
+    `);
+  });
+
+  it("reads an older host's thread state as having no tool steps, and drops fields a newer host adds to a step", () => {
+    const thread = { id: 't1', agentId: 'a1', title: 'Chat', createdAt: NOW, updatedAt: NOW };
+    const turn = { generationId: 'g1', trigger: { kind: 'chat' }, state: 'running', queueNote: null, text: '', pendingApprovals: [] };
+    const base = { thread, messages: [], queue: [], blockedGroups: [], subagents: [], cursor: { hostEpoch: 'e1', seq: 1 } };
+    const step = { toolUseId: 'r1', name: 'Read', input: { file_path: 'a.md' }, outcome: 'ok', startedAt: NOW, endedAt: NOW, output: 'hi' };
+    const older = { ...base, activeTurn: turn };
+    const newer = { ...base, toolSteps: [{ messageId: 'm1', steps: [step] }], activeTurn: { ...turn, toolSteps: [step] } };
+    const read = (state: unknown) => {
+      const result = lenient(ThreadState).safeParse(state);
+      return result.success ? { toolSteps: result.data.toolSteps, active: result.data.activeTurn?.toolSteps } : outcome(result);
+    };
+    expect({ older: read(older), newer: read(newer) }).toMatchInlineSnapshot(`
+      {
+        "newer": {
+          "active": [
+            {
+              "endedAt": "2026-11-27T12:00:00.000Z",
+              "input": {
+                "file_path": "a.md",
+              },
+              "name": "Read",
+              "outcome": "ok",
+              "startedAt": "2026-11-27T12:00:00.000Z",
+              "toolUseId": "r1",
+            },
+          ],
+          "toolSteps": [
+            {
+              "messageId": "m1",
+              "steps": [
+                {
+                  "endedAt": "2026-11-27T12:00:00.000Z",
+                  "input": {
+                    "file_path": "a.md",
+                  },
+                  "name": "Read",
+                  "outcome": "ok",
+                  "startedAt": "2026-11-27T12:00:00.000Z",
+                  "toolUseId": "r1",
+                },
+              ],
+            },
+          ],
+        },
+        "older": {
+          "active": [],
+          "toolSteps": [],
+        },
+      }
     `);
   });
 

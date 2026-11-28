@@ -118,7 +118,7 @@ export const TurnSession = z.discriminatedUnion('kind', [
 ]);
 export type TurnSession = z.infer<typeof TurnSession>;
 
-/** Why a provider turn failed. `binding-changed` and `instructions-changed` are set by the host only. */
+/** Why a provider turn failed. `binding-changed`, `instructions-changed` and `output-limit` are set by the host only. */
 export const ProviderError = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('rate-limited'), resetsAt: Timestamp.nullable(), windowId: z.string().min(1).nullable() }),
   z.strictObject({ kind: z.literal('signed-out') }),
@@ -134,6 +134,7 @@ export const ProviderError = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('access-not-supported'), reason: z.string().min(1).nullable() }),
   z.strictObject({ kind: z.literal('binding-changed') }),
   z.strictObject({ kind: z.literal('instructions-changed') }),
+  z.strictObject({ kind: z.literal('output-limit'), limit: z.enum(['bytes', 'events']) }),
   z.strictObject({ kind: z.literal('other'), message: z.string() }),
 ]);
 export type ProviderError = z.infer<typeof ProviderError>;

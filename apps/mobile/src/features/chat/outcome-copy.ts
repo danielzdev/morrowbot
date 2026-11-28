@@ -32,6 +32,10 @@ function errorText(error: ProviderError): string {
     case 'binding-changed':
     case 'instructions-changed':
       return 'The agent’s settings changed during this reply.';
+    case 'output-limit':
+      return error.limit === 'events'
+        ? 'The reply sent too many updates and was stopped.'
+        : 'The reply hit the output size limit and was cut off.';
     case 'other':
       return 'The reply failed.';
   }

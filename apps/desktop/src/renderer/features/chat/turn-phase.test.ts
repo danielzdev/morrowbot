@@ -17,6 +17,7 @@ const IDLE: ThreadState = {
   blockedGroups: [],
   subagents: [],
   reactions: [],
+  toolSteps: [],
   cursor: { hostEpoch: 'e', seq: 0 },
 };
 const DISPLAY = { path: (path: string) => path, redact: (text: string) => text };
@@ -114,7 +115,7 @@ it('puts the avatar beside the running turn and brief completion beat, then hide
     { kind: 'generation.tool-start', ...turn(2), toolUseId: 'w', name: 'WebSearch', input: { query: 'tide tables' } },
   ]);
   const finished = play(running, [{ kind: 'generation.finished', ...turn(3), message: REPLY }], 12_000);
-  const openedMidTurn = play(viewOf({ ...IDLE, messages: [USER], activeTurn: { generationId: 'g', trigger: { kind: 'chat' }, state: 'running', queueNote: null, text: 'High', pendingApprovals: [] } }), [
+  const openedMidTurn = play(viewOf({ ...IDLE, messages: [USER], activeTurn: { generationId: 'g', trigger: { kind: 'chat' }, state: 'running', queueNote: null, text: 'High', pendingApprovals: [], toolSteps: [] } }), [
     { kind: 'generation.finished', ...turn(1), message: REPLY },
   ]);
   expect({

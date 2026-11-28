@@ -7,6 +7,6 @@ export { Composer } from './Composer.tsx';
 export { chatDisplay, type ChatDisplay } from './display.ts';
 export { localDrafts, memoryDrafts, type DraftStore } from './drafts.ts';
 export { outcomeCopy, sessionChoiceCopy, bannerCopy, type OutcomeCopy } from './outcome-copy.ts';
-export { applyEvent, pendingApprovals, viewOf, type ThreadView } from './thread-model.ts';
+export { applyEvent, pendingApprovals, viewOf, type ThreadView, type TurnStep } from './thread-model.ts';
 export { openThreadSession, type ThreadScreen, type ThreadSession } from './thread-session.ts';
 export { chatMarkdown } from './chat-markdown.ts';

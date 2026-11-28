@@ -1,7 +1,8 @@
 import { realpath } from 'node:fs/promises';
-import type { Attachment, ProviderInfo, TurnChunk, TurnEnd, TurnRequest, TurnSession, UsageWindow } from '@morrowbot/contracts';
+import type { Attachment, ProviderInfo, ToolStep, TurnChunk, TurnEnd, TurnOutcome, TurnRequest, TurnSession, UsageWindow } from '@morrowbot/contracts';
 import { profileAllowed } from './admission-rules.ts';
 import { bindingOf } from './children.ts';
+import { DEFAULT_TURN_OUTPUT_BUDGET, sliceUtf8, type OutputLimitKind } from './output-budget.ts';
 import type { TurnSink } from './ports.ts';
 import { buildTurnInput, type TurnInput } from './prompt.ts';
 import { steerDelivered, steerRefused } from './queue.ts';
@@ -59,7 +60,7 @@ export async function dispatch(core: ChatCore, turn: Turn): Promise<void> {
       return;
     }
   }
-  const seed = seedFor(turn);
+  const seed = seedFor(core, turn);
   turn.seedTruncated = seed.truncated;
   turn.systemHash = hash;
   const session: TurnSession = turn.plan.kind === 'resume' ? { kind: 'resume', ref: turn.plan.ref } : { kind: 'new', seed: seed.text };
@@ -147,12 +148,14 @@ function accountMoved(turn: Turn, info: ProviderInfo): boolean {
   return !info.capabilities.sessions && info.accountKey !== '' && info.accountKey !== turn.accountKey;
 }
 
-function seedFor(turn: Turn): Seed {
+function seedFor(core: ChatCore, turn: Turn): Seed {
+  const tools = (): ReadonlyMap<string, readonly ToolStep[]> =>
+    new Map(core.options.store.toolSteps.listByThread(turn.threadId).map(({ messageId, steps }) => [messageId, steps]));
   switch (turn.plan.kind) {
     case 'stateless':
-      return renderSeed(turn.history, statelessBudget(turn.maxSeedBytes));
+      return renderSeed(turn.history, statelessBudget(turn.maxSeedBytes), tools());
     case 'fresh':
-      return turn.plan.seeded ? renderSeed(turn.history, SEEDED_SESSION_BUDGET) : { text: null, truncated: false };
+      return turn.plan.seeded ? renderSeed(turn.history, SEEDED_SESSION_BUDGET, tools()) : { text: null, truncated: false };
     case 'resume':
       return { text: null, truncated: false };
   }
@@ -161,38 +164,72 @@ function seedFor(turn: Turn): Seed {
 function sinkFor(core: ChatCore, turn: Turn): TurnSink {
   return {
     onChunk: (chunk) => {
-      if (turn.state !== 'running' || turn.fenced) return;
+      if (turn.state !== 'running' || turn.fenced || turn.outputExceeded !== null) return;
       onChunk(core, turn, chunk);
     },
     onEnd: (end) => {
       onEnd(core, turn, end);
     },
     onLost: () => {
-      settle(core, turn, { ...localSettlement({ kind: 'interrupted' }), sessionTouched: true });
+      if (turn.fenced) {
+        turn.text = '';
+        turn.textBytes = 0;
+        settle(core, turn, { ...localSettlement({ kind: 'failed', error: { kind: 'account-changed' } }), sessionTouched: true });
+        return;
+      }
+      const outcome: TurnOutcome =
+        turn.outputExceeded !== null ? { kind: 'failed', error: { kind: 'output-limit', limit: turn.outputExceeded } } : { kind: 'interrupted' };
+      settle(core, turn, { ...localSettlement(outcome), sessionTouched: true });
     },
   };
+}
+
+function exceedOutputBudget(core: ChatCore, turn: Turn, limit: OutputLimitKind): void {
+  turn.outputExceeded = limit;
+  turn.stopRequested = true;
+  core.options.tools.close(turn.generationId);
+  core.options.plugins.cancelTurn(turn.pluginId, turn.generationId);
 }
 
 function onChunk(core: ChatCore, turn: Turn, chunk: TurnChunk): void {
   const ref = { threadId: turn.threadId, generationId: turn.generationId };
   const { store } = core.options;
+  const budget = core.options.turnOutputBudget ?? DEFAULT_TURN_OUTPUT_BUDGET;
+  turn.chunkCount += 1;
+  if (turn.chunkCount > budget.maxEvents) {
+    exceedOutputBudget(core, turn, 'events');
+    return;
+  }
   switch (chunk.kind) {
-    case 'text':
+    case 'text': {
       if (chunk.text === '') return;
-      turn.text += chunk.text;
-      core.events.publish({ kind: 'generation.delta', ...ref, text: chunk.text });
-      turn.flushTimer ??= setTimeout(() => {
-        turn.flushTimer = undefined;
-        if (turn.state === 'running') store.generations.flushPartial(turn.generationId, turn.text);
-      }, FLUSH_MS);
+      const kept = sliceUtf8(chunk.text, budget.maxBytes - turn.textBytes);
+      const exceeded = kept.length < chunk.text.length;
+      if (kept !== '') {
+        turn.text += kept;
+        turn.textBytes += Buffer.byteLength(kept, 'utf8');
+        core.events.publish({ kind: 'generation.delta', ...ref, text: kept });
+        turn.flushTimer ??= setTimeout(() => {
+          turn.flushTimer = undefined;
+          if (turn.state === 'running') store.generations.flushPartial(turn.generationId, turn.text);
+        }, FLUSH_MS);
+      }
+      if (exceeded) exceedOutputBudget(core, turn, 'bytes');
       return;
+    }
     case 'status':
       core.events.publish({ kind: 'generation.status', ...ref, state: 'running', queueNote: null, detail: chunk.text });
       return;
     case 'tool-start':
+      saveStep(core, () => {
+        store.toolSteps.start({ generationId: turn.generationId, toolUseId: chunk.toolUseId, name: chunk.name, input: chunk.input, startedAt: core.options.now() });
+      });
       core.events.publish({ kind: 'generation.tool-start', ...ref, toolUseId: chunk.toolUseId, name: chunk.name, input: chunk.input });
       return;
     case 'tool-end':
+      saveStep(core, () => {
+        store.toolSteps.end(turn.generationId, chunk.toolUseId, chunk.outcome, core.options.now());
+      });
       core.events.publish({ kind: 'generation.tool-end', ...ref, toolUseId: chunk.toolUseId, outcome: chunk.outcome });
       return;
     case 'session-bound': {
@@ -239,6 +276,15 @@ function onChunk(core: ChatCore, turn: Turn, chunk: TurnChunk): void {
   }
 }
 
+/** A tool step that could not be saved is still shown live; only a reload loses it. */
+function saveStep(core: ChatCore, work: () => void): void {
+  try {
+    work();
+  } catch (error) {
+    core.options.report(error);
+  }
+}
+
 function mergeLiveUsage(core: ChatCore, turn: Turn, observedAt: string, windows: readonly UsageWindow[]): void {
   const current = core.liveUsage.get(turn.pluginId);
   const live: LiveUsage = current?.worker === turn.worker ? current : { worker: turn.worker, windows: new Map() };
@@ -254,9 +300,34 @@ function onEnd(core: ChatCore, turn: Turn, end: TurnEnd): void {
   const otherAccount = turn.accountKey !== '' && end.accountKey !== '' && end.accountKey !== turn.accountKey;
   if (turn.fenced || otherAccount) {
     turn.text = '';
+    turn.textBytes = 0;
     settle(core, turn, { ...localSettlement({ kind: 'failed', error: { kind: 'account-changed' } }), sessionTouched: end.sessionTouched });
     if (otherAccount && !turn.fenced) accountChanged(core, turn.pluginId, turn.accountKey);
     return;
+  }
+  if (turn.outputExceeded !== null) {
+    settle(core, turn, {
+      outcome: { kind: 'failed', error: { kind: 'output-limit', limit: turn.outputExceeded } },
+      usage: end.usage,
+      actualModel: end.actualModel,
+      finalText: null,
+      sessionTouched: end.sessionTouched,
+    });
+    return;
+  }
+  const budget = core.options.turnOutputBudget ?? DEFAULT_TURN_OUTPUT_BUDGET;
+  if (turn.text === '' && end.finalText !== null) {
+    const kept = sliceUtf8(end.finalText, budget.maxBytes);
+    if (kept.length < end.finalText.length) {
+      settle(core, turn, {
+        outcome: { kind: 'failed', error: { kind: 'output-limit', limit: 'bytes' } },
+        usage: end.usage,
+        actualModel: end.actualModel,
+        finalText: kept,
+        sessionTouched: end.sessionTouched,
+      });
+      return;
+    }
   }
   settle(core, turn, { outcome: end.outcome, usage: end.usage, actualModel: end.actualModel, finalText: end.finalText, sessionTouched: end.sessionTouched });
   if (end.outcome.kind !== 'failed') return;

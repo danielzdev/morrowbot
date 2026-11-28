@@ -14,6 +14,7 @@ import { AccountKey, ApprovalChoice, ProviderInfo, TurnOutcome, UsageResult } fr
 import { MessageReaction } from './reactions.ts';
 import { ThreadChanged } from './thread-activity.ts';
 import { Thread } from './threads.ts';
+import { MessageToolSteps, ToolStep } from './tool-steps.ts';
 
 export const ProviderUnavailableReason = z.enum(['route-info-timeout', 'route-info-failed', 'daemon-blocked', 'rechecking']);
 export type ProviderUnavailableReason = z.infer<typeof ProviderUnavailableReason>;
@@ -149,6 +150,8 @@ export const ActiveTurn = z.strictObject({
   /** Everything streamed so far, including text not yet saved. */
   text: z.string(),
   pendingApprovals: z.array(PendingApproval),
+  /** The tool calls since the turn started or was last steered, oldest first. Older hosts send none. */
+  toolSteps: z.array(ToolStep).default([]),
 });
 export type ActiveTurn = z.infer<typeof ActiveTurn>;
 
@@ -158,6 +161,8 @@ export const ThreadState = z.strictObject({
   messages: z.array(Message),
   /** Every reaction on the thread's messages, oldest first. */
   reactions: z.array(MessageReaction).default([]),
+  /** The tool calls behind each saved reply that made any, in message order. Older hosts send none. */
+  toolSteps: z.array(MessageToolSteps).default([]),
   activeTurn: ActiveTurn.nullable(),
   /** Messages sent while a turn ran that the agent has not seen yet, oldest first. */
   queue: z.array(QueuedMessage),
