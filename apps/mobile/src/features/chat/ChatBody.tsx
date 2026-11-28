@@ -39,7 +39,7 @@ function useKeyboardShown(): boolean {
 function composerFrame(metrics: NativeLayoutMetrics | null, keyboard: boolean) {
   const bottom = deriveBottomControlInsets(metrics);
   const placement = deriveActionSlotPlacement(metrics);
-  const actions = placement.kind === 'floating' && metrics !== null ? placement.right + ACTION_SLOT_METRICS.buttonSize + spacing[2] : 0;
+  const actions = placement.kind === 'floating' ? placement.right + ACTION_SLOT_METRICS.buttonSize + spacing[2] : 0;
   return {
     left: bottom.left + EDGE,
     right: Math.max(bottom.right + EDGE, actions),

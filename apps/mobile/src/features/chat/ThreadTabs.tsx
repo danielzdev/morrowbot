@@ -21,7 +21,7 @@ export function ThreadTabs(props: {
   const tabs = threadTabs(props.threads);
   if (tabs.length < 2) return null;
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.strip}>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.bar} contentContainerStyle={styles.strip}>
       {tabs.map((thread, index) => {
         const current = thread.id === props.currentId;
         const isMain = index === 0;
@@ -47,6 +47,7 @@ export function ThreadTabs(props: {
 }
 
 const styles = StyleSheet.create({
+  bar: { flexGrow: 0 },
   strip: { gap: spacing[2], paddingHorizontal: spacing[4], paddingBottom: spacing[2] },
   tab: {
     flexDirection: 'row',

@@ -56,6 +56,8 @@ export function MessageList(props: {
   const { colors } = useTheme();
   const scroll = useRef<ScrollViewInstance>(null);
   const following = useRef(true);
+  /** Until the user first scrolls, every jump to the end is instant, so late layout never leaves it short. */
+  const settled = useRef(false);
   const { activeTurn } = props;
   const last = props.messages.at(-1);
   return (
@@ -65,12 +67,15 @@ export function MessageList(props: {
       contentContainerStyle={[styles.content, { paddingBottom: props.bottomInset + spacing[4] }]}
       keyboardDismissMode="interactive"
       scrollEventThrottle={32}
+      onScrollBeginDrag={() => {
+        settled.current = true;
+      }}
       onScroll={({ nativeEvent }) => {
         const { contentOffset, contentSize, layoutMeasurement } = nativeEvent;
         following.current = contentOffset.y + layoutMeasurement.height >= contentSize.height - FOLLOW_SLACK;
       }}
       onContentSizeChange={() => {
-        if (following.current) scroll.current?.scrollToEnd({ animated: true });
+        if (following.current) scroll.current?.scrollToEnd({ animated: settled.current });
       }}
     >
       {props.messages.length === 0 && activeTurn === null ? (
