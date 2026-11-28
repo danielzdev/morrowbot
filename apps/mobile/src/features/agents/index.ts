@@ -1,1 +1,1 @@
-export { agentsTab } from './agents-tab.tsx';
+export { createAgentsTab } from './agents-tab.tsx';
