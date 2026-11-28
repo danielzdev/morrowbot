@@ -39,6 +39,7 @@ import type {
   SessionChoiceReason,
   StopGenerationResponse,
   T3Watch,
+  T3WatchAck,
   Thread,
   ThreadState,
   TokenRange,
@@ -255,6 +256,7 @@ export interface ApiT3Watches {
   register(request: RegisterT3WatchRequest): T3Watch;
   list(): T3Watch[];
   remove(watchId: string): boolean;
+  ack(ack: T3WatchAck): { readonly kind: 'acked' | 'already_acked' | 'unknown_batch' };
 }
 
 export interface ApiServices {

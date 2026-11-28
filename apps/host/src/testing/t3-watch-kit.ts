@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import type { RegisterT3WatchRequest, T3Watch } from '@morrowbot/contracts';
+import type { RegisterT3WatchRequest, T3Watch, T3WatchBatch } from '@morrowbot/contracts';
 import { openStorage, type Storage } from '../features/storage/index.ts';
 import {
   classifyFailure,
@@ -10,6 +10,8 @@ import {
   parseShow,
   type ListResult,
   type ProbeResult,
+  type SinkAnswer,
+  type T3DeliverySink,
   type T3Probe,
   type T3WatchClock,
   type T3WatchService,
@@ -55,14 +57,16 @@ export class FakeT3 implements T3Probe {
   readonly lists: string[] = [];
   /** `down`: every call fails as if the T3 server were gone. */
   down = false;
+  /** Threads whose reads fail as a lost connection would, while other threads read fine. */
+  readonly unreadable = new Set<string>();
   /** While set, calls wait until `release` (to observe calls in flight). */
   holding = false;
   inFlight = 0;
   maxInFlight = 0;
   private readonly held: (() => void)[] = [];
-  private readonly clock: FakeClock;
+  private readonly clock: Pick<T3WatchClock, 'now'>;
 
-  constructor(clock: FakeClock) {
+  constructor(clock: Pick<T3WatchClock, 'now'>) {
     this.clock = clock;
   }
 
@@ -110,7 +114,7 @@ export class FakeT3 implements T3Probe {
     this.reads.push({ threadId, at: this.clock.now() });
     await this.enter();
     try {
-      if (this.down) return { kind: 'unreachable', detail: 'Could not reach the T3 Code server at http://127.0.0.1:3773.' };
+      if (this.down || this.unreadable.has(threadId)) return { kind: 'unreachable', detail: 'Could not reach the T3 Code server at http://127.0.0.1:3773.' };
       const thread = this.threads.get(threadId);
       if (thread === undefined) {
         const failure = classifyFailure(`Thread ${threadId} is no longer available.\n`);
@@ -147,12 +151,28 @@ export class FakeT3 implements T3Probe {
   }
 }
 
+/** The orchestrator's routine as the lane sees it: `busy` while a run or a user turn goes on; every send is kept. */
+export class FakeSink implements T3DeliverySink {
+  running = false;
+  answer: SinkAnswer = { kind: 'sent' };
+  readonly sent: T3WatchBatch[] = [];
+  busy(): boolean {
+    return this.running;
+  }
+  deliver(batch: T3WatchBatch): Promise<SinkAnswer> {
+    this.sent.push(batch);
+    return Promise.resolve(this.answer);
+  }
+}
+
 export interface Kit {
   readonly clock: FakeClock;
   readonly t3: FakeT3;
   readonly dir: string;
   readonly warnings: string[];
   readonly errors: unknown[];
+  /** Null unless the kit was started with `delivery`. */
+  readonly sink: FakeSink | null;
   service: T3WatchService;
   storage: Storage;
   register(request: Partial<RegisterT3WatchRequest> & { threadId: string }): T3Watch;
@@ -160,6 +180,10 @@ export interface Kit {
   step(ms?: number): Promise<void>;
   /** Steps second by second for `ms`. */
   run(ms: number): Promise<void>;
+  /** Steps second by second until `done` holds (at most `ms`); the seconds it took. */
+  until(done: () => boolean, ms?: number): Promise<number>;
+  /** Every send so far, with times as seconds since the start and events as kind, thread and id. */
+  sent(): unknown[];
   /** The queued events, with times as seconds since the start and runs as their ordinal. */
   events(): unknown[];
   watches(): { thread: string; source: string; state: string; reason: string | null; run: string | null; settled: boolean }[];
@@ -171,20 +195,22 @@ export interface Kit {
 const since = (iso: string): string => `+${String((Date.parse(iso) - START) / 1000)}s`;
 const ordinal = (runId: string | null): string | null => (runId === null ? null : `#${runId.split(':').at(-1) ?? '?'}`);
 
-export async function startKit(options: { readonly projects?: readonly string[] } = {}): Promise<Kit> {
+export async function startKit(options: { readonly projects?: readonly string[]; readonly delivery?: boolean } = {}): Promise<Kit> {
   const root = await mkdtemp(path.join(tmpdir(), 'morrowbot-t3-watch-'));
   const dir = path.join(root, 't3-watch');
   const clock = new FakeClock();
   const t3 = new FakeT3(clock);
   const warnings: string[] = [];
   const errors: unknown[] = [];
+  const sink = options.delivery === true ? new FakeSink() : null;
   let id = 0;
   const open = (): { storage: Storage; service: T3WatchService } => {
     const storage = openStorage(path.join(root, 'morrowbot.sqlite'), () => new Date(clock.now()).toISOString());
     const service = createT3WatchService({
-      store: { watches: storage.t3Watches, outbox: storage.t3Outbox, transaction: (work) => storage.transaction(work) },
+      store: { watches: storage.t3Watches, outbox: storage.t3Outbox, batches: storage.t3Batches, transaction: (work) => storage.transaction(work) },
       probe: t3,
       clock,
+      sink,
       dir,
       projects: options.projects ?? [],
       newId: () => `id-${String(++id)}`,
@@ -204,12 +230,35 @@ export async function startKit(options: { readonly projects?: readonly string[] 
     dir,
     warnings,
     errors,
+    sink,
     ...open(),
     register: (request) => kit.service.register({ launchedAt: new Date(clock.now()).toISOString(), exclusive: false, ...request }),
     step,
     run: async (ms) => {
       for (let elapsed = 0; elapsed < ms; elapsed += 1000) await step(1000);
     },
+    until: async (done, ms = 30 * 60_000) => {
+      let elapsed = 0;
+      while (!done()) {
+        if (elapsed >= ms) throw new Error(`Still waiting after ${String(ms / 1000)} s`);
+        await step(1000);
+        elapsed += 1000;
+      }
+      return elapsed / 1000;
+    },
+    sent: () =>
+      (sink?.sent ?? []).map((batch) => ({
+        batchId: batch.batchId,
+        attempt: batch.attempt,
+        asOf: since(batch.asOf),
+        events: batch.events.map(({ event, unverified }) => ({
+          kind: event.kind,
+          ...(event.scope === 'watch' ? { thread: event.threadId } : {}),
+          eventId: event.eventId,
+          ...(unverified ? { unverified } : {}),
+        })),
+        status: batch.status.map((row) => `${row.threadId} ${row.state}`),
+      })),
     events: () =>
       kit.service.pending().map((event) =>
         event.scope === 'watch'

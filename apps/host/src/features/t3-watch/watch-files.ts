@@ -5,6 +5,10 @@ import type { FileCursor } from './ports.ts';
 
 export const REQUESTS_FILE = 'requests.jsonl';
 export const CURRENT_WATCHES_FILE = 'current-watches.json';
+/** The orchestrator appends acks here when it cannot reach the host API. */
+export const ACKS_FILE = 'acks.jsonl';
+/** The orchestrator's own durable record of what it handled; the host never reads it. */
+export const HANDLED_FILE = 'handled.jsonl';
 
 export type NewLines =
   | { readonly kind: 'missing' }
