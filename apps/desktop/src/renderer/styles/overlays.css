@@ -28,6 +28,11 @@
   outline: none;
 }
 
+.popover,
+.modal {
+  -webkit-app-region: no-drag;
+}
+
 .menu {
   min-width: 208px;
 }

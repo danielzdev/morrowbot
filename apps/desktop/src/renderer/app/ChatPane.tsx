@@ -121,7 +121,6 @@ export function ChatPane(props: {
         unread={(id) => id in state.unread}
         sidebarButton={props.chrome.sidebarButton}
         onShowSidebar={props.chrome.showSidebar}
-        onAgentSettings={() => { props.onAgentSettings('general'); }}
         onNewChat={props.onNewChat}
         onOpen={(id) => {
           models.agents.openThread(agent.id, id);
