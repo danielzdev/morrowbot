@@ -1,10 +1,10 @@
 import type { ProviderBinding } from '@morrowbot/contracts';
 import { AccessSegment } from '../../shared/binding-ui/AccessSegment.tsx';
-import { accessState, modelState } from '../../shared/binding-ui/binding-state.ts';
+import { accessState, modelState, unrunnableReason } from '../../shared/binding-ui/binding-state.ts';
 import { ModelList } from '../../shared/binding-ui/ModelList.tsx';
 import { OptionColumn } from '../../shared/binding-ui/OptionColumn.tsx';
 import { ProviderRail } from '../../shared/binding-ui/ProviderRail.tsx';
-import { isRunnable, newBinding, pinModel, readinessOf, statusLine, withChoice, type ProviderChoice } from '../../shared/binding-ui/selection.ts';
+import { isRunnable, newBinding, pinModel, switchBinding, withChoice, type ProviderChoice } from '../../shared/binding-ui/selection.ts';
 
 /**
  * Provider cards, then the chosen provider's models, options and (when `showAccess` is true) access,
@@ -15,6 +15,8 @@ export function BrainFields(props: {
   readonly choices: readonly ProviderChoice[];
   readonly value: ProviderBinding;
   readonly showAccess: boolean;
+  /** False for server members (including co-owners), who may not grant full access. */
+  readonly allowFull: boolean;
   readonly onChange: (next: ProviderBinding) => void;
   readonly redact: (text: string) => string;
   readonly onOpenProviders: () => void;
@@ -35,7 +37,10 @@ export function BrainFields(props: {
           selected={value.kind === 'bound' ? value.pluginId : null}
           onPick={(id) => {
             const picked = props.choices.find((each) => each.id === id);
-            if (picked !== undefined && (value.kind !== 'bound' || value.pluginId !== id)) props.onChange(newBinding(picked));
+            if (picked !== undefined && (value.kind !== 'bound' || value.pluginId !== id)) {
+              const options = { allowFull: props.allowFull };
+              props.onChange(props.showAccess ? switchBinding(picked, value, options) : newBinding(picked, options));
+            }
           }}
         />
       )}
@@ -49,7 +54,7 @@ export function BrainFields(props: {
       )}
       {value.kind === 'bound' && !runnable && (
         <div class="row">
-          <span class="binding-note warn">{choice === undefined ? "This agent's provider isn't installed." : `${choice.name}: ${statusLine(readinessOf(choice))}`}</span>
+          <span class="binding-note warn">{unrunnableReason(choice, value, props.redact)}</span>
           <button type="button" class="btn secondary" onClick={props.onOpenProviders}>
             Open Providers
           </button>

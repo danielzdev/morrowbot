@@ -3,7 +3,8 @@ import { h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
 import { expect, it } from 'vitest';
 import { AccessSegment } from './AccessSegment.tsx';
-import { accessState, type AccessKey } from './binding-state.ts';
+import { accessState, unrunnableReason, type AccessKey } from './binding-state.ts';
+import type { ProviderChoice } from './selection.ts';
 
 const INFO = ProviderInfo.parse({
   kind: 'ready',
@@ -78,4 +79,36 @@ it('shows only offered segments with no Unavailable list, while explaining a wit
       },
     }
   `);
+});
+
+it('explains the saved profile reason when the provider withholds every interactive profile', () => {
+  const blocked: ProviderChoice = {
+    id: 'claude',
+    name: 'Claude',
+    runtime: 'Claude Code',
+    enabled: true,
+    down: null,
+    info: ProviderInfo.parse({
+      kind: 'ready',
+      version: '2.1.332',
+      accountKey: '',
+      accountLabel: null,
+      warning: null,
+      capabilities: {
+        profiles: [],
+        approvals: true,
+        sessions: false,
+        usage: 'none',
+        withheld: [{ access: 'full', vendorSettings: 'isolated', reason: 'Managed policy blocks /Users/tester/work for tester.' }],
+      },
+      models: [],
+    }),
+  };
+  expect({
+    savedWithheld: unrunnableReason(blocked, { access: 'full', vendorSettings: 'isolated' }, redact),
+    browsingOther: unrunnableReason(blocked, null, redact),
+  }).toEqual({
+    savedWithheld: 'Claude: Managed policy blocks ~/work for USER.',
+    browsingOther: 'Claude: No interactive access is available',
+  });
 });

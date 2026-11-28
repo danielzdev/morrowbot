@@ -1,6 +1,6 @@
 import type { AccessLevel, AccessProfile, ModelSelection, ProviderBinding, ProviderInfo, ProviderModel, VendorSettings } from '@morrowbot/contracts';
-import { profileWarnings } from './access-copy.ts';
-import { interactiveProfiles, readyInfo, type ProviderChoice } from './selection.ts';
+import { profileWarnings, withheldReason } from './access-copy.ts';
+import { interactiveProfiles, readinessOf, readyInfo, statusLine, type ProviderChoice } from './selection.ts';
 
 /** The saved model against what the provider lists (spec §4.6 rules 2, 4 and 7). */
 export type CurrentModel =
@@ -101,4 +101,15 @@ export function confirmLabel(check: ChangeCheck, before: ProviderBinding, after:
   if (check.switched) return 'Switch';
   const full = (binding: ProviderBinding): boolean => binding.kind === 'bound' && binding.access === 'full';
   return full(after) && !full(before) ? 'Turn on full access' : 'Use it';
+}
+
+/** Why `choice` cannot run: if `saved`'s own profile is withheld when zero profiles are offered, shows that redacted reason. */
+export function unrunnableReason(choice: ProviderChoice | undefined, saved: AccessKey | null, redact: (text: string) => string): string {
+  if (choice === undefined) return "This agent's provider isn't installed.";
+  const readiness = readinessOf(choice);
+  if (readiness.kind === 'no-access' && saved !== null) {
+    const current = accessState(choice.info, saved)?.current;
+    if (current?.kind === 'withheld') return `${choice.name}: ${withheldReason(current.reason, redact)}`;
+  }
+  return `${choice.name}: ${statusLine(readiness)}`;
 }

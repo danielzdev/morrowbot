@@ -100,7 +100,7 @@ it('prefills the first provider that can run with no warning, and never one that
   `);
 });
 
-it('binds a new agent to the Recommended model at its default options, and the first warning-free access', () => {
+it('binds a new agent to the Recommended model at its default options, falling back to the first warning-free access when full is absent', () => {
   expect(Object.fromEntries(PROVIDERS.map((each) => [each.id, newBinding(each)]))).toMatchInlineSnapshot(`
     {
       "background-only": {

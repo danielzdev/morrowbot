@@ -21,6 +21,8 @@ export function NewAgentDialog(props: {
   readonly choices: readonly ProviderChoice[];
   /** False for first run's "Skip for now": the Brain stays unbound until the user picks (spec §7). */
   readonly prefill: boolean;
+  /** False for server members (including co-owners), who may not grant full access. */
+  readonly allowFull: boolean;
   readonly avatarEditor: AvatarEditor;
   readonly newAvatar: () => AgentAvatar;
   /** A folder path as the UI may show it (spec §9.1). */
@@ -48,8 +50,8 @@ export function NewAgentDialog(props: {
   };
   const first = props.prefill ? prefill(props.choices) : null;
   useEffect(() => {
-    if (!touched && binding.kind === 'unbound' && first !== null) setBinding(newBinding(first));
-  }, [first?.id, first?.info]);
+    if (!touched && binding.kind === 'unbound' && first !== null) setBinding(newBinding(first, { allowFull: props.allowFull }));
+  }, [first?.id, first?.info, props.allowFull]);
   const create = (): void => {
     if (saving || name.trim() === '') return;
     setSaving(true);
@@ -91,6 +93,7 @@ export function NewAgentDialog(props: {
             choices={props.choices}
             value={binding}
             showAccess={false}
+            allowFull={props.allowFull}
             redact={props.redact}
             onOpenProviders={leave(props.onOpenProviders)}
             onChange={(next) => {

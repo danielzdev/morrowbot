@@ -4,7 +4,7 @@ import { renderToString } from 'preact-render-to-string';
 import { expect, it } from 'vitest';
 import { AccessSegment } from './AccessSegment.tsx';
 import { accessState, changeCheck, confirmLabel, needsConfirm } from './binding-state.ts';
-import { newBinding, type ProviderChoice } from './selection.ts';
+import { newBinding, switchBinding, type ProviderChoice } from './selection.ts';
 
 const READ: AccessProfile = { access: 'read-only', vendorSettings: 'isolated', modes: ['interactive', 'background'], readsOutsideCwd: false };
 const WRITE: AccessProfile = { ...READ, access: 'workspace-write' };
@@ -30,9 +30,9 @@ const claude = (profiles: readonly AccessProfile[]): ProviderChoice => ({
 
 const bound = (access: AccessProfile['access']): Extract<ProviderBinding, { kind: 'bound' }> => ({ kind: 'bound', pluginId: 'claude', selection: { kind: 'default' }, access, vendorSettings: 'isolated' });
 
-it('prefers full access (isolated first) for a new agent, falling back to the best offered interactive profile', () => {
-  const access = (choice: ProviderChoice) => {
-    const binding = newBinding(choice);
+it('prefers full access (isolated first) for an owner, skips full for a co-owner, and falls back when full is absent', () => {
+  const access = (choice: ProviderChoice, allowFull = true) => {
+    const binding = newBinding(choice, { allowFull });
     return binding.kind === 'bound' ? `${binding.access}/${binding.vendorSettings}` : binding.kind;
   };
   expect({
@@ -42,6 +42,8 @@ it('prefers full access (isolated first) for a new agent, falling back to the be
     onlyPersonalFull: access(claude([FULL_PERSONAL])),
     noFullFallback: access(claude([READ, WRITE])),
     noInteractive: access(claude([])),
+    coOwnerAvoidsFull: access(claude([READ, WRITE, FULL]), false),
+    coOwnerOnlyFull: access(claude([FULL]), false),
   }).toEqual({
     fullLast: 'full/isolated',
     onlyFull: 'full/isolated',
@@ -49,6 +51,35 @@ it('prefers full access (isolated first) for a new agent, falling back to the be
     onlyPersonalFull: 'full/personal',
     noFullFallback: 'read-only/isolated',
     noInteractive: 'unbound',
+    coOwnerAvoidsFull: 'read-only/isolated',
+    coOwnerOnlyFull: 'unbound',
+  });
+});
+
+it('preserves an existing agent access level when switching providers without silently escalating to full', () => {
+  const target = claude([READ, WRITE, FULL]);
+  const readOnlyTarget = claude([READ]);
+  const result = (choice: ProviderChoice, current: ProviderBinding, allowFull = true) => {
+    const next = switchBinding(choice, current, { allowFull });
+    return next.kind === 'bound' ? `${next.access}/${next.vendorSettings}` : next.kind;
+  };
+  const codexRead: ProviderBinding = { kind: 'bound', pluginId: 'codex', selection: { kind: 'default' }, access: 'read-only', vendorSettings: 'personal' };
+  expect({
+    keepsReadOnly: result(target, codexRead),
+    keepsWorkspaceWrite: result(target, bound('workspace-write')),
+    keepsFullForOwner: result(target, bound('full')),
+    dropsFullForCoOwner: result(target, bound('full'), false),
+    fallsBackWhenTargetLacksFull: result(readOnlyTarget, bound('full')),
+    unboundStartsFullForOwner: result(target, { kind: 'unbound' }),
+    unboundAvoidsFullForCoOwner: result(target, { kind: 'unbound' }, false),
+  }).toEqual({
+    keepsReadOnly: 'read-only/isolated',
+    keepsWorkspaceWrite: 'workspace-write/isolated',
+    keepsFullForOwner: 'full/isolated',
+    dropsFullForCoOwner: 'read-only/isolated',
+    fallsBackWhenTargetLacksFull: 'read-only/isolated',
+    unboundStartsFullForOwner: 'full/isolated',
+    unboundAvoidsFullForCoOwner: 'read-only/isolated',
   });
 });
 

@@ -30,6 +30,8 @@ export function AgentBrain(props: {
   readonly model: AgentsModel;
   readonly agent: Agent;
   readonly choices: readonly ProviderChoice[];
+  /** False for server members (including co-owners), who may not grant full access. */
+  readonly allowFull: boolean;
   readonly redact: (text: string) => string;
   readonly onOpenProviders: () => void;
   readonly onDirty: (dirty: boolean) => void;
@@ -68,6 +70,7 @@ export function AgentBrain(props: {
         choices={props.choices}
         value={binding}
         showAccess={true}
+        allowFull={props.allowFull}
         redact={props.redact}
         onOpenProviders={props.onOpenProviders}
         onChange={(next) => {
