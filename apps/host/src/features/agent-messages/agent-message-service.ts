@@ -128,7 +128,19 @@ export function createAgentMessageService(options: AgentMessageServiceOptions): 
     list: (agentId, threadId) => {
       if (!options.agentExists(agentId)) return undefined;
       if (threadId !== null && threads.get(threadId)?.agentId !== agentId) return undefined;
-      return records.list(agentId, threadId);
+      return records.list(agentId, threadId).map((message): AgentMessage => {
+        if (message.to.agentId === agentId || message.readOutcome === undefined) return message;
+        return {
+          id: message.id,
+          from: message.from,
+          to: message.to,
+          text: message.text,
+          expectsReply: message.expectsReply,
+          replyToMessageId: message.replyToMessageId,
+          depth: message.depth,
+          createdAt: message.createdAt,
+        };
+      });
     },
     subscribe: (listener) => {
       listeners.add(listener);

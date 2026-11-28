@@ -266,6 +266,7 @@ function persistSettlement(core: ChatCore, turn: Turn, message: AssistantMessage
       }
       store.generations.settle(turn.generationId, message?.id ?? null);
       store.toolSteps.close(turn.generationId, message?.id ?? null);
+      if (turn.source.kind === 'agent-message') store.agentMessages.setReadOutcome(turn.source.message.id, result.outcome.kind);
       if (!turn.dispatched) return;
       store.generations.insertUsage({
         generationId: turn.generationId,

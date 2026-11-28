@@ -1,5 +1,6 @@
 import type {
   AgentMessage,
+  AgentMessageReadOutcome,
   ApprovalResolution,
   BlockedGroup,
   ChatEvent,
@@ -11,7 +12,6 @@ import type {
   SubagentRun,
   Thread,
   ThreadState,
-  TurnOutcome,
   TurnState,
   TurnTrigger,
 } from '@morrowbot/contracts';
@@ -87,8 +87,8 @@ export interface ThreadView {
   readonly cursor: Cursor;
   /** Messages this chat's agent sent or received here from other agents, oldest first. */
   readonly agentMessages: readonly AgentMessage[];
-  /** How background turns this window watched ended without telling the user, by the agent message they read. */
-  readonly quietEnds: Readonly<Record<string, TurnOutcome>>;
+  /** How background turns reading this chat's incoming agent messages ended, by agent message id (saved by the host or watched live). */
+  readonly quietEnds: Readonly<Record<string, AgentMessageReadOutcome>>;
   /** The sub-agents this chat's turns started, oldest first. */
   readonly subagents: readonly SubagentRun[];
 }
@@ -154,6 +154,7 @@ export function viewOf(
     present.has(id) ? [[id, { ...record, steps: withSaved(record.steps, saved.get(id) ?? []) }]] : [],
   );
   const kept = { ...loaded, ...Object.fromEntries(watched) };
+  const savedReadEnds = readEndsOf(state.thread.id, agentMessages);
   const base = {
     thread: state.thread,
     messages: state.messages,
@@ -163,7 +164,7 @@ export function viewOf(
     subagents: state.subagents,
     cursor: state.cursor,
     agentMessages,
-    quietEnds: previous?.quietEnds ?? {},
+    quietEnds: { ...previous?.quietEnds, ...savedReadEnds },
   };
   const before = previous?.activeTurn ?? null;
   if (before === null || previous === null) return { ...base, activeTurn: fresh, finished: kept };
@@ -189,11 +190,25 @@ export function viewOf(
 
 const byTime = (a: AgentMessage, b: AgentMessage): number => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0);
 
+function readEndsOf(threadId: string, messages: readonly AgentMessage[]): Record<string, AgentMessageReadOutcome> {
+  return Object.fromEntries(
+    messages.flatMap((message): [string, AgentMessageReadOutcome][] =>
+      message.to.threadId === threadId && message.readOutcome !== undefined ? [[message.id, message.readOutcome]] : [],
+    ),
+  );
+}
+
 /** The view with agent messages added: only those shown in this chat, each once, in time order. */
 export function withAgentMessages(view: ThreadView, messages: readonly AgentMessage[]): ThreadView {
   const known = new Set(view.agentMessages.map(({ id }) => id));
   const here = messages.filter(({ id, from, to }) => !known.has(id) && (from.threadId === view.thread.id || to.threadId === view.thread.id));
-  return here.length === 0 ? view : { ...view, agentMessages: [...view.agentMessages, ...here].sort(byTime) };
+  if (here.length === 0) return view;
+  const addedEnds = readEndsOf(view.thread.id, here);
+  return {
+    ...view,
+    agentMessages: [...view.agentMessages, ...here].sort(byTime),
+    quietEnds: Object.keys(addedEnds).length === 0 ? view.quietEnds : { ...view.quietEnds, ...addedEnds },
+  };
 }
 
 /** The runs with `run` in place of the one with its id, or added last. */
@@ -304,7 +319,7 @@ function change(view: ThreadView, event: ThreadEvent, now: number): ThreadView |
     case 'generation.background-finished': {
       const { trigger } = active;
       if (trigger.kind === 'chat') return { ...view, activeTurn: null };
-      return { ...view, activeTurn: null, quietEnds: { ...view.quietEnds, [trigger.agentMessageId]: event.outcome } };
+      return { ...view, activeTurn: null, quietEnds: { ...view.quietEnds, [trigger.agentMessageId]: event.outcome.kind } };
     }
   }
 }
