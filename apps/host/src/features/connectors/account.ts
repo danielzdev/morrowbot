@@ -2,28 +2,43 @@ import type { ConnectorSetup, ConnectorSetupEdit } from '@morrowbot/contracts';
 
 type Merge = { readonly kind: 'merged'; readonly setup: ConnectorSetup } | { readonly kind: 'invalid'; readonly reason: string };
 
-interface Secret {
-  readonly name: string;
-  readonly value: string;
-}
+type Secret = { readonly kind: 'inline'; readonly name: string; readonly value: string } | { readonly kind: 'vault'; readonly name: string; readonly vaultId: string };
 
-/** Resolves each `keep` to the saved value of the same name; a name with no saved value cannot be kept. */
-function mergeSecrets(saved: readonly Secret[], edits: readonly ({ readonly kind: 'keep'; readonly name: string } | { readonly kind: 'set'; readonly name: string; readonly value: string })[]): Secret[] | string {
+type Edit = { readonly kind: 'keep'; readonly name: string } | { readonly kind: 'set'; readonly name: string; readonly value: string } | { readonly kind: 'vault'; readonly name: string; readonly vaultId: string };
+
+/** Resolves each `keep` to the saved value or Vault item of the same name; a name with nothing saved cannot be kept. */
+function mergeSecrets(saved: readonly Secret[], edits: readonly Edit[]): Secret[] | string {
   const merged: Secret[] = [];
   for (const edit of edits) {
     switch (edit.kind) {
       case 'set':
-        merged.push({ name: edit.name, value: edit.value });
+        merged.push({ kind: 'inline', name: edit.name, value: edit.value });
+        break;
+      case 'vault':
+        merged.push(edit);
         break;
       case 'keep': {
         const found = saved.find(({ name }) => name.toLowerCase() === edit.name.toLowerCase());
         if (found === undefined) return `${edit.name}: there is no saved value to keep; enter one`;
-        merged.push({ name: edit.name, value: found.value });
+        merged.push({ ...found, name: edit.name });
         break;
       }
     }
   }
   return merged;
+}
+
+type Key = Extract<ConnectorSetup, { kind: 'composio' }>['apiKey'];
+
+function mergeKey(saved: ConnectorSetup, edit: Extract<ConnectorSetupEdit, { kind: 'composio' }>['apiKey']): Key | undefined {
+  switch (edit.kind) {
+    case 'set':
+      return { kind: 'inline', value: edit.value };
+    case 'vault':
+      return edit;
+    case 'keep':
+      return saved.kind === 'composio' ? saved.apiKey : undefined;
+  }
 }
 
 /** Applies an Account edit to the saved setup. Kept secrets come from the same kind of setup only. */
@@ -38,7 +53,7 @@ export function mergeSetup(saved: ConnectorSetup, edit: ConnectorSetupEdit): Mer
       return typeof headers === 'string' ? { kind: 'invalid', reason: headers } : { kind: 'merged', setup: { kind: 'http', url: edit.url, headers } };
     }
     case 'composio': {
-      const apiKey = edit.apiKey.kind === 'set' ? edit.apiKey.value : saved.kind === 'composio' ? saved.apiKey : undefined;
+      const apiKey = mergeKey(saved, edit.apiKey);
       if (apiKey === undefined) return { kind: 'invalid', reason: 'apiKey: there is no saved key to keep; enter one' };
       return { kind: 'merged', setup: { kind: 'composio', toolkit: edit.toolkit, serverUrl: edit.serverUrl, apiKey, account: edit.account } };
     }

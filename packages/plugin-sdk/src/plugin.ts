@@ -5,6 +5,8 @@ import type {
   PluginToolResult,
   ProviderInfo,
   RouteInfo,
+  SecretFillRequest,
+  SecretResolution,
   TurnChunk,
   TurnEnd,
   TurnRequest,
@@ -63,6 +65,12 @@ export interface ToolCallContext {
   readonly input: unknown;
   /** Aborted when the host cancels the call, the turn ends, or the plugin shuts down. */
   readonly signal: AbortSignal;
+  /**
+   * Asks the host for one part of a Secrets Vault login, for a page on `origin`. Only plugins whose manifest lists
+   * the `secrets` permission get values; the host refuses a login whose site does not match `origin`. Hand the value
+   * straight to where it is used and never put it in a tool result.
+   */
+  readonly resolveSecret: (request: SecretFillRequest) => Promise<SecretResolution>;
 }
 
 export interface ToolHooks extends LifecycleHooks {

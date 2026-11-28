@@ -2,28 +2,28 @@ import { BrowserTabId, ElementRef, TakeoverReason, type BrowserEvent } from '@mo
 import { z } from '@morrowbot/plugin-sdk';
 import type { Bridge } from './bridge.ts';
 import type { BrowserLink } from './browser-link.ts';
-import { SecretRequest, type SecretSource } from './secrets.ts';
+import { SecretRequest } from './secrets.ts';
 import { BrowserChoice, COMMAND_TIMEOUT_MS, defineTool, isLink, pickBrowser, present, type BrowserTool, type ToolOutput } from './tool.ts';
 
 const TAKEOVER_LIMIT_MS = 15 * 60_000;
 
 /** The tools that hand sensitive steps to the vault or to the person. */
-export function secretTools({ bridge, secrets, takeoverLimitMs = TAKEOVER_LIMIT_MS }: { readonly bridge: Bridge; readonly secrets: SecretSource; readonly takeoverLimitMs?: number }): readonly BrowserTool[] {
+export function secretTools({ bridge, takeoverLimitMs = TAKEOVER_LIMIT_MS }: { readonly bridge: Bridge; readonly takeoverLimitMs?: number }): readonly BrowserTool[] {
   return [
     defineTool({
       name: 'browser_fill_secret',
       description:
-        'Fills a login or one-time code from the Secrets Vault into a field. The value goes from the vault to the page and is never shown to you.',
+        "Fills a vault login's username, password or one-time code into a field. Only on the login's own website; the value goes from the vault to the page and is never shown to you.",
       input: z.strictObject({ browser: BrowserChoice, tabId: BrowserTabId, ref: ElementRef, secret: SecretRequest }),
-      run: async ({ browser, tabId, ref, secret }) => {
+      run: async ({ browser, tabId, ref, secret }, { secrets }) => {
         const link = pickBrowser(bridge, browser);
         if (!isLink(link)) return link;
         const origin = await originOf(link, tabId);
         if (origin.kind === 'error') return origin;
-        const resolved = await secrets.resolve({ ...secret, origin: origin.text });
+        const resolved = await secrets({ ...secret, origin: origin.text });
         if (resolved.kind === 'refused') return { kind: 'error', text: resolved.reason };
         const result = await link.run({ kind: 'fill-secret', tabId, ref, field: secret.field, origin: origin.text, value: resolved.value }, COMMAND_TIMEOUT_MS);
-        const output = present(result, `Filled the ${secret.field} of vault entry ${secret.entryId} into ${ref}.`);
+        const output = present(result, `Filled the ${secret.field} of vault login ${secret.vaultId} into ${ref}.`);
         return output.kind === 'image' ? output : { kind: output.kind, text: output.text.replaceAll(resolved.value, '•••') };
       },
     }),

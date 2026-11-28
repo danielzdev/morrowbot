@@ -279,6 +279,8 @@ it('hides T3 watch tools from agents shared with scoped members and refuses dire
         "spawn_subagent",
         "wait_subagents",
         "list_subagents",
+        "react_to_message",
+        "stay_quiet",
       ],
     }
   `);

@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { agentMessageRepository, type AgentMessageRepository } from './agent-messages-repo.ts';
 import { agentRepository, type AgentRepository } from './agents-repo.ts';
 import { attachmentRepository, type AttachmentRepository } from './attachments-repo.ts';
+import { chatSettingsRepository, type ChatSettingsRepository } from './chat-settings-repo.ts';
 import { childGroupRepository, type ChildGroupRepository } from './child-groups-repo.ts';
 import { connectorRepository, type ConnectorRepository } from './connectors-repo.ts';
 import { deviceRepository, type DeviceRepository } from './devices-repo.ts';
@@ -14,6 +15,7 @@ import { memoryRepository, type MemoryRepository } from './memories-repo.ts';
 import { messageRepository, type MessageRepository } from './messages-repo.ts';
 import { pluginSettingsRepository, type PluginSettingsRepository } from './plugins-repo.ts';
 import { queuedRepository, type QueuedRepository } from './queued-repo.ts';
+import { reactionRepository, type ReactionRepository } from './reactions-repo.ts';
 import { routineRunRepository, type RoutineRunRepository } from './routine-runs-repo.ts';
 import { routineRepository, type RoutineRepository } from './routines-repo.ts';
 import { migrate } from './schema.ts';
@@ -32,6 +34,8 @@ export interface Storage {
   readonly folders: FolderRepository;
   readonly threads: ThreadRepository;
   readonly messages: MessageRepository;
+  readonly reactions: ReactionRepository;
+  readonly chatSettings: ChatSettingsRepository;
   readonly queued: QueuedRepository;
   readonly plugins: PluginSettingsRepository;
   readonly generations: GenerationRepository;
@@ -71,6 +75,8 @@ export function openStorage(file: string, now: () => string): Storage {
       folders: folderRepository(db),
       threads: threadRepository(db),
       messages: messageRepository(db),
+      reactions: reactionRepository(db),
+      chatSettings: chatSettingsRepository(db),
       queued: queuedRepository(db),
       plugins: pluginSettingsRepository(db, now),
       generations: generationRepository(db),

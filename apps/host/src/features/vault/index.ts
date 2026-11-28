@@ -11,6 +11,7 @@ export { VAULT_KEY_ACCOUNT, VAULT_KEY_SERVICE } from './master-key.ts';
 export type { MasterKeyKind, MasterKeyStore } from './master-key.ts';
 export type { SecretStore } from './secret-store.ts';
 export { openVault } from './vault-service.ts';
+export { keyValue, loginFill } from './secret-uses.ts';
 export type { ResolvedVaultItem, VaultSave, VaultService } from './vault-service.ts';
 
 /** Where the vault's master key lives: the OS keystore, or (tests) an owner-only file in the data folder. */

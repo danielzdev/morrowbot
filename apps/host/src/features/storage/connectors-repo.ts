@@ -35,13 +35,30 @@ export interface ConnectorRepository {
   delete(id: string): boolean;
 }
 
+/** A secret as connectors saved it before Vault items: a name and a typed value, with no `kind`. */
+const OldSecret = z.strictObject({ name: z.string(), value: z.string() }).transform(({ name, value }): { kind: 'inline'; name: string; value: string } => ({ kind: 'inline', name, value }));
+
+/** A setup saved before Vault items (migration 13 to #160), whose secrets were all typed values. */
+const OldSetup = z.discriminatedUnion('kind', [
+  z.looseObject({ kind: z.literal('stdio'), env: z.array(OldSecret) }),
+  z.looseObject({ kind: z.literal('http'), headers: z.array(OldSecret) }),
+  z.looseObject({ kind: z.literal('composio'), apiKey: z.string() }),
+]);
+
+/** A stored setup, reading an old one as typed values. */
+const StoredSetup = z.preprocess((raw) => {
+  const old = OldSetup.safeParse(raw);
+  if (!old.success) return raw;
+  return old.data.kind === 'composio' ? { ...old.data, apiKey: { kind: 'inline', value: old.data.apiKey } } : old.data;
+}, ConnectorSetup);
+
 const Flag = z.union([z.literal(0), z.literal(1)]).transform((value) => value === 1);
 
 const ConnectorRow = z.object({
   id: z.string(),
   label: z.string(),
   label_key: z.string(),
-  setup: jsonColumn(ConnectorSetup),
+  setup: jsonColumn(StoredSetup),
   enabled: Flag,
   connected: Flag,
   scope_mode: ScopeMode,

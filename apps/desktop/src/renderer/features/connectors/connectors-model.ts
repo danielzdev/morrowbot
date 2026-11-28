@@ -1,4 +1,4 @@
-import type { ApiError, Connector, ConnectorList, ConnectorScope, CreateConnectorRequest, SetConnectorScopeRequest, UpdateConnectorAccountRequest } from '@morrowbot/contracts';
+import type { ApiError, Connector, ConnectorList, ConnectorScope, CreateConnectorRequest, SetConnectorScopeRequest, UpdateConnectorAccountRequest, VaultItemList } from '@morrowbot/contracts';
 import type { z } from 'zod';
 import type { MorrowbotBridge } from '../../bridge.ts';
 import type { Api, ApiResult } from '../../shared/api.ts';
@@ -48,7 +48,11 @@ export interface ConnectorsModel {
   readonly list: Store<Loadable<ConnectorList>>;
   readonly activity: Store<ConnectorActivity>;
   readonly place: Store<ConnectorsPlace>;
+  /** The Vault items a connector secret can be taken from, as of the last `loadVault`. */
+  readonly vault: Store<Loadable<VaultItemList>>;
   load(): Promise<void>;
+  /** Looks at the Vault again: the add form and the Account section call it when they open. */
+  loadVault(): Promise<void>;
   create(request: z.input<typeof CreateConnectorRequest>): Promise<Created>;
   updateAccount(id: string, request: z.input<typeof UpdateConnectorAccountRequest>): Promise<AccountSaved>;
   setEnabled(id: string, enabled: boolean): Promise<void>;
@@ -86,7 +90,9 @@ export function createConnectorsModel(options: ConnectorsModelOptions): Connecto
   const list = new Store<Loadable<ConnectorList>>({ kind: 'loading' });
   const activity = new Store<ConnectorActivity>({ busy: {}, problems: {} });
   const place = new Store<ConnectorsPlace>({ pane: { kind: 'default' }, visit: 0, installFor: null });
+  const vault = new Store<Loadable<VaultItemList>>({ kind: 'loading' });
   let loads = 0;
+  let vaultLoads = 0;
   let asked = false;
   let closed = false;
   let startingTimer: ReturnType<typeof setTimeout> | undefined;
@@ -142,7 +148,15 @@ export function createConnectorsModel(options: ConnectorsModelOptions): Connecto
     list,
     activity,
     place,
+    vault,
     load,
+    loadVault: async () => {
+      const mine = ++vaultLoads;
+      const result = await api.listVault();
+      if (mine !== vaultLoads || closed) return;
+      if (result.kind === 'ok') vault.set({ kind: 'loaded', value: result.value });
+      else vault.set({ kind: 'failed', message: result.error.message });
+    },
     create: async (request) => {
       const result = await api.createConnector(request);
       if (result.kind === 'failed') return refusal(result.error);

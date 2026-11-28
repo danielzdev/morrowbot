@@ -1,16 +1,19 @@
 import { expect, it } from 'vitest';
 import type { ConnectorSetupView } from '@morrowbot/contracts';
-import { draftOf, newSetupOf, setupEditOf, EMPTY_STDIO, type SetupDraft } from './setup-draft.ts';
+import { draftOf, newSetupOf, setupEditOf, withSource, EMPTY_STDIO, type SecretRow, type SetupDraft } from './setup-draft.ts';
+
+const blank = (key: string, name: string): SecretRow => ({ key, name, value: '', source: { kind: 'typed' }, saved: false });
+const inline = (name: string) => ({ kind: 'inline', name }) as const;
 
 it('keeps saved secrets that are left blank, sets typed ones, drops removed names and sends saved arguments exactly', () => {
-  const saved: Extract<ConnectorSetupView, { kind: 'stdio' }> = { kind: 'stdio', command: 'notes-server', args: ['--folder', 'My Notes', ''], envNames: ['TOKEN', 'REGION', 'OLD'] };
+  const saved: Extract<ConnectorSetupView, { kind: 'stdio' }> = { kind: 'stdio', command: 'notes-server', args: ['--folder', 'My Notes', ''], env: [inline('TOKEN'), inline('REGION'), inline('OLD')] };
   const draft = draftOf(saved);
   if (draft.kind !== 'stdio') throw new Error('expected a stdio draft');
   const [token, region] = draft.env;
   if (token === undefined || region === undefined) throw new Error('expected the saved rows');
   const edited = {
     ...draft,
-    env: [token, { ...region, value: 'eu' }, { key: 'new:1', name: 'EXTRA', value: '', saved: false }, { key: 'new:2', name: '', value: '', saved: false }],
+    env: [token, { ...region, value: 'eu' }, blank('new:1', 'EXTRA'), blank('new:2', '')],
   };
   expect(setupEditOf(edited, saved)).toMatchInlineSnapshot(`
     {
@@ -45,7 +48,7 @@ it('keeps saved secrets that are left blank, sets typed ones, drops removed name
 });
 
 it('keeps a saved Composio key until a new one is typed', () => {
-  const saved: Extract<ConnectorSetupView, { kind: 'composio' }> = { kind: 'composio', toolkit: 'gmail', serverUrl: 'https://backend.composio.dev/v3/mcp/server', account: { kind: 'user', userId: 'me' } };
+  const saved: Extract<ConnectorSetupView, { kind: 'composio' }> = { kind: 'composio', toolkit: 'gmail', serverUrl: 'https://backend.composio.dev/v3/mcp/server', apiKey: { kind: 'inline' }, account: { kind: 'user', userId: 'me' } };
   const draft = draftOf(saved);
   if (draft.kind !== 'composio') throw new Error('expected a Composio draft');
   expect([setupEditOf(draft, saved), setupEditOf({ ...draft, apiKey: 'next-key' }, saved)]).toMatchInlineSnapshot(`
@@ -86,7 +89,7 @@ it('keeps a saved Composio key until a new one is typed', () => {
 });
 
 it('says why a new setup is not ready, and nothing while a required field is just empty', () => {
-  const row = (name: string) => ({ key: name, name, value: 'x', saved: false });
+  const row = (name: string): SecretRow => ({ key: name, name, value: 'x', source: { kind: 'typed' }, saved: false });
   expect([
     newSetupOf(EMPTY_STDIO),
     newSetupOf({ ...EMPTY_STDIO, command: 'run', env: [row('1BAD')] }),
@@ -120,9 +123,9 @@ it('says why a new setup is not ready, and nothing while a required field is jus
 });
 
 it('asks for every secret again once the connector points somewhere new', () => {
-  const stdio: Extract<ConnectorSetupView, { kind: 'stdio' }> = { kind: 'stdio', command: 'notes-server', args: ['--folder', 'Notes'], envNames: ['TOKEN'] };
-  const http: Extract<ConnectorSetupView, { kind: 'http' }> = { kind: 'http', url: 'https://example.com/mcp', headerNames: ['Authorization'] };
-  const composio: Extract<ConnectorSetupView, { kind: 'composio' }> = { kind: 'composio', toolkit: 'gmail', serverUrl: 'https://backend.composio.dev/v3/mcp/server', account: { kind: 'user', userId: 'me' } };
+  const stdio: Extract<ConnectorSetupView, { kind: 'stdio' }> = { kind: 'stdio', command: 'notes-server', args: ['--folder', 'Notes'], env: [inline('TOKEN')] };
+  const http: Extract<ConnectorSetupView, { kind: 'http' }> = { kind: 'http', url: 'https://example.com/mcp', headers: [inline('Authorization')] };
+  const composio: Extract<ConnectorSetupView, { kind: 'composio' }> = { kind: 'composio', toolkit: 'gmail', serverUrl: 'https://backend.composio.dev/v3/mcp/server', apiKey: { kind: 'inline' }, account: { kind: 'user', userId: 'me' } };
   const outcome = (draft: SetupDraft, saved: ConnectorSetupView): string => {
     const edit = setupEditOf(draft, saved);
     return edit.kind === 'ready' ? 'ready' : String(edit.reason);
@@ -147,6 +150,76 @@ it('asks for every secret again once the connector points somewhere new', () => 
       "newArgsTypedToken": "ready",
       "newUrlKeptHeader": "This points the connector somewhere new: enter its keys and secret values again.",
       "sameUrlKeptHeader": "ready",
+    }
+  `);
+});
+
+it('sends Vault choices as chosen, names an empty header after its header secret, and never keeps a Vault row', () => {
+  const unnamed: SecretRow = { key: 'new:1', name: '', value: 'typed-then-dropped', source: { kind: 'typed' }, saved: false };
+  const header = withSource(unnamed, { kind: 'vault', vaultId: 'vault-1' }, 'X-Api-Key');
+  const named = withSource({ ...unnamed, name: 'Authorization' }, { kind: 'vault', vaultId: 'vault-2' }, 'X-Api-Key');
+  const draft: SetupDraft = { kind: 'http', url: 'https://example.com/mcp', headers: [header, named] };
+  const saved: Extract<ConnectorSetupView, { kind: 'http' }> = {
+    kind: 'http',
+    url: 'https://example.com/mcp',
+    headers: [{ kind: 'vault', name: 'X-Api-Key', vaultId: 'vault-1' }, { kind: 'vault', name: 'Authorization', vaultId: 'vault-2' }],
+  };
+  expect({ added: newSetupOf(draft), unchanged: setupEditOf(draftOf(saved), { ...saved, url: 'https://example.org/mcp' }), composio: newSetupOf({ kind: 'composio', toolkit: 'gmail', serverUrl: 'https://backend.composio.dev/v3/mcp/server', apiKey: '', keySaved: false, keySource: { kind: 'vault', vaultId: 'vault-3' }, accountKind: 'user', accountId: 'me' }) }).toMatchInlineSnapshot(`
+    {
+      "added": {
+        "kind": "ready",
+        "value": {
+          "headers": [
+            {
+              "kind": "vault",
+              "name": "X-Api-Key",
+              "vaultId": "vault-1",
+            },
+            {
+              "kind": "vault",
+              "name": "Authorization",
+              "vaultId": "vault-2",
+            },
+          ],
+          "kind": "http",
+          "url": "https://example.com/mcp",
+        },
+      },
+      "composio": {
+        "kind": "ready",
+        "value": {
+          "account": {
+            "kind": "user",
+            "userId": "me",
+          },
+          "apiKey": {
+            "kind": "vault",
+            "vaultId": "vault-3",
+          },
+          "kind": "composio",
+          "serverUrl": "https://backend.composio.dev/v3/mcp/server",
+          "toolkit": "gmail",
+        },
+      },
+      "unchanged": {
+        "kind": "ready",
+        "value": {
+          "headers": [
+            {
+              "kind": "vault",
+              "name": "X-Api-Key",
+              "vaultId": "vault-1",
+            },
+            {
+              "kind": "vault",
+              "name": "Authorization",
+              "vaultId": "vault-2",
+            },
+          ],
+          "kind": "http",
+          "url": "https://example.com/mcp",
+        },
+      },
     }
   `);
 });

@@ -10,6 +10,7 @@ function state(seq: number, running: boolean, pending = running): ThreadState {
   return {
     thread: { id: 't', agentId: 'a', title: 'Main', createdAt: AT, updatedAt: AT },
     messages: [],
+    reactions: [],
     activeTurn: running
       ? {
           generationId: 'g7',

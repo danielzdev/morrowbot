@@ -6,9 +6,11 @@ import type {
   BlockedGroup,
   BoundProvider,
   ChatEvent,
+  ChatSettings,
   HostTools,
   LastMessage,
   Message,
+  MessageReaction,
   ProviderInfo,
   Thread,
   TurnChunk,
@@ -16,6 +18,7 @@ import type {
   TurnOutcome,
   TurnRequest,
   TurnUsage,
+  ReactionActor,
   UsageResult,
   UsageWindow,
   VendorSettings,
@@ -78,6 +81,15 @@ export interface ChatStore {
     /** Whether the thread's newest message is a reply that failed. */
     endsFailed(threadId: string): boolean;
   };
+  readonly reactions: {
+    /** False when the actor already has this emoji on the message. */
+    add(reaction: MessageReaction): boolean;
+    remove(messageId: string, actor: ReactionActor, emoji: string): boolean;
+    listByMessage(messageId: string): MessageReaction[];
+    listByThread(threadId: string): MessageReaction[];
+  };
+  /** Settings › Chat. */
+  readonly settings: { get(): ChatSettings };
   /** Messages sent while a turn ran that the agent has not seen yet. */
   readonly queued: {
     insert(record: QueuedRecord): void;

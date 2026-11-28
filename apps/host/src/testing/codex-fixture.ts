@@ -93,7 +93,7 @@ export async function startCodexFixture(options: Partial<TestHostOptions> = {}):
       await writeFile(path.join(dir, 'switch.json'), JSON.stringify({ afterReads: reads, state: patch }));
     },
     daemonPgids: () => chat.host.host.plugins.groups.daemons('provider-openai').map((row) => row.pgid),
-    turnEvents: (generationId) => chat.events.received.filter((event) => event.kind !== 'usage.updated' && event.kind !== 'queue.changed' && event.generationId === generationId),
+    turnEvents: (generationId) => chat.events.received.filter((event) => 'generationId' in event && event.generationId === generationId),
     post: (thread, text, sessionChoice = { kind: 'auto' }) => chat.host.call('POST', `/api/threads/${thread.id}/messages`, { text, sessionChoice }),
     close: async () => {
       await chat.close();

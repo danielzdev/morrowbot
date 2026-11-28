@@ -1,22 +1,20 @@
 import { BrowserTabId, DialogAction, ElementRef, FormFieldValue, KeyName, NavigateTarget, ScreenshotArea, ScrollTarget, WebUrl } from '@morrowbot/contracts';
 import { confinePath, z, type Confined } from '@morrowbot/plugin-sdk';
 import type { Bridge } from './bridge.ts';
-import type { SecretSource } from './secrets.ts';
 import type { Uploads } from './settings.ts';
 import { secretTools } from './secret-tools.ts';
-import { BrowserChoice, COMMAND_TIMEOUT_MS, defineTool, noBrowserText, present, runOn, type BrowserTool, type ToolOutput } from './tool.ts';
+import { BrowserChoice, COMMAND_TIMEOUT_MS, defineTool, noBrowserText, present, runOn, type BrowserTool, type ToolContext, type ToolOutput } from './tool.ts';
 
 const tab = { browser: BrowserChoice, tabId: BrowserTabId };
 const ref = ElementRef.describe('An element ref from the latest browser_snapshot of this tab');
 
 export interface ToolDeps {
   readonly bridge: Bridge;
-  readonly secrets: SecretSource;
   readonly uploads: Uploads;
 }
 
 /** Every tool the browser plugin offers an agent. Agent tools never see secret values. */
-export function browserTools({ bridge, secrets, uploads }: ToolDeps): readonly BrowserTool[] {
+export function browserTools({ bridge, uploads }: ToolDeps): readonly BrowserTool[] {
   return [
     defineTool({
       name: 'browser_tabs',
@@ -135,7 +133,7 @@ export function browserTools({ bridge, secrets, uploads }: ToolDeps): readonly B
       input: z.strictObject({ ...tab, action: DialogAction }),
       run: ({ browser, ...command }) => runOn(bridge, browser, { kind: 'handle-dialog', ...command }, 'Answered the dialog.'),
     }),
-    ...secretTools({ bridge, secrets }),
+    ...secretTools({ bridge }),
   ];
 }
 
@@ -157,8 +155,8 @@ async function insideUploads(uploads: Uploads, paths: readonly string[]): Promis
 }
 
 /** Calls a tool by name; for the host's tool route and for tests. */
-export async function callTool(tools: readonly BrowserTool[], name: string, input: unknown, signal: AbortSignal): Promise<ToolOutput> {
+export async function callTool(tools: readonly BrowserTool[], name: string, input: unknown, context: ToolContext): Promise<ToolOutput> {
   const tool = tools.find((candidate) => candidate.name === name);
   if (tool === undefined) return { kind: 'error', text: `No tool named ${name}.` };
-  return tool.call(input, { signal });
+  return tool.call(input, context);
 }

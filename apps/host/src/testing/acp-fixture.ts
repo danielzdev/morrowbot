@@ -94,9 +94,9 @@ export async function startAcpFixture(setup: AcpFixtureSetup, options: Partial<T
       const approvalId = card?.kind === 'generation.approval-requested' ? card.approval.approvalId : '';
       return (await chat.host.call('POST', `/api/threads/${thread.id}/approvals/${approvalId}`, { generationId, choiceId })).status;
     },
-    turnEvents: (generationId) => chat.events.received.filter((event) => event.kind !== 'usage.updated' && event.kind !== 'queue.changed' && event.generationId === generationId),
+    turnEvents: (generationId) => chat.events.received.filter((event) => 'generationId' in event && event.generationId === generationId),
     steps: (generationId) =>
-      chat.events.received.flatMap((event) => (event.kind !== 'usage.updated' && event.kind !== 'queue.changed' && event.generationId === generationId ? describeStep(event).map((line) => line.replaceAll(home, '$HOME')) : [])),
+      chat.events.received.flatMap((event) => ('generationId' in event && event.generationId === generationId ? describeStep(event).map((line) => line.replaceAll(home, '$HOME')) : [])),
     close: async () => {
       await chat.close();
       process.env.HOME = previousHome;
@@ -124,6 +124,7 @@ function describeStep(event: ChatEvent): string[] {
     case 'queue.changed':
     case 'generation.background-started':
     case 'generation.background-finished':
+    case 'reactions.changed':
     case 'subagent.changed':
     case 'usage.updated':
       return [];

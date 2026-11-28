@@ -81,6 +81,12 @@ export const ROWS = {
   reduceMotion: row('appearance', 'reduce-motion', 'Reduce motion', "On stills avatars and slide-ins. Your system's reduce-motion setting always applies."),
   sendWith: row('chat', 'send-with', 'Send with', 'Which key sends your message. Shift+Enter always starts a new line.'),
   notifications: row('chat', 'notifications', 'Notifications', 'While MorrowBot is in the background, a system notification says when an agent needs approval or finishes.'),
+  emojiReplies: row(
+    'chat',
+    'emoji-replies',
+    'Emoji-only / silent replies',
+    "Whether agents may answer with just an emoji reaction, or with nothing, instead of a text reply. Per agent leaves it to each agent's own settings.",
+  ),
   providers: row('providers', 'providers', 'AI providers', 'Claude, Codex, Antigravity, OpenCode and community engines: set up, sign in, check status and change settings.'),
   vault: row('vault', 'vault', 'Vault', 'Logins, API keys and header secrets your tools can use. Agents see item names only, never your secrets.'),
   vaultItems: row('vault', 'vault-items', 'Saved items', 'Search by name, site or username. Saved secrets are never shown again, here or anywhere else.'),

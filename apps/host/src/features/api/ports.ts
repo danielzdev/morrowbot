@@ -21,6 +21,9 @@ import type {
   CreateRoutineRequest,
   BlockedGroup,
   ChatEvent,
+  ChatSettings,
+  MessageReaction,
+  SetReactionRequest,
   CreateAgentRequest,
   CreateFolderRequest,
   CreateThreadRequest,
@@ -133,6 +136,10 @@ export interface ApiChat {
   listMessages(threadId: string): Message[] | undefined;
   state(threadId: string): ThreadState | undefined;
   send(threadId: string, text: string, attachmentIds: readonly string[], choice: SessionChoice): Promise<ApiSendResult>;
+  setReaction(
+    threadId: string,
+    request: SetReactionRequest,
+  ): { readonly kind: 'set'; readonly reactions: MessageReaction[] } | { readonly kind: 'not_found' } | { readonly kind: 'conflict'; readonly reason: string };
   cancelQueued(threadId: string, queuedId: string): ApiQueueAnswer;
   steerQueued(threadId: string, queuedId: string): ApiQueueAnswer;
   continueTurn(threadId: string, failedMessageId: string, choice: SessionChoice): Promise<ApiAdmitResult>;
@@ -286,6 +293,12 @@ export interface ApiT3Watches {
   ack(ack: T3WatchAck): { readonly kind: 'acked' | 'already_acked' | 'unknown_batch' };
 }
 
+/** Settings › Chat. */
+export interface ApiSettings {
+  chat(): ChatSettings;
+  setChat(settings: ChatSettings): ChatSettings;
+}
+
 export type ApiVaultSave = { readonly kind: 'saved'; readonly item: VaultItem } | { readonly kind: 'not-found' } | { readonly kind: 'invalid'; readonly reason: string };
 
 /** The owner's saved logins, API keys and header secrets: names in and out, secret values only in. */
@@ -340,5 +353,6 @@ export interface ApiServices {
   readonly agentMessages: ApiAgentMessages;
   readonly routines: ApiRoutines;
   readonly t3Watches: ApiT3Watches;
+  readonly settings: ApiSettings;
   readonly vault: ApiVault;
 }

@@ -1,6 +1,7 @@
 import { MAX_CONNECTOR_LABEL, type Agent, type Connector } from '@morrowbot/contracts';
 import { useEffect, useState } from 'preact/hooks';
 import { Segmented } from '../../shared/ui/Segmented.tsx';
+import { useStore } from '../../shared/use-store.ts';
 import { labelProblemOf, suggestedLabel } from './connector-copy.ts';
 import type { ConnectorsModel } from './connectors-model.ts';
 import { choiceAtInstall, requestOf, sameChoice } from './scope-choice.ts';
@@ -49,7 +50,11 @@ export function AddConnectorForm(props: {
     typedLabel !== null ||
     JSON.stringify([stdio, http, composio]) !== JSON.stringify([EMPTY_STDIO, EMPTY_HTTP, EMPTY_COMPOSIO]) ||
     !sameChoice(scope, choiceAtInstall(props.installFor));
-  const { onDirty } = props;
+  const { onDirty, model } = props;
+  const vault = useStore(model.vault);
+  useEffect(() => {
+    void model.loadVault();
+  }, [model]);
   useEffect(() => {
     onDirty(dirty);
   }, [dirty, onDirty]);
@@ -116,6 +121,7 @@ export function AddConnectorForm(props: {
             <SetupFields
               key={draft.kind}
               draft={draft}
+              vault={vault}
               onChange={(next) => {
                 setRefused((now) => (now?.field === 'form' ? null : now));
                 switch (next.kind) {

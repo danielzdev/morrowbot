@@ -2,6 +2,7 @@ import type { BrowserCommand, BrowserResult, BrowserTab, BrowserValue } from '@m
 import { z } from '@morrowbot/plugin-sdk';
 import type { Bridge } from './bridge.ts';
 import type { BrowserLink } from './browser-link.ts';
+import type { SecretSource } from './secrets.ts';
 
 /** What a tool call gives back to the agent. */
 export type ToolOutput =
@@ -12,6 +13,8 @@ export type ToolOutput =
 export interface ToolContext {
   /** Aborted when the agent's turn stops. */
   readonly signal: AbortSignal;
+  /** The host's vault, for this one call. */
+  readonly secrets: SecretSource;
 }
 
 /** One agent tool: its input is checked against `inputSchema` before it runs. */

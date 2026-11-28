@@ -9,6 +9,8 @@ export {
   PluginMessage,
   PROTOCOL_VERSION,
   RequestId,
+  SecretFillRequest,
+  SecretResolution,
 } from './plugin-rpc.ts';
 export type { OpenPluginChannel, PluginChannel, PluginChannelEvents } from './plugin-channel.ts';
 export { CrashReason, PluginStatus, PluginStatusEvent } from './plugin-runtime.ts';
@@ -20,6 +22,7 @@ export * from './agents.ts';
 export * from './threads.ts';
 export * from './thread-activity.ts';
 export * from './messages.ts';
+export * from './reactions.ts';
 export * from './queue.ts';
 export * from './chat-api.ts';
 export * from './host-ipc.ts';

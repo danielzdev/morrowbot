@@ -16,6 +16,7 @@ function facts(name: string, change: Partial<AgentFacts> = {}, agentChange: Part
     avatar: { kind: 'bot', shape: 'chat', color: '#6b7280', finish: 'flat' },
     provider: BOUND,
     folderId: null,
+    emojiReplies: 'allowed',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...agentChange,

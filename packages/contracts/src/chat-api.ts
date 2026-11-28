@@ -11,6 +11,7 @@ import { PluginConfig } from './plugin-settings.ts';
 import { QueuedMessage } from './queue.ts';
 import { SubagentRun } from './subagents.ts';
 import { AccountKey, ApprovalChoice, ProviderInfo, TurnOutcome, UsageResult } from './provider.ts';
+import { MessageReaction } from './reactions.ts';
 import { ThreadChanged } from './thread-activity.ts';
 import { Thread } from './threads.ts';
 
@@ -155,6 +156,8 @@ export type ActiveTurn = z.infer<typeof ActiveTurn>;
 export const ThreadState = z.strictObject({
   thread: Thread,
   messages: z.array(Message),
+  /** Every reaction on the thread's messages, oldest first. */
+  reactions: z.array(MessageReaction).default([]),
   activeTurn: ActiveTurn.nullable(),
   /** Messages sent while a turn ran that the agent has not seen yet, oldest first. */
   queue: z.array(QueuedMessage),
@@ -278,10 +281,13 @@ export const ChatEvent = z.discriminatedUnion('kind', [
   /** A background turn started on a message from another agent. It adds nothing to the chat's messages. */
   z.strictObject({ kind: z.literal('generation.background-started'), ...ThreadEvent, agentMessageId: EntityId, state: TurnState }),
   /**
-   * A background turn ended without telling the user (one that does ends with `generation.finished` and its
-   * message). Its answer, if the message asked for one, is posted as an agent message.
+   * A turn ended adding no message to the chat: a background turn that did not tell the user anything (its answer,
+   * if the message asked for one, is posted as an agent message), or a chat turn the agent ended with `stay_quiet`.
+   * Either way there is no new reply to mark unread.
    */
   z.strictObject({ kind: z.literal('generation.background-finished'), ...ThreadEvent, outcome: TurnOutcome }),
+  /** A message's reactions changed: `reactions` is its whole list now, oldest first. */
+  z.strictObject({ kind: z.literal('reactions.changed'), threadId: EntityId, cursor: Cursor, messageId: EntityId, reactions: z.array(MessageReaction) }),
   /** A sub-agent of this chat's turn `generationId` started, began running or ended. */
   z.strictObject({ kind: z.literal('subagent.changed'), ...ThreadEvent, run: SubagentRun }),
   /** Global (not part of any thread's cursor): refetch `/api/plugins/:id/usage`. */

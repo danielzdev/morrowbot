@@ -28,7 +28,7 @@ import { findSkills, skillList } from './features/skills/index.ts';
 import { createRoutineService, type RoutineClock } from './features/routines/index.ts';
 import { lockDataDir, openStorage } from './features/storage/index.ts';
 import { cliProbe, createT3WatchService, type T3Probe, type T3WatchClock } from './features/t3-watch/index.ts';
-import { openVault, vaultBackend, type VaultKeyChoice } from './features/vault/index.ts';
+import { keyValue, loginFill, openVault, vaultBackend, type VaultKeyChoice } from './features/vault/index.ts';
 import { agentInbox, agentToolPorts, chatStore, providerPlugins, subagentService } from './host-ports.ts';
 import { routineSink } from './t3-routine-sink.ts';
 
@@ -96,6 +96,15 @@ export async function startHost(options: HostOptions): Promise<Host> {
     const pluginPath = options.pluginPath ?? (await resolvePluginPath());
     options.signal?.throwIfAborted();
     const platform = options.platform ?? process.platform;
+    const backend = await vaultBackend(options.vaultKeys ?? 'system', process.platform, dataDir);
+    if (backend.headless !== null) console.warn(`MorrowBot host: the vault key is kept in the data folder because ${backend.headless}`);
+    const vault = await openVault({
+      file: path.join(dataDir, 'vault.json'),
+      secrets: backend.secrets,
+      newId,
+      now,
+      report,
+    });
     const plugins = await startPluginHost({
       pluginsDir: config.pluginsDir,
       builtinPluginsDir: config.builtinPluginsDir,
@@ -126,6 +135,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
       ...(options.clock === undefined ? {} : { clock: options.clock }),
       platform,
       newId: randomUUID,
+      secrets: (request) => loginFill(vault, request),
     });
     undo.push(() => plugins.stop());
     options.signal?.throwIfAborted();
@@ -161,18 +171,9 @@ export async function startHost(options: HostOptions): Promise<Host> {
       newId,
       now,
     });
-    const backend = await vaultBackend(options.vaultKeys ?? 'system', process.platform, dataDir);
-    if (backend.headless !== null) console.warn(`MorrowBot host: the vault key is kept in the data folder because ${backend.headless}`);
-    const vault = await openVault({
-      file: path.join(dataDir, 'vault.json'),
-      secrets: backend.secrets,
-      newId,
-      now,
-      report,
-    });
     const connectors = createConnectorService({
       store: storage.connectors,
-      runtime: createConnectorRuntime({ path: pluginPath, version: options.version }),
+      runtime: createConnectorRuntime({ path: pluginPath, version: options.version, vault: (vaultId) => keyValue(vault, vaultId) }),
       safeMode: config.safeMode,
       agentExists: (id) => agents.get(id) !== undefined,
       sharedWithMembers: (agentId) => storage.members.allowlistsOf(agentId).length > 0,
@@ -239,6 +240,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
           agents,
           agentMessages,
           memories,
+          replies: { react: (grant, emoji) => chat.agentReact(grant, emoji), stayQuiet: (grant) => chat.stayQuiet(grant) },
           vault,
           subagents,
           connectors,
@@ -328,6 +330,13 @@ export async function startHost(options: HostOptions): Promise<Host> {
         agentMessages,
         routines,
         t3Watches,
+        settings: {
+          chat: () => storage.chatSettings.get(),
+          setChat: (settings) => {
+            storage.chatSettings.set(settings);
+            return storage.chatSettings.get();
+          },
+        },
         vault,
       },
       fallback: healthListener(options.version),
