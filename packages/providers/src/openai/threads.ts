@@ -1,6 +1,6 @@
 import type { ProviderError, TurnSession, z } from '@morrowbot/plugin-sdk';
 import type { Call, CodexDaemon } from './daemon.ts';
-import { checkThread, policyKey, type ThreadPolicy } from './lockdown.ts';
+import { checkThread, policyKey, threadConfig, type ThreadPolicy } from './lockdown.ts';
 import { ThreadLoadedListResponse, ThreadOpened, ThreadUnsubscribed } from './protocol.ts';
 
 const OPEN_MS = 30_000;
@@ -33,7 +33,7 @@ interface OpenRequest {
 export async function openThread(daemon: CodexDaemon, request: OpenRequest): Promise<Opened> {
   const { policy, routeKey, cwd } = request;
   const key = policyKey(policy, cwd);
-  const overrides = { cwd, modelProvider: policy.modelProvider, sandbox: policy.sandbox, approvalPolicy: policy.approvalPolicy, config: policy.config };
+  const overrides = { cwd, modelProvider: policy.modelProvider, sandbox: policy.sandbox, approvalPolicy: policy.approvalPolicy, config: threadConfig(policy) };
   if (request.session.kind === 'new') {
     const started = await daemon.call('thread/start', { ...overrides, ephemeral: request.ephemeral }, ThreadOpened, OPEN_MS);
     if (started.kind !== 'ok') return refused(other('start a thread', started));
@@ -64,10 +64,10 @@ export async function openThread(daemon: CodexDaemon, request: OpenRequest): Pro
   return admit(daemon, resumed.value, policy, { isNew: false, keep: true, routeKey, policyKey: key });
 }
 
-/** Lets a thread go: an unloaded thread costs the daemon nothing. */
-export function releaseThread(daemon: CodexDaemon, threadId: string): void {
+/** Lets a thread go: an unloaded thread costs the daemon nothing. Resolves once Codex answered (or did not). */
+export async function releaseThread(daemon: CodexDaemon, threadId: string): Promise<void> {
   daemon.loaded.delete(threadId);
-  daemon.call('thread/unsubscribe', { threadId }, ThreadUnsubscribed, LIST_MS).catch((error: unknown) => {
+  await daemon.call('thread/unsubscribe', { threadId }, ThreadUnsubscribed, LIST_MS).catch((error: unknown) => {
     console.error('provider-openai: could not unsubscribe a thread', error);
   });
 }
@@ -81,7 +81,7 @@ async function admit(
   const threadId = opened.thread.id;
   const problem = await checkThread(daemon, opened, policy);
   if (problem !== null) {
-    releaseThread(daemon, threadId);
+    await releaseThread(daemon, threadId);
     return refused({ kind: 'access-not-supported', reason: problem });
   }
   const model = opened.model === undefined || opened.model === null || opened.model === '' ? null : opened.model;

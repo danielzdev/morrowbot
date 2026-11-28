@@ -1,4 +1,4 @@
-import { acp, type ModelSelection, type ProviderError } from '@morrowbot/plugin-sdk';
+import { acp, type HostTools, type ModelSelection, type ProviderError } from '@morrowbot/plugin-sdk';
 import { BUILD_MODE } from './config.ts';
 import { MODEL, type ModelCatalog } from './models.ts';
 
@@ -10,9 +10,9 @@ export type Opened =
   | { readonly kind: 'opened'; readonly sessionId: string; readonly options: readonly acp.ConfigOption[]; readonly detach: () => void }
   | { readonly kind: 'refused'; readonly error: ProviderError };
 
-/** Opens the turn's session: `session/new` in `cwd` with no MCP servers. MorrowBot never resumes an opencode session. */
-export async function openSession(client: acp.AcpClient, cwd: string, handlers: acp.SessionHandlers): Promise<Opened> {
-  const created = await client.call('session/new', { cwd, mcpServers: [] }, acp.SessionNewResponse, OPEN_MS);
+/** Opens the turn's session: `session/new` in `cwd` with only MorrowBot's MCP server. MorrowBot never resumes an opencode session. */
+export async function openSession(client: acp.AcpClient, cwd: string, tools: HostTools, handlers: acp.SessionHandlers): Promise<Opened> {
+  const created = await client.call('session/new', { cwd, mcpServers: acp.hostMcpServers(client, tools) }, acp.SessionNewResponse, OPEN_MS);
   if (created.kind !== 'ok') return { kind: 'refused', error: callError('start a session', created) };
   const { sessionId, configOptions } = created.value;
   return { kind: 'opened', sessionId, options: configOptions ?? [], detach: client.attach(sessionId, handlers) };

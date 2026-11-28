@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { QUIET_MARKER } from '@morrowbot/contracts';
-import { defineProvider, runPlugin, type AccessProfile, type PluginConfig, type TurnEnd } from '@morrowbot/plugin-sdk';
+import { defineProvider, runPlugin, z, type AccessProfile, type PluginConfig, type TurnEnd, type TurnRequest } from '@morrowbot/plugin-sdk';
 
 /**
  * A test provider. It answers with its greeting and the prompt; some prompts pick a behavior.
@@ -9,6 +9,9 @@ import { defineProvider, runPlugin, type AccessProfile, type PluginConfig, type 
  * With `sessions` on it keeps fake vendor sessions, so the host's session rules can be exercised.
  * `steerable` takes a steer mid-turn; `gate` runs until a `gate` file appears in its data folder.
  * A prompt whose first line is `nothing-new` gets only the stay-quiet marker back, as a routine's agent would send.
+ * Each prompt line `host-tool <name> <json arguments>` calls that MorrowBot tool over the turn's MCP endpoint
+ * and answers with the results; `{{message}}` in the arguments is the id of the agent message being read.
+ * Every turn saves its `hostTools` as `host-tools.json` in the data folder.
  */
 let config: PluginConfig = {};
 let dataDir = '';
@@ -23,6 +26,23 @@ function account(): string {
 
 const keepsSessions = (): boolean => config.sessions === true;
 const PROFILE: AccessProfile = { access: 'read-only', vendorSettings: 'isolated', modes: ['interactive', 'background'], readsOutsideCwd: false };
+
+const ToolAnswer = z.looseObject({
+  result: z.looseObject({ content: z.array(z.looseObject({ text: z.string() })), isError: z.boolean() }).optional(),
+  error: z.looseObject({ message: z.string() }).optional(),
+});
+
+async function callHostTool(tools: TurnRequest['hostTools'], name: string, args: unknown): Promise<string> {
+  if (tools.kind === 'none') return 'no host tools';
+  const response = await fetch(tools.url, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${tools.token}`, 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }),
+  });
+  const answer = ToolAnswer.parse(await response.json());
+  if (answer.result === undefined) return `rpc error ${answer.error?.message ?? 'unknown'}`;
+  return `${answer.result.isError ? 'error ' : ''}${answer.result.content.map(({ text }) => text).join('')}`;
+}
 
 function end(outcome: TurnEnd['outcome'], accountKey: string, extra: Partial<TurnEnd> = {}): TurnEnd {
   return { outcome, usage: { kind: 'unavailable' }, actualModel: null, accountKey, sessionTouched: true, finalText: null, ...extra };
@@ -68,8 +88,21 @@ runPlugin((runtime) =>
         return end({ kind: 'failed', error: { kind: 'account-changed' } }, current, { sessionTouched: false });
       }
       const { prompt } = request;
+      writeFileSync(path.join(dataDir, 'host-tools.json'), JSON.stringify(request.hostTools));
       if (keepsSessions() && request.session.kind === 'new' && request.expectedAccountKey !== '') {
         emit({ kind: 'session-bound', ref: `ref-${request.turnId}`, accountKey: current, routeKey: request.expectedRouteKey });
+      }
+      const toolCalls = prompt.split('\n').flatMap((line) => {
+        const [, name, args] = /^host-tool (\S+) (\{.*\})$/.exec(line.trim()) ?? [];
+        return name === undefined || args === undefined ? [] : [{ name, args }];
+      });
+      if (toolCalls.length > 0) {
+        const reading = /^Message (\S+) from the agent/m.exec(prompt)?.[1];
+        for (const [at, call] of toolCalls.entries()) {
+          const args: unknown = JSON.parse(reading === undefined ? call.args : call.args.replaceAll('{{message}}', reading));
+          emit({ kind: 'text', text: `${at === 0 ? '' : '\n'}${call.name}: ${await callHostTool(request.hostTools, call.name, args)}` });
+        }
+        return end({ kind: 'completed', finishReason: 'stop' }, current);
       }
       if (prompt.split('\n')[0] === 'nothing-new') return end({ kind: 'completed', finishReason: 'stop' }, current, { finalText: QUIET_MARKER });
       emit({ kind: 'text', text: `${String(config.greeting)} from pid ${String(process.pid)}:` });

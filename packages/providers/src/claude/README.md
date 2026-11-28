@@ -5,8 +5,10 @@ with your own Claude Pro or Max subscription. Each turn runs
 
 ```
 claude -p --input-format stream-json --output-format stream-json --verbose
-  --include-partial-messages --no-session-persistence --safe-mode --strict-mcp-config
+  --include-partial-messages --no-session-persistence --strict-mcp-config
+  --setting-sources '' --disable-slash-commands
   <access flags> [--model <id> [--effort <level>]] [--append-system-prompt-file <fd>]
+  [--mcp-config <fd> --allowedTools mcp__morrowbot]
 ```
 
 in the agent's workspace folder, writes the conversation as one stream-json user frame
@@ -17,6 +19,16 @@ answers and closes after the reply. Stopping a reply stops the CLI.
 **Access.** Two profiles, both with MorrowBot's own instructions (the agent's
 `AGENTS.md`, passed as the system prompt). Your own `CLAUDE.md`, skills, plugins,
 hooks, MCP servers and settings files are not loaded, and there is no shell.
+`--safe-mode` is not used: on 2.1.332 it also drops `--mcp-config` servers, so
+`--restricted`, `--strict-mcp-config`, `--setting-sources ''` and
+`--disable-slash-commands` turn the same things off (the live tests check it under
+hostile project settings).
+
+**MorrowBot's tools.** Each turn gets the host's MCP server for that turn
+(`--mcp-config`, read from a file descriptor so its token stays out of the process
+list), and its tools (`mcp__morrowbot__*`: list agents, send a message, search,
+remember and forget memories) run without asking in both profiles. They act only as
+the turn's agent and stop working when the turn ends.
 
 | Access | Flags |
 |---|---|

@@ -167,6 +167,7 @@ export function localSettlement(outcome: TurnOutcome): Settlement {
 export function settle(core: ChatCore, turn: Turn, result: Settlement): AssistantMessage | undefined {
   if (turn.state === 'settled') return undefined;
   turn.state = 'settled';
+  core.options.tools.close(turn.generationId);
   clearTimeout(turn.flushTimer);
   const { newId, now } = core.options;
   const createdAt = now();

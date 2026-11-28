@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { Agent, MessageList, StartedSend, Thread, UsageResponse, type AccessLevel, type ChatEvent, type ProviderBinding } from '@morrowbot/contracts';
+import { Agent, MemoryList, MessageList, StartedSend, Thread, UsageResponse, type AccessLevel, type ChatEvent, type ProviderBinding } from '@morrowbot/contracts';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { startTestHost, type EventClient, type TestHost } from '../../testing/test-host.ts';
 
@@ -82,7 +82,7 @@ const contents = (file: string) => readFile(file, 'utf8').catch(() => null);
 const tried = (generationId: string) =>
   events.received.flatMap((event) => (event.kind === 'generation.tool-start' && event.generationId === generationId ? [event.name] : []));
 
-/** Project settings, hooks and MCP servers that try to widen access; `--restricted` and `--safe-mode` must ignore them all. */
+/** Project settings, hooks and MCP servers that try to widen access; `--restricted` and `--strict-mcp-config` must ignore them all. */
 async function hostileProject(workspace: string): Promise<{ readonly outside: string; readonly marker: string }> {
   const outside = path.join(root, 'outside');
   const marker = path.join(root, 'hooked');
@@ -175,6 +175,28 @@ describe.runIf(LIVE)('provider-claude on the real CLI', () => {
       cachedReported: cached.map((tokens) => typeof tokens === 'number' && tokens > 0),
       windows: usage.kind === 'available' ? usage.windows.map((window) => window.id) : usage.kind,
     }).toEqual({ outcomes: ['completed', 'completed'], cachedReported: [true, true], windows: ['five_hour', 'seven_day'] });
+  });
+
+  it("keeps a memory with MorrowBot's remember tool under hostile project settings, then finds it with search_memories", { timeout: 2 * TURN_MS }, async () => {
+    const { thread, workspace } = await agentThread('read-only');
+    const { marker } = await hostileProject(workspace);
+    const saved = await send(thread, 'Call the morrowbot remember tool with the text "The deploy window is Friday". Do nothing else, then reply DONE.');
+    const found = await send(thread, 'Call the morrowbot search_memories tool with the query "deploy window", then reply with the text of the memory it found, or NONE.');
+    const { memories } = MemoryList.parse((await host.call('GET', `/api/agents/${thread.agentId}/memories`)).body);
+    const { messages } = MessageList.parse((await host.call('GET', `/api/threads/${thread.id}/messages`)).body);
+    expect({
+      tried: [tried(saved), tried(found)],
+      memories: memories.map(({ inclusion, text }) => `${inclusion}: ${text}`),
+      recalled: messages.at(-1)?.text.includes('Friday'),
+      hooked: await contents(marker),
+      outcomes: await outcomes(thread),
+    }).toEqual({
+      tried: [['mcp__morrowbot__remember'], ['mcp__morrowbot__search_memories']],
+      memories: ['searchable: The deploy window is Friday'],
+      recalled: true,
+      hooked: null,
+      outcomes: ['completed', 'completed'],
+    });
   });
 
   it('stops a running turn, then answers the next message', { timeout: 2 * TURN_MS }, async () => {

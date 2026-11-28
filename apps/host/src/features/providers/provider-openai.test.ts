@@ -16,7 +16,7 @@ afterEach(async () => {
 });
 
 function redact(value: unknown): unknown {
-  return JSON.parse(JSON.stringify(value).replaceAll(codex.home, '$HOME').replace(/\b[0-9a-f]{64}\b/g, '<sha256>').replace(/turn-\d+-/g, 'turn-<pid>-'));
+  return JSON.parse(JSON.stringify(value).replaceAll(codex.home, '$HOME').replace(/\b[0-9a-f]{64}\b/g, '<sha256>').replace(/turn-\d+-/g, 'turn-<pid>-').replace(/Bearer [\w-]+/g, 'Bearer <token>').replace(/127\.0\.0\.1:\d+/g, '127.0.0.1:<port>'));
 }
 
 function without(event: object, keys: readonly string[]): unknown {
@@ -116,7 +116,7 @@ it('reports Codex ready with its read-only profile and why the others are held b
   `);
 });
 
-it('streams a new thread, binds it to the account, counts its tokens, then reuses the loaded thread for the next turn', async () => {
+it('streams a new thread, binds it to the account, counts its tokens, lets it go, then resumes it for the next turn with that turn’s tools', async () => {
   const thread = await codex.thread(await codex.agent());
   const first = await sendAndWait(thread, 'hello');
   const second = await sendAndWait(thread, 'tool please');
@@ -194,7 +194,10 @@ it('streams a new thread, binds it to the account, counts its tokens, then reuse
       "methods": [
         "thread/start",
         "turn/start",
+        "thread/unsubscribe",
+        "thread/resume",
         "turn/start",
+        "thread/unsubscribe",
       ],
       "threadStart": {
         "approvalPolicy": "never",
@@ -214,6 +217,14 @@ it('streams a new thread, binds it to the account, counts its tokens, then reuse
           "features.shell_tool": false,
           "features.skill_mcp_dependency_install": false,
           "features.unified_exec": false,
+          "mcp_servers.morrowbot": {
+            "default_tools_approval_mode": "approve",
+            "enabled": true,
+            "http_headers": {
+              "Authorization": "Bearer <token>",
+            },
+            "url": "http://127.0.0.1:<port>/mcp",
+          },
           "mcp_servers.node_repl.enabled": false,
         },
         "cwd": "$HOME/data/workspaces/id-1",

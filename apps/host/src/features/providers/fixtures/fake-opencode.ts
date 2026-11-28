@@ -187,7 +187,7 @@ async function answer(method: string, raw: unknown): Promise<unknown> {
     case 'initialize':
       return {
         protocolVersion: state().protocolVersion,
-        agentCapabilities: { loadSession: true, sessionCapabilities: { close: {}, list: {}, resume: {} }, _meta: { 'opencode/child-session-updates': true } },
+        agentCapabilities: { loadSession: true, mcpCapabilities: { http: true, sse: false }, sessionCapabilities: { close: {}, list: {}, resume: {} }, _meta: { 'opencode/child-session-updates': true } },
         authMethods: [{ description: 'Run `opencode auth login` in the terminal', name: 'Login with opencode', id: 'opencode-login' }],
         agentInfo: { name: 'OpenCode', version: '2.4.1' },
       };

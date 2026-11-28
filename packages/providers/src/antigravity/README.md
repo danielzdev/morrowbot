@@ -13,6 +13,10 @@ starts it and registers it with the host before any turn uses it. `--gemini-dir`
 Antigravity settings, permission grants, hooks, plugins and MCP servers, apart from your
 `~/.gemini`. The sign-in is still yours: agy keeps it in the system keychain.
 
+**No MorrowBot tools yet.** agy 1.5.18 reports no HTTP MCP support (`mcpCapabilities`), and a
+stdio bridge would run a process agy starts outside MorrowBot's process guard, so its sessions
+open with no MCP servers and its agents cannot message other agents or keep memories from a turn.
+
 **Turns.** Each turn opens a new ACP session (`session/new`) in the agent's workspace. It puts
 the session in agy's Default mode, which asks before every edit and command, and sets the picked
 model and thinking level (`session/set_config_option`). Then it sends `session/prompt`, and
