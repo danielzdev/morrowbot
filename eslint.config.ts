@@ -29,5 +29,19 @@ export default defineConfig(
       '@typescript-eslint/no-floating-promises': ['error', { ignoreVoid: false }],
     },
   },
+  {
+    files: ['**/*.mjs'],
+    extends: [tseslint.configs.disableTypeChecked],
+    languageOptions: {
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+        URL: 'readonly',
+      },
+    },
+    rules: {
+      '@typescript-eslint/switch-exhaustiveness-check': 'off',
+    },
+  },
   importBoundariesConfig,
 );
