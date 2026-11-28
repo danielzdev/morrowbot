@@ -1,0 +1,107 @@
+/* Files an agent attached to its reply (attach_files): images and videos inline, other files as cards. */
+.reply-attachments {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-2);
+  max-width: min(100%, 480px);
+}
+.reply-media {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  max-width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+}
+.reply-image-button {
+  display: block;
+  cursor: zoom-in;
+  border-radius: 0;
+}
+.reply-image-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.reply-image {
+  display: block;
+  max-width: 100%;
+  max-height: 360px;
+  object-fit: contain;
+  background: var(--surface-2);
+}
+.reply-video {
+  display: block;
+  width: 480px;
+  max-width: 100%;
+  max-height: 320px;
+  background: var(--surface-chrome);
+}
+.reply-media-caption {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 36px;
+  padding: 0 var(--s-1) 0 var(--s-3);
+  border-top: 1px solid var(--hairline);
+}
+.reply-media-caption .reply-file-name {
+  flex: 1;
+}
+.reply-file {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 360px;
+  max-width: 100%;
+  padding: var(--s-2) var(--s-2) var(--s-2) var(--s-3);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+}
+.reply-file-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-md);
+  background: var(--fill-secondary);
+  color: var(--text-2);
+}
+.reply-file-badge {
+  font: 700 0.625rem/1 var(--font-ui);
+  letter-spacing: 0.04em;
+  color: var(--text-1);
+}
+.reply-file-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.reply-file-name {
+  overflow: hidden;
+  min-width: 0;
+  color: var(--text-1);
+  font: var(--t-ui-strong);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.reply-file-meta {
+  color: var(--text-3);
+  font: var(--t-small);
+  white-space: nowrap;
+}
+.reply-file-actions {
+  display: flex;
+  flex: none;
+  gap: var(--s-1);
+}
+:is(.reply-file-actions, .reply-media-caption) button {
+  min-height: 28px;
+  padding: 0 var(--s-2);
+}

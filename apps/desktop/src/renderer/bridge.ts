@@ -28,7 +28,18 @@ export interface BridgeChannels {
   readonly runReset: 'morrowbot:run-reset';
   readonly serverMode: 'morrowbot:server-mode';
   readonly chooseServer: 'morrowbot:choose-server';
+  readonly fileAction: 'morrowbot:file-action';
 }
+
+/** The scheme the window loads reply attachments from: `morrowbot-file://reply/<id>`, served by main with the host token. */
+export const REPLY_FILE_SCHEME = 'morrowbot-file';
+
+/** How opening or saving a reply attachment went. */
+export type FileActionResult =
+  | { readonly kind: 'opened' }
+  | { readonly kind: 'saved' }
+  | { readonly kind: 'cancelled' }
+  | { readonly kind: 'failed'; readonly reason: string };
 
 /**
  * Which server this app uses: none chosen yet (first launch), its own (a host this app starts), or one it joined.
@@ -197,4 +208,6 @@ export interface MorrowbotBridge {
   serverMode(): Promise<unknown>;
   /** Picks or switches the server; answers a `ServerAnswer`. */
   chooseServer(request: ServerRequest): Promise<unknown>;
+  /** Opens a reply attachment in its viewer app, or saves it and shows it in Finder. Parse with `FileActionResult`. */
+  fileAction(request: { readonly action: 'open' | 'save'; readonly id: string; readonly name: string }): Promise<unknown>;
 }

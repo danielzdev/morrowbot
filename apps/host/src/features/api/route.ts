@@ -16,6 +16,8 @@ export interface RouteContext {
   /** Whose view to answer for; a scoped member's routes were already checked against its grants. */
   readonly viewer: Viewer;
   readonly whoAmI: WhoAmI;
+  /** The request's `Range` header, for routes that serve a file. */
+  readonly range: string | undefined;
   readonly body: () => Promise<Body>;
 }
 

@@ -193,8 +193,9 @@ export function settle(core: ChatCore, turn: Turn, result: Settlement): Assistan
   const { newId, now } = core.options;
   const createdAt = now();
   const outcome = replyOutcome(turn, result.outcome);
-  const text = shownText(core, turn, turn.text !== '' ? turn.text : (result.finalText ?? ''), result.outcome);
-  const base: AssistantMessage | null = text === null ? null : { kind: 'assistant', id: newId(), threadId: turn.threadId, text, outcome, createdAt };
+  const attachments = core.options.store.replyAttachments.listOpen(turn.generationId).map(({ attachment }) => attachment);
+  const text = shownText(core, turn, turn.text !== '' ? turn.text : (result.finalText ?? ''), result.outcome, attachments.length > 0);
+  const base: AssistantMessage | null = text === null ? null : { kind: 'assistant', id: newId(), threadId: turn.threadId, text, outcome, attachments, createdAt };
   const message: AssistantMessage | null = base !== null && turn.seedTruncated ? { ...base, seedTruncated: true } : base;
   if (!persistSettlement(core, turn, message, result, createdAt)) {
     turn.settled.resolve({ kind: 'not-stored' });
@@ -228,16 +229,16 @@ export function settle(core: ChatCore, turn: Turn, result: Settlement): Assistan
  * What the chat shows for a settled turn: a chat turn's reply, or a background turn's notice to the user
  * (null for none). A completed background turn's answer is sent to the agent that asked; an answer that
  * cannot be sent is shown to the user instead, so it is never lost. A completed turn the agent ended with
- * `stay_quiet`, or a reaction's turn that wrote nothing, shows nothing; a failed or stopped one still does.
+ * `stay_quiet`, or a reaction's turn that wrote and attached nothing, shows nothing; a failed or stopped one still does.
  */
-function shownText(core: ChatCore, turn: Turn, text: string, outcome: TurnOutcome): string | null {
+function shownText(core: ChatCore, turn: Turn, text: string, outcome: TurnOutcome, attached: boolean): string | null {
   const { source } = turn;
   const completed = outcome.kind === 'completed';
   switch (source.kind) {
     case 'chat':
       return completed && turn.silent ? null : text;
     case 'reaction':
-      return completed && (turn.silent || text.trim() === '') ? null : text;
+      return completed && (turn.silent || (text.trim() === '' && !attached)) ? null : text;
     case 'agent-message': {
       if (outcome.kind !== 'completed') return null;
       const { reply, notice } = splitAnswer(text);
@@ -266,6 +267,7 @@ function persistSettlement(core: ChatCore, turn: Turn, message: AssistantMessage
       }
       store.generations.settle(turn.generationId, message?.id ?? null);
       store.toolSteps.close(turn.generationId, message?.id ?? null);
+      store.replyAttachments.close(turn.generationId, message?.id ?? null);
       if (!turn.dispatched) return;
       store.generations.insertUsage({
         generationId: turn.generationId,

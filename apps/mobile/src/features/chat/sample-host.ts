@@ -53,7 +53,7 @@ export function createSampleChatHost(now: () => string = () => new Date().toISOS
   };
 
   const finish = (threadId: string, turn: Active, outcome: TurnOutcome): AssistantMessage => {
-    const message: AssistantMessage = { kind: 'assistant', id: nextId('reply'), threadId, text: turn.text, createdAt: now(), outcome };
+    const message: AssistantMessage = { kind: 'assistant', attachments: [], id: nextId('reply'), threadId, text: turn.text, createdAt: now(), outcome };
     active.delete(threadId);
     messages.set(threadId, [...(messages.get(threadId) ?? []), message]);
     emit(threadId, turn.generationId, { kind: 'generation.finished', message });

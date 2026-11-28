@@ -229,6 +229,7 @@ it('streams a new session in Default mode, counts its tokens, closes it, and see
         {
           "kind": "generation.finished",
           "message": {
+            "attachments": [],
             "createdAt": "2026-01-01T00:00:05.000Z",
             "id": "id-5",
             "kind": "assistant",

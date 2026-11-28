@@ -14,6 +14,7 @@ import { outcomeCopy, type CopyContext, type OutcomeAction } from './outcome-cop
 import { OutcomeNote } from './OutcomeNote.tsx';
 import { reactionsByMessage } from './reactions.ts';
 import { ReactionPicker, ReactionPills } from './Reactions.tsx';
+import { ReplyAttachments, type ReplyFiles } from './ReplyAttachments.tsx';
 import { SentAttachments } from './SentAttachments.tsx';
 import { SubagentGroup, type EngineLabel } from './SubagentGroup.tsx';
 import type { ActiveTurnView, ApprovalStep, FinishedTurn, ThreadView, TurnStep } from './thread-model.ts';
@@ -35,6 +36,8 @@ export interface TimelineContext {
   readonly agentName: string;
   /** A sent image as a data URL; null when it can't be loaded. */
   readonly image: (id: string) => Promise<string | null>;
+  /** The files agents attached to their replies. */
+  readonly files: ReplyFiles;
   readonly peers: PeerDirectory;
   readonly engine: EngineLabel;
   /** This chat's agent's avatar, moving as `activity` shows. */
@@ -108,6 +111,7 @@ const MessageItem = memo(function MessageItem(props: {
       )}
       {finished !== undefined && <TurnSteps steps={finished.steps} display={ctx.display} approval={approvalFor(ctx, NO_ANSWERS, false)} />}
       {message.text !== '' && <div data-find-id={message.id}><Markdown text={message.text} actions={ctx.actions} /></div>}
+      {message.attachments.length > 0 && <ReplyAttachments attachments={message.attachments} files={ctx.files} />}
       <OutcomeNote
         copy={copy}
         seedTruncated={message.seedTruncated === true}

@@ -9,6 +9,7 @@ import { superviseHost } from './host-supervisor.ts';
 import { parseServerRequest, pickServer } from './join-server.ts';
 import { checkSender, IpcRefusedError, parseCopyText, parseSubscription, proxyRequest, type HostTarget, type IpcSender } from './ipc-proxy.ts';
 import { readSafeMode, writeSafeMode } from './launch-prefs.ts';
+import { fileAction, registerReplyFileScheme, serveReplyFiles } from './reply-file-handlers.ts';
 import { readServerChoice, serverPlanOf, writeServerChoice } from './server-choice.ts';
 import { openServerConnection } from './server-connection.ts';
 import { NO_UPDATER, startUpdater, type Updater } from './updater.ts';
@@ -195,6 +196,8 @@ function runApp(profile: UsableProfile): void {
     shell.showItemInFolder(await resolveReveal(target, { dataDir, pluginsDir: pluginsDirOf(process.env, dataDir), host: server.target(), rendererUrl: RENDERER_URL }));
   });
 
+  ipcMain.handle(CHANNELS.fileAction, (event, input: unknown) => fileAction(fromRenderer(event, input), server.target(), window));
+
   ipcMain.handle(CHANNELS.relaunch, (event, input: unknown) => {
     writeSafeMode(dataDir, parseRelaunch(fromRenderer(event, input)));
     app.relaunch();
@@ -344,6 +347,7 @@ function runApp(profile: UsableProfile): void {
   });
 
   void app.whenReady().then(() => {
+    serveReplyFiles(() => server.target());
     openWindow();
     if (profile.kind === 'installed') {
       updater = startUpdater({
@@ -371,6 +375,7 @@ function start(profile: UsableProfile): void {
   else app.quit();
 }
 
+registerReplyFileScheme();
 app.setName(PRODUCT_NAME);
 app.setAppUserModelId(APP_ID);
 const profile = profileOf({ packaged: app.isPackaged, env: process.env, homeDir: HOME_DIR });

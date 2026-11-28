@@ -41,7 +41,7 @@ it('names each phase of a turn beside the avatar, from queued through a tool, an
     { kind: 'generation.delta', ...turn(10), text: 'High tide is at 6.' },
     { kind: 'generation.tool-start', ...turn(11), toolUseId: 'b', name: 'Bash', input: { command: 'date' } },
     { kind: 'generation.tool-end', ...turn(12), toolUseId: 'b', outcome: 'ok' },
-    { kind: 'generation.finished', ...turn(13), message: { kind: 'assistant', id: 'm', threadId: 't', text: 'High tide is at 6.', outcome: { kind: 'completed', finishReason: 'stop' }, createdAt: AT } },
+    { kind: 'generation.finished', ...turn(13), message: { kind: 'assistant', attachments: [], id: 'm', threadId: 't', text: 'High tide is at 6.', outcome: { kind: 'completed', finishReason: 'stop' }, createdAt: AT } },
   ];
   let view = viewOf(IDLE);
   let activity: ChatActivity = 'idle';
@@ -84,6 +84,7 @@ const CTX: TimelineContext = {
   onReact: () => undefined,
   agentName: 'Friday',
   image: () => Promise.resolve(null),
+  files: { url: (id) => id, act: () => Promise.resolve({ kind: 'cancelled' }) },
   peers: { name: () => 'Peer', color: () => '#6b7280', avatar: () => null },
   engine: ({ pluginId }) => pluginId,
   avatar: (activity) => h('i', { 'data-avatar': activity }),
@@ -98,7 +99,7 @@ function rows(view: ThreadView, activity: ChatActivity): string[] {
 }
 
 const USER: UserMessage = { kind: 'user', id: 'u', threadId: 't', text: 'Find it', createdAt: AT, attachments: [] };
-const REPLY: AssistantMessage = { kind: 'assistant', id: 'm', threadId: 't', text: 'High tide is at 6.', outcome: { kind: 'completed', finishReason: 'stop' }, createdAt: AT };
+const REPLY: AssistantMessage = { kind: 'assistant', attachments: [], id: 'm', threadId: 't', text: 'High tide is at 6.', outcome: { kind: 'completed', finishReason: 'stop' }, createdAt: AT };
 
 function play(view: ThreadView, events: readonly ThreadEvent[], now = 0): ThreadView {
   return events.reduce((before, event) => {

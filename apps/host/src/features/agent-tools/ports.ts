@@ -8,6 +8,7 @@ import type {
   Memory,
   PluginToolDefinition,
   PluginToolResult,
+  ReplyAttachment,
   Routine,
   SendAgentMessageRequest,
   SubagentRun,
@@ -24,6 +25,12 @@ export type SendAnswer = { readonly kind: 'sent'; readonly message: AgentMessage
 
 /** A reply tool's outcome: a JSON value for the model, or why nothing was done. */
 export type ReplyAnswer = { readonly kind: 'done'; readonly value: object } | { readonly kind: 'refused'; readonly reason: string };
+
+/** What `attach_files` did with each path. */
+export interface AttachAnswer {
+  readonly attached: readonly ReplyAttachment[];
+  readonly refused: readonly { readonly path: string; readonly reason: string }[];
+}
 
 export type Refused = { readonly kind: 'refused'; readonly reason: string };
 
@@ -173,6 +180,10 @@ export interface ToolPorts {
   readonly replies: {
     react(grant: ToolGrant, emoji: string): ReplyAnswer;
     stayQuiet(grant: ToolGrant): ReplyAnswer;
+  };
+  /** Files for the reply of the turn `grant` stands for (the attachments feature provides it). */
+  readonly replyAttachments: {
+    attach(grant: ToolGrant, paths: readonly string[], signal: AbortSignal): Promise<AttachAnswer>;
   };
   /** The vault's item names. Secret values never reach the tools. */
   readonly vault: { list(): readonly VaultItem[] };

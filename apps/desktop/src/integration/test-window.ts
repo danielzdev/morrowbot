@@ -1,6 +1,7 @@
 import type { EventServerFrame } from '@morrowbot/contracts';
 import { openEventStream, type EventStream } from '../main/event-stream.ts';
 import { parseSubscription, proxyRequest, type HostTarget, type IpcSender } from '../main/ipc-proxy.ts';
+import { parseFileAction, runFileAction } from '../main/reply-files.ts';
 import type { MorrowbotBridge } from '../renderer/bridge.ts';
 
 const RENDERER_URL = 'file:///Applications/MorrowBot.app/Contents/Resources/app/dist/renderer/index.html';
@@ -22,7 +23,13 @@ export interface TestWindow {
   close(): void;
 }
 
-export function openTestWindow(target: HostTarget): TestWindow {
+/** Where a test window's file actions write: files it opens, and the path a Save dialog would answer (null cancels). */
+export interface TestFiles {
+  readonly openDir: string;
+  readonly saveTo: (name: string) => string | null;
+}
+
+export function openTestWindow(target: HostTarget, files?: TestFiles): TestWindow {
   let host = target;
   let events: EventStream | undefined;
   const frames = new Set<(frame: EventServerFrame) => void>();
@@ -89,6 +96,23 @@ export function openTestWindow(target: HostTarget): TestWindow {
     runReset: () => Promise.resolve({ kind: 'refused', reason: 'Not in tests.' }),
     serverMode: () => Promise.resolve({ kind: 'local' }),
     chooseServer: () => Promise.resolve({ kind: 'failed', message: 'A test window keeps its server' }),
+    fileAction: async (request) => {
+      if (files === undefined) return { kind: 'failed', reason: 'Not in tests.' };
+      const result = await runFileAction(parseFileAction({ sender: PAGE, rendererUrl: RENDERER_URL, input: request }), {
+        host,
+        openDir: files.openDir,
+        saveTo: (name) => Promise.resolve(files.saveTo(name)),
+        open: (file) => {
+          seen.push({ opened: file });
+          return Promise.resolve('');
+        },
+        reveal: (file) => {
+          seen.push({ revealed: file });
+        },
+      });
+      seen.push(result);
+      return result;
+    },
   };
   return {
     bridge,

@@ -364,6 +364,7 @@ function recover(options: ChatServiceOptions): void {
       store.transaction(() => {
         store.generations.settle(generation.id, null);
         store.toolSteps.close(generation.id, null);
+        store.replyAttachments.close(generation.id, null);
       });
       continue;
     }
@@ -374,6 +375,7 @@ function recover(options: ChatServiceOptions): void {
       threadId: generation.threadId,
       text: generation.partialText,
       outcome: { kind: 'interrupted' },
+      attachments: store.replyAttachments.listOpen(generation.id).map(({ attachment }) => attachment),
       createdAt: at,
     };
     store.transaction(() => {
@@ -381,6 +383,7 @@ function recover(options: ChatServiceOptions): void {
       store.threads.touch(generation.threadId, at);
       store.generations.settle(generation.id, message.id);
       store.toolSteps.close(generation.id, message.id);
+      store.replyAttachments.close(generation.id, message.id);
     });
   }
 }

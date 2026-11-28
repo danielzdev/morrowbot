@@ -35,6 +35,7 @@ const CHANNELS = {
   runReset: 'morrowbot:run-reset',
   serverMode: 'morrowbot:server-mode',
   chooseServer: 'morrowbot:choose-server',
+  fileAction: 'morrowbot:file-action',
 };
 
 /**
@@ -78,6 +79,7 @@ const bridge = {
   onProviderInstallProgress: (listener) => listen(CHANNELS.providerInstallProgress, (_event, progress) => { listener(progress); }),
   resetPlan: () => ipcRenderer.invoke(CHANNELS.resetPlan),
   runReset: (request) => ipcRenderer.invoke(CHANNELS.runReset, request),
+  fileAction: (request) => ipcRenderer.invoke(CHANNELS.fileAction, request),
   serverMode: () => ipcRenderer.invoke(CHANNELS.serverMode),
   chooseServer: (request) => ipcRenderer.invoke(CHANNELS.chooseServer, request),
 };
