@@ -1,13 +1,16 @@
 import { StatusBar } from 'expo-status-bar';
 import { WorkspaceShell } from '../features/layout/index.ts';
+import { HostProviders } from './HostProviders.tsx';
 import { registry } from './registry.ts';
 
 export function App() {
   const { Provider } = registry.connection;
   return (
     <Provider>
-      <StatusBar style="auto" />
-      <WorkspaceShell registry={registry} />
+      <HostProviders>
+        <StatusBar style="auto" />
+        <WorkspaceShell registry={registry} />
+      </HostProviders>
     </Provider>
   );
 }

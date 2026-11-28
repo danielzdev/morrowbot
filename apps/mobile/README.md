@@ -15,6 +15,10 @@ Expo (dev client) + React Native app for iOS, built first for iPhone Duo folded 
 - `src/features/<slice>/` — one folder per feature slice. Each exports its slots from `index.ts`;
   `src/app/registry.ts` wires them in. A new detail screen is a new kind in `DetailRouteMap` plus
   its slot in the registry; the shell does not change.
+- `src/features/chat/` — the chat canvas, approvals, composer and Agent Settings sheet. It talks to
+  the host only through its `ChatHost` interface; `src/features/extensions/` likewise through
+  `ExtensionsHost`. `src/app/HostProviders.tsx` hands both the built-in sample host
+  (`createSampleChatHost`, made-up agents) until a paired host is wired in.
 
 ## Run
 
