@@ -65,7 +65,7 @@ it('speaks MCP on loopback only to the running turn’s token', async () => {
                 "listChanged": false,
               },
             },
-            "instructions": "MorrowBot tools: message your teammate agents, keep your own memories, and answer the user with an emoji reaction or no message instead of filler text. They act only as you, and only during this turn.",
+            "instructions": "MorrowBot tools: message your teammate agents, keep your own memories, answer the user with an emoji reaction or no message instead of filler text, and use the connectors the user gave you (named <connector>__<tool>). They act only as you, and only during this turn.",
             "protocolVersion": "2025-06-18",
             "serverInfo": {
               "name": "morrowbot",

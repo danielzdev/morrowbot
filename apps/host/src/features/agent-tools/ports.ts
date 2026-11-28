@@ -7,7 +7,24 @@ export type SendAnswer = { readonly kind: 'sent'; readonly message: AgentMessage
 /** A reply tool's outcome: a JSON value for the model, or why nothing was done. */
 export type ReplyAnswer = { readonly kind: 'done'; readonly value: object } | { readonly kind: 'refused'; readonly reason: string };
 
-/** What the tools act on (the agents, agent-messages, memories and chat features provide it). */
+/** A connector tool as `tools/list` shows it, named `<connector label key>__<tool>`. */
+export interface ConnectorTool {
+  readonly name: string;
+  readonly description: string;
+  readonly inputSchema: Readonly<Record<string, unknown>>;
+}
+
+/** A connector tool call's outcome: the connector server's result as it is, or why nothing was called. */
+export type ConnectorCall =
+  | {
+      readonly kind: 'result';
+      readonly content: readonly Readonly<Record<string, unknown>>[];
+      readonly structuredContent: Readonly<Record<string, unknown>> | null;
+      readonly isError: boolean;
+    }
+  | { readonly kind: 'refused'; readonly reason: string };
+
+/** What the tools act on (the agents, agent-messages, memories, chat and connectors features provide it). */
 export interface ToolPorts {
   readonly agents: { list(): readonly Agent[] };
   readonly messages: {
@@ -26,5 +43,10 @@ export interface ToolPorts {
   readonly replies: {
     react(grant: ToolGrant, emoji: string): ReplyAnswer;
     stayQuiet(grant: ToolGrant): ReplyAnswer;
+  };
+  /** The agent's connector tools; each list and each call checks that connector's scope and status again. */
+  readonly connectors: {
+    tools(agentId: string): readonly ConnectorTool[];
+    call(agentId: string, name: string, args: unknown, signal: AbortSignal): Promise<ConnectorCall>;
   };
 }

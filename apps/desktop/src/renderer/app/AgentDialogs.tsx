@@ -2,6 +2,7 @@ import type { Agent } from '@morrowbot/contracts';
 import type { MorrowbotBridge } from '../bridge.ts';
 import { AgentSettingsDialog, NewAgentDialog, type AgentSection, type AvatarEditor } from '../features/agents/index.ts';
 import { AvatarPicker, freshAvatar } from '../features/avatar/index.ts';
+import { AgentExtensionsSection, type ConnectorTarget } from '../features/connectors/index.ts';
 import { RoutinesSection } from '../features/routines/index.ts';
 import { displayPath, redact, type AppInfo } from '../shared/privacy.ts';
 import { useStore } from '../shared/use-store.ts';
@@ -26,6 +27,8 @@ export function AgentDialogs(props: {
   readonly info: AppInfo | null;
   readonly reducedMotion: boolean;
   readonly onOpenProviders: () => void;
+  /** Opens Extensions › Connectors; null for a member who may not manage them. */
+  readonly onOpenConnectors: ((target: ConnectorTarget) => void) | null;
   readonly onCreated: (agent: Agent) => void;
 }) {
   const { dialog, models, bridge } = props;
@@ -69,6 +72,8 @@ export function AgentDialogs(props: {
       const agent = state.agents.kind === 'loaded' ? state.agents.value.find(({ id }) => id === dialog.agentId) : undefined;
       if (agent === undefined) return null;
       const workspaceLabel = displayPath(agent.workspace.dir, info, agent.workspace.dir);
+      const { onOpenConnectors } = props;
+      const personal = agent.provider.kind === 'bound' && agent.provider.vendorSettings === 'personal' ? agent.provider.pluginId : null;
       return (
         <AgentSettingsDialog
           key={agent.id}
@@ -81,6 +86,30 @@ export function AgentDialogs(props: {
           choices={choices}
           avatarEditor={avatarEditor}
           routines={<RoutinesSection model={models.routines} agentId={agent.id} redact={safe} />}
+          extensions={
+            onOpenConnectors === null
+              ? null
+              : ({ onDirty, leave }) => {
+                  const go = (target: ConnectorTarget): void => {
+                    leave(() => {
+                      close();
+                      onOpenConnectors(target);
+                    });
+                  };
+                  return (
+                    <AgentExtensionsSection
+                      model={models.connectors}
+                      agent={agent}
+                      agents={state.agents.kind === 'loaded' ? state.agents.value : []}
+                      personalProvider={personal === null ? null : (choices.find(({ id }) => id === personal)?.name ?? null)}
+                      redact={safe}
+                      onDirty={onDirty}
+                      onManage={(id) => { go({ kind: 'connector', id }); }}
+                      onAddExtensions={() => { go({ kind: 'list', installFor: agent.id }); }}
+                    />
+                  );
+                }
+          }
           workspaceLabel={workspaceLabel}
           redact={safe}
           onOpenProviders={providers}

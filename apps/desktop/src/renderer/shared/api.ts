@@ -14,6 +14,8 @@ import {
   PutInstructionsReply,
   AgentList,
   ApiError,
+  Connector,
+  ConnectorList,
   ContinueResponse,
   Folder,
   InviteResponse,
@@ -39,12 +41,15 @@ import {
   ChatSettings,
   CreateAgentRequest,
   SetReactionResponse,
+  type CreateConnectorRequest,
   type CreateRoutineRequest,
   type PluginConfig,
   type SessionChoice,
   type SetReactionRequest,
   type TokenRange,
+  type SetConnectorScopeRequest,
   type UpdateAgentRequest,
+  type UpdateConnectorAccountRequest,
   type UpdateRoutineRequest,
 } from '@morrowbot/contracts';
 import { z } from 'zod';
@@ -109,6 +114,17 @@ export interface Api {
   setPluginConfig(id: string, config: PluginConfig): Promise<ApiResult<PluginEntry>>;
   restartPlugin(id: string): Promise<ApiResult<PluginEntry>>;
   rescanPlugins(): Promise<ApiResult<PluginList>>;
+  listConnectors(): Promise<ApiResult<ConnectorList>>;
+  /** Adds a connector with the scope already chosen, so it never runs with a scope nobody chose. */
+  createConnector(request: z.input<typeof CreateConnectorRequest>): Promise<ApiResult<Connector>>;
+  updateConnectorAccount(id: string, request: z.input<typeof UpdateConnectorAccountRequest>): Promise<ApiResult<Connector>>;
+  setConnectorEnabled(id: string, enabled: boolean): Promise<ApiResult<Connector>>;
+  /** A stale `revision` fails with `scope-conflict`, carrying the current scope. */
+  setConnectorScope(id: string, request: SetConnectorScopeRequest): Promise<ApiResult<Connector>>;
+  /** Connect, and also Reconnect. */
+  connectConnector(id: string): Promise<ApiResult<Connector>>;
+  disconnectConnector(id: string): Promise<ApiResult<Connector>>;
+  removeConnector(id: string): Promise<ApiResult<null>>;
   providerInfo(id: string, refresh: boolean): Promise<ApiResult<ProviderInfoResponse>>;
   recheck(id: string): Promise<ApiResult<ProviderInfoResponse>>;
   usage(id: string, refresh: boolean): Promise<ApiResult<UsageResponse>>;
@@ -198,6 +214,14 @@ export function createApi(bridge: MorrowbotBridge): Api {
     setPluginConfig: (id, config) => call(PluginEntry, 'PUT', at('plugins', id, 'config'), { config }),
     restartPlugin: (id) => call(PluginEntry, 'POST', at('plugins', id, 'restart')),
     rescanPlugins: () => call(PluginList, 'POST', at('plugins', 'rescan')),
+    listConnectors: () => call(ConnectorList, 'GET', at('connectors')),
+    createConnector: (request) => call(Connector, 'POST', at('connectors'), request),
+    updateConnectorAccount: (id, request) => call(Connector, 'PUT', at('connectors', id, 'account'), request),
+    setConnectorEnabled: (id, enabled) => call(Connector, 'PUT', at('connectors', id, 'enabled'), { enabled }),
+    setConnectorScope: (id, request) => call(Connector, 'PUT', at('connectors', id, 'scope'), request),
+    connectConnector: (id) => call(Connector, 'POST', at('connectors', id, 'connect')),
+    disconnectConnector: (id) => call(Connector, 'POST', at('connectors', id, 'disconnect')),
+    removeConnector: (id) => call(NoContent, 'DELETE', at('connectors', id)),
     providerInfo: (id, refresh) => call(ProviderInfoResponse, 'GET', `${at('plugins', id, 'info')}${refresh ? '?refresh=1' : ''}`),
     recheck: (id) => call(ProviderInfoResponse, 'POST', at('plugins', id, 'recheck')),
     usage: (id, refresh) => call(UsageResponse, 'GET', `${at('plugins', id, 'usage')}${refresh ? '?refresh=1' : ''}`),

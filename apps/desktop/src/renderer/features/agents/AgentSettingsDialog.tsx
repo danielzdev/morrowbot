@@ -18,11 +18,12 @@ import { MemoriesSection } from './MemoriesSection.tsx';
 import { SkillsSection } from './SkillsSection.tsx';
 import type { AvatarEditor } from './NewAgentDialog.tsx';
 
-export type AgentSection = 'general' | 'brain' | 'instructions' | 'skills' | 'memories' | 'routines' | 'replies' | 'notifications' | 'workspace' | 'danger';
+export type AgentSection = 'general' | 'brain' | 'extensions' | 'instructions' | 'skills' | 'memories' | 'routines' | 'replies' | 'notifications' | 'workspace' | 'danger';
 
 const TITLES: Readonly<Record<AgentSection, string>> = {
   general: 'General',
   brain: 'Brain',
+  extensions: 'Extensions',
   instructions: 'Instructions',
   skills: 'Skills',
   memories: 'Memories',
@@ -36,6 +37,7 @@ const TITLES: Readonly<Record<AgentSection, string>> = {
 const ICONS: Readonly<Record<AgentSection, IconName>> = {
   general: 'settings',
   brain: 'chat',
+  extensions: 'plugins',
   instructions: 'pencil',
   skills: 'book',
   memories: 'bookmark',
@@ -46,9 +48,16 @@ const ICONS: Readonly<Record<AgentSection, IconName>> = {
   danger: 'trash',
 };
 
-const NAV: readonly AgentSection[] = ['general', 'brain', 'instructions', 'skills', 'memories', 'routines', 'replies', 'notifications', 'workspace'];
+const NAV: readonly AgentSection[] = ['general', 'brain', 'extensions', 'instructions', 'skills', 'memories', 'routines', 'replies', 'notifications', 'workspace'];
 
 const isSection = (id: string): id is AgentSection => id in TITLES;
+
+/** What the Extensions section gets from Agent Settings. */
+export interface ExtensionsSlot {
+  readonly onDirty: (dirty: boolean) => void;
+  /** Leaves Agent Settings for another screen, after the "Discard changes?" check. */
+  readonly leave: (then: () => void) => void;
+}
 
 /**
  * Agent Settings in the shared Settings shell (spec §5.2). Each section is staged with its own Save
@@ -66,6 +75,8 @@ export function AgentSettingsDialog(props: {
   readonly avatarEditor: AvatarEditor;
   /** The Routines section, which the routines feature draws. */
   readonly routines: ComponentChildren;
+  /** The Extensions section, which the connectors feature draws; null hides it. */
+  readonly extensions: ((slot: ExtensionsSlot) => ComponentChildren) | null;
   readonly workspaceLabel: string;
   readonly redact: (text: string) => string;
   readonly onOpenProviders: () => void;
@@ -85,7 +96,7 @@ export function AgentSettingsDialog(props: {
   const groups: readonly SettingsNavGroup[] = [
     {
       label: agent.name,
-      items: NAV.map((id) => ({ id, label: TITLES[id], icon: ICONS[id], dirty: dirty[id] === true })),
+      items: NAV.filter((id) => id !== 'extensions' || props.extensions !== null).map((id) => ({ id, label: TITLES[id], icon: ICONS[id], dirty: dirty[id] === true })),
     },
     { label: null, items: [{ id: 'danger', label: TITLES.danger, icon: ICONS.danger }] },
   ];
@@ -113,6 +124,11 @@ export function AgentSettingsDialog(props: {
         <div hidden={props.section !== 'brain'}>
           <AgentBrain model={model} agent={agent} choices={props.choices} redact={props.redact} onOpenProviders={leave(props.onOpenProviders)} onDirty={mark('brain')} />
         </div>
+        {props.extensions !== null && (
+          <div hidden={props.section !== 'extensions'}>
+            {props.extensions({ onDirty: mark('extensions'), leave: (then) => { leave(then)(); } })}
+          </div>
+        )}
         <div hidden={props.section !== 'instructions'}>
           <InstructionsEditor
             model={model}

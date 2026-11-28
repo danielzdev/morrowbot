@@ -99,6 +99,7 @@ export function problemOf(error: ApiError['error'], action: PendingAction, choic
     case 'unauthorized':
     case 'internal':
     case 'instructions-conflict':
+    case 'scope-conflict':
       return { kind: 'error', message: error.message };
   }
 }
