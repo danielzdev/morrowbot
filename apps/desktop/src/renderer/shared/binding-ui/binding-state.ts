@@ -96,3 +96,10 @@ export function changeCheck(choices: readonly ProviderChoice[], before: Provider
 }
 
 export const needsConfirm = (check: ChangeCheck): boolean => check.switched || check.added.length > 0;
+
+/** The confirm button's label: what saving the change does. */
+export function confirmLabel(check: ChangeCheck, before: ProviderBinding, after: ProviderBinding): string {
+  if (check.switched) return 'Switch';
+  const full = (binding: ProviderBinding): boolean => binding.kind === 'bound' && binding.access === 'full';
+  return full(after) && !full(before) ? 'Turn on full access' : 'Use it';
+}

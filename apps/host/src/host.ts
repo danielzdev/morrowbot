@@ -148,6 +148,10 @@ export async function startHost(options: HostOptions): Promise<Host> {
       records: storage.agentMessages,
       agentExists: (id) => agents.get(id) !== undefined,
       mayMessage: (fromAgentId, toAgentId) => members.mayMessage(fromAgentId, toAgentId),
+      accessOf: (id) => {
+        const provider = agents.get(id)?.provider;
+        return provider?.kind === 'bound' ? provider.access : null;
+      },
       threads: storage.threads,
       newId,
       now,

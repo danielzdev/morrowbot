@@ -18,6 +18,7 @@ const STATIC_WITHHELD: readonly WithheldProfile[] = [
   { access: 'workspace-write', vendorSettings: 'personal', reason: WRITE_REASON },
   { access: 'read-only', vendorSettings: 'isolated', reason: INSTRUCTIONS_REASON },
   { access: 'workspace-write', vendorSettings: 'isolated', reason: INSTRUCTIONS_REASON },
+  { access: 'full', vendorSettings: 'personal', reason: 'MorrowBot has not yet checked with a fixture that Stop ends every command agy starts, so Antigravity has no full access.' },
 ];
 
 /** Why read-only is held back on `platform`, or null. */

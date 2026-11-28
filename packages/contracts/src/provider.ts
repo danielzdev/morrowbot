@@ -3,7 +3,7 @@ import { ImageType, MAX_ATTACHMENTS } from './attachments.ts';
 import { HostTools } from './host-tools.ts';
 import { EntityId, Timestamp } from './ids.ts';
 
-/** How much a turn may change: `full` (unsandboxed shell) is not offered by any v1 provider. */
+/** How much a turn may change. `full` is an unsandboxed shell: only the owner may choose it, never a default or a member. */
 export const AccessLevel = z.enum(['read-only', 'workspace-write', 'full']);
 export type AccessLevel = z.infer<typeof AccessLevel>;
 

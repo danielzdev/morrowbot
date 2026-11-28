@@ -81,6 +81,11 @@ it('reports Codex ready with its read-only profile and why the others are held b
                 "reason": "Codex always loads your own ~/.codex/AGENTS.md (checked on Codex 0.171), so MorrowBot cannot replace its instructions. Use your Codex instructions instead.",
                 "vendorSettings": "isolated",
               },
+              {
+                "access": "full",
+                "reason": "Codex runs each shell command in its own process group, and a command that calls setsid keeps running after Stop (checked on Codex 0.171). Full access needs Stop to end every command.",
+                "vendorSettings": "personal",
+              },
             ],
           },
           "kind": "ready",

@@ -1,4 +1,4 @@
-import { AgentList, ThreadList, StartedSend, type AgentGrant } from '@morrowbot/contracts';
+import { Agent, AgentList, ThreadList, StartedSend, type AgentGrant } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { ECHO } from './testing/chat-fixture.ts';
 import { startMemberKit, URL_FOR_MEMBERS, type MemberKit } from './testing/member-kit.ts';
@@ -251,6 +251,47 @@ it('holds an agent shared with members to its inter-agent allowlist, whoever ask
         "status": 403,
       },
       "unsharedAgentToOther": 201,
+    }
+  `);
+});
+
+it('refuses full access (shell commands) to every server member, co-owners too, while the owner may choose it', async () => {
+  const agent = await kit.named('Agent');
+  const full = { ...ECHO, access: 'full' };
+  const coOwner = await kit.join('Co-owner', { kind: 'co-owner' });
+  const editor = await kit.join('Editor', { kind: 'scoped', agents: [{ agentId: agent.agent.id, canEdit: true, workspace: 'read-only', interAgentAllowlist: [] }] });
+
+  expect({
+    coOwnerCreates: await kit.as(coOwner.token, 'POST', '/api/agents', { name: 'Shell', provider: full }),
+    coOwnerSwitches: await status(kit.as(coOwner.token, 'PATCH', `/api/agents/${agent.agent.id}`, { provider: full })),
+    coOwnerKeepsSafe: await status(kit.as(coOwner.token, 'PATCH', `/api/agents/${agent.agent.id}`, { provider: { ...ECHO, access: 'workspace-write' } })),
+    scopedSwitches: await status(kit.as(editor.token, 'PATCH', `/api/agents/${agent.agent.id}`, { provider: full })),
+    access: Agent.parse((await kit.chat.host.call('GET', `/api/agents/${agent.agent.id}`)).body).provider,
+    ownerSwitches: await status(kit.chat.host.call('PATCH', `/api/agents/${agent.agent.id}`, { provider: full })),
+  }).toMatchInlineSnapshot(`
+    {
+      "access": {
+        "access": "workspace-write",
+        "kind": "bound",
+        "pluginId": "echo",
+        "selection": {
+          "kind": "default",
+        },
+        "vendorSettings": "isolated",
+      },
+      "coOwnerCreates": {
+        "body": {
+          "error": {
+            "kind": "forbidden",
+            "message": "Only the owner of this computer may give an agent full access (shell commands)",
+          },
+        },
+        "status": 403,
+      },
+      "coOwnerKeepsSafe": 200,
+      "coOwnerSwitches": 403,
+      "ownerSwitches": 200,
+      "scopedSwitches": 403,
     }
   `);
 });

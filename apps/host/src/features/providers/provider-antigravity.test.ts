@@ -75,6 +75,11 @@ it('reports models-later until a session lists them, then ready without a forced
                 "reason": "Antigravity always loads the workspace's own AGENTS.md (checked on agy 1.5.18), so MorrowBot cannot replace its instructions. The agent's AGENTS.md still applies.",
                 "vendorSettings": "isolated",
               },
+              {
+                "access": "full",
+                "reason": "MorrowBot has not yet checked with a fixture that Stop ends every command agy starts, so Antigravity has no full access.",
+                "vendorSettings": "personal",
+              },
             ],
           },
           "kind": "ready-models-later",
@@ -122,6 +127,11 @@ it('reports models-later until a session lists them, then ready without a forced
                 "access": "workspace-write",
                 "reason": "Antigravity always loads the workspace's own AGENTS.md (checked on agy 1.5.18), so MorrowBot cannot replace its instructions. The agent's AGENTS.md still applies.",
                 "vendorSettings": "isolated",
+              },
+              {
+                "access": "full",
+                "reason": "MorrowBot has not yet checked with a fixture that Stop ends every command agy starts, so Antigravity has no full access.",
+                "vendorSettings": "personal",
               },
             ],
           },

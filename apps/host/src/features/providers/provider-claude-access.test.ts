@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Agent, MessageList, StartedSend, Thread, UsageResponse, type AccessLevel, type ChatEvent, type ProviderBinding } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 import { startTestHost, type EventClient, type TestHost } from '../../testing/test-host.ts';
 
 const FAKE_CLAUDE = fileURLToPath(new URL('./fixtures/fake-claude.ts', import.meta.url));
@@ -197,19 +198,35 @@ it('stops a turn waiting on an approval, clears the card, writes nothing, and ru
   `);
 });
 
-it('refuses a full-access agent with the reason and writes nothing', async () => {
+it("runs a full-access agent's turn with Bash, no --restricted and no approval prompts", async () => {
   const { thread } = await agentThread('full');
-  const reply = await host.call('POST', `/api/threads/${thread.id}/messages`, { text: 'hello', sessionChoice: { kind: 'auto' } });
-  expect({ status: reply.status, body: reply.body, history: await history(thread) }).toMatchInlineSnapshot(`
+  await events.finished(await start(thread, 'hello'));
+  const log = await readFile(path.join(home, 'fake-claude', 'log.jsonl'), 'utf8');
+  const launched = log.split('\n').flatMap((line) => (line.includes('"stdin":"hello"') ? [z.object({ args: z.array(z.string()) }).parse(JSON.parse(line)).args] : []));
+  expect({ history: await history(thread), access: launched.map((args) => args.slice(args.indexOf('--disable-slash-commands') + 1)) }).toMatchInlineSnapshot(`
     {
-      "body": {
-        "error": {
-          "kind": "conflict",
-          "message": "This provider does not offer full access with isolated settings.",
-        },
-      },
-      "history": [],
-      "status": 409,
+      "access": [
+        [
+          "--tools",
+          "Read,Glob,Grep,Edit,Write,Bash",
+          "--permission-mode",
+          "bypassPermissions",
+          "--permission-prompts",
+          "none",
+          "--settings",
+          "{"autoMemoryEnabled":false}",
+          "--append-system-prompt-file",
+          "/dev/fd/4",
+          "--mcp-config",
+          "/dev/fd/5",
+          "--allowedTools",
+          "mcp__morrowbot",
+        ],
+      ],
+      "history": [
+        "user: hello",
+        "assistant(completed): Hello",
+      ],
     }
   `);
 });

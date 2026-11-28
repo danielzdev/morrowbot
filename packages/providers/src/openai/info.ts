@@ -19,6 +19,11 @@ const STATIC_WITHHELD: readonly WithheldProfile[] = [
   { access: 'workspace-write', vendorSettings: 'personal', reason: SHELL_REASON },
   { access: 'read-only', vendorSettings: 'isolated', reason: INSTRUCTIONS_REASON },
   { access: 'workspace-write', vendorSettings: 'isolated', reason: INSTRUCTIONS_REASON },
+  {
+    access: 'full',
+    vendorSettings: 'personal',
+    reason: 'Codex runs each shell command in its own process group, and a command that calls setsid keeps running after Stop (checked on Codex 0.171). Full access needs Stop to end every command.',
+  },
 ];
 
 /** Why read-only is held back on `platform`, or null. */
