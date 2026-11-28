@@ -1,6 +1,7 @@
 import type { Agent } from '@morrowbot/contracts';
 import { SymbolView } from 'expo-symbols';
-import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import type { ReactNode } from 'react';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { GlassSurface } from '../../lib/GlassSurface.tsx';
 import { radii, spacing, typography } from '../../lib/theme.ts';
 import { useTheme } from '../../lib/useTheme.ts';
@@ -9,7 +10,7 @@ import { ModelEffortPill } from './ModelEffortPill.tsx';
 
 const ROUND = 36;
 
-/** The floating Liquid Glass composer capsule: attach, message box, Model / Effort pill, Send or Stop. */
+/** The floating Liquid Glass composer capsule: attachment strip, message box, then attach, Model / Effort pill, Send or Stop. */
 export function Composer(props: {
   readonly agent: Agent;
   readonly draft: string;
@@ -17,12 +18,17 @@ export function Composer(props: {
   readonly onDraft: (text: string) => void;
   readonly onSend: () => void;
   readonly onStop: () => void;
+  /** The attachment strip, shown above the message box. */
+  readonly attachments: ReactNode;
+  readonly canAttach: boolean;
+  readonly onAttach: () => void;
 }) {
   const { colors } = useTheme();
   const { button } = props;
   const sending = button.kind === 'send';
   return (
     <GlassSurface interactive style={styles.capsule}>
+      {props.attachments}
       <TextInput
         accessibilityLabel="Message"
         multiline
@@ -36,13 +42,14 @@ export function Composer(props: {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Attach"
+          accessibilityHint="Adds photos or files to this message"
+          accessibilityState={{ disabled: !props.canAttach }}
+          disabled={!props.canAttach}
           hitSlop={6}
-          onPress={() => {
-            Alert.alert('Attachments', 'Attaching files from this phone is coming in a later update.');
-          }}
+          onPress={props.onAttach}
           style={({ pressed }) => [styles.round, { backgroundColor: pressed ? colors.selected : colors.hover }]}
         >
-          <SymbolView name="plus" size={17} tintColor={colors.text2} />
+          <SymbolView name="plus" size={17} tintColor={props.canAttach ? colors.text2 : colors.textDisabled} />
         </Pressable>
         <View style={styles.pill}>
           <ModelEffortPill agent={props.agent} />

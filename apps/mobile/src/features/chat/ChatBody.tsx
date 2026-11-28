@@ -7,10 +7,13 @@ import { deriveBottomControlInsets, parseNativeLayoutMetrics, type NativeLayoutM
 import { radii, spacing, typography } from '../../lib/theme.ts';
 import { useTheme } from '../../lib/useTheme.ts';
 import type { DetailProps, WorkspaceNavigation } from '../../lib/workspace.ts';
+import { openAttachMenu } from './attach-menu.ts';
 import { AgentSettingsSheet } from './AgentSettingsSheet.tsx';
+import { AttachmentStrip } from './AttachmentStrip.tsx';
 import { chatRequests, useChatHub } from './chat-context.tsx';
 import { threadFor } from './chat-hub.ts';
 import { composerButton } from './chat-session.ts';
+import { roomLeft } from './composer-attachments.ts';
 import { Composer } from './Composer.tsx';
 import { useKeyboardOverlap } from './keyboard-overlap.ts';
 import { MessageList } from './MessageList.tsx';
@@ -112,6 +115,21 @@ function ChatThread(props: {
           }}
           onSend={() => void session.send()}
           onStop={() => void session.stop()}
+          attachments={
+            <AttachmentStrip
+              items={screen.attachments}
+              onRetry={(key) => {
+                session.attachments.retry(key);
+              }}
+              onRemove={(key) => {
+                session.attachments.remove(key);
+              }}
+            />
+          }
+          canAttach={view.kind === 'loaded' && roomLeft(screen.attachments) > 0}
+          onAttach={() => {
+            openAttachMenu(session.attachments, roomLeft(screen.attachments));
+          }}
         />
       </View>
     </View>

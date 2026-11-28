@@ -6,6 +6,7 @@ import { useTheme } from '../../lib/useTheme.ts';
 import { ApprovalCard } from './ApprovalCard.tsx';
 import { Markdown } from './Markdown.tsx';
 import { outcomeNote } from './outcome-copy.ts';
+import { SentAttachments } from './SentAttachments.tsx';
 import type { ActiveTurnView, ToolStep, TurnStep } from './thread-view.ts';
 import { ToolTimeline } from './ToolTimeline.tsx';
 
@@ -109,7 +110,10 @@ export function MessageList(props: {
       ) : null}
       {props.messages.map((message) =>
         message.kind === 'user' ? (
-          <UserBubble key={message.id} text={message.text} />
+          <View key={message.id} style={styles.sent}>
+            <SentAttachments attachments={message.attachments} />
+            {message.text === '' ? null : <UserBubble text={message.text} />}
+          </View>
         ) : (
           <View key={message.id} style={styles.assistant}>
             <ToolTimeline steps={tools(props.finished[message.id] ?? [])} />
@@ -163,6 +167,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: spacing[4], paddingTop: spacing[2], gap: spacing[4] },
   empty: { textAlign: 'center', marginTop: spacing[8] },
   user: { alignSelf: 'flex-end', maxWidth: '85%', borderRadius: radii.xl, paddingHorizontal: spacing[4], paddingVertical: spacing[3] },
+  sent: { gap: spacing[2] },
   queued: { opacity: 0.6, gap: spacing[1] },
   assistant: { gap: spacing[3] },
   outcome: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },

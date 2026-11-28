@@ -4,6 +4,7 @@ import type {
   AgentList,
   ApiError,
   ApprovalReplyRequest,
+  Attachment,
   ContinueResponse,
   PluginEntry,
   PluginList,
@@ -13,6 +14,7 @@ import type {
   Thread,
   ThreadList,
   UpdateAgentRequest,
+  UploadAttachmentRequest,
 } from '@morrowbot/contracts';
 import type { ThreadWatcher } from './host-connection.ts';
 
@@ -31,7 +33,9 @@ export interface ChatHost {
   agents(): Promise<ChatResult<AgentList>>;
   threads(agentId: string): Promise<ChatResult<ThreadList>>;
   createThread(agentId: string): Promise<ChatResult<Thread>>;
-  send(threadId: string, text: string): Promise<ChatResult<SendMessageResponse>>;
+  /** Uploads one file to the thread; a later `send` names its id to carry it. */
+  uploadAttachment(threadId: string, request: UploadAttachmentRequest): Promise<ChatResult<Attachment>>;
+  send(threadId: string, text: string, attachmentIds: readonly string[]): Promise<ChatResult<SendMessageResponse>>;
   continueTurn(threadId: string, failedMessageId: string): Promise<ChatResult<ContinueResponse>>;
   stop(threadId: string): Promise<ChatResult<StopGenerationResponse>>;
   answerApproval(threadId: string, approvalId: string, reply: ApprovalReplyRequest): Promise<ChatResult<null>>;

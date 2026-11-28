@@ -1,6 +1,7 @@
 import type {
   Agent,
   AssistantMessage,
+  Attachment,
   Message,
   PendingApproval,
   PluginEntry,
@@ -42,6 +43,7 @@ export function createSampleChatHost(now: () => string = () => new Date().toISOS
   const watchers = new Map<string, Set<ThreadWatcher>>();
   const pluginListeners = new Set<(entry: PluginEntry) => void>();
   const answers = new Map<string, (choiceId: string | null) => void>();
+  const uploads = new Map<string, Attachment>();
   let counter = 0;
   const nextId = (prefix: string): string => `${prefix}-${String(++counter)}`;
 
@@ -156,10 +158,21 @@ export function createSampleChatHost(now: () => string = () => new Date().toISOS
       threads = [...threads, created];
       return ok(created);
     },
-    send: (threadId, text) => {
+    uploadAttachment: (_threadId, request) => {
+      const id = nextId('file');
+      const attachment: Attachment =
+        request.kind === 'image'
+          ? { kind: 'image', id, name: request.name, mimeType: request.mimeType, size: Math.floor((request.data.length * 3) / 4) }
+          : { kind: 'text', id, name: request.name, size: new TextEncoder().encode(request.text).length };
+      uploads.set(id, attachment);
+      return ok(attachment);
+    },
+    send: (threadId, text, attachmentIds) => {
       if (active.has(threadId)) return Promise.resolve({ kind: 'failed', status: 409, error: { kind: 'conflict', message: 'A reply is already running.' } });
-      const userMessage: UserMessage = { kind: 'user', id: nextId('msg'), threadId, text, createdAt: now(), attachments: [] };
-      return ok({ kind: 'started', generationId: start(threadId, userMessage, text), userMessage });
+      const attachments = attachmentIds.flatMap((id) => uploads.get(id) ?? []);
+      for (const id of attachmentIds) uploads.delete(id);
+      const userMessage: UserMessage = { kind: 'user', id: nextId('msg'), threadId, text, createdAt: now(), attachments };
+      return ok({ kind: 'started', generationId: start(threadId, userMessage, text === '' ? 'your files' : text), userMessage });
     },
     continueTurn: (threadId, failedMessageId) => {
       const list = messages.get(threadId) ?? [];
