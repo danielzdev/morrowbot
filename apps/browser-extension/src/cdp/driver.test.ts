@@ -167,9 +167,6 @@ describe.skipIf(chromeMissing)('the Chromium driver on a real page', () => {
     await t.run({ kind: 'drag', tabId, from: refOf(snapshot, 'button "Card"'), to: refOf(snapshot, 'region "Bin"') });
     const dropped = await t.log(tabId);
     await t.run({ kind: 'scroll', tabId, to: { kind: 'page', direction: 'down', pixels: 500 } });
-    await vi.waitFor(async () => {
-      expect(await t.chrome.evaluate(tabId, 'Math.round(window.scrollY)')).toBe(500);
-    }).catch(() => undefined);
     const byPage = await t.chrome.evaluate(tabId, 'Math.round(window.scrollY)');
     await t.run({ kind: 'scroll', tabId, to: { kind: 'element', ref: refOf(snapshot, 'button "Bottom"') } });
     const toElement = await t.chrome.evaluate(tabId, 'window.scrollY > 2000');
