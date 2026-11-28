@@ -29,6 +29,7 @@ const HostEnv = z.object({
   MORROWBOT_BUILTIN_PLUGINS_DIR: AbsolutePath.optional(),
   MORROWBOT_T3_WATCH_DIR: AbsolutePath.optional(),
   MORROWBOT_T3_BIN: AbsolutePath.optional(),
+  MORROWBOT_T3_ROUTINE_ID: z.string().trim().min(1).optional(),
   MORROWBOT_T3_PROJECTS: z
     .string()
     .transform((value) =>
@@ -48,6 +49,8 @@ export interface T3WatchConfig {
   readonly bin: string;
   /** `MORROWBOT_T3_PROJECTS` (comma-separated project ids or paths); empty turns discovery off. */
   readonly projects: readonly string[];
+  /** `MORROWBOT_T3_ROUTINE_ID`: the orchestrator's background routine that batches go to; unset keeps delivery off. */
+  readonly routineId: string | null;
 }
 
 export interface HostConfig {
@@ -98,6 +101,7 @@ export function parseHostConfig({ env, args, homeDir }: HostConfigInput): HostCo
         dir: parsed.data.MORROWBOT_T3_WATCH_DIR ?? path.join(dataDir, 't3-watch'),
         bin: parsed.data.MORROWBOT_T3_BIN ?? path.join(homeDir, '.t3', 'bin', 't3'),
         projects: parsed.data.MORROWBOT_T3_PROJECTS ?? [],
+        routineId: parsed.data.MORROWBOT_T3_ROUTINE_ID ?? null,
       },
     },
   };

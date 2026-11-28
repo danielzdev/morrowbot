@@ -97,3 +97,41 @@ export const T3WatchEvent = z.discriminatedUnion('scope', [
   z.strictObject({ scope: z.literal('service'), kind: T3EventKind.extract(['t3_unreachable', 't3_degraded']), ...EventFields }),
 ]);
 export type T3WatchEvent = z.infer<typeof T3WatchEvent>;
+
+/**
+ * The orchestrator's answer to one batch: every event in it was handled, suppressed or deferred. Events in
+ * `deferredEventIds` come back in a later batch; those in `goneEventIds` (two `NotFound` reads) settle nothing.
+ * Post it to `POST /api/t3-watches/acks`, or append it as one line to `acks.jsonl` in the watch folder.
+ */
+export const T3WatchAck = z.strictObject({
+  batchId: EntityId,
+  deferredEventIds: z.array(EntityId).max(1000).default([]),
+  goneEventIds: z.array(EntityId).max(1000).default([]),
+});
+export type T3WatchAck = z.infer<typeof T3WatchAck>;
+
+export const T3WatchAckResponse = z.strictObject({ result: z.enum(['acked', 'already_acked']) });
+export type T3WatchAckResponse = z.infer<typeof T3WatchAckResponse>;
+
+/** One event in a batch. `unverified`: the host could not confirm it three times; show it, never act on it. */
+export const T3BatchEvent = z.strictObject({ event: T3WatchEvent, unverified: z.boolean() });
+export type T3BatchEvent = z.infer<typeof T3BatchEvent>;
+
+/** One row of a batch's status table: context only, never something to act on. */
+export const T3StatusRow = T3Watch.pick({ watchId: true, threadId: true, label: true, state: true, reason: true, runId: true });
+export type T3StatusRow = z.infer<typeof T3StatusRow>;
+
+/**
+ * What the orchestrator's routine is sent. A resend keeps `batchId` and every event; only `attempt`, `asOf` and
+ * `status` change. The payload ends with both ack forms.
+ */
+export const T3WatchBatch = z.strictObject({
+  batchId: EntityId,
+  attempt: z.number().int().positive(),
+  asOf: Timestamp,
+  events: z.array(T3BatchEvent),
+  status: z.array(T3StatusRow),
+  rules: z.array(z.string()),
+  ack: z.strictObject({ file: z.string(), line: z.string(), api: z.string() }),
+});
+export type T3WatchBatch = z.infer<typeof T3WatchBatch>;
