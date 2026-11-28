@@ -1,7 +1,9 @@
 import type { AgentMessage, Message } from '@morrowbot/contracts';
+import type { ComponentChildren } from 'preact';
 import { memo } from 'preact/compat';
 import { useEffect, useId, useMemo, useState } from 'preact/hooks';
 import { Icon } from '../../shared/ui/Icon.tsx';
+import type { ChatActivity } from './activity.ts';
 import { backgroundVerb } from './agent-exchange.ts';
 import { AgentExchange, Peer, type PeerDirectory } from './AgentExchange.tsx';
 import { ApprovalCard } from './ApprovalCard.tsx';
@@ -15,6 +17,7 @@ import { SubagentGroup, type EngineLabel } from './SubagentGroup.tsx';
 import type { ActiveTurnView, ApprovalStep, FinishedTurn, ThreadView, TurnStep } from './thread-model.ts';
 import { TurnSteps } from './ToolGroup.tsx';
 import { timelineItems } from './timeline-items.ts';
+import { extraDetail, phaseOf } from './turn-phase.ts';
 import { elapsed } from './tool-rows.ts';
 
 /** Everything a message needs that does not change while a reply streams, so history can skip re-rendering. */
@@ -28,6 +31,8 @@ export interface TimelineContext {
   readonly image: (id: string) => Promise<string | null>;
   readonly peers: PeerDirectory;
   readonly engine: EngineLabel;
+  /** This chat's agent's avatar, moving as `activity` shows. */
+  readonly avatar: (activity: ChatActivity) => ComponentChildren;
 }
 
 export const TOOLS_NOT_KEPT = "Tool steps from before this session aren't shown.";
@@ -66,6 +71,8 @@ const MessageItem = memo(function MessageItem(props: {
   readonly busy: boolean;
   /** A user message sent into the reply above it with Steer now. */
   readonly steeredIn: boolean;
+  /** The latest reply's avatar: celebrating just after its turn, then resting. Null on other messages. */
+  readonly avatar: 'completed' | 'idle' | null;
   readonly ctx: TimelineContext;
 }) {
   const { message, finished, ctx } = props;
@@ -81,7 +88,12 @@ const MessageItem = memo(function MessageItem(props: {
   const copy = outcomeCopy(message.outcome, ctx.copy);
   return (
     <div class={`message assistant tone-${copy.tone}`} data-message-id={message.id}>
-      {finished?.durationMs != null && <div class="turn-time">Worked for {elapsed(finished.durationMs)}</div>}
+      {finished !== undefined && (finished.durationMs !== null || props.avatar !== null) && (
+        <div class={`turn-time${props.avatar === null ? '' : ` turn-phase ${props.avatar}`}`}>
+          {props.avatar !== null && <span class="turn-avatar" aria-hidden="true">{ctx.avatar(props.avatar)}</span>}
+          {finished.durationMs === null ? 'Done' : `Worked for ${elapsed(finished.durationMs)}`}
+        </div>
+      )}
       {finished !== undefined && <TurnSteps steps={finished.steps} display={ctx.display} approval={approvalFor(ctx, NO_ANSWERS, false)} />}
       {message.text !== '' && <div data-find-id={message.id}><Markdown text={message.text} actions={ctx.actions} /></div>}
       <OutcomeNote
@@ -97,12 +109,14 @@ const MessageItem = memo(function MessageItem(props: {
 
 function ActiveTurn(props: { readonly turn: ActiveTurnView; readonly answering: readonly string[]; readonly offline: boolean; readonly ctx: TimelineContext }) {
   const { turn, ctx } = props;
-  const detail = turn.state === 'queued' ? (turn.queueNote ?? 'Queued: waiting for a free slot') : turn.detail;
+  const { phase, label } = phaseOf(turn, ctx.display);
+  const detail = turn.state === 'queued' ? (turn.queueNote ?? 'Waiting for a free slot') : extraDetail(turn.detail, label);
   return (
     <div class="message assistant active">
-      <div class={`turn-time ${turn.state}`}>
-        <span class="pulse" aria-hidden="true" />
-        <Working turn={turn} />
+      <div class={`turn-time turn-phase ${phase}`}>
+        <span class="turn-avatar" aria-hidden="true">{ctx.avatar(phase)}</span>
+        <span key={label} class="turn-label">{label}</span>
+        {turn.state !== 'queued' && turn.startedAt !== null && <span> · <Since startedAt={turn.startedAt} /></span>}
         {detail !== null && <span class="turn-detail"> · {ctx.display.safe(detail) ?? ''}</span>}
       </div>
       <TurnSteps steps={turn.steps} display={ctx.display} approval={approvalFor(ctx, props.answering, props.offline)} />
@@ -170,6 +184,8 @@ export function Timeline(props: {
   readonly offline: boolean;
   readonly ctx: TimelineContext;
   readonly onShowEarlier: () => void;
+  /** The chat's activity, for the latest reply's celebration once its turn completes. */
+  readonly activity: ChatActivity;
 }) {
   const { view, start, ctx } = props;
   const { messages, finished } = view;
@@ -212,6 +228,7 @@ export function Timeline(props: {
                 latest={item.message === last}
                 steeredIn={steeredIn.has(item.message.id)}
                 busy={item.message === last && (!props.idle || props.locked || props.offline)}
+                avatar={item.message === last && item.message.kind === 'assistant' && active?.trigger.kind !== 'chat' ? (props.activity === 'completed' ? 'completed' : 'idle') : null}
                 ctx={ctx}
               />
             );

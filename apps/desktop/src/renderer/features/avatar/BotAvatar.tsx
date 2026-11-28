@@ -2,7 +2,7 @@ import type { AgentAvatar } from '@morrowbot/contracts';
 import { mountAvatar, type AvatarOptions, type MountedAvatar } from 'open-bot-avatar/dom';
 import { useEffect, useId, useRef } from 'preact/hooks';
 import { FinishFilter, hasFilter, materialOf } from './finish.tsx';
-import type { AvatarMotion } from './motion.ts';
+import { engineStill, type AvatarMotion } from './motion.ts';
 import { avatarEntry } from './registry.ts';
 
 /** A resting avatar: no frames until something changes. */
@@ -17,7 +17,7 @@ function optionsOf(avatar: AgentAvatar, motion: AvatarMotion, label: string, red
     material: materialOf(avatar.finish),
     state: motion.state,
     mood: motion.mood,
-    reducedMotion: motion.paused || reducedMotion ? true : 'system',
+    reducedMotion: engineStill(motion, reducedMotion),
     renderer: 'canvas',
     label,
   };

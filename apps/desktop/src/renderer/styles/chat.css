@@ -143,10 +143,6 @@
   background: var(--accent);
   animation: pulse 1.2s ease-in-out infinite;
 }
-.turn-time.queued .pulse {
-  background: var(--text-3);
-  animation: none;
-}
 [data-motion='reduced'] .pulse {
   animation: none;
 }

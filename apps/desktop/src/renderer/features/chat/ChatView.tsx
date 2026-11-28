@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/ho
 import type { MorrowbotBridge } from '../../bridge.ts';
 import { BlockedBanner } from '../../shared/BlockedBanner.tsx';
 import { useStore } from '../../shared/use-store.ts';
+import type { ChatActivity } from './activity.ts';
 import type { PeerDirectory } from './AgentExchange.tsx';
 import { approvalHeadingId } from './ApprovalCard.tsx';
 import type { ChatDisplay } from './display.ts';
@@ -36,6 +37,10 @@ export interface ChatViewProps {
   readonly peers: PeerDirectory;
   /** The provider and model badge of a sub-agent. */
   readonly engine: EngineLabel;
+  /** The agent's avatar moving as `activity` shows; keep it the same function while the avatar and Reduce motion stay the same. */
+  readonly avatar: (activity: ChatActivity) => ComponentChildren;
+  /** What this chat is doing, as the sidebar shows it. */
+  readonly activity: ChatActivity;
 }
 
 /** The chat canvas: history in a window of recent messages, the live turn, FindBar and announcements. */
@@ -76,8 +81,9 @@ export function ChatView(props: ChatViewProps) {
       image: session.image,
       peers: props.peers,
       engine: props.engine,
+      avatar: props.avatar,
     }),
-    [session, props.display, props.providerName, props.peers, props.engine],
+    [session, props.display, props.providerName, props.peers, props.engine, props.avatar],
   );
 
   const announce = (text: string): void => { setSaid((before) => ({ text, n: before.n + 1 })); };
@@ -201,7 +207,7 @@ export function ChatView(props: ChatViewProps) {
         {fresh ? (
           <div class="hero">{props.hero}</div>
         ) : (
-          <Timeline view={loaded} start={begin} answering={screen.answering} idle={idle} locked={props.locked} offline={screen.connection !== 'live'} ctx={ctx} onShowEarlier={showEarlier} />
+          <Timeline view={loaded} start={begin} answering={screen.answering} idle={idle} locked={props.locked} offline={screen.connection !== 'live'} ctx={ctx} onShowEarlier={showEarlier} activity={props.activity} />
         )}
       </div>
       {pill && (
