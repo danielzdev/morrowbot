@@ -5,6 +5,7 @@ import { BlockedBanner } from '../../shared/BlockedBanner.tsx';
 import { useStore } from '../../shared/use-store.ts';
 import type { ChatActivity } from './activity.ts';
 import type { PeerDirectory } from './AgentExchange.tsx';
+import { replyFiles } from './reply-files.ts';
 import { approvalHeadingId } from './ApprovalCard.tsx';
 import type { ChatDisplay } from './display.ts';
 import { FindBar } from './FindBar.tsx';
@@ -23,7 +24,7 @@ export interface ChatViewProps {
   readonly agentName: string;
   readonly providerName: string | null;
   readonly display: ChatDisplay;
-  readonly bridge: Pick<MorrowbotBridge, 'openExternal' | 'copyText'>;
+  readonly bridge: Pick<MorrowbotBridge, 'openExternal' | 'copyText' | 'fileAction'>;
   /** Bumped by every ⌘F. */
   readonly findRequest: number;
   /** Opened from a sidebar row with an Approval badge: focus the pending approval's heading once (spec §4.3), never its Allow button. */
@@ -87,6 +88,7 @@ export function ChatView(props: ChatViewProps) {
       onReact: (messageId, emoji) => void session.react(messageId, emoji),
       agentName: props.agentName,
       image: session.image,
+      files: replyFiles({ fileAction: (request) => latest.current.bridge.fileAction(request) }),
       peers: props.peers,
       engine: props.engine,
       avatar: props.avatar,

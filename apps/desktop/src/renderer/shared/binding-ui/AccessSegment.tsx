@@ -19,8 +19,7 @@ function iconOf(profile: AccessKey): IconName {
 
 /**
  * One segment per interactive profile the provider offers, built from the profile's fields (spec
- * §4.6). Withheld profiles are disabled segments whose reason is their `aria-description` and is also
- * listed below, so it can be read without hover. A saved profile that is not offered selects nothing.
+ * §4.6). A saved profile that is not offered selects nothing and explains why.
  */
 export function AccessSegment(props: {
   readonly state: AccessState | null;
@@ -88,20 +87,6 @@ export function AccessSegment(props: {
             </button>
           );
         })}
-        {state.withheld.map((profile) => (
-          <button
-            key={`withheld-${accessKey(profile)}`}
-            type="button"
-            role="radio"
-            aria-checked={false}
-            disabled
-            aria-description={withheldReason(profile.reason, props.redact)}
-            class="segment withheld"
-          >
-            <Icon name="lock-off" />
-            {profileName(profile)}
-          </button>
-        ))}
       </div>
       {described === undefined ? (
         <p class="binding-note warn">
@@ -118,18 +103,6 @@ export function AccessSegment(props: {
             </p>
           ))}
         </>
-      )}
-      {state.withheld.length > 0 && (
-        <div class="withheld-list">
-          <div class="kicker">Unavailable</div>
-          <ul>
-            {state.withheld.map((profile) => (
-              <li key={accessKey(profile)}>
-                <strong>{profileName(profile)}</strong>: {withheldReason(profile.reason, props.redact)}
-              </li>
-            ))}
-          </ul>
-        </div>
       )}
     </div>
   );

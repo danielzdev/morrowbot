@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { Attachment, MAX_ATTACHMENTS } from './attachments.ts';
 import { EntityId, Timestamp } from './ids.ts';
+import { MAX_REPLY_ATTACHMENTS, ReplyAttachment } from './reply-attachments.ts';
 import { TurnOutcome } from './provider.ts';
 
 /** How a reply ended. `steered`: the user's queued message cut in here, and the work went on after it. */
@@ -16,6 +17,8 @@ export const AssistantMessage = z.strictObject({
   kind: z.literal('assistant'),
   ...MessageBase,
   outcome: GenerationOutcome,
+  /** Files the agent attached with `attach_files`, in the order it attached them. Older hosts send none. */
+  attachments: z.array(ReplyAttachment).max(MAX_REPLY_ATTACHMENTS).default([]),
   /** Set when older messages were left out of the history sent with this turn. */
   seedTruncated: z.literal(true).optional(),
 });

@@ -40,6 +40,12 @@ export function ExtensionsPage(props: {
     <ExtensionsView
       model={models.plugins}
       info={info}
+      agentExtensions={{
+        agents,
+        savingAgents: state.savingExtensions,
+        setDisabled: (agentId, disabledExtensions, revision) => models.agents.setExtensions(agentId, disabledExtensions, revision),
+        adopt: (agent) => { models.agents.adoptAgent(agent); },
+      }}
       bridge={props.bridge}
       connectors={{
         count: (query) => (list.kind === 'loaded' ? matching(list.value.connectors, query).length : null),

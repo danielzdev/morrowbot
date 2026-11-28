@@ -41,5 +41,5 @@ it('links every stylesheet from index.html, and the built app ships each one', (
   const linked = [...readFileSync(`${desktop}dist/renderer/index.html`, 'utf8').matchAll(/<link rel="stylesheet" href="\.\/styles\/([\w-]+\.css)"/g)].map((match) => match[1]);
   const built = readdirSync(`${desktop}dist/renderer/styles`).sort();
   expect({ source: cssFiles, linked: [...linked].sort(), built }).toEqual({ source: cssFiles, linked: cssFiles, built: cssFiles });
-  expect(cssFiles).toEqual(['agent-forms.css', 'agent-row.css', 'base.css', 'binding.css', 'cards.css', 'chat.css', 'connectors.css', 'devices.css', 'exchange.css', 'extensions.css', 'inspector.css', 'layout.css', 'list-detail.css', 'members.css', 'onboarding.css', 'overlays.css', 'palette.css', 'queue.css', 'reactions.css', 'settings-search.css', 'settings.css', 'thread.css', 'timeline.css', 'tokens.css', 'usage.css', 'vault.css']);
+  expect(cssFiles).toEqual(['agent-forms.css', 'agent-row.css', 'base.css', 'binding.css', 'cards.css', 'chat.css', 'connectors.css', 'devices.css', 'exchange.css', 'extensions.css', 'inspector.css', 'layout.css', 'list-detail.css', 'members.css', 'onboarding.css', 'overlays.css', 'palette.css', 'queue.css', 'reactions.css', 'reply-attachments.css', 'settings-search.css', 'settings.css', 'thread.css', 'timeline.css', 'tokens.css', 'usage.css', 'vault.css']);
 });

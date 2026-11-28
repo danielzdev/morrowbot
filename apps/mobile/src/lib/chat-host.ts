@@ -4,6 +4,7 @@ import type {
   AgentList,
   ApiError,
   ApprovalReplyRequest,
+  Attachment,
   ContinueResponse,
   PluginEntry,
   PluginList,
@@ -13,6 +14,7 @@ import type {
   Thread,
   ThreadList,
   UpdateAgentRequest,
+  UploadAttachmentRequest,
 } from '@morrowbot/contracts';
 import type { ThreadWatcher } from './host-connection.ts';
 
@@ -31,9 +33,15 @@ export interface ChatHost {
   agents(): Promise<ChatResult<AgentList>>;
   threads(agentId: string): Promise<ChatResult<ThreadList>>;
   createThread(agentId: string): Promise<ChatResult<Thread>>;
-  send(threadId: string, text: string): Promise<ChatResult<SendMessageResponse>>;
+  /** Uploads one file to the thread; a later `send` names its id to carry it. */
+  uploadAttachment(threadId: string, request: UploadAttachmentRequest): Promise<ChatResult<Attachment>>;
+  send(threadId: string, text: string, attachmentIds: readonly string[]): Promise<ChatResult<SendMessageResponse>>;
   continueTurn(threadId: string, failedMessageId: string): Promise<ChatResult<ContinueResponse>>;
   stop(threadId: string): Promise<ChatResult<StopGenerationResponse>>;
+  /** Steer now: the queued message goes into the running reply, or out as the next turn when nothing runs. */
+  steerQueued(threadId: string, queuedId: string): Promise<ChatResult<null>>;
+  /** Takes a message the agent has not seen out of the queue. */
+  cancelQueued(threadId: string, queuedId: string): Promise<ChatResult<null>>;
   answerApproval(threadId: string, approvalId: string, reply: ApprovalReplyRequest): Promise<ChatResult<null>>;
   providerInfo(pluginId: string): Promise<ChatResult<ProviderInfoResponse>>;
   updateAgent(agentId: string, request: UpdateAgentRequest): Promise<ChatResult<Agent>>;
@@ -41,6 +49,12 @@ export interface ChatHost {
   instructions(agentId: string): Promise<ChatResult<AgentInstructionsView>>;
   plugins(): Promise<ChatResult<PluginList>>;
   setPluginEnabled(pluginId: string, enabled: boolean): Promise<ChatResult<PluginEntry>>;
+  /** Broadcasts a newer agent record (e.g. from an `agent-conflict` Reload row) to all subscribers. */
+  adoptAgent(agent: Agent): void;
+  /** Hears every agent change the host reports, including this app's own `updateAgent` and `adoptAgent`. Returns the unsubscribe. */
+  onAgentChanged(listener: (agent: Agent) => void): () => void;
+  /** Hears when an agent is deleted via `deleteAgent`. Returns the unsubscribe. */
+  onAgentDeleted(listener: (agentId: string) => void): () => void;
   /** Hears every plugin change the host reports, including this app's own `setPluginEnabled`. Returns the unsubscribe. */
   onPluginChanged(listener: (entry: PluginEntry) => void): () => void;
   /**

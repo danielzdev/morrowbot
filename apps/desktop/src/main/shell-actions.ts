@@ -3,13 +3,14 @@ import { mkdir } from 'node:fs/promises';
 import { homedir, userInfo } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { AgentList, INSTRUCTIONS_COPY_NAME } from '@morrowbot/contracts';
+import { AgentList, INSTRUCTIONS_COPY_NAME, lenient } from '@morrowbot/contracts';
 import { z } from 'zod';
 import type { ExternalOpenResult, LoginItem, RevealTarget } from '../renderer/bridge.ts';
 import { checkSender, IpcRefusedError, proxyRequest, type HostTarget, type IpcSender } from './ipc-proxy.ts';
 
 const execFileAsync = promisify(execFile);
 const EXTERNAL_OPEN_TIMEOUT_MS = 10_000;
+const AgentListReply = lenient(AgentList);
 
 export interface FromRenderer {
   readonly sender: IpcSender;
@@ -99,7 +100,7 @@ async function hostAgent(agentId: string, context: RevealContext) {
     input: { method: 'GET', path: '/api/agents' },
     host: context.host,
   });
-  const agents = AgentList.safeParse(reply.body);
+  const agents = AgentListReply.safeParse(reply.body);
   const agent = agents.success ? agents.data.agents.find(({ id }) => id === agentId) : undefined;
   if (agent === undefined) throw new IpcRefusedError('No such agent to reveal');
   return agent;

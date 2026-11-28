@@ -17,6 +17,7 @@ import { messageRepository, type MessageRepository } from './messages-repo.ts';
 import { pluginSettingsRepository, type PluginSettingsRepository } from './plugins-repo.ts';
 import { queuedRepository, type QueuedRepository } from './queued-repo.ts';
 import { reactionRepository, type ReactionRepository } from './reactions-repo.ts';
+import { replyAttachmentRepository, type ReplyAttachmentRepository } from './reply-attachments-repo.ts';
 import { routineRunRepository, type RoutineRunRepository } from './routine-runs-repo.ts';
 import { routineRepository, type RoutineRepository } from './routines-repo.ts';
 import { migrate } from './schema.ts';
@@ -37,6 +38,7 @@ export interface Storage {
   readonly threads: ThreadRepository;
   readonly messages: MessageRepository;
   readonly toolSteps: ToolStepRepository;
+  readonly replyAttachments: ReplyAttachmentRepository;
   readonly reactions: ReactionRepository;
   readonly cards: CardRepository;
   readonly chatSettings: ChatSettingsRepository;
@@ -80,6 +82,7 @@ export function openStorage(file: string, now: () => string): Storage {
       threads: threadRepository(db),
       messages: messageRepository(db),
       toolSteps: toolStepRepository(db),
+      replyAttachments: replyAttachmentRepository(db),
       reactions: reactionRepository(db),
       cards: cardRepository(db),
       chatSettings: chatSettingsRepository(db),

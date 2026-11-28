@@ -3,31 +3,40 @@ import { GenerationOutcome, LastMessage, Message } from '@morrowbot/contracts';
 import { z } from 'zod';
 import { AttachmentRow } from './attachments-repo.ts';
 import { jsonColumn } from './columns.ts';
+import { ReplyAttachmentRow } from './reply-attachments-repo.ts';
 
 const MessageRow = z
   .discriminatedUnion('kind', [
     z.object({ kind: z.literal('user'), outcome: z.null(), seed_truncated: z.literal(0), attachments: jsonColumn(z.array(AttachmentRow)) }),
-    z.object({ kind: z.literal('assistant'), outcome: jsonColumn(GenerationOutcome), seed_truncated: z.union([z.literal(0), z.literal(1)]) }),
+    z.object({
+      kind: z.literal('assistant'),
+      outcome: jsonColumn(GenerationOutcome),
+      seed_truncated: z.union([z.literal(0), z.literal(1)]),
+      reply_attachments: jsonColumn(z.array(ReplyAttachmentRow)),
+    }),
   ])
   .and(z.object({ id: z.string(), thread_id: z.string(), text: z.string(), created_at: z.string() }))
-  .transform((row) => {
+  .transform((row): z.input<typeof Message> => {
     const base = { id: row.id, threadId: row.thread_id, text: row.text, createdAt: row.created_at };
     switch (row.kind) {
       case 'user':
         return { kind: row.kind, ...base, attachments: row.attachments };
       case 'assistant':
         return row.seed_truncated === 1
-          ? { kind: row.kind, ...base, outcome: row.outcome, seedTruncated: true }
-          : { kind: row.kind, ...base, outcome: row.outcome };
+          ? { kind: row.kind, ...base, outcome: row.outcome, attachments: row.reply_attachments, seedTruncated: true }
+          : { kind: row.kind, ...base, outcome: row.outcome, attachments: row.reply_attachments };
     }
   })
   .pipe(Message);
 
-/** A message row's attachments as a JSON array, in the order they were sent. */
+/** A message row's attachments (a user's uploads, or the files a reply attached) as JSON arrays, in order. */
 const ATTACHMENTS = `(
   SELECT json_group_array(json_object('id', a.id, 'kind', a.kind, 'name', a.name, 'mime_type', a.mime_type, 'size', a.size))
   FROM (SELECT * FROM attachments WHERE message_id = m.id ORDER BY position) a
-) AS attachments`;
+) AS attachments, (
+  SELECT json_group_array(json_object('id', r.id, 'kind', r.kind, 'name', r.name, 'mime_type', r.mime_type, 'size', r.size))
+  FROM (SELECT * FROM reply_attachments WHERE message_id = m.id ORDER BY seq) r
+) AS reply_attachments`;
 
 const PREVIEW_LENGTH = 400;
 const BLANKS = 'char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279)';
@@ -71,7 +80,7 @@ export function messageRepository(db: DatabaseSync): MessageRepository {
        SELECT t.agent_id, m.thread_id, m.kind, trim(m.text, ${BLANKS}) AS body, m.created_at, m.seq,
          row_number() OVER (PARTITION BY t.agent_id ORDER BY m.seq DESC) AS rank
        FROM messages m JOIN threads t ON t.id = m.thread_id
-       WHERE t.parent_thread_id IS NULL AND trim(m.text, ${BLANKS}) <> '' AND instr(CAST(m.text AS BLOB), x'00') = 0
+       WHERE t.parent_thread_id IS NULL AND t.archived_at IS NULL AND trim(m.text, ${BLANKS}) <> '' AND instr(CAST(m.text AS BLOB), x'00') = 0
      ) WHERE rank = 1 ORDER BY seq DESC`,
   );
   const lastInThread = db.prepare(

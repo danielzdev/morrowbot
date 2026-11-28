@@ -44,6 +44,8 @@ export const ApiError = z.strictObject({
     }),
     /** A connector's scope changed since it was read; nothing was written. `current` is the newer scope. */
     z.strictObject({ kind: z.literal('scope-conflict'), current: ConnectorScope, message: z.string() }),
+    /** An agent record changed since it was read; nothing was written. `current` is the newer agent. */
+    z.strictObject({ kind: z.literal('agent-conflict'), current: Agent, message: z.string() }),
   ]),
 });
 export type ApiError = z.infer<typeof ApiError>;

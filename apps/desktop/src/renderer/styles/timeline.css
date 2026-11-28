@@ -233,11 +233,9 @@
   background-color: var(--accent);
   color: var(--on-accent);
 }
-/* The running turn and the latest reply: the agent's avatar and what it is doing */
+/* The running turn and its brief completion beat: the agent's avatar and what it is doing */
 .turn-phase {
   min-height: 32px;
-}
-.turn-phase:not(.idle) {
   position: sticky;
   top: 0;
   z-index: 1;

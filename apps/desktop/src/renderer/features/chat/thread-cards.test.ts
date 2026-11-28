@@ -6,7 +6,7 @@ import { applyEvent, viewOf, type ThreadEvent, type ThreadView } from './thread-
 import { ThreadCards, type CardContext } from './ThreadCards.tsx';
 
 const AT = '2026-01-01T00:00:00.000Z';
-const REPLY: AssistantMessage = { kind: 'assistant', id: 'm1', threadId: 't', text: 'Here you go.', createdAt: AT, outcome: { kind: 'completed', finishReason: 'stop' } };
+const REPLY: AssistantMessage = { kind: 'assistant', id: 'm1', threadId: 't', text: 'Here you go.', createdAt: AT, outcome: { kind: 'completed', finishReason: 'stop' }, attachments: [] };
 const card = (id: string, generationId: string, revision: number, answer: string | null = null): ThreadCard => ({
   id,
   threadId: 't',
@@ -23,7 +23,7 @@ const card = (id: string, generationId: string, revision: number, answer: string
 });
 
 const running: ThreadState = {
-  thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT },
+  thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT, archivedAt: null },
   messages: [],
   reactions: [],
   toolSteps: [],

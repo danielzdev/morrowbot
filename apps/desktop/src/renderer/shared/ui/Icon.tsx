@@ -4,7 +4,10 @@ export type IconName =
   | 'plus'
   | 'more'
   | 'chevron-down'
+  | 'chevron-left'
   | 'chevron-right'
+  | 'archive'
+  | 'restore'
   | 'close'
   | 'check'
   | 'settings'
@@ -82,7 +85,15 @@ const SHAPES: Readonly<Record<IconName, ComponentChildren>> = {
     </>
   ),
   'chevron-down': <path d="M4.5 6.25 8 9.75l3.5-3.5" />,
+  'chevron-left': <path d="M9.75 4.5 6.25 8l3.5 3.5" />,
   'chevron-right': <path d="M6.25 4.5 9.75 8l-3.5 3.5" />,
+  archive: (
+    <>
+      <rect x="2" y="2.5" width="12" height="3" rx="0.75" />
+      <path d="M3.25 5.5v7A1.25 1.25 0 0 0 4.5 13.75h7a1.25 1.25 0 0 0 1.25-1.25v-7M6.5 8.75h3" />
+    </>
+  ),
+  restore: <path d="M3.5 5.5h5a4 4 0 1 1 0 8H5.5M3.5 5.5 6 3M3.5 5.5 6 8" />,
   close: <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" />,
   check: <path d="M3.5 8.5l3 3 6-7" />,
   settings: (

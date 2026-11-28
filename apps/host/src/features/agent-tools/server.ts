@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { HostTools } from '@morrowbot/contracts';
+import { attachTools } from './attach-tools.ts';
 import { cardTools } from './card-tools.ts';
 import { createToolGrants, type ToolGrant } from './grants.ts';
 import { answerMcp } from './mcp.ts';
@@ -59,6 +60,7 @@ export async function startToolServer(options: ToolServerOptions): Promise<ToolS
     ...t3WatchTools(options.ports),
     ...subagentTools(options.ports),
     ...replyTools(options.ports),
+    ...attachTools(options.ports),
     ...cardTools(options.ports),
   ];
   const warn =

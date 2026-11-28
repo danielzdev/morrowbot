@@ -10,3 +10,4 @@ export { outcomeCopy, sessionChoiceCopy, bannerCopy, type OutcomeCopy } from './
 export { applyEvent, pendingApprovals, viewOf, type ThreadView, type TurnStep } from './thread-model.ts';
 export { openThreadSession, type ThreadScreen, type ThreadSession } from './thread-session.ts';
 export { chatMarkdown } from './chat-markdown.ts';
+export { replyFiles } from './reply-files.ts';

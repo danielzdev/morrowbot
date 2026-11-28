@@ -281,6 +281,7 @@ it('hides T3 watch tools from agents shared with scoped members and refuses dire
         "list_subagents",
         "react_to_message",
         "stay_quiet",
+        "attach_files",
         "propose_card",
       ],
     }

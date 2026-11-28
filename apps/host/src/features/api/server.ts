@@ -221,6 +221,7 @@ async function route(routes: readonly Route[], path: string, request: IncomingMe
     source: request.socket.remoteAddress ?? '',
     viewer: admission.viewer,
     whoAmI: whoAmIOf(caller),
+    range: request.headers.range,
     body: () => readJson(request, access.kind === 'public' ? PUBLIC_BODY_BYTES : found.route.bodyBytes),
   });
 }

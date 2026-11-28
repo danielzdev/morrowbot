@@ -1,23 +1,36 @@
+import { ProviderInfo } from '@morrowbot/contracts';
 import { h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
 import { expect, it } from 'vitest';
 import { AccessSegment } from './AccessSegment.tsx';
-import type { AccessState } from './binding-state.ts';
+import { accessState, unrunnableReason, type AccessKey } from './binding-state.ts';
+import type { ProviderChoice } from './selection.ts';
 
-const STATE: AccessState = {
-  offered: [{ access: 'read-only', vendorSettings: 'personal', modes: ['interactive'], readsOutsideCwd: true }],
-  withheld: [{ access: 'workspace-write', vendorSettings: 'personal', reason: 'Not checked yet on /Users/tester/work for tester.' }],
-  approvals: false,
-  current: { kind: 'not-offered' },
-};
+const INFO = ProviderInfo.parse({
+  kind: 'ready',
+  version: '1.0.0',
+  accountKey: '',
+  accountLabel: null,
+  warning: null,
+  capabilities: {
+    profiles: [{ access: 'read-only', vendorSettings: 'personal', modes: ['interactive'], readsOutsideCwd: true }],
+    approvals: false,
+    sessions: false,
+    usage: 'none',
+    withheld: [{ access: 'workspace-write', vendorSettings: 'personal', reason: 'Not checked yet on /Users/tester/work for tester.' }],
+  },
+  models: [],
+});
 
-it('gives each withheld segment its redacted reason as aria-description, and lists it under Unavailable', () => {
+const redact = (text: string): string => text.replaceAll('/Users/tester', '~').replaceAll('tester', 'USER');
+
+function render(value: AccessKey) {
   const html = renderToString(
     h(AccessSegment, {
-      state: STATE,
-      value: { access: 'read-only', vendorSettings: 'personal' },
+      state: accessState(INFO, value),
+      value,
       disabled: false,
-      redact: (text: string) => text.replaceAll('/Users/tester', '~').replaceAll('tester', 'USER'),
+      redact,
       onPick: () => undefined,
     }),
   );
@@ -25,26 +38,77 @@ it('gives each withheld segment its redacted reason as aria-description, and lis
     label: inner.replace(/<[^>]+>/g, ''),
     checked: /aria-checked="true"/.test(attributes),
     disabled: /\bdisabled\b/.test(attributes.replace(/aria-disabled="[^"]*"/, '')),
-    description: /aria-description="([^"]*)"/.exec(attributes)?.[1] ?? null,
   }));
-  const unavailable = /<ul>(.*?)<\/ul>/.exec(html)?.[1]?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-  expect({ segments, unavailable }).toMatchInlineSnapshot(`
+  const notes = [...html.matchAll(/<p class="binding-note[^"]*">(.*?)<\/p>/g)].map(([, inner = '']) => inner.replace(/<[^>]+>/g, '').trim());
+  return { segments, notes, hasUnavailable: html.includes('Unavailable') || html.includes('withheld-list') };
+}
+
+it('shows only offered segments with no Unavailable list, while explaining a withheld saved profile', () => {
+  expect({
+    offered: render({ access: 'read-only', vendorSettings: 'personal' }),
+    savedWithheld: render({ access: 'workspace-write', vendorSettings: 'personal' }),
+  }).toMatchInlineSnapshot(`
     {
-      "segments": [
-        {
-          "checked": true,
-          "description": null,
-          "disabled": false,
-          "label": "Read only · Personal setup",
-        },
-        {
-          "checked": false,
-          "description": "Not checked yet on ~/work for USER.",
-          "disabled": true,
-          "label": "Edit workspace · Personal setup",
-        },
-      ],
-      "unavailable": "Edit workspace · Personal setup : Not checked yet on ~/work for USER.",
+      "offered": {
+        "hasUnavailable": false,
+        "notes": [
+          "Reads files in the workspace. Can't edit files. Can't run commands. Also loads your personal CLI instructions.",
+          "Can read your files outside the workspace.",
+          "Also loads your personal CLI instructions.",
+        ],
+        "segments": [
+          {
+            "checked": true,
+            "disabled": false,
+            "label": "Read only · Personal setup",
+          },
+        ],
+      },
+      "savedWithheld": {
+        "hasUnavailable": false,
+        "notes": [
+          "This agent's access isn't available: Not checked yet on ~/work for USER. Pick an offered one.",
+        ],
+        "segments": [
+          {
+            "checked": false,
+            "disabled": false,
+            "label": "Read only · Personal setup",
+          },
+        ],
+      },
     }
   `);
+});
+
+it('explains the saved profile reason when the provider withholds every interactive profile', () => {
+  const blocked: ProviderChoice = {
+    id: 'claude',
+    name: 'Claude',
+    runtime: 'Claude Code',
+    enabled: true,
+    down: null,
+    info: ProviderInfo.parse({
+      kind: 'ready',
+      version: '2.1.332',
+      accountKey: '',
+      accountLabel: null,
+      warning: null,
+      capabilities: {
+        profiles: [],
+        approvals: true,
+        sessions: false,
+        usage: 'none',
+        withheld: [{ access: 'full', vendorSettings: 'isolated', reason: 'Managed policy blocks /Users/tester/work for tester.' }],
+      },
+      models: [],
+    }),
+  };
+  expect({
+    savedWithheld: unrunnableReason(blocked, { access: 'full', vendorSettings: 'isolated' }, redact),
+    browsingOther: unrunnableReason(blocked, null, redact),
+  }).toEqual({
+    savedWithheld: 'Claude: Managed policy blocks ~/work for USER.',
+    browsingOther: 'Claude: No interactive access is available',
+  });
 });

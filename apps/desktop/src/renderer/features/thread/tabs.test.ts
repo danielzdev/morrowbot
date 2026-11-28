@@ -2,7 +2,7 @@ import type { Thread } from '@morrowbot/contracts';
 import { describe, expect, it } from 'vitest';
 import { afterClose, tabsOf } from './tabs.ts';
 
-const thread = (id: string, day: number): Thread => ({ id, agentId: 'a', title: `Chat ${id}`, createdAt: `2026-11-${String(day).padStart(2, '0')}T10:00:00.000Z`, updatedAt: '2026-11-27T10:00:00.000Z' });
+const thread = (id: string, day: number): Thread => ({ id, agentId: 'a', title: `Chat ${id}`, createdAt: `2026-11-${String(day).padStart(2, '0')}T10:00:00.000Z`, updatedAt: '2026-11-27T10:00:00.000Z', archivedAt: null });
 const threads = [thread('d', 4), thread('c', 3), thread('b', 2), thread('a', 1)];
 const ids = (tabs: ReturnType<typeof tabsOf>) => ({ main: tabs.main?.id ?? null, others: tabs.others.map(({ id }) => id) });
 
@@ -42,8 +42,8 @@ describe('tabsOf', () => {
 
   it('pins the first-created chat by createdSeq when two chats share a millisecond and the second has a smaller id', () => {
     const sameMs: Thread[] = [
-      { id: 'a-second', agentId: 'a', title: 'Second', createdAt: '2026-11-01T10:00:00.000Z', updatedAt: '2026-11-02T10:00:00.000Z', createdSeq: 2 },
-      { id: 'z-first', agentId: 'a', title: 'First', createdAt: '2026-11-01T10:00:00.000Z', updatedAt: '2026-11-01T10:00:00.000Z', createdSeq: 1 },
+      { id: 'a-second', agentId: 'a', title: 'Second', createdAt: '2026-11-01T10:00:00.000Z', updatedAt: '2026-11-02T10:00:00.000Z', archivedAt: null, createdSeq: 2 },
+      { id: 'z-first', agentId: 'a', title: 'First', createdAt: '2026-11-01T10:00:00.000Z', updatedAt: '2026-11-01T10:00:00.000Z', archivedAt: null, createdSeq: 1 },
     ];
     expect(ids(tabsOf(sameMs, ['a-second'], null))).toMatchInlineSnapshot(`
       {
