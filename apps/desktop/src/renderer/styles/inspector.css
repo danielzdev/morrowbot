@@ -1,4 +1,4 @@
-/* The Agent Inspector (spec §3.4): a 300px drawer beside the chat, over it below 1200px. */
+/* The Agent Inspector (spec §3.4): a resizable drawer beside the chat, a 300px one over it below 1200px. */
 .main-row {
   display: flex;
   flex: 1;
@@ -11,11 +11,15 @@
 .inspector {
   display: flex;
   flex-direction: column;
-  width: 300px;
+  position: relative;
+  width: var(--inspector-w);
   flex: none;
   min-height: 0;
   background: var(--surface-1);
   border-left: 1px solid var(--hairline);
+}
+.inspector-resizer {
+  left: -1px;
 }
 .inspector.overlay {
   --drawer-shift: 12px;
