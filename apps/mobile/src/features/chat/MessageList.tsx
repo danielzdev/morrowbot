@@ -85,6 +85,7 @@ export function MessageList(props: {
       style={styles.fill}
       contentContainerStyle={[styles.content, { paddingBottom: props.bottomInset + spacing[4] }]}
       keyboardDismissMode="interactive"
+      keyboardShouldPersistTaps="handled"
       scrollEventThrottle={32}
       onScrollBeginDrag={() => {
         settled.current = true;
