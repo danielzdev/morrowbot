@@ -40,42 +40,42 @@ it('renders every row up to 60 agents, and only the rows in view (plus a margin)
     small: summary(small, 0, 600, 60),
     top: summary(large, 0, 600, 200),
     middle: summary(large, 6000, 600, 200),
-    bottom: summary(large, 12_908 - 600, 600, 200),
+    bottom: summary(large, 12_872 - 600, 600, 200),
   }).toMatchInlineSnapshot(`
     {
       "bottom": {
-        "before": 11884,
+        "before": 11848,
         "first": "agent-184",
         "last": "agent-199",
         "rendered": 16,
-        "total": 12908,
+        "total": 12872,
       },
       "middle": {
-        "before": 5576,
-        "first": "agent-084",
-        "last": "agent-105",
+        "before": 5604,
+        "first": "agent-087",
+        "last": "agent-108",
         "rendered": 22,
-        "total": 12908,
+        "total": 12872,
       },
       "small": {
         "before": 0,
-        "first": "header-working",
+        "first": "header-agents",
         "last": "agent-059",
-        "rendered": 62,
-        "total": 3912,
+        "rendered": 61,
+        "total": 3876,
       },
       "top": {
         "before": 0,
-        "first": "header-working",
-        "last": "agent-011",
-        "rendered": 17,
-        "total": 12908,
+        "first": "header-agents",
+        "last": "agent-014",
+        "rendered": 16,
+        "total": 12872,
       },
     }
   `);
 });
 
-it('folds Agents and folders but not status sections, notes an empty folder, and shows every agent in the rail', () => {
+it('folds Agents and folders, notes an empty folder, and shows every agent in the rail', () => {
   const groups = groupAgents(many(160), [LATER, EMPTY], '');
   const kinds = (items: ReturnType<typeof itemsOf>) => items.filter((item) => item.kind !== 'agent').map((item) => (item.kind === 'header' ? `${item.key} (${String(item.count)}${item.collapsed ? ', folded' : ''})` : item.key));
   expect({
@@ -86,17 +86,15 @@ it('folds Agents and folders but not status sections, notes an empty folder, and
   }).toMatchInlineSnapshot(`
     {
       "folded": [
-        "header-working (4)",
-        "header-agents (147, folded)",
-        "header-folder-f-later (9, folded)",
+        "header-agents (150, folded)",
+        "header-folder-f-later (10, folded)",
         "header-folder-f-empty (0)",
         "empty-folder-f-empty",
       ],
-      "foldedAgentRows": 4,
+      "foldedAgentRows": 0,
       "open": [
-        "header-working (4)",
-        "header-agents (147)",
-        "header-folder-f-later (9)",
+        "header-agents (150)",
+        "header-folder-f-later (10)",
         "header-folder-f-empty (0)",
         "empty-folder-f-empty",
       ],
