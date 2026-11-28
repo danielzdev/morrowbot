@@ -77,7 +77,7 @@ it('reports Codex ready with its read-only and full profiles and why the others 
             "withheld": [
               {
                 "access": "workspace-write",
-                "reason": "Codex runs each shell command in its own process group, and a command that calls setsid keeps running after Stop (checked on Codex 0.171). Workspace-write needs Stop to end every command.",
+                "reason": "Codex runs each shell command in its own process group, and MorrowBot cannot yet confine workspace-write commands to the workspace. Use read-only or full access instead.",
                 "vendorSettings": "personal",
               },
               {

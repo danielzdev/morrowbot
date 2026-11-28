@@ -34,8 +34,6 @@ export async function configureSession(
     readonly access: OpenCodeAccess;
     readonly selection: ModelSelection;
     readonly catalog: ModelCatalog;
-    /** Called just before asking opencode for another mode, so only updates afterwards count. */
-    readonly forgetMode: () => void;
   },
 ): Promise<Configured> {
   const { access, selection, catalog } = setup;
@@ -43,7 +41,6 @@ export async function configureSession(
   catalog.observe(opened, true);
   let options = opened;
   if (access === 'full' && acp.selectOf(options, 'mode')?.current !== FULL_MODE) {
-    setup.forgetMode();
     const reply = await client.call('session/set_config_option', { sessionId, configId: 'mode', value: FULL_MODE }, acp.SetConfigResponse, SET_MS);
     if (reply.kind !== 'ok') return { kind: 'refused', error: callError('change its mode', reply) };
     options = reply.value.configOptions;

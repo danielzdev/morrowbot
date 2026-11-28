@@ -78,7 +78,7 @@ it('starts one opencode acp daemon with its own folders and read-only config, re
           "withheld": [
             {
               "access": "workspace-write",
-              "reason": "MorrowBot runs OpenCode read-only in this version: it cannot yet confine each file write to the workspace, and opencode runs commands outside any sandbox.",
+              "reason": "MorrowBot cannot yet confine OpenCode file writes to the workspace, and opencode runs commands outside any sandbox.",
               "vendorSettings": "isolated",
             },
             {
@@ -110,6 +110,25 @@ it('starts one opencode acp daemon with its own folders and read-only config, re
           "OPENCODE_CONFIG_CONTENT": {
             "$schema": "https://opencode.ai/config.json",
             "agent": {
+              "build": {
+                "permission": {
+                  "*": "deny",
+                  "codesearch": "deny",
+                  "external_directory": "ask",
+                  "glob": "allow",
+                  "grep": "allow",
+                  "list": "allow",
+                  "morrowbot_*": "allow",
+                  "read": {
+                    "*": "allow",
+                    "*.env": "ask",
+                    "*.env.*": "ask",
+                    "*.env.example": "allow",
+                  },
+                  "webfetch": "ask",
+                  "websearch": "deny",
+                },
+              },
               "explore": {
                 "disable": true,
               },
@@ -187,7 +206,7 @@ it('starts one opencode acp daemon with its own folders and read-only config, re
           "withheld": [
             {
               "access": "workspace-write",
-              "reason": "MorrowBot runs OpenCode read-only in this version: it cannot yet confine each file write to the workspace, and opencode runs commands outside any sandbox.",
+              "reason": "MorrowBot cannot yet confine OpenCode file writes to the workspace, and opencode runs commands outside any sandbox.",
               "vendorSettings": "isolated",
             },
             {

@@ -53,7 +53,9 @@ live check confirms no process is left).
   and profiles are withheld until the provider restarts.
 - **full** (interactive and background): switches the session to MorrowBot's `full` primary agent
   defined in `OPENCODE_CONFIG_CONTENT` (`permission: { '*': 'allow' }`), skips the read-only
-  tripwire for that session, and auto-allows permission prompts without showing cards. Stop cancels
+  tripwire for that session, and auto-allows permission prompts without showing cards. Because the
+  shared daemon runs with MorrowBot's isolated `HOME` (`<dataDir>/opencode/home`), shell commands
+  in full mode see that `HOME` rather than the user's own `~/.gitconfig` or `~/.ssh`. Stop cancels
   the active turn best-effort via `session/cancel`.
 
 Both profiles declare `readsOutsideCwd` and are withheld while this computer has managed opencode

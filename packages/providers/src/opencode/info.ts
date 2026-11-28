@@ -3,8 +3,8 @@ import type { AccessProfile, ProviderInfo, ProviderModel, WithheldProfile } from
 import type { Version } from './version.ts';
 
 /**
- * The profiles the opencode 2.4.1 fixtures support, both isolated (MorrowBot sends the agent's
- * AGENTS.md and opencode loads no workspace config):
+ * The profiles OpenCode offers, both isolated (MorrowBot sends the agent's AGENTS.md and opencode
+ * loads no workspace config):
  * - `read-only`: `build` mode with no write or shell tool offered; outside reads go to an approval
  *   card, so interactive only.
  * - `full`: `full` primary agent with every tool allowed without prompting, in interactive or
@@ -16,7 +16,7 @@ const PROFILES: readonly AccessProfile[] = [READ_ONLY, FULL];
 
 const PERSONAL_REASON =
   "MorrowBot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's AGENTS.md is sent by MorrowBot instead.";
-const WRITE_REASON = 'MorrowBot runs OpenCode read-only in this version: it cannot yet confine each file write to the workspace, and opencode runs commands outside any sandbox.';
+const WRITE_REASON = 'MorrowBot cannot yet confine OpenCode file writes to the workspace, and opencode runs commands outside any sandbox.';
 
 const STATIC_WITHHELD: readonly WithheldProfile[] = [
   { access: 'workspace-write', vendorSettings: 'isolated', reason: WRITE_REASON },
@@ -24,7 +24,7 @@ const STATIC_WITHHELD: readonly WithheldProfile[] = [
   { access: 'workspace-write', vendorSettings: 'personal', reason: PERSONAL_REASON },
 ];
 
-/** Why read-only is held back on `platform`, or null. */
+/** Why OpenCode profiles are held back on `platform`, or null. */
 export function platformReason(platform: string): string | null {
   return platform === 'darwin' ? null : `OpenCode in MorrowBot has been checked only on macOS so far, not on ${platform}.`;
 }

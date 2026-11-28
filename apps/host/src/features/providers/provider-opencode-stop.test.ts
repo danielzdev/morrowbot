@@ -135,7 +135,7 @@ it('an edit opencode reports finished without asking fails the turn, ends the da
           },
           {
             "access": "workspace-write",
-            "reason": "MorrowBot runs OpenCode read-only in this version: it cannot yet confine each file write to the workspace, and opencode runs commands outside any sandbox.",
+            "reason": "MorrowBot cannot yet confine OpenCode file writes to the workspace, and opencode runs commands outside any sandbox.",
             "vendorSettings": "isolated",
           },
           {
@@ -232,7 +232,7 @@ it('on a system other than macOS, provider-info withholds read-only and starts n
           },
           {
             "access": "workspace-write",
-            "reason": "MorrowBot runs OpenCode read-only in this version: it cannot yet confine each file write to the workspace, and opencode runs commands outside any sandbox.",
+            "reason": "MorrowBot cannot yet confine OpenCode file writes to the workspace, and opencode runs commands outside any sandbox.",
             "vendorSettings": "isolated",
           },
           {

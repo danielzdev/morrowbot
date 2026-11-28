@@ -116,7 +116,10 @@ function opened(threadId: string, entry: Loaded): Readonly<Record<string, unknow
     model: 'gpt-test',
     modelProvider: entry.modelProvider,
     approvalPolicy: entry.approvalPolicy,
-    sandbox: { type: entry.sandbox === 'read-only' ? 'readOnly' : entry.sandbox === 'workspace-write' ? 'workspaceWrite' : 'dangerFullAccess', networkAccess: false },
+    sandbox:
+      entry.sandbox === 'danger-full-access'
+        ? { type: 'dangerFullAccess' }
+        : { type: entry.sandbox === 'read-only' ? 'readOnly' : 'workspaceWrite', networkAccess: false },
     activePermissionProfile: null,
     instructionSources: [path.join(home, '.codex', 'AGENTS.md')],
   };

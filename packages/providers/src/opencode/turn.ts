@@ -28,10 +28,11 @@ export interface Live {
 }
 
 /**
- * Runs one read-only turn on the shared daemon: checks, a session in the build mode with the picked
- * model, then the prompt with the agent's instructions. opencode is offered no write or shell tool;
- * a read, search or fetch it asks for goes to an approval card, and anything else it asks for is
- * denied. If it changes something without asking or leaves the build mode, the daemon ends at once.
+ * Runs one turn on the shared daemon: checks, a session in `build` (read-only) or `full` mode with
+ * the picked model, then the prompt with the agent's instructions. Read-only turns offer no write or
+ * shell tool, ask via approval card for reads/searches/fetches outside the workspace, deny anything
+ * else, and end the daemon on any unasked change or mode switch. Full turns run in `full` mode with
+ * permission prompts auto-allowed and without tripping the read-only fence.
  */
 export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<TurnEnd> {
   const { request, signal, emit } = context;
@@ -168,9 +169,6 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
             access,
             selection: request.selection,
             catalog: live.catalog,
-            forgetMode: () => {
-              stream.forgetMode();
-            },
           }),
         );
         const after = live.catalog.models();
@@ -202,7 +200,8 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
         const fenceNow = fence();
         if (reply === null || fenceNow !== null) {
           const usage: TurnUsage = reply?.kind === 'ok' ? usageOf(reply.value) : { kind: 'unavailable' };
-          return ended({ kind: 'failed', error: fenceNow ?? { kind: 'access-not-supported', reason: 'OpenCode broke the read-only rules.' } }, { ...touched, usage });
+          const fallback = full ? 'The OpenCode daemon stopped after a session broke the read-only rules.' : 'OpenCode broke the read-only rules.';
+          return ended({ kind: 'failed', error: fenceNow ?? { kind: 'access-not-supported', reason: fallback } }, { ...touched, usage });
         }
         switch (reply.kind) {
           case 'ok':

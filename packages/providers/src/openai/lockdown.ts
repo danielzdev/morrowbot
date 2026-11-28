@@ -56,7 +56,7 @@ export type ThreadPolicy =
       readonly hostTools: HostTools;
     };
 
-export function threadPolicy(config: CodexConfig, modelProvider: string, hostTools: HostTools, access: CodexAccess = 'read-only'): ThreadPolicy {
+export function threadPolicy(config: CodexConfig, modelProvider: string, hostTools: HostTools, access: CodexAccess): ThreadPolicy {
   switch (access) {
     case 'read-only': {
       const servers = Object.keys(config.mcp_servers ?? {}).filter((name) => hostTools.kind === 'none' || name !== HOST_TOOLS_SERVER).sort();

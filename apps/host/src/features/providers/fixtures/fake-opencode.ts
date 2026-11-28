@@ -173,6 +173,13 @@ async function prompt(sessionId: string, session: Session, sent: string): Promis
     const outside = path.join(home, 'outside.txt');
     return permitted(sessionId, { id: 'call-read', kind: 'read', name: 'read', path: outside }, () => `outside says: ${readFileSync(outside, 'utf8')}`);
   }
+  if (text.includes('late-tool')) {
+    update(sessionId, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'Done' } });
+    setTimeout(() => {
+      update(sessionId, { sessionUpdate: 'tool_call_update', toolCallId: 'call-late', title: 'bash', kind: 'execute', status: 'completed' });
+    }, 10);
+    return { stopReason: 'end_turn', usage: USAGE, _meta: {} };
+  }
   if (text.includes('run-tools')) {
     update(sessionId, { sessionUpdate: 'tool_call', toolCallId: 'call-edit', title: 'write', kind: 'edit', status: 'in_progress', locations: [{ path: path.join(session.cwd, 'edited.txt') }] });
     update(sessionId, { sessionUpdate: 'tool_call_update', toolCallId: 'call-edit', title: 'write', kind: 'edit', status: 'completed' });

@@ -1,18 +1,31 @@
 import { HOST_TOOLS_SERVER } from '@morrowbot/contracts';
 
-/** The mode (agent) for read-only turns: `build`, held to the top-level read-only permissions below. */
+/** The mode (agent) for read-only turns: `build`, held to `READ_ONLY_PERMISSION` below. */
 export const BUILD_MODE = 'build';
 
 /** The mode (agent) for full-access turns: a primary agent whose permissions allow every tool without prompting. */
 export const FULL_MODE = 'full';
 
+const READ_ONLY_PERMISSION = {
+  '*': 'deny',
+  read: { '*': 'allow', '*.env': 'ask', '*.env.*': 'ask', '*.env.example': 'allow' },
+  glob: 'allow',
+  grep: 'allow',
+  list: 'allow',
+  external_directory: 'ask',
+  webfetch: 'ask',
+  websearch: 'deny',
+  codesearch: 'deny',
+  [`${HOST_TOOLS_SERVER}_*`]: 'allow',
+};
+
 /**
  * The opencode config every MorrowBot session runs under, given as `OPENCODE_CONFIG_CONTENT`.
- * The default `build` agent inherits the top-level read-only permissions (every tool denied except
- * reads, searches, listings, web fetch, and MorrowBot's own MCP server; external reads, `.env`,
- * and web fetch ask first). The `full` primary agent overrides those permissions to allow every
- * tool without prompting for full-access turns. The other built-in agents are disabled; language
- * servers and formatters, which run code in the workspace, are off (checked on opencode 2.4.1).
+ * Both the top-level `permission` and explicit `agent.build.permission` enforce read-only access
+ * (so files in the shared config directory cannot loosen `build`), denying every tool except reads,
+ * searches, listings, web fetch, and MorrowBot's own MCP server. The `full` primary agent overrides
+ * those permissions to allow every tool without prompting for full-access turns. Other built-in
+ * agents are disabled; language servers and formatters, which run code in the workspace, are off.
  */
 const OPENCODE_CONFIG = {
   $schema: 'https://opencode.ai/config.json',
@@ -21,23 +34,13 @@ const OPENCODE_CONFIG = {
   lsp: false,
   formatter: false,
   agent: {
+    [BUILD_MODE]: { permission: READ_ONLY_PERMISSION },
     plan: { disable: true },
     general: { disable: true },
     explore: { disable: true },
     [FULL_MODE]: { mode: 'primary', permission: { '*': 'allow' } },
   },
-  permission: {
-    '*': 'deny',
-    read: { '*': 'allow', '*.env': 'ask', '*.env.*': 'ask', '*.env.example': 'allow' },
-    glob: 'allow',
-    grep: 'allow',
-    list: 'allow',
-    external_directory: 'ask',
-    webfetch: 'ask',
-    websearch: 'deny',
-    codesearch: 'deny',
-    [`${HOST_TOOLS_SERVER}_*`]: 'allow',
-  },
+  permission: READ_ONLY_PERMISSION,
 };
 
 /**

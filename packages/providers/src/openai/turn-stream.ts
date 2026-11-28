@@ -42,7 +42,7 @@ export interface TurnStream {
 export interface StreamOptions {
   readonly threadId: string;
   readonly home: string | null;
-  readonly access?: 'read-only' | 'full';
+  readonly access: 'read-only' | 'full';
   readonly emit: (chunk: TurnChunk) => void;
   readonly tokens: TokenCounter;
   /** Hears an `account/rateLimits/updated` notification: a hint to read the plan usage again. */

@@ -133,7 +133,7 @@ it('refuses personal settings and workspace-write with their reasons before open
           "body": {
             "error": {
               "kind": "conflict",
-              "message": "MorrowBot runs OpenCode read-only in this version: it cannot yet confine each file write to the workspace, and opencode runs commands outside any sandbox.",
+              "message": "MorrowBot cannot yet confine OpenCode file writes to the workspace, and opencode runs commands outside any sandbox.",
             },
           },
           "status": 409,
@@ -215,6 +215,33 @@ it('runs full-access turns in full mode without tripping the read-only fence, au
       "writeSteps": [
         "tool-start Edit: {"title":"write"}",
         "tool-end: ok",
+      ],
+    }
+  `);
+});
+
+it('ignores a late completed tool update after a full session closes, while a concurrent read-only breach still trips the fence for both turns', async () => {
+  const fullThread = await opencode.thread(await opencode.agent({ ...OPENCODE, access: 'full' }));
+  const lateTurn = await opencode.start(fullThread, 'late-tool');
+  await opencode.events.finished(lateTurn);
+  await new Promise((resolve) => setTimeout(resolve, 40));
+  const afterLate = await opencode.start(fullThread, 'stall');
+  await opencode.logged('session/prompt', 2);
+  const readOnlyThread = await opencode.thread(await opencode.agent(OPENCODE));
+  const breached = await opencode.start(readOnlyThread, 'sneaky edit');
+  await opencode.events.finished(breached);
+  await opencode.events.finished(afterLate);
+  expect({ fullHistory: await opencode.history(fullThread), readOnlyHistory: await opencode.history(readOnlyThread) }).toMatchInlineSnapshot(`
+    {
+      "fullHistory": [
+        "user: late-tool",
+        "assistant(completed): Done",
+        "user: stall",
+        "assistant(failed access-not-supported): ",
+      ],
+      "readOnlyHistory": [
+        "user: sneaky edit",
+        "assistant(failed access-not-supported): ",
       ],
     }
   `);

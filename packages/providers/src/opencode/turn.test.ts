@@ -184,80 +184,24 @@ it('keeps fence listeners O(1) across many turns (including approvals) and notif
   });
 });
 
-it('switches to full mode for full-access turns (interactive and background), auto-approves permissions, and cancels cleanly on Stop', async () => {
+it('allows background mode for full turns, refuses background read-only turns, and refuses if opencode will not switch to full mode', async () => {
   const fence = createTrackedFence();
-  const modeCalls: unknown[] = [];
-  const notifications: unknown[] = [];
-  let allowChangesFlag: boolean | undefined;
-  let permissionReply: unknown;
-  let askCount = 0;
-  let breached = 0;
-  const makeFullClient = (onPrompt?: (sessionId: string, handlers: acp.SessionHandlers) => Promise<acp.Call<acp.PromptResponse>>): acp.AcpClient => {
-    let nextSession = 0;
-    const attached = new Map<string, acp.SessionHandlers>();
-    return {
-      version: '2.4.1',
-      canLoad: false,
-      canClose: true,
-      mcpHttp: true,
-      alive: () => true,
-      call: async (method, params, schema) => {
-        if (method === 'session/new') {
-          const sessionId = `session-${String(++nextSession)}`;
-          return {
-            kind: 'ok',
-            value: schema.parse({
-              sessionId,
-              configOptions: [{ id: 'mode', name: 'Mode', type: 'select', currentValue: BUILD_MODE, options: [{ value: BUILD_MODE, name: 'Build' }, { value: FULL_MODE, name: 'Full' }] }],
-            }),
-          };
-        }
-        if (method === 'session/set_config_option') {
-          modeCalls.push(params);
-          return {
-            kind: 'ok',
-            value: schema.parse({
-              configOptions: [{ id: 'mode', name: 'Mode', type: 'select', currentValue: FULL_MODE, options: [{ value: BUILD_MODE, name: 'Build' }, { value: FULL_MODE, name: 'Full' }] }],
-            }),
-          };
-        }
-        if (method === 'session/prompt') {
-          const sessionId = typeof params === 'object' && params !== null && 'sessionId' in params && typeof params.sessionId === 'string' ? params.sessionId : '';
-          const handlers = attached.get(sessionId);
-          if (onPrompt !== undefined && handlers !== undefined) {
-            const result = await onPrompt(sessionId, handlers);
-            return result.kind === 'ok' ? { kind: 'ok', value: schema.parse(result.value) } : result;
-          }
-          return { kind: 'ok', value: schema.parse({ stopReason: 'end_turn' }) };
-        }
-        return { kind: 'ok', value: schema.parse({}) };
-      },
-      notify: (method, params) => {
-        notifications.push({ method, params });
-      },
-      attach: (sessionId, handlers) => {
-        allowChangesFlag = handlers.allowChanges;
-        attached.set(sessionId, handlers);
-        return () => {
-          if (attached.get(sessionId) === handlers) attached.delete(sessionId);
+  let modeReply = FULL_MODE;
+  const base = makeClient();
+  const client: acp.AcpClient = {
+    ...base,
+    call: async (method, params, schema, timeoutMs) => {
+      if (method === 'session/set_config_option') {
+        return {
+          kind: 'ok',
+          value: schema.parse({
+            configOptions: [{ id: 'mode', name: 'Mode', type: 'select', currentValue: modeReply, options: [{ value: BUILD_MODE, name: 'Build' }, { value: FULL_MODE, name: 'Full' }] }],
+          }),
         };
-      },
-      exited: new Promise(() => undefined),
-      close: () => Promise.resolve(),
-      breach: () => {
-        breached += 1;
-      },
-    };
+      }
+      return base.call(method, params, schema, timeoutMs);
+    },
   };
-
-  const client = makeFullClient(async (sessionId, handlers) => {
-    permissionReply = await handlers.onPermission({
-      sessionId,
-      toolCall: { toolCallId: 'call-bash', title: 'bash', kind: 'execute' },
-      options: [{ optionId: 'once', kind: 'allow_once' }, { optionId: 'reject', kind: 'reject_once' }],
-    });
-    return { kind: 'ok', value: { stopReason: 'end_turn' } };
-  });
   const deps = {
     live: () => ({ client, catalog: createModelCatalog() }),
     checkCli: () => Promise.resolve(null),
@@ -266,75 +210,26 @@ it('switches to full mode for full-access turns (interactive and background), au
     fence,
     home: '/work',
   };
-
-  const bgFull = await runTurn(
-    {
-      request: makeRequest('turn-bg-full', { access: 'full', mode: 'background' }),
-      signal: new AbortController().signal,
-      emit: () => undefined,
-      ask: () => {
-        askCount += 1;
-        return Promise.resolve({ kind: 'refused', reason: 'background' });
+  const run = (overrides: Partial<TurnRequest>) =>
+    runTurn(
+      {
+        request: makeRequest('turn-bg', overrides),
+        signal: new AbortController().signal,
+        emit: () => undefined,
+        ask: () => Promise.resolve({ kind: 'refused', reason: 'background' }),
+        onSteer: () => () => undefined,
       },
-      onSteer: () => () => undefined,
-    },
-    deps,
-  );
-  const bgReadOnly = await runTurn(
-    {
-      request: makeRequest('turn-bg-ro', { access: 'read-only', mode: 'background' }),
-      signal: new AbortController().signal,
-      emit: () => undefined,
-      ask: () => Promise.resolve({ kind: 'refused', reason: 'background' }),
-      onSteer: () => () => undefined,
-    },
-    deps,
-  );
+      deps,
+    );
 
-  const stop = new AbortController();
-  const stalled = Promise.withResolvers<acp.Call<acp.PromptResponse>>();
-  const promptStarted = Promise.withResolvers<undefined>();
-  const stopClient = makeFullClient(() => {
-    promptStarted.resolve(undefined);
-    return stalled.promise;
-  });
-  const cancelling = runTurn(
-    {
-      request: makeRequest('turn-stop-full', { access: 'full' }),
-      signal: stop.signal,
-      emit: () => undefined,
-      ask: () => Promise.resolve({ kind: 'refused', reason: 'turn-ended' }),
-      onSteer: () => () => undefined,
-    },
-    { ...deps, live: () => ({ client: stopClient, catalog: createModelCatalog() }) },
-  );
-  await promptStarted.promise;
-  stop.abort();
-  stalled.resolve({ kind: 'ok', value: { stopReason: 'cancelled' } });
-  const stopped = await cancelling;
+  const bgFull = await run({ access: 'full', mode: 'background' });
+  const bgReadOnly = await run({ access: 'read-only', mode: 'background' });
+  modeReply = BUILD_MODE;
+  const stuckMode = await run({ access: 'full', mode: 'interactive' });
 
-  expect({
-    bgFull: bgFull.outcome,
-    bgReadOnly: bgReadOnly.outcome,
-    allowChangesFlag,
-    permissionReply,
-    askCount,
-    breached,
-    modeCalls,
-    stopped: stopped.outcome,
-    notifications,
-  }).toEqual({
+  expect({ bgFull: bgFull.outcome, bgReadOnly: bgReadOnly.outcome, stuckMode: stuckMode.outcome }).toEqual({
     bgFull: { kind: 'completed', finishReason: 'stop' },
     bgReadOnly: { kind: 'failed', error: { kind: 'background-not-allowed' } },
-    allowChangesFlag: true,
-    permissionReply: { outcome: { outcome: 'selected', optionId: 'once' } },
-    askCount: 0,
-    breached: 0,
-    modeCalls: [
-      { sessionId: 'session-1', configId: 'mode', value: FULL_MODE },
-      { sessionId: 'session-1', configId: 'mode', value: FULL_MODE },
-    ],
-    stopped: { kind: 'cancelled' },
-    notifications: [{ method: 'session/cancel', params: { sessionId: 'session-1' } }],
+    stuckMode: { kind: 'failed', error: { kind: 'access-not-supported', reason: 'OpenCode would not switch this chat to its full-access mode.' } },
   });
 });
