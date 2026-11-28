@@ -52,6 +52,6 @@ export async function checkWorkspace(runCommand: PluginRuntime['runCommand'], cw
       if (found === '') found = line;
     },
   });
-  if (exit.kind !== 'exited' || exit.code !== 0) return { kind: 'unknown', reason: 'MorrowBot could not check the workspace for Antigravity customizations.' };
+  if (exit.kind !== 'exited' || exit.code !== 0) return { kind: 'unknown', reason: 'Ori Kami could not check the workspace for Antigravity customizations.' };
   return found === '' ? { kind: 'clear' } : { kind: 'customized', folder: found };
 }

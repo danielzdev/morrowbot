@@ -209,7 +209,7 @@ export function createProviderInstaller(context: ProviderInstallerContext): Prov
         return { kind: 'failed', reason: 'Only built-in providers support 1-click install.', downloadUrl: null };
       }
       const checked = await isBuiltinOnHost(providerId, context.host(), context.rendererUrl);
-      if (checked === 'not-found') return { kind: 'failed', reason: 'MorrowBot could not find this provider.', downloadUrl: null };
+      if (checked === 'not-found') return { kind: 'failed', reason: 'Ori Kami could not find this provider.', downloadUrl: null };
       if (checked === 'not-builtin') return { kind: 'failed', reason: 'Only built-in providers support 1-click install.', downloadUrl: null };
       if (running.has(providerId)) {
         return { kind: 'failed', reason: 'An install is already running for this provider.', downloadUrl: null };

@@ -6,7 +6,7 @@ import { PluginCard, SettingCard } from './HostCards.tsx';
 /** What a card needs from the chat, which stays the same while a reply streams. */
 export interface CardContext {
   readonly peers: PeerDirectory;
-  /** The server's owner: only their click acts on MorrowBot's own cards. */
+  /** The server's owner: only their click acts on Ori Kami's own cards. */
   readonly owner: boolean;
   readonly onAct: (cardId: string, action: CardAction) => void;
   /** Extensions, at the plugin; null where Extensions is not open to this user. */

@@ -115,7 +115,7 @@ it('uses an invite once, and refuses grants that would let a member write outsid
       "first": 201,
       "invite": {
         "code": "<code>",
-        "inviteUri": "morrowbot://join?url=https%3A%2F%2Fstudio.example.ts.net&code=<code>",
+        "inviteUri": "orikami://join?url=https%3A%2F%2Fstudio.example.ts.net&code=<code>",
         "member": {
           "access": {
             "kind": "co-owner",
@@ -135,7 +135,7 @@ it('uses an invite once, and refuses grants that would let a member write outsid
         "body": {
           "error": {
             "kind": "conflict",
-            "message": "Set MORROWBOT_HOST_BIND to a LAN or Tailscale address, or send the url members should use",
+            "message": "Set ORIKAMI_HOST_BIND to a LAN or Tailscale address, or send the url members should use",
           },
         },
         "status": 409,

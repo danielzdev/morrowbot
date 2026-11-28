@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * What the MorrowBot browser plugin asks a browser extension to do, and what comes back. Nothing here
+ * What the Ori Kami browser plugin asks a browser extension to do, and what comes back. Nothing here
  * is Chromium-specific: a Firefox or Safari extension answers the same commands, and says in its
  * `hello` which ones it supports.
  */

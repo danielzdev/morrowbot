@@ -11,7 +11,7 @@ import { ACCEPT, readFiles } from './read-files.ts';
 import type { ThreadSession } from './thread-session.ts';
 
 /** Why Send waits while the host can't be reached; the draft stays. */
-const RECONNECTING = 'Reconnecting to MorrowBot… your message is kept.';
+const RECONNECTING = 'Reconnecting to Ori Kami… your message is kept.';
 
 const MAX_LINES = 12;
 

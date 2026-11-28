@@ -91,7 +91,7 @@ export function Pages(props: {
         );
       }
       return (
-        <PageFrame title="MorrowBot" chrome={chrome}>
+        <PageFrame title="Ori Kami" chrome={chrome}>
           {state.agents.kind === 'loaded' && state.agents.value.length === 0 && props.onNewAgent === null ? (
             <div class="chat empty">
               <p>No agents are shared with you on this server right now. Ask its owner to share one.</p>
@@ -100,7 +100,7 @@ export function Pages(props: {
             <FirstRun models={models} bridge={bridge} info={info} onFirstAgent={props.onFirstAgent} />
           ) : (
             <div class="chat empty">
-              <p>{state.agents.kind === 'loading' ? 'Loading…' : state.agents.kind === 'failed' ? "MorrowBot couldn't load your agents." : 'Choose an agent to start chatting.'}</p>
+              <p>{state.agents.kind === 'loading' ? 'Loading…' : state.agents.kind === 'failed' ? "Ori Kami couldn't load your agents." : 'Choose an agent to start chatting.'}</p>
               {state.agents.kind === 'loaded' && props.onNewAgent !== null && <button class="btn primary" onClick={props.onNewAgent}>New agent</button>}
             </div>
           )}

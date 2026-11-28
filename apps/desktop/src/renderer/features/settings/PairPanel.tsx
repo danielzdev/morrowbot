@@ -26,7 +26,7 @@ export function PairCode(props: { readonly code: PairingCodeResponse; readonly n
           <span class="mono">{code.url}</span>
         </div>
         <p class="setting-description">
-          In MorrowBot on your phone, open Settings › Connections › Add Host, then scan the QR code or enter the address and code. Each code works once, for 5 minutes.
+          In Ori Kami on your phone, open Settings › Connections › Add Host, then scan the QR code or enter the address and code. Each code works once, for 5 minutes.
         </p>
         <div class="pair-actions">
           {left === null ? (
@@ -45,7 +45,7 @@ export function PairCode(props: { readonly code: PairingCodeResponse; readonly n
   );
 }
 
-/** Shown when `MORROWBOT_HOST_BIND` is unset: the host needs the address phones should use. */
+/** Shown when `ORIKAMI_HOST_BIND` is unset: the host needs the address phones should use. */
 export function PairNeedsUrl(props: {
   readonly url: string;
   readonly error: string | null;
@@ -72,8 +72,8 @@ export function PairNeedsUrl(props: {
       <div class="pair-info">
         <div class="setting-label">Which address should phones use?</div>
         <p class="setting-description">
-          MorrowBot doesn't know where phones can reach it. Set <code>MORROWBOT_HOST_BIND</code> to this computer's LAN or Tailscale address (such as{' '}
-          <code>100.64.0.1</code>) and restart MorrowBot, or enter the address phones should use.
+          Ori Kami doesn't know where phones can reach it. Set <code>ORIKAMI_HOST_BIND</code> to this computer's LAN or Tailscale address (such as{' '}
+          <code>100.64.0.1</code>) and restart Ori Kami, or enter the address phones should use.
         </p>
         <label class="field">
           <span>Address</span>

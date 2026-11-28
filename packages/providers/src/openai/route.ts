@@ -35,14 +35,14 @@ export type Resolution =
       readonly modelProvider: string;
       /** The config this snapshot read, for the per-thread lockdown. */
       readonly config: CodexConfig;
-      /** Why MorrowBot cannot run Codex turns on this setup (managed rules, a credential command), or null. */
+      /** Why Ori Kami cannot run Codex turns on this setup (managed rules, a credential command), or null. */
       readonly blocked: string | null;
     };
 
 const COMMAND_AUTH_REASON =
-  'Codex gets this model provider\'s credentials by running a command (auth.command or an AWS credential process), outside its sandbox, so MorrowBot does not run read-only Codex turns on it.';
+  'Codex gets this model provider\'s credentials by running a command (auth.command or an AWS credential process), outside its sandbox, so Ori Kami does not run read-only Codex turns on it.';
 const MANAGED_REASON =
-  'An administrator manages Codex on this computer (requirements.toml or a device profile), and its rules can turn tools back on, so MorrowBot does not run Codex turns.';
+  'An administrator manages Codex on this computer (requirements.toml or a device profile), and its rules can turn tools back on, so Ori Kami does not run Codex turns.';
 
 /** Reads the account and the effective config once, for a turn in `cwd`. Never sends inference. */
 export async function resolve(daemon: CodexDaemon, cwd: string): Promise<Resolution> {

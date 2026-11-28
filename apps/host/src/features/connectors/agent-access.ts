@@ -20,7 +20,7 @@ type Gate = { readonly kind: 'usable'; readonly bindings: readonly Binding[] } |
 export function gate(connector: StoredConnector, turn: TurnOf, context: AccessContext): Gate {
   const { label, scope } = connector;
   const { agentId } = turn;
-  if (context.safeMode) return { kind: 'refused', reason: 'MorrowBot is in safe mode, so connectors are off.' };
+  if (context.safeMode) return { kind: 'refused', reason: 'Ori Kami is in safe mode, so connectors are off.' };
   if (!ownerMayLend(turn, context)) return { kind: 'refused', reason: 'This agent is shared, so connectors are given only to turns the owner starts.' };
   if (!connector.enabled) return { kind: 'refused', reason: `${label} is turned off.` };
   if (scope.mode === 'selected' && !scope.agentIds.includes(agentId)) return { kind: 'refused', reason: `${label} isn't available to this agent.` };

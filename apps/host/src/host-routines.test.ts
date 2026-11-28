@@ -32,7 +32,7 @@ let dataDir: string;
 let ids: Sequence;
 let chat: ChatFixture | undefined;
 beforeEach(async () => {
-  dataDir = await mkdtemp(path.join(tmpdir(), 'morrowbot-routines-'));
+  dataDir = await mkdtemp(path.join(tmpdir(), 'orikami-routines-'));
   ids = sequence();
 });
 afterEach(async () => {

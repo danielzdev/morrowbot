@@ -42,7 +42,7 @@ export interface TestHostOptions {
   readonly platform?: NodeJS.Platform;
   readonly routineClock?: RoutineClock;
   readonly t3Watch?: HostOptions['t3Watch'];
-  /** `MORROWBOT_T3_ROUTINE_ID`: the routine T3 watch batches go to. */
+  /** `ORIKAMI_T3_ROUTINE_ID`: the routine T3 watch batches go to. */
   readonly t3RoutineId?: string;
   readonly isPluginAllowedForAgent?: HostOptions['isPluginAllowedForAgent'];
   readonly turnOutputBudget?: HostOptions['turnOutputBudget'];

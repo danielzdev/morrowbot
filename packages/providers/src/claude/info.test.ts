@@ -26,17 +26,17 @@ it('judges the CLI version against the tested range', () => {
       },
       {
         "kind": "above",
-        "reason": "Claude 2.2.0 isn't tested with MorrowBot yet. Update MorrowBot, or point \`cliPath\` at a Claude 2.1.x install.",
+        "reason": "Claude 2.2.0 isn't tested with Ori Kami yet. Update Ori Kami, or point \`cliPath\` at a Claude 2.1.x install.",
         "version": "2.2.0",
       },
       {
         "kind": "above",
-        "reason": "Claude 3.0.0 isn't tested with MorrowBot yet. Update MorrowBot, or point \`cliPath\` at a Claude 2.1.x install.",
+        "reason": "Claude 3.0.0 isn't tested with Ori Kami yet. Update Ori Kami, or point \`cliPath\` at a Claude 2.1.x install.",
         "version": "3.0.0",
       },
       {
         "kind": "unreadable",
-        "reason": "Claude Code reported a version MorrowBot cannot read ("nightly").",
+        "reason": "Claude Code reported a version Ori Kami cannot read ("nightly").",
       },
     ]
   `);
@@ -62,17 +62,17 @@ it('offers all three profiles, with approvals and live usage, only on a tested v
           "withheld": [
             {
               "access": "read-only",
-              "reason": "Claude 2.2.1 isn't tested with MorrowBot yet. Update MorrowBot, or point \`cliPath\` at a Claude 2.1.x install.",
+              "reason": "Claude 2.2.1 isn't tested with Ori Kami yet. Update Ori Kami, or point \`cliPath\` at a Claude 2.1.x install.",
               "vendorSettings": "isolated",
             },
             {
               "access": "workspace-write",
-              "reason": "Claude 2.2.1 isn't tested with MorrowBot yet. Update MorrowBot, or point \`cliPath\` at a Claude 2.1.x install.",
+              "reason": "Claude 2.2.1 isn't tested with Ori Kami yet. Update Ori Kami, or point \`cliPath\` at a Claude 2.1.x install.",
               "vendorSettings": "isolated",
             },
             {
               "access": "full",
-              "reason": "Claude 2.2.1 isn't tested with MorrowBot yet. Update MorrowBot, or point \`cliPath\` at a Claude 2.1.x install.",
+              "reason": "Claude 2.2.1 isn't tested with Ori Kami yet. Update Ori Kami, or point \`cliPath\` at a Claude 2.1.x install.",
               "vendorSettings": "isolated",
             },
           ],

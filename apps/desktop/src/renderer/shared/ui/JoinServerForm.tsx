@@ -72,7 +72,7 @@ export function JoinServerForm(props: { readonly onJoin: (fields: JoinFields) =>
             inputMode="url"
             spellcheck={false}
             autocomplete="off"
-            placeholder="morrowbot://join?url=…&code=…"
+            placeholder="orikami://join?url=…&code=…"
             value={fields.link}
             onInput={(event) => {
               set({ link: event.currentTarget.value });

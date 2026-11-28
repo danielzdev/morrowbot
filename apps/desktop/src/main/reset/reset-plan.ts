@@ -57,7 +57,7 @@ async function entriesOf(dir: string): Promise<readonly string[]> {
  */
 export async function deleteRefusalNow(context: ResetContext, target: string): Promise<string | null> {
   const candidate = deleteCandidatesOf(context).find((each) => each.path === target);
-  if (candidate === undefined) return "Not one of MorrowBot's own files.";
+  if (candidate === undefined) return "Not one of Ori Kami's own files.";
   const facts = await factsOf(target);
   if (facts.kind === 'missing') return 'Already gone.';
   const refusal = refusalOf(target, candidate.root, context.homeDir, facts, workspacesOf(context));
@@ -79,7 +79,7 @@ export async function dataPlanOf(context: ResetContext, choice: DataChoice, keyc
   const refusal = dataDirRefusal(context);
   if (refusal !== null) return { kind: 'refused', reason: refusal };
   if (context.workspaces === null) {
-    return { kind: 'refused', reason: "MorrowBot can't list which folders its agents use right now, so it deletes nothing. Make sure its server is running and reachable (Settings › Server), then try again." };
+    return { kind: 'refused', reason: "Ori Kami can't list which folders its agents use right now, so it deletes nothing. Make sure its server is running and reachable (Settings › Server), then try again." };
   }
   const workspaces = workspacesOf(context);
   const steps: ResetStep[] = [];
@@ -96,7 +96,7 @@ export async function dataPlanOf(context: ResetContext, choice: DataChoice, keyc
   for (const name of await entriesOf(context.profile.dataDir)) {
     const entry = path.join(context.profile.dataDir, name);
     if (own.has(comparable(entry))) continue;
-    kept.push({ path: entry, reason: comparable(name) === WORKSPACES_ENTRY ? 'Agent workspaces are never touched.' : "Not one of MorrowBot's own files." });
+    kept.push({ path: entry, reason: comparable(name) === WORKSPACES_ENTRY ? 'Agent workspaces are never touched.' : "Not one of Ori Kami's own files." });
   }
   if (context.profile.kind === 'installed') {
     const electronProfile = path.join(context.homeDir, ELECTRON_PROFILE);
@@ -111,7 +111,7 @@ export async function dataPlanOf(context: ResetContext, choice: DataChoice, keyc
       }
       if (await keychain.has(RELEASE_TOKEN)) {
         if (choice === 'full-uninstall') steps.push(keychainStep(RELEASE_TOKEN));
-        else kept.push({ path: `Keychain: ${RELEASE_TOKEN.service} (account ${RELEASE_TOKEN.account})`, reason: 'Needed for app updates while MorrowBot stays installed.' });
+        else kept.push({ path: `Keychain: ${RELEASE_TOKEN.service} (account ${RELEASE_TOKEN.account})`, reason: 'Needed for app updates while Ori Kami stays installed.' });
       }
     } catch (error) {
       return { kind: 'refused', reason: error instanceof Error ? error.message : 'The login Keychain could not be checked.' };
@@ -120,22 +120,22 @@ export async function dataPlanOf(context: ResetContext, choice: DataChoice, keyc
   return { kind: 'ready', steps, kept };
 }
 
-/** The installed MorrowBot.app, checked on disk: a real folder in Applications with MorrowBot's bundle id. Never in a development run. */
+/** The installed Ori Kami.app, checked on disk: a real folder in Applications with Ori Kami's bundle id. Never in a development run. */
 export async function bundlePlanOf(context: ResetContext, input: BundleInput): Promise<BundlePlan> {
   if (context.platform !== 'darwin') return { kind: 'refused', reason: 'Uninstalling is available on macOS only.' };
   if (context.profile.kind !== 'installed' || !input.packaged) {
-    return { kind: 'refused', reason: 'This is a development run. Uninstalling is offered only in the installed MorrowBot.app.' };
+    return { kind: 'refused', reason: 'This is a development run. Uninstalling is offered only in the installed Ori Kami.app.' };
   }
   if (input.updatePending) return { kind: 'refused', reason: UPDATE_PENDING };
   const bundle = bundleOf(input.execPath, context.homeDir);
   if (bundle.kind === 'refused') return bundle;
   const facts = await factsOf(bundle.path);
-  if (facts.kind !== 'present' || facts.realPath !== bundle.path) return { kind: 'refused', reason: 'MorrowBot.app is a symbolic link or could not be checked.' };
+  if (facts.kind !== 'present' || facts.realPath !== bundle.path) return { kind: 'refused', reason: 'Ori Kami.app is a symbolic link or could not be checked.' };
   const plist = await readFile(path.join(bundle.path, 'Contents', 'Info.plist'), 'utf8').catch(() => '');
   if (bundleIdIn(plist) !== APP_ID) return { kind: 'refused', reason: `This app bundle is not ${APP_ID}.` };
   const known = context.workspaces ?? [];
   if (known.some((workspace) => isWithin(workspace, bundle.path) || isWithin(bundle.path, workspace)) || (await sharesWorkspace(bundle.path, await workspaceIdsOf(known)))) {
-    return { kind: 'refused', reason: 'An agent workspace is inside MorrowBot.app, or holds it. Move that workspace first.' };
+    return { kind: 'refused', reason: 'An agent workspace is inside Ori Kami.app, or holds it. Move that workspace first.' };
   }
   return bundle;
 }

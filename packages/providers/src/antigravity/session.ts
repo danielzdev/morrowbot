@@ -9,7 +9,7 @@ export const ASKING_MODE = 'default';
 const OPEN_MS = 60_000;
 const SET_MS = 15_000;
 const CLOSE_MS = 5_000;
-/** The ACP answer to a permission request MorrowBot does not ask about. */
+/** The ACP answer to a permission request Ori Kami does not ask about. */
 const CANCELLED = { outcome: { outcome: 'cancelled' } };
 const SESSION_GONE = /not found|no such|does not exist|unknown session/i;
 const SIGNED_OUT = /authentication required|not (logged|signed) in|unauthenticated/i;

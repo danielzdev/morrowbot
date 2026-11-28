@@ -14,11 +14,11 @@ afterEach(async () => {
 });
 
 it('knows no workspaces (so resets nothing) without a server to ask, unless an app still choosing a server has no local agents at all', async () => {
-  const dataDir = `${fake.home}/.morrowbot`;
+  const dataDir = `${fake.home}/.orikami`;
   const remote: ServerMode = { kind: 'remote', url: 'http://100.64.0.1:47800', hostName: 'studio' };
   const ask = (mode: ServerMode) => resetWorkspaces(mode, undefined, 'file:///index.html', dataDir);
   const before = { localHostDown: await ask({ kind: 'local' }), choosing: await ask({ kind: 'choosing' }), joinedUnreachable: await ask(remote) };
-  await fake.file('.morrowbot/morrowbot.sqlite');
+  await fake.file('.orikami/orikami.sqlite');
   const after = { choosing: await ask({ kind: 'choosing' }), joined: await ask(remote) };
   expect({ noLocalDatabase: before, localDatabaseLeft: after }).toEqual({
     noLocalDatabase: { localHostDown: null, choosing: [], joinedUnreachable: null },
@@ -27,10 +27,10 @@ it('knows no workspaces (so resets nothing) without a server to ask, unless an a
 });
 
 it('treats a data folder it cannot read as one that may hold local agents', async () => {
-  await fake.file('.morrowbot/notes.txt');
-  await chmod(`${fake.home}/.morrowbot`, 0o000);
-  const unreadable = await resetWorkspaces({ kind: 'choosing' }, undefined, 'file:///index.html', `${fake.home}/.morrowbot`);
-  await chmod(`${fake.home}/.morrowbot`, 0o700);
+  await fake.file('.orikami/notes.txt');
+  await chmod(`${fake.home}/.orikami`, 0o000);
+  const unreadable = await resetWorkspaces({ kind: 'choosing' }, undefined, 'file:///index.html', `${fake.home}/.orikami`);
+  await chmod(`${fake.home}/.orikami`, 0o700);
   expect(unreadable).toBeNull();
 });
 

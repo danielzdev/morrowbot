@@ -9,7 +9,7 @@ const { readCliVersion } = standaloneRuntime();
 
 let base: string;
 beforeEach(async () => {
-  base = await realpath(await mkdtemp(path.join(tmpdir(), 'morrowbot-sdk-version-')));
+  base = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-sdk-version-')));
 });
 afterEach(async () => {
   await rm(base, { recursive: true, force: true });

@@ -7,10 +7,10 @@ describe('parsePairingLink', () => {
     expect(
       [
         pairingUri('http://100.64.0.1:47800', '042917'),
-        'morrowbot://pair/?code=042917&url=https%3A%2F%2Fstudio.tail1234.ts.net',
-        'morrowbot://pair?url=http%3A%2F%2F100.64.0.1%3A47800&code=12345',
-        'morrowbot://pair?url=http%3A%2F%2F100.64.0.1%3A47800%2Fapi&code=042917',
-        'morrowbot://pair?url=%E0%A4%A&code=042917',
+        'orikami://pair/?code=042917&url=https%3A%2F%2Fstudio.tail1234.ts.net',
+        'orikami://pair?url=http%3A%2F%2F100.64.0.1%3A47800&code=12345',
+        'orikami://pair?url=http%3A%2F%2F100.64.0.1%3A47800%2Fapi&code=042917',
+        'orikami://pair?url=%E0%A4%A&code=042917',
         'https://example.com/pair?url=http%3A%2F%2F100.64.0.1&code=042917',
         'hello',
       ].map(parsePairingLink),
@@ -40,15 +40,15 @@ describe('parsePairingLink', () => {
         },
         {
           "kind": "invalid",
-          "problem": "This is not a MorrowBot pairing code.",
+          "problem": "This is not an Ori Kami pairing code.",
         },
         {
           "kind": "invalid",
-          "problem": "This is not a MorrowBot pairing code.",
+          "problem": "This is not an Ori Kami pairing code.",
         },
         {
           "kind": "invalid",
-          "problem": "This is not a MorrowBot pairing code.",
+          "problem": "This is not an Ori Kami pairing code.",
         },
       ]
     `);

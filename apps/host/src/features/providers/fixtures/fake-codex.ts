@@ -217,7 +217,7 @@ function answer(method: string, raw: unknown): unknown {
   const threadId = params.threadId ?? '';
   switch (method) {
     case 'initialize':
-      return { userAgent: 'morrowbot/0.171.0-alpha.13 (fake)', codexHome: path.join(home, '.codex'), platformFamily: 'unix', platformOs: 'macos' };
+      return { userAgent: 'orikami/0.171.0-alpha.13 (fake)', codexHome: path.join(home, '.codex'), platformFamily: 'unix', platformOs: 'macos' };
     case 'account/read':
       return readAccount();
     case 'config/read':

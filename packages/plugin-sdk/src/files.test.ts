@@ -6,7 +6,7 @@ import { listDirectory, readOptionalFile, statExecutable } from './files.ts';
 
 let base: string;
 beforeEach(async () => {
-  base = await realpath(await mkdtemp(path.join(tmpdir(), 'morrowbot-sdk-files-')));
+  base = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-sdk-files-')));
 });
 afterEach(async () => {
   await rm(base, { recursive: true, force: true });

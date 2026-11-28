@@ -178,7 +178,7 @@ export function PluginDetail(props: {
             ))}
           </ul>
         )}
-        <p class="muted">Plugins are trusted code: MorrowBot runs each in its own process, but does not sandbox it.</p>
+        <p class="muted">Plugins are trusted code: Ori Kami runs each in its own process, but does not sandbox it.</p>
       </DetailSection>
 
       {Object.keys(manifest.settingsSchema).length > 0 && (
@@ -194,7 +194,7 @@ export function PluginDetail(props: {
           />
         </DetailSection>
       )}
-      {entry.source === 'built-in' && <p class="muted">Built-in plugins ship with MorrowBot and can't be removed. Turn one off to stop it.</p>}
+      {entry.source === 'built-in' && <p class="muted">Built-in plugins ship with Ori Kami and can't be removed. Turn one off to stop it.</p>}
     </article>
   );
 }

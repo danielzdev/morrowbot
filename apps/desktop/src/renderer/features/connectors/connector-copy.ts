@@ -1,7 +1,7 @@
 import { ConnectorLabel, connectorLabelKey, MAX_CONNECTOR_LABEL, type Agent, type Connector, type ConnectorScope, type ConnectorSetupView, type ConnectorStatus } from '@morrowbot/contracts';
 
 export const EMPTY_LINE = 'Connect an account so your agents can use it, like your calendar or a to-do app.';
-export const NO_ROUTE_LINE = "MorrowBot can't use this connector safely right now.";
+export const NO_ROUTE_LINE = "Ori Kami can't use this connector safely right now.";
 export const REVIEW_LINE = 'Access is paused until you save a supported scope.';
 export const CONFLICT_LINE = 'Changed elsewhere.';
 export const FILTERS_FROM = 8;

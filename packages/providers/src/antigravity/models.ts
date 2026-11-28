@@ -9,7 +9,7 @@ export const THOUGHT = 'thought_level';
  */
 export interface ModelCatalog {
   /**
-   * Learns from a session's settings. `fresh` is true for a session's settings before MorrowBot
+   * Learns from a session's settings. `fresh` is true for a session's settings before Ori Kami
    * changed anything, so its model is agy's default. Returns the new list when it changed.
    */
   observe(options: readonly acp.ConfigOption[], fresh: boolean): readonly ProviderModel[] | null;

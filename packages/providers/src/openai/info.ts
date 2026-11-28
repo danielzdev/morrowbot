@@ -13,9 +13,9 @@ const FULL: AccessProfile = { access: 'full', vendorSettings: 'personal', modes:
 const PROFILES: readonly AccessProfile[] = [READ_ONLY, FULL];
 
 const INSTRUCTIONS_REASON =
-  'Codex always loads your own ~/.codex/AGENTS.md (checked on Codex 0.171), so MorrowBot cannot replace its instructions. Use your Codex instructions instead.';
+  'Codex always loads your own ~/.codex/AGENTS.md (checked on Codex 0.171), so Ori Kami cannot replace its instructions. Use your Codex instructions instead.';
 const SHELL_REASON =
-  'Codex runs each shell command in its own process group, and MorrowBot cannot yet confine workspace-write commands to the workspace. Use read-only or full access instead.';
+  'Codex runs each shell command in its own process group, and Ori Kami cannot yet confine workspace-write commands to the workspace. Use read-only or full access instead.';
 
 const STATIC_WITHHELD: readonly WithheldProfile[] = [
   { access: 'workspace-write', vendorSettings: 'personal', reason: SHELL_REASON },
@@ -25,7 +25,7 @@ const STATIC_WITHHELD: readonly WithheldProfile[] = [
 
 /** Why Codex profiles are held back on `platform`, or null. */
 export function platformReason(platform: string): string | null {
-  return platform === 'darwin' ? null : `Codex in MorrowBot has been checked only on macOS so far, not on ${platform}.`;
+  return platform === 'darwin' ? null : `Codex in Ori Kami has been checked only on macOS so far, not on ${platform}.`;
 }
 
 type Runnable = Extract<Version, { kind: 'supported' | 'above' }>;

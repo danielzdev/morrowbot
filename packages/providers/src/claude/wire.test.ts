@@ -332,7 +332,7 @@ it('denies a permission request without a card when the turn may not ask, and re
             "request_id": "r1",
             "response": {
               "behavior": "deny",
-              "message": "MorrowBot does not ask for approval in this access level, so this was denied.",
+              "message": "Ori Kami does not ask for approval in this access level, so this was denied.",
             },
             "subtype": "success",
           },
@@ -340,7 +340,7 @@ it('denies a permission request without a card when the turn may not ask, and re
         },
         {
           "response": {
-            "error": "MorrowBot does not answer "elicitation" control requests",
+            "error": "Ori Kami does not answer "elicitation" control requests",
             "request_id": "r2",
             "subtype": "error",
           },
@@ -348,7 +348,7 @@ it('denies a permission request without a card when the turn may not ask, and re
         },
         {
           "response": {
-            "error": "MorrowBot does not answer control requests without a subtype",
+            "error": "Ori Kami does not answer control requests without a subtype",
             "request_id": "r3",
             "subtype": "error",
           },

@@ -2,7 +2,7 @@
   "protocolVersion": 1,
   "id": "browser",
   "name": "Browser",
-  "description": "Lets agents browse the web in your Chromium browser through the MorrowBot extension, filling saved logins from the vault.",
+  "description": "Lets agents browse the web in your Chromium browser through the Ori Kami extension, filling saved logins from the vault.",
   "version": "0.1.0",
   "kind": "tool",
   "main": "src/index.ts",
@@ -13,7 +13,7 @@
   "settingsSchema": {
     "pairingToken": {
       "kind": "string",
-      "label": "Pairing token (copy it from the MorrowBot browser extension)"
+      "label": "Pairing token (copy it from the Ori Kami browser extension)"
     },
     "port": {
       "kind": "number",

@@ -14,7 +14,7 @@ const MP4 = Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from('ftypisom',
 let dataDir: string;
 let chat: ChatFixture | undefined;
 beforeEach(async () => {
-  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'morrowbot-reply-files-')));
+  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-reply-files-')));
 });
 afterEach(async () => {
   await chat?.close();

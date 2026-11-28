@@ -1,7 +1,7 @@
 import { ToolCall } from './protocol.ts';
 import { describeTool } from './tools.ts';
 
-/** Tool kinds that change something. MorrowBot never allows one, so a finished one ran without asking. */
+/** Tool kinds that change something. Ori Kami never allows one, so a finished one ran without asking. */
 const CHANGING = new Set(['edit', 'delete', 'move', 'execute', 'switch_mode']);
 /** Tool calls remembered across sessions until they end; the oldest is forgotten past this. */
 const MAX_OPEN_TOOLS = 1_000;

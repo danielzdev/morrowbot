@@ -24,7 +24,7 @@ function without(event: object, keys: readonly string[]): unknown {
 }
 
 function usageOf(generationId: string): unknown {
-  const db = new DatabaseSync(path.join(codex.home, 'data', 'morrowbot.sqlite'), { readOnly: true });
+  const db = new DatabaseSync(path.join(codex.home, 'data', 'orikami.sqlite'), { readOnly: true });
   const row = db
     .prepare('SELECT actual_model, input_tokens, cached_input_tokens, cache_write_tokens, output_tokens, reasoning_tokens FROM turn_usage WHERE generation_id = ?')
     .get(generationId);
@@ -77,17 +77,17 @@ it('reports Codex ready with its read-only and full profiles and why the others 
             "withheld": [
               {
                 "access": "workspace-write",
-                "reason": "Codex runs each shell command in its own process group, and MorrowBot cannot yet confine workspace-write commands to the workspace. Use read-only or full access instead.",
+                "reason": "Codex runs each shell command in its own process group, and Ori Kami cannot yet confine workspace-write commands to the workspace. Use read-only or full access instead.",
                 "vendorSettings": "personal",
               },
               {
                 "access": "read-only",
-                "reason": "Codex always loads your own ~/.codex/AGENTS.md (checked on Codex 0.171), so MorrowBot cannot replace its instructions. Use your Codex instructions instead.",
+                "reason": "Codex always loads your own ~/.codex/AGENTS.md (checked on Codex 0.171), so Ori Kami cannot replace its instructions. Use your Codex instructions instead.",
                 "vendorSettings": "isolated",
               },
               {
                 "access": "workspace-write",
-                "reason": "Codex always loads your own ~/.codex/AGENTS.md (checked on Codex 0.171), so MorrowBot cannot replace its instructions. Use your Codex instructions instead.",
+                "reason": "Codex always loads your own ~/.codex/AGENTS.md (checked on Codex 0.171), so Ori Kami cannot replace its instructions. Use your Codex instructions instead.",
                 "vendorSettings": "isolated",
               },
             ],
@@ -227,7 +227,8 @@ it('streams a new thread, binds it to the account, counts its tokens, lets it go
           "features.shell_tool": false,
           "features.skill_mcp_dependency_install": false,
           "features.unified_exec": false,
-          "mcp_servers.morrowbot": {
+          "mcp_servers.node_repl.enabled": false,
+          "mcp_servers.orikami": {
             "default_tools_approval_mode": "approve",
             "enabled": true,
             "http_headers": {
@@ -235,7 +236,6 @@ it('streams a new thread, binds it to the account, counts its tokens, lets it go
             },
             "url": "http://127.0.0.1:<port>/mcp",
           },
-          "mcp_servers.node_repl.enabled": false,
         },
         "cwd": "$HOME/data/workspaces/id-1",
         "ephemeral": false,

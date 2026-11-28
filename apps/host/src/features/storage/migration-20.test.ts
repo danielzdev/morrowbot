@@ -12,9 +12,9 @@ afterEach(async () => {
 });
 
 it('upgrades from schema 19 to 20 keeping agents with empty disabledExtensions, revision 0, and atomic conflict checks', async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'morrowbot-m20-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'orikami-m20-'));
   dirs.push(dir);
-  const file = path.join(dir, 'morrowbot.sqlite');
+  const file = path.join(dir, 'orikami.sqlite');
 
   const raw = new DatabaseSync(file);
   raw.exec('PRAGMA foreign_keys = ON');

@@ -10,11 +10,11 @@ import { startTestHost, type EventClient, type TestHost } from '../../testing/te
 
 /**
  * The §5 provider-antigravity fixtures, run through the host and the built-in provider on the real
- * agy you are signed in to (1.5.x; `MORROWBOT_AGY_PATH` or `agy` on PATH). They spend a little of
- * your plan, so they run only with `MORROWBOT_LIVE_AGY=1`.
+ * agy you are signed in to (1.5.x; `ORIKAMI_AGY_PATH` or `agy` on PATH). They spend a little of
+ * your plan, so they run only with `ORIKAMI_LIVE_AGY=1`.
  */
-const LIVE = process.env.MORROWBOT_LIVE_AGY === '1';
-const AGY_PATH = process.env.MORROWBOT_AGY_PATH ?? 'agy';
+const LIVE = process.env.ORIKAMI_LIVE_AGY === '1';
+const AGY_PATH = process.env.ORIKAMI_AGY_PATH ?? 'agy';
 const TURN_MS = 600_000;
 
 let root = '';
@@ -23,7 +23,7 @@ let events: EventClient;
 
 beforeEach(async () => {
   if (!LIVE) return;
-  root = await realpath(await mkdtemp(path.join(tmpdir(), 'morrowbot-live-agy-')));
+  root = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-live-agy-')));
   host = await startTestHost({ dataDir: path.join(root, 'data') });
   events = await host.events();
   const configured = await host.call('PUT', '/api/plugins/provider-antigravity/config', { config: { cliPath: AGY_PATH } });
@@ -57,8 +57,8 @@ function toolsOf(generationId: string): string[] {
   return events.received.flatMap((event) => (event.kind === 'generation.tool-start' && event.generationId === generationId ? [`${event.name}:${ends.get(event.toolUseId) ?? 'open'}`] : []));
 }
 
-/** Whether MorrowBot itself denied a `kind` tool in that turn (its status says so), rather than agy failing it. */
-function deniedByMorrowBot(generationId: string, kind: string): boolean {
+/** Whether Ori Kami itself denied a `kind` tool in that turn (its status says so), rather than agy failing it. */
+function deniedByOriKami(generationId: string, kind: string): boolean {
   return events.received.some((event) => event.kind === 'generation.status' && event.generationId === generationId && (event.detail ?? '').startsWith(`Denied ${kind} `));
 }
 
@@ -87,7 +87,7 @@ describe.skipIf(!LIVE)('provider-antigravity on your agy login', () => {
       for (const attempt of tries) {
         const generationId = await send(thread, attempt.prompt);
         const tools = toolsOf(generationId);
-        denied.push({ tool: attempt.tool, reachedDenial: tools.includes(`${attempt.tool}:error`), byMorrowBot: deniedByMorrowBot(generationId, attempt.kind), anyToolSucceeded: tools.some((tool) => tool.endsWith(':ok')), changed: await exists(attempt.target) });
+        denied.push({ tool: attempt.tool, reachedDenial: tools.includes(`${attempt.tool}:error`), byOriKami: deniedByOriKami(generationId, attempt.kind), anyToolSucceeded: tools.some((tool) => tool.endsWith(':ok')), changed: await exists(attempt.target) });
       }
       const after = Info.parse((await host.call('GET', '/api/plugins/provider-antigravity/info')).body).info;
       const usage = UsageResponse.parse((await host.call('GET', '/api/plugins/provider-antigravity/usage?refresh=1')).body);
@@ -106,7 +106,7 @@ describe.skipIf(!LIVE)('provider-antigravity on your agy login', () => {
         after: { kind: 'ready', accountKey: '', labelled: true, models: true },
         outcomes: ['completed', 'completed', 'completed', 'completed', 'completed'],
         canary: true,
-        denied: tries.map(({ tool }) => ({ tool, reachedDenial: true, byMorrowBot: true, anyToolSucceeded: false, changed: false })),
+        denied: tries.map(({ tool }) => ({ tool, reachedDenial: true, byOriKami: true, anyToolSucceeded: false, changed: false })),
         usage: 'unsupported',
         errors: [],
       });

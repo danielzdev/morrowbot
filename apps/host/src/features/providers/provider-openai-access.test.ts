@@ -51,7 +51,7 @@ it('runs full-access turns with danger-full-access sandbox, no lockdown feature 
         {
           "approvalPolicy": "never",
           "config": {
-            "mcp_servers.morrowbot": {
+            "mcp_servers.orikami": {
               "default_tools_approval_mode": "approve",
               "enabled": true,
               "http_headers": {
@@ -83,7 +83,8 @@ it('runs full-access turns with danger-full-access sandbox, no lockdown feature 
             "features.shell_tool": false,
             "features.skill_mcp_dependency_install": false,
             "features.unified_exec": false,
-            "mcp_servers.morrowbot": {
+            "mcp_servers.node_repl.enabled": false,
+            "mcp_servers.orikami": {
               "default_tools_approval_mode": "approve",
               "enabled": true,
               "http_headers": {
@@ -91,7 +92,6 @@ it('runs full-access turns with danger-full-access sandbox, no lockdown feature 
               },
               "url": "http://127.0.0.1:<port>/mcp",
             },
-            "mcp_servers.node_repl.enabled": false,
           },
           "cwd": "$HOME/data/workspaces/id-6",
           "ephemeral": false,
@@ -209,7 +209,8 @@ it('switches a resumed Codex thread from full to read-only with a cold resume an
           "features.shell_tool": false,
           "features.skill_mcp_dependency_install": false,
           "features.unified_exec": false,
-          "mcp_servers.morrowbot": {
+          "mcp_servers.node_repl.enabled": false,
+          "mcp_servers.orikami": {
             "default_tools_approval_mode": "approve",
             "enabled": true,
             "http_headers": {
@@ -217,7 +218,6 @@ it('switches a resumed Codex thread from full to read-only with a cold resume an
             },
             "url": "http://127.0.0.1:<port>/mcp",
           },
-          "mcp_servers.node_repl.enabled": false,
         },
         "cwd": "$HOME/data/workspaces/id-1",
         "excludeTurns": true,

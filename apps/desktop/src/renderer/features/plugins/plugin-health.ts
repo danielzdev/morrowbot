@@ -49,13 +49,13 @@ export function problemHealth(problem: PluginProblem): Health & { readonly title
         title: problem.folder,
       };
     case 'unreadable':
-      return { ...pill('error', "Couldn't read folder", problem.problem), title: "MorrowBot couldn't read its plugin folders." };
+      return { ...pill('error', "Couldn't read folder", problem.problem), title: "Ori Kami couldn't read its plugin folders." };
   }
 }
 
 /**
  * Whether Extensions › Plugins lists this entry: every plugin except the providers built into
- * MorrowBot, which live in Settings › Providers. Community providers show in both.
+ * Ori Kami, which live in Settings › Providers. Community providers show in both.
  */
 export function isListedPlugin(entry: PluginEntry): boolean {
   return !(entry.source === 'built-in' && entry.manifest.kind === 'provider');

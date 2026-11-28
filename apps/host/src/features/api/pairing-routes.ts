@@ -31,7 +31,7 @@ export function pairingRoutes(options: PairingRouteOptions): Route[] {
         if (request.kind === 'rejected') return request.reply;
         const url = request.value.url ?? options.remoteUrl();
         if (url === undefined) {
-          return failure('conflict', 'Set MORROWBOT_HOST_BIND to a LAN or Tailscale address, or send the url devices should use');
+          return failure('conflict', 'Set ORIKAMI_HOST_BIND to a LAN or Tailscale address, or send the url devices should use');
         }
         const { code, expiresAt } = pairing.createCode();
         const body: PairingCodeResponse = { code, expiresAt, url, pairingUri: pairingUri(url, code) };

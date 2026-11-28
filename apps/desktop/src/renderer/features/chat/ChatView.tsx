@@ -42,7 +42,7 @@ export interface ChatViewProps {
   readonly avatar: (activity: ChatActivity) => ComponentChildren;
   /** What this chat is doing, as the sidebar shows it. */
   readonly activity: ChatActivity;
-  /** The server's owner, whose click alone acts on MorrowBot's own cards. */
+  /** The server's owner, whose click alone acts on Ori Kami's own cards. */
   readonly owner: boolean;
   /** Extensions, at a plugin a card offers; null where Extensions is not open to this user. */
   readonly onOpenPlugin: ((pluginId: string) => void) | null;

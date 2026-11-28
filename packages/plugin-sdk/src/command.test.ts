@@ -11,7 +11,7 @@ import { waitUntilGone } from './testing/processes.ts';
 const commands = createCommandRunner(createGroupLink(), process.env, OPEN);
 let work: string;
 beforeEach(async () => {
-  work = await realpath(await mkdtemp(path.join(tmpdir(), 'morrowbot-sdk-command-')));
+  work = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-sdk-command-')));
 });
 afterEach(async () => {
   await commands.stopAll();
@@ -129,41 +129,41 @@ it('kills what the command left running in its group as soon as the command exit
 
 it('removes ELECTRON_RUN_AS_NODE from the command environment and keeps the rest', async () => {
   process.env.ELECTRON_RUN_AS_NODE = '1';
-  process.env.MORROWBOT_TEST_MARK = 'kept';
+  process.env.ORIKAMI_TEST_MARK = 'kept';
   try {
     const { lines } = await run('/usr/bin/env', []);
-    expect(lines.filter((line) => /^(ELECTRON_RUN_AS_NODE|MORROWBOT_TEST_MARK)=/.test(line))).toMatchInlineSnapshot(`
+    expect(lines.filter((line) => /^(ELECTRON_RUN_AS_NODE|ORIKAMI_TEST_MARK)=/.test(line))).toMatchInlineSnapshot(`
       [
-        "MORROWBOT_TEST_MARK=kept",
+        "ORIKAMI_TEST_MARK=kept",
       ]
     `);
   } finally {
     delete process.env.ELECTRON_RUN_AS_NODE;
-    delete process.env.MORROWBOT_TEST_MARK;
+    delete process.env.ORIKAMI_TEST_MARK;
   }
 });
 
 it("gives a command its own variables on top of the runtime's, replacing one of the same name", async () => {
-  process.env.MORROWBOT_TEST_MARK = 'runtime';
+  process.env.ORIKAMI_TEST_MARK = 'runtime';
   try {
     const lines: string[] = [];
-    await commands.run('/usr/bin/env', { ...options({ args: [], onLine: (line) => lines.push(line) }), env: { MORROWBOT_TEST_MARK: 'own', MORROWBOT_TEST_EXTRA: 'added' }, input: '' });
+    await commands.run('/usr/bin/env', { ...options({ args: [], onLine: (line) => lines.push(line) }), env: { ORIKAMI_TEST_MARK: 'own', ORIKAMI_TEST_EXTRA: 'added' }, input: '' });
     const unchanged: string[] = [];
     await commands.run('/usr/bin/env', { ...options({ args: [], onLine: (line) => unchanged.push(line) }), input: '' });
-    const marks = (printed: readonly string[]): string[] => printed.filter((line) => line.startsWith('MORROWBOT_TEST_')).sort();
+    const marks = (printed: readonly string[]): string[] => printed.filter((line) => line.startsWith('ORIKAMI_TEST_')).sort();
     expect({ own: marks(lines), next: marks(unchanged) }).toMatchInlineSnapshot(`
       {
         "next": [
-          "MORROWBOT_TEST_MARK=runtime",
+          "ORIKAMI_TEST_MARK=runtime",
         ],
         "own": [
-          "MORROWBOT_TEST_EXTRA=added",
-          "MORROWBOT_TEST_MARK=own",
+          "ORIKAMI_TEST_EXTRA=added",
+          "ORIKAMI_TEST_MARK=own",
         ],
       }
     `);
   } finally {
-    delete process.env.MORROWBOT_TEST_MARK;
+    delete process.env.ORIKAMI_TEST_MARK;
   }
 });
 

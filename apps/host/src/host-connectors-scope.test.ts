@@ -248,7 +248,7 @@ it('starts nothing in safe mode and refuses every connector call', async () => {
     serverStarted: existsSync(log),
   }).toMatchInlineSnapshot(`
     {
-      "call": "MorrowBot is in safe mode, so connectors are off.",
+      "call": "Ori Kami is in safe mode, so connectors are off.",
       "serverStarted": false,
       "status": {
         "kind": "off_safe_mode",

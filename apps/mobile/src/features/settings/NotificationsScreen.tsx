@@ -4,9 +4,9 @@ import { Group, GroupedScroll, IconTile, Row } from './grouped.tsx';
 export function NotificationsScreen() {
   return (
     <GroupedScroll>
-      <Group header={null} footer="Alerts when the app is closed need MorrowBot’s relay, which is coming later.">
+      <Group header={null} footer="Alerts when the app is closed need Ori Kami’s relay, which is coming later.">
         <Row
-          label="While MorrowBot is open"
+          label="While Ori Kami is open"
           detail="Updates arrive live over the host connection."
           leading={<IconTile symbol="bell.badge" />}
           trailing={null}
@@ -15,7 +15,7 @@ export function NotificationsScreen() {
           onPress={null}
         />
         <Row
-          label="When MorrowBot is closed"
+          label="When Ori Kami is closed"
           detail="Not available yet"
           leading={<IconTile symbol="bell.slash" />}
           trailing={null}

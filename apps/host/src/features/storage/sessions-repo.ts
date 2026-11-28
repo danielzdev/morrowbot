@@ -45,7 +45,7 @@ export interface SessionRepository {
   find(key: SessionKey): SessionRecord | undefined;
   get(id: number): SessionRecord | undefined;
   listByThread(threadId: string): SessionRecord[];
-  /** Records a vendor session ref as `diverged` (it has history MorrowBot has not seen complete). Returns its row id. */
+  /** Records a vendor session ref as `diverged` (it has history Ori Kami has not seen complete). Returns its row id. */
   bind(key: SessionKey, ref: string, systemHash: string, vendorSettings: VendorSettings): number;
   setState(id: number, state: SessionState): void;
   delete(id: number): void;

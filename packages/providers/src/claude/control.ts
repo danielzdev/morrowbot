@@ -1,7 +1,7 @@
 import { z, type ApprovalAnswer, type ApprovalAsk } from '@morrowbot/plugin-sdk';
 import { tilde } from './tool-input.ts';
 
-/** A stream-json `control_request` from Claude Code: a tool waiting for permission, or something MorrowBot does not answer. */
+/** A stream-json `control_request` from Claude Code: a tool waiting for permission, or something Ori Kami does not answer. */
 export type ControlRequest =
   | {
       readonly kind: 'can-use-tool';
@@ -82,7 +82,7 @@ export function controlResponse(request: ControlRequest, answer: ApprovalAnswer 
       return line({
         subtype: 'error',
         request_id: request.requestId,
-        error: request.subtype === null ? 'MorrowBot does not answer control requests without a subtype' : `MorrowBot does not answer "${request.subtype}" control requests`,
+        error: request.subtype === null ? 'Ori Kami does not answer control requests without a subtype' : `Ori Kami does not answer "${request.subtype}" control requests`,
       });
     case 'can-use-tool': {
       if (answer?.kind === 'chosen' && answer.choiceId === 'allow') {
@@ -95,7 +95,7 @@ export function controlResponse(request: ControlRequest, answer: ApprovalAnswer 
 }
 
 function denial(answer: ApprovalAnswer | null): string | null {
-  if (answer === null) return 'MorrowBot does not ask for approval in this access level, so this was denied.';
+  if (answer === null) return 'Ori Kami does not ask for approval in this access level, so this was denied.';
   switch (answer.kind) {
     case 'chosen':
       return 'The user denied this.';

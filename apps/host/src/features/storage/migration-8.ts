@@ -1,6 +1,6 @@
 /**
  * Migration 8 (routines). A routine's schedule is one of three shapes, kept whole by the CHECKs; each run
- * keeps its result, and a wait is something an agent waits on outside MorrowBot until a wake call closes it.
+ * keeps its result, and a wait is something an agent waits on outside Ori Kami until a wake call closes it.
  */
 export const MIGRATION_8 = `
   CREATE TABLE routines (

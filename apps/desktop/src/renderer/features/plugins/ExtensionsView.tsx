@@ -136,7 +136,7 @@ export function ExtensionsView(props: ExtensionsViewProps) {
   if (loaded.kind === 'failed') {
     return (
       <div class="banner error page-pad" role="alert">
-        <span>MorrowBot couldn't read its plugin folders. {redact(loaded.message, info)}</span>
+        <span>Ori Kami couldn't read its plugin folders. {redact(loaded.message, info)}</span>
         <button type="button" class="btn secondary" onClick={() => void model.load()}>
           Try again
         </button>

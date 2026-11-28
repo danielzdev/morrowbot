@@ -9,7 +9,7 @@ import { PLUGIN_FIXTURES, sequence, startTestHost, type TestHost } from './testi
 let dataDir: string;
 let host: TestHost | undefined;
 beforeEach(async () => {
-  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'morrowbot-api-')));
+  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-api-')));
 });
 afterEach(async () => {
   await host?.close();

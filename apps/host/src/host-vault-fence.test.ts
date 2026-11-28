@@ -12,7 +12,7 @@ const SECRET = 'sk-fence-check-7f3a';
 /** Each line names a file of the data folder and whether the agent's shell could read or write it. */
 const ATTEMPTS = (dataDir: string): string =>
   [
-    `for name in vault-secrets.json vault.key vault.json morrowbot.sqlite; do if cat "${dataDir}/$name" >/dev/null 2>&1; then echo "$name: read"; else echo "$name: denied"; fi; done`,
+    `for name in vault-secrets.json vault.key vault.json orikami.sqlite; do if cat "${dataDir}/$name" >/dev/null 2>&1; then echo "$name: read"; else echo "$name: denied"; fi; done`,
     `for name in server.json plugins/new.js; do if (echo x > "${dataDir}/$name") 2>/dev/null; then echo "write $name: written"; else echo "write $name: denied"; fi; done`,
     `if mv "${dataDir}" "${dataDir}-moved" 2>/dev/null; then echo "data folder: moved"; else echo "data folder: stays"; fi`,
     'echo "workspace: $(echo hi > note.txt && cat note.txt)"',
@@ -24,7 +24,7 @@ describe.runIf(process.platform === 'darwin')('a full-access agent on this Mac',
   let events: EventClient;
 
   beforeEach(async () => {
-    home = await realpath(await mkdtemp(path.join(tmpdir(), 'morrowbot-vault-fence-')));
+    home = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-vault-fence-')));
     vi.stubEnv('HOME', home);
     vi.stubEnv('CLAUDE_CONFIG_DIR', path.join(home, '.claude'));
     vi.stubEnv('USER', 'tester');
@@ -55,7 +55,7 @@ describe.runIf(process.platform === 'darwin')('a full-access agent on this Mac',
         'vault-secrets.json: denied',
         'vault.key: denied',
         'vault.json: denied',
-        'morrowbot.sqlite: denied',
+        'orikami.sqlite: denied',
         'write server.json: denied',
         'write plugins/new.js: denied',
         'data folder: stays',

@@ -288,7 +288,7 @@ export interface TurnContext {
   readAttachment(attachment: Attachment): Promise<AttachmentContent>;
 }
 
-/** MorrowBot's own tools for one turn (the agent-tools feature provides them). */
+/** Ori Kami's own tools for one turn (the agent-tools feature provides them). */
 export interface TurnTools {
   /** Tools that act only as the turn's agent, in its chat, until `close` with the same turn id. */
   open(turn: { readonly turnId: string; readonly agentId: string; readonly threadId: string }): HostTools;

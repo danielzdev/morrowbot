@@ -59,7 +59,7 @@ function EngineAction(props: { readonly row: EngineRow; readonly actions: Engine
 
   const openExternal = (url: string): void => {
     void actions.openGuide(row.id, url).then((reason) => {
-      if (reason === null) setNote({ kind: 'status', text: 'MorrowBot rechecks when you come back.' });
+      if (reason === null) setNote({ kind: 'status', text: 'Ori Kami rechecks when you come back.' });
       else setNote({ kind: 'error', text: reason, downloadUrl: null });
     });
   };
@@ -203,7 +203,7 @@ export function SetupChecklist(props: { readonly engines: Loadable<readonly Engi
     case 'failed':
       return (
         <p class="muted" role="alert">
-          MorrowBot couldn't check its AI engines. {engines.message}
+          Ori Kami couldn't check its AI engines. {engines.message}
         </p>
       );
     case 'loaded':

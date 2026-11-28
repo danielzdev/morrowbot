@@ -1,4 +1,4 @@
-# MorrowBot
+# Ori Kami
 
 An open-source, plugin-first personal AI agent app built on a small TypeScript/Electron core and free, open-source plugins.
 
@@ -22,11 +22,11 @@ node node_modules/electron/install.js   # once: downloads the Electron binary
 npm start -w apps/desktop               # builds the window, then starts Electron and the host
 ```
 
-A dev run keeps its data in `~/.morrowbot-dev` (`MORROWBOT_DATA_DIR` moves it); only the installed `MorrowBot.app` uses `~/.morrowbot`. The Claude, Codex, Antigravity and OpenCode providers are built in; other plugins load from the data folder's `plugins` folder (`MORROWBOT_PLUGINS_DIR`).
+A dev run keeps its data in `~/.orikami-dev` (`ORIKAMI_DATA_DIR` moves it); only the installed `Ori Kami.app` uses `~/.orikami`. The Claude, Codex, Antigravity and OpenCode providers are built in; other plugins load from the data folder's `plugins` folder (`ORIKAMI_PLUGINS_DIR`).
 
-Vault secrets are sealed in the data folder's `vault-secrets.json` under one master key kept in the OS keystore. Deleting the folder removes the secrets; the key itself stays behind as one `com.legendarykoi.morrowbot.vault` / `master-key` entry in Keychain Access on macOS (shared by every data folder), or in the Secret Service on Linux (one per data folder), which you can delete there.
+Vault secrets are sealed in the data folder's `vault-secrets.json` under one master key kept in the OS keystore. Deleting the folder removes the secrets; the key itself stays behind as one `com.legendarykoi.orikami.vault` / `master-key` entry in Keychain Access on macOS (shared by every data folder), or in the Secret Service on Linux (one per data folder), which you can delete there.
 
-## Build MorrowBot.app
+## Build Ori Kami.app
 
 ```sh
 npm run package:mac -w apps/desktop      # Apple Silicon .dmg and .zip in apps/desktop/release
@@ -34,11 +34,11 @@ npm run package:mac -w apps/desktop      # Apple Silicon .dmg and .zip in apps/d
 
 Signing, notarization, private releases and auto-updates: [`apps/desktop/RELEASING.md`](apps/desktop/RELEASING.md).
 
-By default the host listens only on `127.0.0.1`. To let a paired phone reach it over Tailscale or your LAN, set `MORROWBOT_HOST_BIND` to that interface's address (for example your Tailscale `100.x.y.z`). Every route needs the desktop's token or a paired device's token, except the rate-limited pairing claim a phone uses to trade a one-time code for its token. Unpairing a device cuts it off at once. Prefer the Tailscale address: the host speaks plain HTTP, so on an ordinary LAN the pairing code and device tokens cross the network unencrypted.
+By default the host listens only on `127.0.0.1`. To let a paired phone reach it over Tailscale or your LAN, set `ORIKAMI_HOST_BIND` to that interface's address (for example your Tailscale `100.x.y.z`). Every route needs the desktop's token or a paired device's token, except the rate-limited pairing claim a phone uses to trade a one-time code for its token. Unpairing a device cuts it off at once. Prefer the Tailscale address: the host speaks plain HTTP, so on an ordinary LAN the pairing code and device tokens cross the network unencrypted.
 
 ## Browser extension
 
-Agents can drive your Chromium browser (Chrome, Brave, Edge, Arc, Dia...) through the built-in Browser plugin and the MorrowBot extension. Build, load and pairing steps: [`apps/browser-extension/README.md`](apps/browser-extension/README.md).
+Agents can drive your Chromium browser (Chrome, Brave, Edge, Arc, Dia...) through the built-in Browser plugin and the Ori Kami extension. Build, load and pairing steps: [`apps/browser-extension/README.md`](apps/browser-extension/README.md).
 
 ## License
 

@@ -23,7 +23,7 @@ export const directory = createHostDirectory(
     onThreadCreated: (listener) => sampleHost.onThreadCreated(listener),
   }),
   (problem) => {
-    console.warn(`MorrowBot directory: ${problem}`);
+    console.warn(`Ori Kami directory: ${problem}`);
   },
 );
 const threads = createThreadsSlice(directory.source);
