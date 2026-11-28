@@ -8,6 +8,8 @@ import { messageTools } from './message-tools.ts';
 import { resolveTools } from './plugin-tools.ts';
 import type { ToolPorts } from './ports.ts';
 import { replyTools } from './reply-tools.ts';
+import { routineTools } from './routine-tools.ts';
+import { t3WatchTools } from './t3-watch-tools.ts';
 import { vaultTools } from './vault-tools.ts';
 
 export const MCP_PATH = '/mcp';
@@ -40,7 +42,14 @@ type Answer = { readonly status: number; readonly body: object | null; readonly 
  */
 export async function startToolServer(options: ToolServerOptions): Promise<ToolServer> {
   const grants = createToolGrants();
-  const builtins = [...messageTools(options.ports), ...memoryTools(options.ports), ...vaultTools(options.ports), ...replyTools(options.ports)];
+  const builtins = [
+    ...messageTools(options.ports),
+    ...memoryTools(options.ports),
+    ...vaultTools(options.ports),
+    ...routineTools(options.ports),
+    ...t3WatchTools(options.ports),
+    ...replyTools(options.ports),
+  ];
   const warn =
     options.warn ??
     ((message: string) => {
