@@ -11,6 +11,8 @@ const PERMISSIONS: Readonly<Record<PluginPermission, string>> = {
   filesystem: 'Read and change files',
   shell: 'Run commands on this computer',
   secrets: 'Use saved passwords and keys',
+  accessibility: 'See and control apps on this Mac (Accessibility)',
+  'screen-recording': 'Take pictures of the screen (Screen Recording)',
 };
 
 export const sourceLabel = (entry: PluginEntry): string => (entry.source === 'built-in' ? 'Built-in' : 'Yours');

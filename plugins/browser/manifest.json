@@ -1,0 +1,30 @@
+{
+  "protocolVersion": 1,
+  "id": "browser",
+  "name": "Browser",
+  "version": "0.1.0",
+  "kind": "tool",
+  "main": "src/index.ts",
+  "permissions": [
+    "network",
+    "secrets"
+  ],
+  "settingsSchema": {
+    "pairingToken": {
+      "kind": "string",
+      "label": "Pairing token (copy it from the MorrowBot browser extension)"
+    },
+    "port": {
+      "kind": "number",
+      "label": "Port on 127.0.0.1",
+      "default": 47821,
+      "min": 1024,
+      "max": 65535
+    },
+    "uploadFolder": {
+      "kind": "string",
+      "label": "Folder the agent may upload files from (leave empty to turn uploads off)",
+      "default": ""
+    }
+  }
+}

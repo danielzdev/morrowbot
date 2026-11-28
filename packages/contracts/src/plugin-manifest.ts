@@ -4,7 +4,7 @@ import { PluginSettingsSchema } from './plugin-settings.ts';
 export const PluginKind = z.enum(['provider', 'tool']);
 export type PluginKind = z.infer<typeof PluginKind>;
 
-export const PluginPermission = z.enum(['network', 'filesystem', 'shell', 'secrets']);
+export const PluginPermission = z.enum(['network', 'filesystem', 'shell', 'secrets', 'accessibility', 'screen-recording']);
 export type PluginPermission = z.infer<typeof PluginPermission>;
 
 const RelativeEntry = z

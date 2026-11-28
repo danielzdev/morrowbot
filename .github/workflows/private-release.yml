@@ -48,6 +48,7 @@ jobs:
     runs-on: macos-15
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      NODE_OPTIONS: --max-old-space-size=4096
       MORROWBOT_RELEASES_REPO: ${{ vars.MORROWBOT_RELEASES_REPO || 'danielzdev/morrowbot-releases' }}
     steps:
       - uses: actions/checkout@v7
