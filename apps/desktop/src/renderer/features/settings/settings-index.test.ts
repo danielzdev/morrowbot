@@ -23,6 +23,7 @@ it('matches every word anywhere in a row, groups matches by section in nav order
   }).toMatchInlineSnapshot(`
     {
       "acrossSections": [
+        "send-color",
         "notifications",
         "emoji-replies",
         "key-palette",

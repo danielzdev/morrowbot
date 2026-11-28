@@ -3,6 +3,7 @@ import type { Appearance, AppearanceModel, ChatWidth, ReduceMotion, Theme } from
 import { DEFAULT_CUSTOM_BUBBLE_COLOR, swatchNameOf, type BubbleColorGlobal } from '../../shared/bubble-color.ts';
 import { BubbleColorPicker, BubblePreview } from '../../shared/ui/BubbleColorPicker.tsx';
 import { Segmented } from '../../shared/ui/Segmented.tsx';
+import { Toggle } from '../../shared/ui/Toggle.tsx';
 import { ROWS } from './settings-index.ts';
 import { SettingRow } from './SettingRow.tsx';
 
@@ -13,7 +14,7 @@ export interface SampleAgent {
   readonly color: string;
 }
 
-/** Settings › Appearance: theme, message color, chat width and motion, applied as soon as they change. */
+/** Settings › Appearance: theme, message color, Send color, chat width and motion, applied as soon as they change. */
 export function AppearanceSection(props: {
   readonly appearance: Appearance;
   readonly onChange: AppearanceModel['set'];
@@ -94,6 +95,15 @@ export function AppearanceSection(props: {
             { value: 'off', label: 'Off' },
             { value: 'custom', label: 'Custom' },
           ]}
+        />
+      </SettingRow>
+      <SettingRow entry={ROWS.sendColor}>
+        <Toggle
+          label={ROWS.sendColor.label}
+          checked={appearance.sendInAgentColor}
+          onChange={(sendInAgentColor) => {
+            onChange({ sendInAgentColor });
+          }}
         />
       </SettingRow>
       <SettingRow entry={ROWS.chatWidth}>

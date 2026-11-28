@@ -31,7 +31,7 @@ import { cliProbe, createT3WatchService, type T3Probe, type T3WatchClock, type T
 import { keyValue, loginFill, openVault, vaultBackend, type VaultKeyChoice } from './features/vault/index.ts';
 import { cardService } from './host-cards.ts';
 import { DATABASE, providerFence } from './host-fence.ts';
-import { agentInbox, agentToolPorts, chatStore, providerPlugins, subagentService } from './host-ports.ts';
+import { agentInbox, agentToolPorts, chatStore, providerPlugins, settingsService, subagentService } from './host-ports.ts';
 import { routineSink } from './t3-routine-sink.ts';
 
 export { DataDirLockedError as HostLockedError } from './features/storage/index.ts';
@@ -342,13 +342,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
         agentMessages,
         routines,
         t3Watches,
-        settings: {
-          chat: () => storage.chatSettings.get(),
-          setChat: (settings) => {
-            storage.chatSettings.set(settings);
-            return storage.chatSettings.get();
-          },
-        },
+        settings: settingsService(storage),
         vault,
       },
       fallback: healthListener(options.version),

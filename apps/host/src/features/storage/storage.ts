@@ -6,6 +6,7 @@ import { agentRepository, type AgentRepository } from './agents-repo.ts';
 import { attachmentRepository, type AttachmentRepository } from './attachments-repo.ts';
 import { cardRepository, type CardRepository } from './cards-repo.ts';
 import { chatSettingsRepository, type ChatSettingsRepository } from './chat-settings-repo.ts';
+import { modelFavoritesRepository, type ModelFavoritesRepository } from './model-favorites-repo.ts';
 import { childGroupRepository, type ChildGroupRepository } from './child-groups-repo.ts';
 import { connectorRepository, type ConnectorRepository } from './connectors-repo.ts';
 import { deviceRepository, type DeviceRepository } from './devices-repo.ts';
@@ -42,6 +43,7 @@ export interface Storage {
   readonly reactions: ReactionRepository;
   readonly cards: CardRepository;
   readonly chatSettings: ChatSettingsRepository;
+  readonly modelFavorites: ModelFavoritesRepository;
   readonly queued: QueuedRepository;
   readonly plugins: PluginSettingsRepository;
   readonly generations: GenerationRepository;
@@ -86,6 +88,7 @@ export function openStorage(file: string, now: () => string): Storage {
       reactions: reactionRepository(db),
       cards: cardRepository(db),
       chatSettings: chatSettingsRepository(db),
+      modelFavorites: modelFavoritesRepository(db),
       queued: queuedRepository(db),
       plugins: pluginSettingsRepository(db, now),
       generations: generationRepository(db),

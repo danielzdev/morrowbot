@@ -1,8 +1,9 @@
-import { ProviderInfo } from '@morrowbot/contracts';
+import { DEFAULT_AVATAR, ProviderInfo, type Agent } from '@morrowbot/contracts';
 import { h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
 import { expect, it } from 'vitest';
 import { newBinding, type ProviderChoice } from '../../shared/binding-ui/selection.ts';
+import { AgentPermissions } from './AgentPermissions.tsx';
 import { BrainFields } from './BrainFields.tsx';
 
 const WITHHELD_REASON = 'Not verified for personal setup.';
@@ -41,41 +42,86 @@ const CHOICE: ProviderChoice = {
   }),
 };
 
-function inspect(showAccess: boolean) {
+const segments = (html: string): readonly string[] =>
+  [...html.matchAll(/<button[^>]*aria-checked="(true|false)"[^>]*>(.*?)<\/button>/g)].map(
+    ([, checked = '', inner = '']) => `${inner.replace(/<[^>]+>/g, '').trim()}${checked === 'true' ? ' (chosen)' : ''}`,
+  );
+
+function brain(keepAccess: boolean) {
   const html = renderToString(
     h(BrainFields, {
       choices: [CHOICE],
       value: newBinding(CHOICE),
-      showAccess,
+      keepAccess,
       allowFull: true,
       redact: (text: string) => text,
       onChange: () => undefined,
       onOpenProviders: () => undefined,
     }),
   );
-  return {
-    hasModels: html.includes('Sonnet') && html.includes('Effort'),
-    hasAccessSegment: html.includes('access-segment'),
-    hasWarningNote: html.includes('binding-note warn'),
-    hasUnavailable: html.includes('Unavailable') || html.includes(WITHHELD_REASON),
-  };
+  return { hasModels: html.includes('Sonnet') && html.includes('Effort'), hasAccess: html.includes('access-segment') };
 }
 
-it('hides access controls and warnings during New Agent creation, and shows concise access controls in Agent Settings', () => {
-  expect({ newAgent: inspect(false), agentSettings: inspect(true) }).toMatchInlineSnapshot(`
+function permissions(access: 'read-only' | 'full', allowFull: boolean) {
+  const agent: Agent = {
+    id: 'agent-1',
+    name: 'Helper',
+    description: '',
+    workspace: { kind: 'dedicated', dir: '/work' },
+    avatar: DEFAULT_AVATAR,
+    provider: { kind: 'bound', pluginId: 'claude', selection: { kind: 'default' }, access, vendorSettings: 'isolated' },
+    folderId: null,
+    emojiReplies: 'allowed',
+    disabledExtensions: [],
+    revision: 0,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  };
+  const html = renderToString(
+    h(AgentPermissions, {
+      model: { updateAgent: () => new Promise<never>(() => undefined) },
+      agent,
+      choices: [CHOICE],
+      allowFull,
+      redact: (text: string) => text,
+      onOpenProviders: () => undefined,
+      onDirty: () => undefined,
+    }),
+  );
+  return segments(html);
+}
+
+it('keeps access out of Brain and New Agent; Permissions offers full access only to the owner, or while it is already set', () => {
+  expect({
+    newAgent: brain(false),
+    agentBrain: brain(true),
+    ownerPermissions: permissions('read-only', true),
+    memberPermissions: permissions('read-only', false),
+    memberSeesFullAlreadySet: permissions('full', false),
+  }).toMatchInlineSnapshot(`
     {
-      "agentSettings": {
-        "hasAccessSegment": true,
+      "agentBrain": {
+        "hasAccess": false,
         "hasModels": true,
-        "hasUnavailable": false,
-        "hasWarningNote": true,
       },
+      "memberPermissions": [
+        "Read only (chosen)",
+        "Edit workspace",
+      ],
+      "memberSeesFullAlreadySet": [
+        "Read only",
+        "Edit workspace",
+        "Full access (shell commands) (chosen)",
+      ],
       "newAgent": {
-        "hasAccessSegment": false,
+        "hasAccess": false,
         "hasModels": true,
-        "hasUnavailable": false,
-        "hasWarningNote": false,
       },
+      "ownerPermissions": [
+        "Read only (chosen)",
+        "Edit workspace",
+        "Full access (shell commands)",
+      ],
     }
   `);
 });
@@ -103,7 +149,7 @@ it('shows the redacted saved-profile reason when a bound provider withholds ever
     h(BrainFields, {
       choices: [blocked],
       value: { kind: 'bound', pluginId: 'claude', selection: { kind: 'default' }, access: 'full', vendorSettings: 'isolated' },
-      showAccess: true,
+      keepAccess: true,
       allowFull: true,
       redact: (text: string) => text.replaceAll('/Users/tester', '~'),
       onChange: () => undefined,

@@ -3,7 +3,7 @@ import { h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
 import { expect, it } from 'vitest';
 import { AccessSegment } from './AccessSegment.tsx';
-import { accessState, changeCheck, confirmLabel, needsConfirm } from './binding-state.ts';
+import { accessState, turnsOnFull } from './binding-state.ts';
 import { newBinding, switchBinding, type ProviderChoice } from './selection.ts';
 
 const READ: AccessProfile = { access: 'read-only', vendorSettings: 'isolated', modes: ['interactive', 'background'], readsOutsideCwd: false };
@@ -83,37 +83,14 @@ it('preserves an existing agent access level when switching providers without si
   });
 });
 
-it('asks before turning full access on, with the shell warning, and not when it stays on or turns off', () => {
-  const choices = [claude([READ, WRITE, FULL])];
-  const check = (before: ProviderBinding, after: ProviderBinding) => {
-    const result = changeCheck(choices, before, after);
-    return { ...result, confirm: needsConfirm(result), label: confirmLabel(result, before, after) };
-  };
-  expect({ turnOn: check(bound('read-only'), bound('full')), stayOn: check(bound('full'), bound('full')), turnOff: check(bound('full'), bound('workspace-write')) })
-    .toMatchInlineSnapshot(`
-      {
-        "stayOn": {
-          "added": [],
-          "confirm": false,
-          "label": "Use it",
-          "switched": false,
-        },
-        "turnOff": {
-          "added": [],
-          "confirm": false,
-          "label": "Use it",
-          "switched": false,
-        },
-        "turnOn": {
-          "added": [
-            "This agent can run terminal commands on your computer and read/write files outside its workspace.",
-          ],
-          "confirm": true,
-          "label": "Turn on full access",
-          "switched": false,
-        },
-      }
-    `);
+it('says the one-time notice only when a change gives full access the agent did not have', () => {
+  expect({
+    turnOn: turnsOnFull(bound('read-only'), bound('full')),
+    firstBindingFull: turnsOnFull({ kind: 'unbound' }, bound('full')),
+    stayOn: turnsOnFull(bound('full'), bound('full')),
+    turnOff: turnsOnFull(bound('full'), bound('workspace-write')),
+    neverFull: turnsOnFull(bound('read-only'), bound('workspace-write')),
+  }).toEqual({ turnOn: true, firstBindingFull: true, stayOn: false, turnOff: false, neverFull: false });
 });
 
 it('shows full access as its own segment and, when chosen, says it runs terminal commands and warns about the whole computer', () => {

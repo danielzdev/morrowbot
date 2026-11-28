@@ -2,6 +2,7 @@ import type { Agent, AgentAvatar, AgentWorkspaceRequest, ProviderBinding } from 
 import type { ComponentChildren } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import type { MorrowbotBridge } from '../../bridge.ts';
+import { FullAccessNotice } from '../../shared/binding-ui/FullAccessNotice.tsx';
 import { newBinding, prefill, type ProviderChoice } from '../../shared/binding-ui/selection.ts';
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog.tsx';
 import { Modal } from '../../shared/ui/Modal.tsx';
@@ -12,7 +13,8 @@ import { BrainFields } from './BrainFields.tsx';
 export type AvatarEditor = (value: AgentAvatar, onChange: (next: AgentAvatar) => void, previewSize: number) => ComponentChildren;
 
 /**
- * New Agent (spec §5.1): one scroll, nothing saved until Create. The Brain starts on the first
+ * New Agent (spec §5.1): one scroll, nothing saved until Create; an agent created with full access
+ * says once what that allows before it opens. The Brain starts on the first
  * provider eligible for automatic selection, once one reports in, unless the user picked already.
  */
 export function NewAgentDialog(props: {
@@ -43,6 +45,7 @@ export function NewAgentDialog(props: {
   const [problem, setProblem] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [leaving, setLeaving] = useState<(() => void) | null>(null);
+  const [created, setCreated] = useState<Agent | null>(null);
   const typed = touched || avatar !== initialAvatar || name !== '' || description !== '' || instructions !== '' || workspace.kind === 'shared';
   const leave = (then: () => void) => (): void => {
     if (typed) setLeaving(() => then);
@@ -60,10 +63,12 @@ export function NewAgentDialog(props: {
       .createAgent({ name, description, workspace, avatar, provider: binding, initialInstructions: workspace.kind === 'dedicated' && instructions !== '' ? instructions : null })
       .then((result) => {
         setSaving(false);
-        if (result.kind === 'saved') props.onCreated(result.value);
-        else setProblem(props.redact(result.message));
+        if (result.kind !== 'saved') setProblem(props.redact(result.message));
+        else if (result.value.provider.kind === 'bound' && result.value.provider.access === 'full') setCreated(result.value);
+        else props.onCreated(result.value);
       });
   };
+  if (created !== null) return <FullAccessNotice agentName={created.name} onClose={() => { props.onCreated(created); }} />;
   return (
     <Modal label="New agent" class="new-agent" onClose={leave(props.onClose)}>
       <form
@@ -92,7 +97,7 @@ export function NewAgentDialog(props: {
           <BrainFields
             choices={props.choices}
             value={binding}
-            showAccess={false}
+            keepAccess={false}
             allowFull={props.allowFull}
             redact={props.redact}
             onOpenProviders={leave(props.onOpenProviders)}

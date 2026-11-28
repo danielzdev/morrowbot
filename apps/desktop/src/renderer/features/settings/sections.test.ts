@@ -29,6 +29,7 @@ const APPEARANCE: Appearance = {
   chatWidth: 'normal',
   messageColor: { kind: 'match-bot' },
   agentMessageColors: {},
+  sendInAgentColor: true,
   reducedMotion: false,
   resolvedTheme: 'dark',
 };

@@ -1,4 +1,4 @@
-/* The binding pills, the Model · Effort · Access popover and its shared parts (spec §4.5, §4.6). */
+/* The model pill, the model picker popover and its shared parts (spec §4.5, §4.6). */
 .binding-pills {
   display: flex;
   flex-wrap: wrap;
@@ -284,7 +284,7 @@
   background: var(--warn-bg);
 }
 
-/* Composer controls and warning strip */
+/* Composer controls */
 .round-btn {
   display: inline-grid;
   place-items: center;
@@ -313,18 +313,6 @@
   color: var(--text-3);
   font: var(--t-small);
   text-align: right;
-}
-.warning-strip {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  color: var(--warn);
-  font: var(--t-small);
-}
-.warning-strip p {
-  display: flex;
-  align-items: center;
-  gap: 6px;
 }
 button.link {
   color: inherit;

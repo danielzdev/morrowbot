@@ -1,20 +1,19 @@
 import type { ProviderBinding } from '@morrowbot/contracts';
-import { AccessSegment } from '../../shared/binding-ui/AccessSegment.tsx';
-import { accessState, modelState, unrunnableReason } from '../../shared/binding-ui/binding-state.ts';
+import { modelState, unrunnableReason } from '../../shared/binding-ui/binding-state.ts';
 import { ModelList } from '../../shared/binding-ui/ModelList.tsx';
 import { OptionColumn } from '../../shared/binding-ui/OptionColumn.tsx';
 import { ProviderRail } from '../../shared/binding-ui/ProviderRail.tsx';
 import { isRunnable, newBinding, pinModel, switchBinding, withChoice, type ProviderChoice } from '../../shared/binding-ui/selection.ts';
 
 /**
- * Provider cards, then the chosen provider's models, options and (when `showAccess` is true) access,
- * inline (spec §5.1, §5.2). Every pick only changes the staged `value`; the form around it decides
- * when to save.
+ * Provider cards, then the chosen provider's models and options, inline (spec §5.1, §5.2). Every pick
+ * only changes the staged `value`; the form around it decides when to save. Access is not shown here.
  */
 export function BrainFields(props: {
   readonly choices: readonly ProviderChoice[];
   readonly value: ProviderBinding;
-  readonly showAccess: boolean;
+  /** True for an existing agent: a provider switch keeps its access (never raising it); false starts fresh. */
+  readonly keepAccess: boolean;
   /** False for server members (including co-owners), who may not grant full access. */
   readonly allowFull: boolean;
   readonly onChange: (next: ProviderBinding) => void;
@@ -39,7 +38,7 @@ export function BrainFields(props: {
             const picked = props.choices.find((each) => each.id === id);
             if (picked !== undefined && (value.kind !== 'bound' || value.pluginId !== id)) {
               const options = { allowFull: props.allowFull };
-              props.onChange(props.showAccess ? switchBinding(picked, value, options) : newBinding(picked, options));
+              props.onChange(props.keepAccess ? switchBinding(picked, value, options) : newBinding(picked, options));
             }
           }}
         />
@@ -61,8 +60,7 @@ export function BrainFields(props: {
         </div>
       )}
       {value.kind === 'bound' && models !== null && (
-        <>
-          <div class="brain-models">
+        <div class="brain-models">
             <ModelList
               key={value.pluginId}
               state={models}
@@ -79,19 +77,7 @@ export function BrainFields(props: {
                 props.onChange({ ...value, selection: withChoice(value.selection, optionId, choiceId) });
               }}
             />
-          </div>
-          {props.showAccess && (
-            <AccessSegment
-              state={accessState(choice?.info, value)}
-              value={value}
-              disabled={false}
-              redact={props.redact}
-              onPick={(profile) => {
-                props.onChange({ ...value, access: profile.access, vendorSettings: profile.vendorSettings });
-              }}
-            />
-          )}
-        </>
+        </div>
       )}
     </div>
   );

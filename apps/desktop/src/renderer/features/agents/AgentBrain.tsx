@@ -1,8 +1,8 @@
 import type { Agent, ProviderBinding } from '@morrowbot/contracts';
-import { useEffect, useRef, useState } from 'preact/hooks';
-import { changeCheck, confirmLabel, needsConfirm } from '../../shared/binding-ui/binding-state.ts';
-import { readyInfo, type ProviderChoice } from '../../shared/binding-ui/selection.ts';
-import { Icon } from '../../shared/ui/Icon.tsx';
+import { useEffect, useState } from 'preact/hooks';
+import { turnsOnFull } from '../../shared/binding-ui/binding-state.ts';
+import { FullAccessNotice } from '../../shared/binding-ui/FullAccessNotice.tsx';
+import { readyInfo, switchBinding, type ProviderChoice } from '../../shared/binding-ui/selection.ts';
 import { SectionActions } from './AgentGeneral.tsx';
 import type { AgentsModel } from './agents-model.ts';
 import { BrainFields } from './BrainFields.tsx';
@@ -22,9 +22,20 @@ function Capabilities(props: { readonly choice: ProviderChoice | undefined; read
 }
 
 /**
- * Agent Settings › Brain (spec §5.2): provider, model, effort and access, staged until Save. Save
- * asks first when the provider changes or the access adds a warning. Refresh never changes the
- * saved binding; when it is no longer available, the fields say why.
+ * The staged provider and model with the agent's saved access (Permissions owns it): kept on the same
+ * provider, carried over without raising it on another one.
+ */
+export function withSavedAccess(staged: ProviderBinding, saved: ProviderBinding, choices: readonly ProviderChoice[], allowFull: boolean): ProviderBinding {
+  if (staged.kind !== 'bound' || saved.kind !== 'bound') return staged;
+  if (staged.pluginId === saved.pluginId) return { ...staged, access: saved.access, vendorSettings: saved.vendorSettings };
+  const choice = choices.find(({ id }) => id === staged.pluginId);
+  const carried = choice === undefined ? staged : switchBinding(choice, saved, { allowFull });
+  return carried.kind === 'bound' ? { ...staged, access: carried.access, vendorSettings: carried.vendorSettings } : staged;
+}
+
+/**
+ * Agent Settings › Brain (spec §5.2): provider, model and effort, staged until Save. Refresh never
+ * changes the saved binding; when it is no longer available, the fields say why. Access is in Permissions.
  */
 export function AgentBrain(props: {
   readonly model: AgentsModel;
@@ -37,77 +48,49 @@ export function AgentBrain(props: {
   readonly onDirty: (dirty: boolean) => void;
 }) {
   const { agent } = props;
-  const [binding, setBinding] = useState<ProviderBinding>(agent.provider);
-  const [confirming, setConfirming] = useState(false);
+  const [staged, setStaged] = useState<ProviderBinding>(agent.provider);
   const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const [notice, setNotice] = useState(false);
+  const binding = withSavedAccess(staged, agent.provider, props.choices, props.allowFull);
   const dirty = JSON.stringify(binding) !== JSON.stringify(agent.provider);
   useEffect(() => {
     props.onDirty(dirty);
   }, [dirty]);
-  const root = useRef<HTMLDivElement>(null);
-  const asked = useRef(false);
-  useEffect(() => {
-    const at = (selector: string): HTMLElement | null => root.current?.querySelector<HTMLElement>(selector) ?? null;
-    if (confirming) at('.confirm-strip [data-autofocus]')?.focus();
-    else if (asked.current) (at('.section-actions .btn.primary:not(:disabled)') ?? at('.brain-fields [tabindex="0"]'))?.focus();
-    asked.current = confirming;
-  }, [confirming]);
-  const check = changeCheck(props.choices, agent.provider, binding);
-  const { switched, added } = check;
   const save = (): void => {
-    setConfirming(false);
+    const before = agent.provider;
     setSaving(true);
     void props.model.updateAgent(agent.id, { provider: binding }).then((result) => {
       setSaving(false);
       setProblem(result.kind === 'refused' ? props.redact(result.message) : null);
+      if (result.kind !== 'refused' && turnsOnFull(before, binding)) setNotice(true);
     });
   };
   const choice = binding.kind === 'bound' ? props.choices.find(({ id }) => id === binding.pluginId) : undefined;
   return (
-    <div ref={root} class="settings-section">
+    <div class="settings-section">
       <BrainFields
         choices={props.choices}
         value={binding}
-        showAccess={true}
+        keepAccess={true}
         allowFull={props.allowFull}
         redact={props.redact}
         onOpenProviders={props.onOpenProviders}
-        onChange={(next) => {
-          setConfirming(false);
-          setBinding(next);
-        }}
+        onChange={setStaged}
       />
       {binding.kind === 'unbound' && <p class="binding-note">{`Choose a provider for ${agent.name}.`}</p>}
       <Capabilities choice={choice} binding={binding} />
-      {confirming ? (
-        <div class="confirm-strip" role="alert">
-          {switched && (
-            <p>{`Switch ${agent.name} to ${choice?.name ?? 'this provider'}? This applies to all this agent's chats. A chat may ask to start a new session on its next send.`}</p>
-          )}
-          {added.map((warning) => (
-            <p key={warning} class="binding-note warn"><Icon name="warning" /> {warning}</p>
-          ))}
-          <div class="row">
-            <button type="button" class="btn primary" data-autofocus onClick={save}>{confirmLabel(check, agent.provider, binding)}</button>
-            <button type="button" class="btn secondary" onClick={() => { setConfirming(false); }}>Cancel</button>
-          </div>
-        </div>
-      ) : (
-        <SectionActions
-          dirty={dirty}
-          saving={saving}
-          problem={problem}
-          onCancel={() => {
-            setBinding(agent.provider);
-            setProblem(null);
-          }}
-          onSave={() => {
-            if (needsConfirm(check)) setConfirming(true);
-            else save();
-          }}
-        />
-      )}
+      <SectionActions
+        dirty={dirty}
+        saving={saving}
+        problem={problem}
+        onCancel={() => {
+          setStaged(agent.provider);
+          setProblem(null);
+        }}
+        onSave={save}
+      />
+      {notice && <FullAccessNotice agentName={agent.name} onClose={() => { setNotice(false); }} />}
     </div>
   );
 }

@@ -3,11 +3,12 @@ import { useMemo, useRef, useState } from 'preact/hooks';
 import type { MorrowbotBridge } from '../bridge.ts';
 import { BotAvatar, combineActivity, motionOf } from '../features/avatar/index.ts';
 import type { AgentSection } from '../features/agents/index.ts';
-import { bindingPill, BindingControl, BindingWarnings, sendBlock, type BoundProvider } from '../features/binding/index.ts';
+import { bindingPill, BindingControl, sendBlock, type BoundProvider } from '../features/binding/index.ts';
 import { chatDisplay, ChatView, Composer, type ChatActivity, type EngineLabel, type PeerDirectory } from '../features/chat/index.ts';
 import { INSPECTOR_TOGGLE } from '../features/inspector/index.ts';
 import { ThreadHeader } from '../features/thread/index.ts';
 import { bubbleStyleVars } from '../shared/bubble-color.ts';
+import { sendButtonVars } from '../shared/send-color.ts';
 import type { AppInfo } from '../shared/privacy.ts';
 import { useStore } from '../shared/use-store.ts';
 import { choiceFor, providerChoicesOf, threadStatusOf } from './derive.ts';
@@ -181,6 +182,7 @@ export function ChatPane(props: {
             safe={display.safe}
             onOpenProviders={props.onOpenProviders}
             sendWith={sendWith}
+            sendVars={sendButtonVars(agent.avatar.color, appearance.sendInAgentColor)}
             toolbar={
               !props.ownerEngines ? (
                 <span class="binding-note">Engine and access set by the server's owner</span>
@@ -192,6 +194,7 @@ export function ChatPane(props: {
                 binding={agent.provider}
                 openRequest={props.bindingRequest}
                 allowFull={props.allowFull}
+                favorites={models.modelFavorites}
                 onCommit={commit}
                 redact={display.redact}
                 onOpenProviders={props.onOpenProviders}
@@ -199,7 +202,6 @@ export function ChatPane(props: {
               />
               )
             }
-            notes={props.ownerEngines ? <BindingWarnings choice={choice} binding={agent.provider} onOpenProviders={props.onOpenProviders} /> : null}
           />
         </>
       )}

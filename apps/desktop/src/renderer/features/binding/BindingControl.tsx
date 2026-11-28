@@ -1,17 +1,21 @@
 import type { ProviderBinding } from '@morrowbot/contracts';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { ProviderGlyph } from '../../shared/binding-ui/ProviderRail.tsx';
+import { turnsOnFull } from '../../shared/binding-ui/binding-state.ts';
+import { FullAccessNotice } from '../../shared/binding-ui/FullAccessNotice.tsx';
+import { ProviderGlyph } from '../../shared/binding-ui/ProviderGlyph.tsx';
 import type { ProviderChoice } from '../../shared/binding-ui/selection.ts';
 import { ariaShortcut, PLATFORM } from '../../shared/keys.ts';
+import type { ModelFavoritesModel } from '../../shared/model-favorites.ts';
 import { Icon } from '../../shared/ui/Icon.tsx';
-import { accessPill, bindingPill, composerWarnings, type BoundProvider } from './binding-display.ts';
+import { useStore } from '../../shared/use-store.ts';
+import { bindingPill, type BoundProvider } from './binding-display.ts';
 import { BindingPopover } from './BindingPopover.tsx';
 
 const NOTE_MS = 4000;
 
 /**
- * The composer's binding pill and access pill (spec §4.5). Either opens the one popover; the access
- * pill focuses its Access section. `openRequest` changes on ⇧⌘M.
+ * The composer's model pill beside Send, which opens the model picker. `openRequest` changes on ⇧⌘M.
+ * Access is not shown here: it lives in Agent Settings › Permissions.
  */
 export function BindingControl(props: {
   readonly agentName: string;
@@ -23,22 +27,30 @@ export function BindingControl(props: {
   readonly openRequest: number;
   /** False for server members (including co-owners), who may not grant full access. */
   readonly allowFull: boolean;
+  readonly favorites: ModelFavoritesModel;
   readonly onCommit: (next: BoundProvider) => Promise<string | null>;
   readonly redact: (text: string) => string;
   readonly onOpenProviders: () => void;
   readonly onOpenBrain: () => void;
 }) {
-  const [open, setOpen] = useState<'model' | 'access' | null>(null);
+  const [open, setOpen] = useState(false);
   const [note, setNote] = useState(false);
-  const modelButton = useRef<HTMLButtonElement>(null);
-  const accessButton = useRef<HTMLButtonElement>(null);
+  const [notice, setNotice] = useState(false);
+  const favorites = useStore(props.favorites.state);
+  const button = useRef<HTMLButtonElement>(null);
   const seen = useRef(props.openRequest);
+  useEffect(() => {
+    void props.favorites.load();
+  }, [props.favorites]);
   useEffect(() => {
     if (props.openRequest === seen.current) return;
     seen.current = props.openRequest;
-    if (props.binding.kind === 'bound') setOpen('model');
+    if (props.binding.kind === 'bound') setOpen(true);
     else props.onOpenBrain();
   }, [props.openRequest]);
+  useEffect(() => {
+    if (open) void props.favorites.load();
+  }, [open]);
   useEffect(() => {
     if (!note) return;
     const timer = setTimeout(() => {
@@ -58,83 +70,50 @@ export function BindingControl(props: {
   }
   const { choice } = props;
   const model = bindingPill(choice, binding);
-  const access = accessPill(choice, binding);
   return (
     <div class="binding-pills">
+      {note && <span class="binding-applies" role="status">{`Applies to all of ${props.agentName}'s chats`}</span>}
       <button
-        ref={modelButton}
+        ref={button}
         type="button"
         class={`pill ${model.warn ? 'warn' : ''}`}
         aria-haspopup="dialog"
-        aria-expanded={open === 'model'}
+        aria-expanded={open}
         aria-keyshortcuts={ariaShortcut('binding', PLATFORM)}
-        onClick={() => { setOpen(open === 'model' ? null : 'model'); }}
+        onClick={() => { setOpen(!open); }}
       >
-        <ProviderGlyph name={choice?.name ?? '?'} size="sm" />
+        <ProviderGlyph id={binding.pluginId} name={choice?.name ?? '?'} size="sm" />
         <span>{model.label}</span>
         <Icon name="chevron-down" />
       </button>
-      <button
-        ref={accessButton}
-        type="button"
-        class={`pill ${access.warn ? 'warn' : ''}`}
-        aria-haspopup="dialog"
-        aria-expanded={open === 'access'}
-        onClick={() => { setOpen(open === 'access' ? null : 'access'); }}
-      >
-        <Icon name="lock" />
-        <span>{access.label}</span>
-        <Icon name="chevron-down" />
-      </button>
-      {note && <span class="binding-applies" role="status">{`Applies to all of ${props.agentName}'s chats`}</span>}
-      {open !== null && (
+      {open && (
         <BindingPopover
-          key={open}
           agentName={props.agentName}
           choices={props.choices}
           binding={binding}
-          anchor={open === 'access' ? accessButton : modelButton}
-          focus={open}
+          anchor={button}
           allowFull={props.allowFull}
+          favorites={favorites}
+          onToggleFavorite={(pluginId, modelId) => void props.favorites.toggle(pluginId, modelId)}
           redact={props.redact}
           onOpenProviders={() => {
-            setOpen(null);
+            setOpen(false);
             props.onOpenProviders();
           }}
           onCommit={async (next) => {
             const refused = await props.onCommit(next);
-            if (refused === null) setNote(true);
+            if (refused === null) {
+              setNote(true);
+              if (turnsOnFull(binding, next)) setNotice(true);
+            }
             return refused;
           }}
           onClose={() => {
-            setOpen(null);
+            setOpen(false);
           }}
         />
       )}
-    </div>
-  );
-}
-
-/** The warning strip under the composer: one line per warning that applies now (spec §4.5). */
-export function BindingWarnings(props: { readonly choice: ProviderChoice | undefined; readonly binding: ProviderBinding; readonly onOpenProviders: () => void }) {
-  const warnings = composerWarnings(props.choice, props.binding);
-  if (warnings.length === 0) return null;
-  return (
-    <div class="warning-strip">
-      {warnings.map((warning) =>
-        warning.kind === 'profile' ? (
-          <p key={warning.text}>
-            <Icon name="warning" /> {warning.text}
-          </p>
-        ) : (
-          <p key="review">
-            <Icon name="warning" />{' '}
-            <button type="button" class="link" onClick={props.onOpenProviders}>
-              Review this provider's status
-            </button>
-          </p>
-        ),
-      )}
+      {notice && <FullAccessNotice agentName={props.agentName} onClose={() => { setNotice(false); }} />}
     </div>
   );
 }

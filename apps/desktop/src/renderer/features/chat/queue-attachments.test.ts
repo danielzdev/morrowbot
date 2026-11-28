@@ -151,7 +151,7 @@ describe('queued message attachments UI', () => {
       close: () => undefined,
     };
     const html = renderToString(
-      h(Composer, { session, agentName: 'Atlas', toolbar: null, disabledReason: null, sendWith: 'enter', safe: (t) => t, onOpenProviders: () => undefined }),
+      h(Composer, { session, agentName: 'Atlas', toolbar: null, sendVars: undefined, disabledReason: null, sendWith: 'enter', safe: (t) => t, onOpenProviders: () => undefined }),
     );
     const sendButton = /<button[^>]*class="round-btn send"[^>]*>/.exec(html)?.[0] ?? '';
     expect({
