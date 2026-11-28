@@ -41,7 +41,15 @@ it('keeps a reaction the agent could not read yet, and reads it at the next idle
   await chat.send(thread, 'Status?');
   await ended(thread, 3);
 
-  expect((await chat.history(thread)).map((line) => line.split('\n')[0])).toMatchInlineSnapshot();
+  expect((await chat.history(thread)).map((line) => line.split('\n')[0])).toMatchInlineSnapshot(`
+    [
+      "user: Shall I deploy?",
+      "assistant(completed): hello from pid <pid>: Shall I deploy?",
+      "user: Status?",
+      "assistant(completed): hello from pid <pid>: Status?",
+      "assistant(completed): hello from pid <pid>: The user reacted 👍 to one of your earlier replies in this chat, quoted below. This is a reaction, not a new message.",
+    ]
+  `);
 });
 
 it('continues a failed reaction turn from the user’s reaction, and refuses once the reaction is gone', async () => {
@@ -67,12 +75,13 @@ it('continues a failed reaction turn from the user’s reaction, and refuses onc
     gone: `${String(gone.status)} ${JSON.stringify(gone.body)}`,
   }).toMatchInlineSnapshot(`
     {
-      "continued": 409,
-      "gone": "409 {"error":{"kind":"conflict","message":"This reply has no saved input to continue from."}}",
+      "continued": 202,
+      "gone": "409 {"error":{"kind":"conflict","message":"The reaction this reply answered was removed."}}",
       "history": [
         "user: Ready? on-reaction once-fail",
         "assistant(completed): hello from pid <pid>: Ready? on-reaction once-fail",
         "assistant(failed other): hello from pid <pid>:",
+        "assistant(completed): hello from pid <pid>: {"session":{"kind":"new","seed":"<user>\\nReady? on-reaction once-fail\\n</user>\\n<assistant>\\nhello from pid <pid>: Ready? on-reaction once-fail\\n</assistant>"}}",
       ],
     }
   `);
@@ -100,10 +109,11 @@ it('lets the agent react to a message the user steered into a reaction turn', as
         "assistant(completed):  heard: [The user typed this message in the chat while you were working. It is from the user, not from a tool. Reply to it visibly in your next message, and answer it if it is a question; then carry on with your task with it taken into account.]
 
     host-tool react_to_message {"emoji":"👀"}
-    react_to_message: error This turn answers the user’s reaction, not a message: there is nothing to react to.",
+    react_to_message: {"reacted":{"messageId":"id-7","emoji":"👀"}}",
       ],
       "reactions": [
         "id-5 user 👍",
+        "id-7 agent 👀",
       ],
     }
   `);

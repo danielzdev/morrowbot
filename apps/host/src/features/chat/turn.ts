@@ -64,7 +64,8 @@ export interface Turn {
   readonly daemonRevision: number;
   readonly maxSeedBytes: number | undefined;
   readonly plan: SessionPlan;
-  readonly source: TurnSource;
+  /** What the turn answers now: a delivered steer makes it answer the steered message. */
+  source: TurnSource;
   /** The thread's messages before a chat input (all of them for a background turn): what a seed is made from. */
   readonly history: readonly Message[];
   state: 'queued' | 'dispatching' | 'running' | 'settled';

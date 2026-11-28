@@ -5,6 +5,7 @@ import {
   type MessageReaction,
   type SetReactionRequest,
 } from '@morrowbot/contracts';
+import type { AdmitResult } from './admission.ts';
 import type { ChatCore, Turn } from './turn.ts';
 
 export type SetReactionAnswer =
@@ -108,6 +109,32 @@ export function reactionPrompt(message: AssistantMessage, emoji: string, allowed
     quote,
     '</your-reply>',
   ].join('\n');
+}
+
+/**
+ * Whether a reaction's turn started, or never can (its chat or reply is gone): either way the note is done.
+ * Otherwise the agent reads it at the chat's next idle moment, once its provider is back.
+ */
+export function readOrGone(result: AdmitResult): boolean {
+  switch (result.kind) {
+    case 'started':
+    case 'thread_not_found':
+    case 'not_continuable':
+    case 'attachments_missing':
+      return true;
+    case 'busy':
+    case 'no_provider':
+    case 'provider_unavailable':
+    case 'binding_changed':
+    case 'session_choice_required':
+      return false;
+  }
+}
+
+/** A Continue of the failed reaction turn on `reply`: it reads the user's newest reaction there again. */
+export function reactionAgain(core: ChatCore, agentId: string, reply: AssistantMessage): { readonly emoji: string; readonly prompt: string } | undefined {
+  const emoji = core.options.store.reactions.listByMessage(reply.id).findLast(({ actor }) => actor === 'user')?.emoji;
+  return emoji === undefined ? undefined : { emoji, prompt: reactionPrompt(reply, emoji, emojiReplies(core, agentId)) };
 }
 
 /** The thread's next reaction to tell the agent about, once it is admitted (see `chat-service.ts`). */

@@ -1,6 +1,7 @@
 import { realpath } from 'node:fs/promises';
 import type { AgentMessage, AssistantMessage, Message, ProviderUnavailableReason, SessionChoice, SessionChoiceReason, TurnMode, UserMessage } from '@morrowbot/contracts';
 import { decideBackgroundSession, decideSession, profileAllowed, type SessionDecision } from './admission-rules.ts';
+import { reactionAgain } from './reactions.ts';
 import { instructionsHash } from './seed.ts';
 import { laneKey, laneOf, pump, type BoundProvider, type ChatCore, type Turn, type TurnSource } from './turn.ts';
 
@@ -111,11 +112,11 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
   }
   if (core.rechecking.has(pluginId)) return { kind: 'provider_unavailable', reason: 'rechecking' };
   const messages = store.messages.listByThread(threadId);
-  const source = sourceOf(core, messages, input);
+  const source = sourceOf(core, second.thread.agentId, messages, input);
   if (source.kind === 'refused') return { kind: 'not_continuable', reason: source.reason };
   const attachments = source.kind === 'new' ? store.attachments.pending(threadId, source.attachmentIds) : [];
   if (attachments === undefined) return { kind: 'attachments_missing' };
-  const history = source.kind === 'existing' ? messages.slice(0, messages.indexOf(source.message)) : messages;
+  const history = source.kind === 'existing' ? messages.slice(0, messages.indexOf(source.message)) : input.kind === 'continue' ? messages.slice(0, -1) : messages;
   const key = { pluginId, accountKey, routeKey, cwd, threadId };
   const row = capabilities.sessions && accountKey !== '' ? store.sessions.find(key) : undefined;
   const sessionInputs = {
@@ -260,9 +261,9 @@ function sourceFor(source: Exclude<Source, { kind: 'refused' }>, fresh: (text: s
 
 /**
  * A send's or queued message's new text, the saved input of the failed or interrupted latest turn being
- * continued, or an agent message no turn has read yet.
+ * continued (for a reaction's turn, the user's newest reaction on the reply), or an agent message no turn has read yet.
  */
-function sourceOf(core: ChatCore, messages: readonly Message[], input: AdmitInput): Source {
+function sourceOf(core: ChatCore, agentId: string, messages: readonly Message[], input: AdmitInput): Source {
   switch (input.kind) {
     case 'send':
       return { kind: 'new', text: input.text, attachmentIds: input.attachmentIds };
@@ -284,6 +285,14 @@ function sourceOf(core: ChatCore, messages: readonly Message[], input: AdmitInpu
   }
   const generation = core.options.store.generations.byResultMessage(latest.id);
   const original = generation === undefined ? undefined : messages.find((message) => message.id === generation.inputMessageId);
-  if (original?.kind !== 'user') return { kind: 'refused', reason: 'This reply has no saved input to continue from.' };
-  return { kind: 'existing', message: original };
+  switch (original?.kind) {
+    case 'user':
+      return { kind: 'existing', message: original };
+    case 'assistant': {
+      const again = reactionAgain(core, agentId, original);
+      return again === undefined ? { kind: 'refused', reason: 'The reaction this reply answered was removed.' } : { kind: 'reaction', message: original, ...again };
+    }
+    case undefined:
+      return { kind: 'refused', reason: 'This reply has no saved input to continue from.' };
+  }
 }

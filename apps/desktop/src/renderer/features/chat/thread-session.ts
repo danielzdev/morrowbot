@@ -5,7 +5,7 @@ import { Store, type Loadable } from '../../shared/store.ts';
 import { attachmentImages, composerAttachments, type ComposerAttachments } from './composer-attachments.ts';
 import { memoryDrafts, type DraftStore } from './drafts.ts';
 import type { BannerReason } from './outcome-copy.ts';
-import { replaceReactions, userReacted } from './reactions.ts';
+import { userReacted } from './reactions.ts';
 import { applyEvent, endApproval, pendingApprovals, viewOf, withAgentMessages, type ThreadView } from './thread-model.ts';
 
 /** Something the composer asked the host to start. Kept so it can be retried exactly. */
@@ -329,12 +329,7 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
       if (current.kind !== 'loaded') return;
       const reacted = !userReacted(current.value.reactions.filter((reaction) => reaction.messageId === messageId), emoji);
       const result = await api.setReaction(threadId, { messageId, emoji, reacted });
-      if (result.kind === 'failed') {
-        patch({ problem: { kind: 'error', message: result.error.message } });
-        return;
-      }
-      const latest = screen.get().view;
-      if (latest.kind === 'loaded') patch({ view: { kind: 'loaded', value: { ...latest.value, reactions: replaceReactions(latest.value.reactions, messageId, result.value.reactions) } } });
+      if (result.kind === 'failed') patch({ problem: { kind: 'error', message: result.error.message } });
     },
     steer: async (queuedId) => {
       await onQueued(queuedId, () => api.steerQueued(threadId, queuedId));

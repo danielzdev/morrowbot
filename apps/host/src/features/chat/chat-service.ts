@@ -16,7 +16,7 @@ import { backgroundPrompt } from './background.ts';
 import { dispatch } from './dispatch.ts';
 import { EventLog, type Replay } from './event-log.ts';
 import type { ChatListener, ChatServiceOptions, RecheckAnswer } from './ports.ts';
-import { agentReact, dropNote, emojiReplies, nextNote, reactionPrompt, setUserReaction, stayQuiet, type ReplyToolAnswer, type SetReactionAnswer, type TurnGrant } from './reactions.ts';
+import { agentReact, dropNote, emojiReplies, nextNote, reactionPrompt, readOrGone, setUserReaction, stayQuiet, type ReplyToolAnswer, type SetReactionAnswer, type TurnGrant } from './reactions.ts';
 import { afterTurn, cancelQueued, enqueue, queueOf, sendsQueue, steerQueued, type QueueAnswer } from './queue.ts';
 import { laneOf, localSettlement, queueNote, settle, type ChatCore, type StoredReply, type Turn } from './turn.ts';
 import { readUsage, type UsageAnswer } from './usage.ts';
@@ -139,7 +139,7 @@ export function createChatService(options: ChatServiceOptions): ChatService {
     }
     const prompt = reactionPrompt(message, note.emoji, emojiReplies(core, thread.agentId));
     admit(core, threadId, { kind: 'reaction', message, emoji: note.emoji, prompt }, { kind: 'auto' }).then((result) => {
-      if (result.kind !== 'busy') dropNote(core, threadId, note);
+      if (readOrGone(result)) dropNote(core, threadId, note);
     }, options.report);
   }
   recover(options);
