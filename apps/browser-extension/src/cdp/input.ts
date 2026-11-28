@@ -24,7 +24,7 @@ const DragData = z.looseObject({
 });
 const DragIntercepted = z.looseObject({ data: DragData });
 
-const WHEEL_WAIT_KEY = '__morrowbotScrollWait';
+const WHEEL_WAIT_KEY = '__oribotScrollWait';
 
 const ARM_WHEEL_WAIT = `(() => {
   const key = '${WHEEL_WAIT_KEY}';

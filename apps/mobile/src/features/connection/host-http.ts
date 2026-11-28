@@ -16,8 +16,6 @@ export interface HttpTarget {
   readonly ui: () => UiCapability;
 }
 
-/** The UI-blocks version this app renders; the host tailors `/api/ui/v1` replies to it. */
-export const UI_BLOCKS_VERSION = '0.0';
 const UI_PREFIX = '/api/ui/v1/';
 const UI_PROBE = '/api/ui/v1/capabilities';
 const TIMEOUT_MS = 10_000;
@@ -28,7 +26,7 @@ export async function sendRequest<T>(target: HttpTarget, request: HostRequest<T>
   if (request.path.startsWith(UI_PREFIX) && request.path !== UI_PROBE && target.ui().kind !== 'available') {
     return { kind: 'unsupported' };
   }
-  const headers: Record<string, string> = { accept: 'application/json', 'x-morrow-ui-blocks': UI_BLOCKS_VERSION };
+  const headers: Record<string, string> = { accept: 'application/json' };
   if (target.token !== null) headers.authorization = `Bearer ${target.token}`;
   if (request.body !== undefined) headers['content-type'] = 'application/json';
   const abort = new AbortController();
