@@ -20,6 +20,10 @@ export interface BridgeChannels {
   readonly checkForUpdates: 'morrowbot:check-for-updates';
   readonly restartToUpdate: 'morrowbot:restart-to-update';
   readonly signInTerminal: 'morrowbot:sign-in-terminal';
+  readonly providerInstallCapabilities: 'morrowbot:provider-install-capabilities';
+  readonly installProvider: 'morrowbot:install-provider';
+  readonly cancelProviderInstall: 'morrowbot:cancel-provider-install';
+  readonly providerInstallProgress: 'morrowbot:provider-install-progress';
   readonly resetPlan: 'morrowbot:reset-plan';
   readonly runReset: 'morrowbot:run-reset';
   readonly serverMode: 'morrowbot:server-mode';
@@ -69,6 +73,32 @@ export type UpdateStatus =
 
 /** A one-click sign-in: Terminal opened with the provider's own sign-in command, or why it could not. */
 export type SignInLaunch = { readonly kind: 'opened' } | { readonly kind: 'unavailable'; readonly reason: string };
+
+/** Opening an http(s) URL in the default browser: opened, or why it could not. */
+export type ExternalOpenResult = { readonly kind: 'opened' } | { readonly kind: 'failed'; readonly reason: string };
+
+export type ProviderInstallMode = 'install' | 'update';
+
+/** How a built-in provider can be installed on this computer: 1-click via an allowlisted package manager, or a verified download page. */
+export type ProviderInstallCapability =
+  | { readonly kind: 'auto'; readonly tool: 'npm' | 'brew' }
+  | { readonly kind: 'download'; readonly label: string; readonly url: string };
+
+export type ProviderInstallCapabilities = Readonly<Record<string, ProviderInstallCapability>>;
+
+/** Outcome of a 1-click built-in provider install or update. */
+export type ProviderInstallResult =
+  | { readonly kind: 'installed' }
+  | { readonly kind: 'cancelled' }
+  | { readonly kind: 'failed'; readonly reason: string; readonly guideUrl: string | null };
+
+/** Live status pushed from main while a built-in provider install or update runs. */
+export interface ProviderInstallProgress {
+  readonly providerId: string;
+  readonly mode: ProviderInstallMode;
+  readonly phase: 'running' | 'done' | 'failed' | 'cancelled';
+  readonly detail: string;
+}
 
 /** Settings › About › Reset or Uninstall: start fresh, remove the app, or remove the app and all its data. */
 export type ResetChoice = 'reset' | 'uninstall-app' | 'full-uninstall';
@@ -126,8 +156,8 @@ export interface MorrowbotBridge {
   pickFolder(): Promise<string | null>;
   /** Puts text on the system clipboard. */
   copyText(text: string): Promise<void>;
-  /** Opens an http or https link in the system browser; main refuses every other scheme. */
-  openExternal(url: string): Promise<void>;
+  /** Opens an http or https link in the system browser; main refuses every other scheme. Parse with `ExternalOpenResult`. */
+  openExternal(url: string): Promise<unknown>;
   /** Shows a folder in Finder. The renderer never sends a path. */
   revealPath(target: RevealTarget): Promise<void>;
   /** Version, home folder, user name and data folder, for `shared/privacy.ts` and About only. Parse with `AppInfo`. */
@@ -151,6 +181,14 @@ export interface MorrowbotBridge {
    * the host; the renderer names only the provider. Parse with `SignInLaunch`.
    */
   signInTerminal(providerId: string): Promise<unknown>;
+  /** Which built-in providers support 1-click install on this computer. Parse with `ProviderInstallCapabilities`. */
+  providerInstallCapabilities(): Promise<unknown>;
+  /** Runs the strictly allowlisted installer or updater for a built-in provider. Parse with `ProviderInstallResult`. */
+  installProvider(request: { readonly providerId: string; readonly mode: ProviderInstallMode }): Promise<unknown>;
+  /** Cancels an in-flight built-in provider install or update. */
+  cancelProviderInstall(providerId: string): Promise<void>;
+  /** Live progress updates while a built-in provider installs or updates. Returns an unsubscribe function. */
+  onProviderInstallProgress(listener: (progress: unknown) => void): () => void;
   /** Resolves every reset and uninstall choice to exact paths. Parse with `ResetPlan`. */
   resetPlan(): Promise<unknown>;
   /** Runs a choice from the plan `token` names, after main checks nothing changed. Parse with `ResetOutcome`. */

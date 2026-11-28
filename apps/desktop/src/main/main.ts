@@ -1,9 +1,9 @@
 import { realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, shell, type IpcMainEvent, type IpcMainInvokeEvent, type OpenDialogOptions, type BrowserWindowConstructorOptions } from 'electron';
-import type { BridgeChannels } from '../renderer/bridge.ts';
 import { APP_ID, PRODUCT_NAME } from './app-identity.ts';
 import { appFilesOf } from './app-files.ts';
+import { CHANNELS } from './channels.ts';
 import { openEventStream, type EventStream } from './event-stream.ts';
 import { superviseHost } from './host-supervisor.ts';
 import { parseServerRequest, pickServer } from './join-server.ts';
@@ -13,7 +13,8 @@ import { readServerChoice, serverPlanOf, writeServerChoice } from './server-choi
 import { openServerConnection } from './server-connection.ts';
 import { NO_UPDATER, startUpdater, type Updater } from './updater.ts';
 import { hostEnvOf, profileOf, type UsableProfile } from './profile.ts';
-import { appInfoOf, loginItemOf, parseExternalUrl, parseOpenAtLogin, parseRelaunch, parseRevealTarget, pluginsDirOf, resolveReveal } from './shell-actions.ts';
+import { createProviderInstaller, parseCancelInstallRequest, parseInstallRequest } from './provider-installer.ts';
+import { appInfoOf, loginItemOf, openExternalUrl, parseExternalUrl, parseOpenAtLogin, parseRelaunch, parseRevealTarget, pluginsDirOf, resolveReveal } from './shell-actions.ts';
 import { openSignInTerminal, parseSignInRequest } from './sign-in-terminal.ts';
 import { MAC_KEYCHAIN } from './reset/keychain.ts';
 import { parseResetRequest, resetFlow } from './reset/reset-flow.ts';
@@ -31,31 +32,6 @@ function resolvedHome(): string {
 const HOME_DIR = resolvedHome();
 const FILES = appFilesOf(app.isPackaged ? { kind: 'packaged', appPath: app.getAppPath() } : { kind: 'dev' });
 const RENDERER_URL = FILES.rendererUrl;
-
-const CHANNELS: BridgeChannels = {
-  request: 'morrowbot:request',
-  event: 'morrowbot:event',
-  subscribe: 'morrowbot:subscribe',
-  hostReady: 'morrowbot:host-ready',
-  hostLost: 'morrowbot:host-lost',
-  pickFolder: 'morrowbot:pick-folder',
-  copyText: 'morrowbot:copy-text',
-  openExternal: 'morrowbot:open-external',
-  revealPath: 'morrowbot:reveal-path',
-  appInfo: 'morrowbot:app-info',
-  loginItem: 'morrowbot:login-item',
-  setOpenAtLogin: 'morrowbot:set-open-at-login',
-  relaunch: 'morrowbot:relaunch',
-  updateStatus: 'morrowbot:update-status',
-  updateChanged: 'morrowbot:update-changed',
-  checkForUpdates: 'morrowbot:check-for-updates',
-  restartToUpdate: 'morrowbot:restart-to-update',
-  signInTerminal: 'morrowbot:sign-in-terminal',
-  resetPlan: 'morrowbot:reset-plan',
-  runReset: 'morrowbot:run-reset',
-  serverMode: 'morrowbot:server-mode',
-  chooseServer: 'morrowbot:choose-server',
-};
 
 /** macOS keeps its traffic lights, inset into the window's own 48px top bar; elsewhere the system frame stays. */
 const TITLE_BAR: BrowserWindowConstructorOptions =
@@ -205,7 +181,13 @@ function runApp(profile: UsableProfile): void {
 
   const fromRenderer = (event: IpcMainInvokeEvent, input: unknown) => ({ sender: senderOf(event), rendererUrl: RENDERER_URL, input });
 
-  ipcMain.handle(CHANNELS.openExternal, (event, input: unknown) => shell.openExternal(parseExternalUrl(fromRenderer(event, input))));
+  ipcMain.handle(CHANNELS.openExternal, (event, input: unknown) =>
+    openExternalUrl(parseExternalUrl(fromRenderer(event, input)), {
+      platform: process.platform,
+      openWithElectron: (url) => shell.openExternal(url, { activate: true }),
+      report,
+    }),
+  );
 
   ipcMain.handle(CHANNELS.revealPath, async (event, input: unknown) => {
     const target = parseRevealTarget(fromRenderer(event, input));
@@ -229,6 +211,22 @@ function runApp(profile: UsableProfile): void {
       platform: process.platform,
       open: (file) => shell.openPath(file),
     });
+  });
+
+  const installer = createProviderInstaller({
+    platform: process.platform,
+    host: () => server.target(),
+    rendererUrl: RENDERER_URL,
+    clientOnly,
+    onProgress: (progress) => window?.webContents.send(CHANNELS.providerInstallProgress, progress),
+  });
+  ipcMain.handle(CHANNELS.providerInstallCapabilities, (event) => {
+    checkSender(senderOf(event), RENDERER_URL);
+    return installer.capabilities();
+  });
+  ipcMain.handle(CHANNELS.installProvider, (event, input: unknown) => installer.install(parseInstallRequest(fromRenderer(event, input))));
+  ipcMain.handle(CHANNELS.cancelProviderInstall, (event, input: unknown) => {
+    installer.cancel(parseCancelInstallRequest(fromRenderer(event, input)));
   });
 
   ipcMain.handle(CHANNELS.serverMode, (event) => {
@@ -274,6 +272,7 @@ function runApp(profile: UsableProfile): void {
   /** Stops the host once; both quitting and restarting to update wait for it. */
   function stopHost(): Promise<void> {
     lifetime = 'stopping-host';
+    installer.stopAll();
     updater.stop();
     events?.close();
     return server.stop().finally(() => {

@@ -1,4 +1,5 @@
 import type { PluginEntry, PluginStatus, ProviderInfo } from '@morrowbot/contracts';
+import type { ProviderInstallMode } from '../../bridge.ts';
 import { crashDetail } from '../../shared/crash-words.ts';
 import { planLabel } from '../../shared/privacy.ts';
 import type { Loadable } from '../../shared/store.ts';
@@ -75,10 +76,16 @@ function fromInfo(info: ProviderInfo): ProviderStatus {
   }
 }
 
-/** The status line for a provider's entry and info; `rechecking` while a Recheck runs. */
-export function providerStatus(entry: PluginEntry, info: Loadable<ProviderInfo>, rechecking = false): ProviderStatus {
+/** The status line for a provider's entry and info; `rechecking` while a Recheck runs, or `installing` during a 1-click install/update. */
+export function providerStatus(
+  entry: PluginEntry,
+  info: Loadable<ProviderInfo>,
+  rechecking = false,
+  installing: ProviderInstallMode | null = null,
+): ProviderStatus {
   const status = fromStatus(entry.status);
   if (status !== undefined) return status;
+  if (installing !== null) return line('rechecking', 'muted', installing === 'update' ? 'Updating…' : 'Installing…');
   if (rechecking) return line('rechecking', 'muted', 'Rechecking…');
   switch (info.kind) {
     case 'loading':

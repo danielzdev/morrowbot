@@ -4,7 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { startChatFixture, type ChatFixture } from '../../../host/src/testing/chat-fixture.ts';
 import type { IpcSender } from '../main/ipc-proxy.ts';
-import { loginItemOf, parseExternalUrl, parseOpenAtLogin, parseRelaunch, parseRevealTarget, resolveReveal } from '../main/shell-actions.ts';
+import { loginItemOf, openExternalUrl, parseExternalUrl, parseOpenAtLogin, parseRelaunch, parseRevealTarget, resolveReveal } from '../main/shell-actions.ts';
 
 const RENDERER_URL = 'file:///Applications/MorrowBot.app/Contents/Resources/app/dist/renderer/index.html';
 const PAGE: IpcSender = { kind: 'frame', url: RENDERER_URL, isMainFrame: true };
@@ -39,6 +39,46 @@ it('opens only http and https links externally', () => {
   expect(outcome(() => parseExternalUrl({ ...page('https://example.com'), sender: { kind: 'frame', url: 'https://evil.test/', isMainFrame: true } }))).toBe(
     'refused: IPC sender is not the app page: https://evil.test/',
   );
+  expect(outcome(() => parseExternalUrl({ ...page('https://example.com'), sender: { kind: 'frame', url: `${RENDERER_URL}#section`, isMainFrame: true } }))).toBe(
+    'https://example.com/',
+  );
+  expect(outcome(() => parseExternalUrl({ ...page('https://example.com'), sender: { kind: 'frame', url: `${RENDERER_URL}?evil=1`, isMainFrame: true } }))).toBe(
+    `refused: IPC sender is not the app page: ${RENDERER_URL}?evil=1`,
+  );
+});
+
+it('falls back to macOS open when Electron openExternal fails, and reports structured errors otherwise', async () => {
+  const macFallbackUrls: string[] = [];
+  expect({
+    electronOk: await openExternalUrl('https://opencode.ai', {
+      platform: 'darwin',
+      openWithElectron: () => Promise.resolve(),
+    }),
+    macFallbackOk: await openExternalUrl('https://opencode.ai', {
+      platform: 'darwin',
+      openWithElectron: () => Promise.reject(new Error('LSOpenURLsWithRole failed')),
+      openWithMacFallback: (url) => {
+        macFallbackUrls.push(url);
+        return Promise.resolve();
+      },
+    }),
+    macBothFailed: await openExternalUrl('https://opencode.ai', {
+      platform: 'darwin',
+      openWithElectron: () => Promise.reject(new Error('LSOpenURLsWithRole failed')),
+      openWithMacFallback: () => Promise.reject(new Error('No browser installed')),
+    }),
+    linuxFailed: await openExternalUrl('https://opencode.ai', {
+      platform: 'linux',
+      openWithElectron: () => Promise.reject(new Error('xdg-open missing')),
+    }),
+    macFallbackUrls,
+  }).toEqual({
+    electronOk: { kind: 'opened' },
+    macFallbackOk: { kind: 'opened' },
+    macBothFailed: { kind: 'failed', reason: "MorrowBot couldn't open your browser (No browser installed)." },
+    linuxFailed: { kind: 'failed', reason: "MorrowBot couldn't open your browser (xdg-open missing)." },
+    macFallbackUrls: ['https://opencode.ai'],
+  });
 });
 
 it('reveals folders by opaque id only, resolving an agent workspace from the host', async () => {

@@ -1,5 +1,6 @@
 import { PluginEntry, type PluginStatus, type ProviderInfo } from '@morrowbot/contracts';
 import { expect, it } from 'vitest';
+import type { ProviderInstallCapabilities } from '../../bridge.ts';
 import type { Loadable } from '../../shared/store.ts';
 import { engineRows } from './engine-rows.ts';
 import type { ProviderCard } from './providers-model.ts';
@@ -44,30 +45,56 @@ const CARDS: readonly ProviderCard[] = [
   card('community', signedOut(['tool', 'login']), { kind: 'running' }, 'user'),
 ];
 
-const table = (oneClick: boolean) => engineRows(CARDS, INFO, oneClick).map(({ id, status, ready: isReady, action }) => `${id}: ${status}${isReady ? ' (ready)' : ''} → ${action.kind === 'copy' ? `copy "${action.text}"` : action.kind === 'guide' ? `${action.label} ${action.url.replace(/^.*#/, '#')}` : action.kind}`);
+const table = (oneClick: boolean, capabilities: ProviderInstallCapabilities = {}) =>
+  engineRows(CARDS, INFO, oneClick, capabilities).map(
+    ({ id, tone, status, ready: isReady, action }) =>
+      `${id} [${tone}]: ${status}${isReady ? ' (ready)' : ''} → ${
+        action.kind === 'copy'
+          ? `copy "${action.text}"`
+          : action.kind === 'guide'
+            ? `${action.label} ${action.url.includes('#') ? action.url.replace(/^.*#/, '#') : action.url}`
+            : action.kind === 'install'
+              ? `auto-${action.mode}`
+              : action.kind
+      }`,
+  );
 
-it('gives each built-in engine its status and exactly one action, with Terminal sign-in only where one-click works (spec §7)', () => {
-  expect({ oneClick: table(true), terminalHandoff: table(false) }).toMatchInlineSnapshot(`
+it('gives each built-in engine its status and exactly one action, with 1-click install/update and Terminal sign-in where available (spec §7)', () => {
+  const autoCaps: ProviderInstallCapabilities = {
+    'provider-antigravity': { kind: 'download', label: 'Download', url: 'https://antigravity.google/product/antigravity-cli' },
+    'provider-opencode': { kind: 'auto', tool: 'brew' },
+  };
+  expect({ oneClick: table(true), terminalHandoff: table(false), withCapabilities: table(true, autoCaps) }).toMatchInlineSnapshot(`
     {
       "oneClick": [
-        "provider-claude: Ready · Claude Max 5x (ready) → none",
-        "provider-openai: Sign-in needed → sign-in-terminal",
-        "provider-antigravity: Not installed → How to install #google-antigravity",
-        "provider-opencode: Needs update · found 2.0.1, needs 2.4 → How to update #opencode",
-        "signed-out-private: Sign-in needed → sign-in-terminal",
-        "turned-off: Turned off → turn-on",
-        "crashed: Crashed → recheck",
-        "checking: Checking… → none",
+        "provider-claude [ok]: Ready · Claude Max 5x (ready) → none",
+        "provider-openai [warning]: Sign-in needed → sign-in-terminal",
+        "provider-antigravity [muted]: Not installed → How to install #google-antigravity",
+        "provider-opencode [warning]: Needs update · found 2.0.1, needs 2.4 → How to update #opencode",
+        "signed-out-private [warning]: Sign-in needed → sign-in-terminal",
+        "turned-off [muted]: Turned off → turn-on",
+        "crashed [error]: Crashed → recheck",
+        "checking [muted]: Checking… → none",
       ],
       "terminalHandoff": [
-        "provider-claude: Ready · Claude Max 5x (ready) → none",
-        "provider-openai: Sign-in needed → copy "codex login"",
-        "provider-antigravity: Not installed → How to install #google-antigravity",
-        "provider-opencode: Needs update · found 2.0.1, needs 2.4 → How to update #opencode",
-        "signed-out-private: Sign-in needed → recheck",
-        "turned-off: Turned off → turn-on",
-        "crashed: Crashed → recheck",
-        "checking: Checking… → none",
+        "provider-claude [ok]: Ready · Claude Max 5x (ready) → none",
+        "provider-openai [warning]: Sign-in needed → copy "codex login"",
+        "provider-antigravity [muted]: Not installed → How to install #google-antigravity",
+        "provider-opencode [warning]: Needs update · found 2.0.1, needs 2.4 → How to update #opencode",
+        "signed-out-private [warning]: Sign-in needed → recheck",
+        "turned-off [muted]: Turned off → turn-on",
+        "crashed [error]: Crashed → recheck",
+        "checking [muted]: Checking… → none",
+      ],
+      "withCapabilities": [
+        "provider-claude [ok]: Ready · Claude Max 5x (ready) → none",
+        "provider-openai [warning]: Sign-in needed → sign-in-terminal",
+        "provider-antigravity [muted]: Not installed → Download https://antigravity.google/product/antigravity-cli",
+        "provider-opencode [warning]: Needs update · found 2.0.1, needs 2.4 → auto-update",
+        "signed-out-private [warning]: Sign-in needed → sign-in-terminal",
+        "turned-off [muted]: Turned off → turn-on",
+        "crashed [error]: Crashed → recheck",
+        "checking [muted]: Checking… → none",
       ],
     }
   `);

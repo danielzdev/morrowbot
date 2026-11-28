@@ -48,18 +48,47 @@ export function pluginEnv(preset: EnvPreset, pathValue: string, source: NodeJS.P
   return env;
 }
 
+/** Standard CLI install directories added after the login-shell PATH so packaged apps launched from the Dock find tools. */
+export function fallbackPluginDirs(platform: NodeJS.Platform, home: string, source: NodeJS.ProcessEnv = process.env): readonly string[] {
+  if (platform === 'win32') {
+    const appData = source.APPDATA;
+    return [...(appData !== undefined && appData !== '' ? [path.join(appData, 'npm')] : []), path.join(home, '.local', 'bin')];
+  }
+  const shared = [
+    path.join(home, '.local/bin'),
+    path.join(home, '.opencode/bin'),
+    path.join(home, '.antigravity/antigravity/bin'),
+    path.join(home, '.claude/local'),
+    path.join(home, '.local/share/mise/shims'),
+    path.join(home, '.volta/bin'),
+    path.join(home, '.bun/bin'),
+    path.join(home, '.npm-global/bin'),
+    path.join(home, '.asdf/shims'),
+  ];
+  const mac =
+    platform === 'darwin'
+      ? [
+          '/opt/homebrew/bin',
+          '/opt/homebrew/sbin',
+          '/usr/local/bin',
+          '/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin',
+          '/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS',
+          '/Applications/Antigravity.app/Contents/Resources/app/bin',
+          '/Applications/Antigravity.app/Contents/Resources/bin',
+        ]
+      : ['/usr/local/bin'];
+  return [...shared, ...mac, '/usr/bin', '/bin', '/usr/sbin', '/sbin'];
+}
+
 /**
  * The `PATH` CLIs should see: the user's login-shell PATH (read once at host start, 2 s timeout)
- * followed by the usual install folders, so a CLI installed by a shell profile is found even when
- * the app was started from the Dock.
+ * followed by the usual install folders, so a CLI installed by a shell profile or desktop app is
+ * found even when the app was started from the Dock.
  */
-export async function resolvePluginPath(source: NodeJS.ProcessEnv = process.env): Promise<string> {
+export async function resolvePluginPath(source: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform): Promise<string> {
   const home = source.HOME ?? homedir();
-  const fallbacks =
-    process.platform === 'win32'
-      ? [path.join(source.APPDATA ?? '', 'npm')]
-      : [path.join(home, '.local/bin'), '/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin'];
-  const login = process.platform === 'win32' ? '' : await loginShellPath(source.SHELL ?? '/bin/sh');
+  const fallbacks = fallbackPluginDirs(platform, home, source);
+  const login = platform === 'win32' ? '' : await loginShellPath(source.SHELL ?? '/bin/sh');
   const dirs = [...login.split(path.delimiter), ...(source.PATH ?? '').split(path.delimiter), ...fallbacks];
   return [...new Set(dirs.filter((dir) => dir !== ''))].join(path.delimiter);
 }

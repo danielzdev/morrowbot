@@ -1,3 +1,5 @@
+import { realpathSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { EventClientFrame } from '@morrowbot/contracts';
 import { z } from 'zod';
 import type { ApiReply } from '../renderer/bridge.ts';
@@ -25,13 +27,40 @@ const ApiRequest = z.strictObject({
 
 const PATH_BASE = 'http://127.0.0.1';
 
+function canonicalFilePath(url: URL): string | null {
+  try {
+    const filePath = fileURLToPath(url);
+    try {
+      return realpathSync(filePath);
+    } catch {
+      return filePath;
+    }
+  } catch {
+    return null;
+  }
+}
+
+/** True when `actual` is the exact app renderer page `expected`, tolerating harmless `file://` normalization or hash fragments. */
+function sameAppPage(actual: string, expected: string): boolean {
+  if (actual === expected) return true;
+  const a = URL.parse(actual);
+  const b = URL.parse(expected);
+  if (a === null || b === null || a.protocol !== b.protocol || a.search !== b.search) return false;
+  if (a.protocol === 'file:') {
+    const aPath = canonicalFilePath(a);
+    const bPath = canonicalFilePath(b);
+    return aPath !== null && bPath !== null && aPath === bPath;
+  }
+  return a.origin === b.origin && a.pathname === b.pathname;
+}
+
 /** Throws unless the message came from the main frame of our window showing exactly the app's renderer page. */
 export function checkSender(sender: IpcSender, rendererUrl: string): void {
   switch (sender.kind) {
     case 'missing-frame':
       throw new IpcRefusedError('IPC sender has no frame');
     case 'frame':
-      if (sender.url !== rendererUrl) throw new IpcRefusedError(`IPC sender is not the app page: ${sender.url}`);
+      if (!sameAppPage(sender.url, rendererUrl)) throw new IpcRefusedError(`IPC sender is not the app page: ${sender.url}`);
       if (!sender.isMainFrame) throw new IpcRefusedError('IPC sender is not the main frame of the app window');
       return;
   }

@@ -22,7 +22,8 @@ export function ProviderRow(props: {
   readonly onEnabled: (enabled: boolean) => void;
 }) {
   const { entry } = props.card;
-  const status = providerStatus(entry, props.card.info, props.card.busy === 'rechecking');
+  const installing = props.card.busy === 'installing' ? 'install' : props.card.busy === 'updating' ? 'update' : null;
+  const status = providerStatus(entry, props.card.info, props.card.busy === 'rechecking', installing);
   const version = versionOf(props.card.info);
   return (
     <ListRow

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import type { MorrowbotBridge } from '../../bridge.ts';
-import { parseLaunch } from '../../shared/engine-setup.ts';
+import { openExternalLink, parseLaunch } from '../../shared/engine-setup.ts';
 import { PLATFORM } from '../../shared/keys.ts';
 import { redact, type AppInfo } from '../../shared/privacy.ts';
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog.tsx';
@@ -31,6 +31,7 @@ type Pending = { readonly kind: 'select'; readonly id: string } | { readonly kin
 export function ProvidersSection(props: ProvidersSectionProps) {
   const { model, info, onTrail } = props;
   const cards = useStore(model.cards);
+  const installCapabilities = useStore(model.installCapabilities);
   const safeMode = useStore(model.safeMode).on;
   const [selected, setSelected] = useState<string | null>(props.initial);
   const [dirty, setDirty] = useState(false);
@@ -108,9 +109,10 @@ export function ProvidersSection(props: ProvidersSectionProps) {
                   recheckLater(current.entry.manifest.id);
                   return props.bridge.copyText(safe(text));
                 },
-                onOpenLink: (url) => {
-                  recheckLater(current.entry.manifest.id);
-                  void props.bridge.openExternal(url);
+                onOpenLink: async (url) => {
+                  const reason = await openExternalLink(props.bridge, url);
+                  if (reason === null) recheckLater(current.entry.manifest.id);
+                  return reason === null ? null : safe(reason);
                 },
                 onSignInTerminal:
                   PLATFORM === 'mac' && current.entry.source === 'built-in'
@@ -119,6 +121,15 @@ export function ProvidersSection(props: ProvidersSectionProps) {
                         const launch = parseLaunch(await props.bridge.signInTerminal(current.entry.manifest.id));
                         return launch.kind === 'opened' ? null : launch.reason;
                       }
+                    : null,
+                installCapability: current.entry.source === 'built-in' ? (installCapabilities[current.entry.manifest.id] ?? null) : null,
+                onInstall:
+                  current.entry.source === 'built-in'
+                    ? (mode) => model.install(current.entry.manifest.id, mode)
+                    : null,
+                onCancelInstall:
+                  current.entry.source === 'built-in'
+                    ? () => model.cancelInstall(current.entry.manifest.id)
                     : null,
                 onDirty,
               }}

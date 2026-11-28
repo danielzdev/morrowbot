@@ -1,3 +1,4 @@
+import { useState } from 'preact/hooks';
 import type { EngineRow } from '../../shared/engine-setup.ts';
 import type { Loadable } from '../../shared/store.ts';
 import { SetupChecklist, type EngineActions } from './SetupChecklist.tsx';
@@ -11,7 +12,8 @@ export interface WelcomeProps {
   readonly onCreate: () => void;
   /** "Skip for now": New Agent as an unbound draft. */
   readonly onSkip: () => void;
-  readonly onOpenGuide: () => void;
+  /** Opens the setup guide in the browser; resolves to an error message, or null when opened. */
+  readonly onOpenGuide: () => Promise<string | null>;
 }
 
 /**
@@ -19,6 +21,7 @@ export interface WelcomeProps {
  * what each needs; step 2 opens New Agent. Neither step blocks the other.
  */
 export function Welcome(props: WelcomeProps) {
+  const [guideError, setGuideError] = useState<string | null>(null);
   const rows = props.engines.kind === 'loaded' ? props.engines.value : [];
   const ready = rows.filter((row) => row.ready).length;
   return (
@@ -59,12 +62,29 @@ export function Welcome(props: WelcomeProps) {
           </button>
         </div>
       </section>
-      <p class="welcome-footer">
-        Stuck?{' '}
-        <button type="button" class="btn ghost" aria-label="Read the setup guide, opens in your browser" onClick={props.onOpenGuide}>
-          Read the setup guide ↗
-        </button>
-      </p>
+      <div class="welcome-footer">
+        <p>
+          Stuck?{' '}
+          <button
+            type="button"
+            class="btn ghost"
+            aria-label="Read the setup guide, opens in your browser"
+            onClick={() => {
+              setGuideError(null);
+              void props.onOpenGuide().then((reason) => {
+                setGuideError(reason);
+              });
+            }}
+          >
+            Read the setup guide ↗
+          </button>
+        </p>
+        {guideError !== null && (
+          <p class="welcome-footer-error" role="alert">
+            {guideError}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
