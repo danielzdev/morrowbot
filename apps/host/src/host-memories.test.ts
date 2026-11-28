@@ -9,7 +9,7 @@ import { sequence } from './testing/test-host.ts';
 let dataDir: string;
 let chat: ChatFixture | undefined;
 beforeEach(async () => {
-  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'morrowbot-memories-')));
+  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-memories-')));
 });
 afterEach(async () => {
   await chat?.close();
@@ -76,7 +76,7 @@ it('lists global and agent skills, and gives each turn the skills index and esse
   chat = await startChatFixture({ dataDir });
   const agent = await chat.agent();
   const global = path.join(dataDir, 'skills');
-  const own = path.join(agent.workspace.dir, '.morrowbot', 'skills');
+  const own = path.join(agent.workspace.dir, '.orikami', 'skills');
   await skill(global, 'repotting', '---\nname: repotting\ndescription: How to move a plant to a bigger pot.\n---\n# Repotting\n');
   await skill(global, 'watering', '---\nname: watering\ndescription: The global watering plan.\n---\n');
   await skill(own, 'watering', '---\nname: watering\ndescription: >\n  This agent\'s own watering plan,\n  kept with its workspace.\n---\n');
@@ -92,7 +92,7 @@ it('lists global and agent skills, and gives each turn the skills index and esse
     prompt: hidePid(reply).replaceAll(dataDir, '<data>'),
   }).toMatchInlineSnapshot(`
     {
-      "prompt": "assistant(completed): hello from pid <pid>: {"prompt":"<morrowbot-context>\\n<skills>\\nSkills you can use. When one fits the task, read its SKILL.md first and follow it.\\n- watering: This agent's own watering plan, kept with its workspace. (<data>/workspaces/id-1/.morrowbot/skills/watering/SKILL.md)\\n- repotting: How to move a plant to a bigger pot. (<data>/skills/repotting/SKILL.md)\\n</skills>\\n<memories>\\nThings to remember from earlier chats.\\n- Water before nine.\\n</memories>\\n</morrowbot-context>\\n\\ndescribe-input","images":[]}",
+      "prompt": "assistant(completed): hello from pid <pid>: {"prompt":"<orikami-context>\\n<skills>\\nSkills you can use. When one fits the task, read its SKILL.md first and follow it.\\n- watering: This agent's own watering plan, kept with its workspace. (<data>/workspaces/id-1/.orikami/skills/watering/SKILL.md)\\n- repotting: How to move a plant to a bigger pot. (<data>/skills/repotting/SKILL.md)\\n</skills>\\n<memories>\\nThings to remember from earlier chats.\\n- Water before nine.\\n</memories>\\n</orikami-context>\\n\\ndescribe-input","images":[]}",
       "skills": {
         "problems": [
           {

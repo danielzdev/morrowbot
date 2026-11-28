@@ -128,7 +128,7 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
       },
       onPermission: answer,
       onRefused: (method) => {
-        emit({ kind: 'status', text: full ? `Refused Antigravity's ${method}: MorrowBot offers it no file or terminal access of its own.` : `Refused Antigravity's ${method}: MorrowBot runs it read-only.` });
+        emit({ kind: 'status', text: full ? `Refused Antigravity's ${method}: Ori Kami offers it no file or terminal access of its own.` : `Refused Antigravity's ${method}: Ori Kami runs it read-only.` });
       },
       replaying: () => false,
       allowChanges: full,
@@ -268,7 +268,7 @@ function workspaceError(check: WorkspaceCheck, home: string | null): ProviderErr
     case 'customized':
       return {
         kind: 'access-not-supported',
-        reason: `Antigravity runs the hooks in ${acp.tilde(check.folder, home)} (and its plugins and MCP servers) without asking (checked on agy 1.5.18), so MorrowBot cannot run it read-only there. Move that folder out of the workspace to chat with Antigravity.`,
+        reason: `Antigravity runs the hooks in ${acp.tilde(check.folder, home)} (and its plugins and MCP servers) without asking (checked on agy 1.5.18), so Ori Kami cannot run it read-only there. Move that folder out of the workspace to chat with Antigravity.`,
       };
     case 'unknown':
       return { kind: 'access-not-supported', reason: check.reason };

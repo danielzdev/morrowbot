@@ -8,7 +8,7 @@ import { sequence, startTestHost, type Reply, type TestHost } from './testing/te
 let dataDir: string;
 let host: TestHost;
 beforeEach(async () => {
-  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'morrowbot-h8-')));
+  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-h8-')));
   host = await startTestHost({ dataDir });
 });
 afterEach(async () => {
@@ -65,11 +65,11 @@ it('leaves an existing file and a dangling symlink byte-identical when a PUT tri
               "current": {
                 "canReplace": false,
                 "content": null,
-                "readError": "SOUL.md is a link. MorrowBot reads only a regular file in the workspace folder.",
+                "readError": "SOUL.md is a link. Ori Kami reads only a regular file in the workspace folder.",
                 "revision": "<revision>",
               },
               "kind": "instructions-conflict",
-              "message": "This folder already has a SOUL.md, so MorrowBot kept it and wrote nothing.",
+              "message": "This folder already has a SOUL.md, so Ori Kami kept it and wrote nothing.",
               "reason": "occupied",
             },
           },
@@ -85,7 +85,7 @@ it('leaves an existing file and a dangling symlink byte-identical when a PUT tri
                 "revision": "<revision>",
               },
               "kind": "instructions-conflict",
-              "message": "This folder already has a SOUL.md, so MorrowBot kept it and wrote nothing.",
+              "message": "This folder already has a SOUL.md, so Ori Kami kept it and wrote nothing.",
               "reason": "occupied",
             },
           },
@@ -175,7 +175,7 @@ it('tells an empty file from a missing one and from a dangling symlink', async (
         "body": {
           "canReplace": false,
           "content": null,
-          "readError": "SOUL.md is a link. MorrowBot reads only a regular file in the workspace folder.",
+          "readError": "SOUL.md is a link. Ori Kami reads only a regular file in the workspace folder.",
           "revision": "<revision>",
         },
         "status": 200,
@@ -233,12 +233,12 @@ it('never reads SOUL.md through a symlink or a second hard link, even to a file 
       {
         "content": null,
         "present": true,
-        "readError": "SOUL.md is a link. MorrowBot reads only a regular file in the workspace folder.",
+        "readError": "SOUL.md is a link. Ori Kami reads only a regular file in the workspace folder.",
       },
       {
         "content": null,
         "present": true,
-        "readError": "SOUL.md has more than one hard link. MorrowBot reads only a file of its own; copy it instead.",
+        "readError": "SOUL.md has more than one hard link. Ori Kami reads only a file of its own; copy it instead.",
       },
     ]
   `);
@@ -309,7 +309,7 @@ it.skipIf(process.getuid?.() === 0)('reports an unreadable file as present with 
   await chmod(file, 0o000);
   const read = await view(agent);
   await chmod(file, 0o600);
-  expect(read).toMatchObject({ content: null, readError: "MorrowBot isn't allowed to read SOUL.md.", canReplace: false });
+  expect(read).toMatchObject({ content: null, readError: "Ori Kami isn't allowed to read SOUL.md.", canReplace: false });
   expect(read.revision).not.toBeNull();
 });
 
@@ -336,7 +336,7 @@ it.skipIf(process.getuid?.() === 0)('in a folder it cannot write: reports an exi
                 "revision": "<revision>",
               },
               "kind": "instructions-conflict",
-              "message": "This folder already has a SOUL.md, so MorrowBot kept it and wrote nothing.",
+              "message": "This folder already has a SOUL.md, so Ori Kami kept it and wrote nothing.",
               "reason": "occupied",
             },
           },
@@ -346,7 +346,7 @@ it.skipIf(process.getuid?.() === 0)('in a folder it cannot write: reports an exi
           "body": {
             "error": {
               "kind": "internal",
-              "message": "MorrowBot isn't allowed to write in this folder.",
+              "message": "Ori Kami isn't allowed to write in this folder.",
             },
           },
           "status": 500,
@@ -355,7 +355,7 @@ it.skipIf(process.getuid?.() === 0)('in a folder it cannot write: reports an exi
           "body": {
             "error": {
               "kind": "internal",
-              "message": "The workspace folder could not be made. MorrowBot isn't allowed to write in this folder.",
+              "message": "The workspace folder could not be made. Ori Kami isn't allowed to write in this folder.",
             },
           },
           "status": 500,

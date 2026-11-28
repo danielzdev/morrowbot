@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 /** Another host process holds this data directory. */
 export class DataDirLockedError extends Error {
   constructor(dataDir: string) {
-    super(`Another MorrowBot host is using ${dataDir}`);
+    super(`Another Ori Kami host is using ${dataDir}`);
     this.name = 'DataDirLockedError';
   }
 }

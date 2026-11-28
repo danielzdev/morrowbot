@@ -54,7 +54,7 @@ export interface SettingsModalProps {
   readonly vault: VaultPort;
   /** Which server this app uses, for Settings › Server. */
   readonly server: Exclude<ServerMode, { kind: 'choosing' }>;
-  /** Switches the server; answers a problem to show, or null once MorrowBot reopens. */
+  /** Switches the server; answers a problem to show, or null once Ori Kami reopens. */
   readonly chooseServer: (request: ServerRequest) => Promise<string | null>;
   /** Sections left out of the nav and search (`hiddenSections`). */
   readonly hidden: ReadonlySet<SettingsSection>;

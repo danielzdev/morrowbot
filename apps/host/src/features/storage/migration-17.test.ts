@@ -11,14 +11,14 @@ const AT = '2026-01-01T00:00:00.000Z';
 
 let dir: string;
 beforeEach(async () => {
-  dir = await mkdtemp(path.join(tmpdir(), 'morrowbot-migration-17-'));
+  dir = await mkdtemp(path.join(tmpdir(), 'orikami-migration-17-'));
 });
 afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
 it('adds agent_messages.read_outcome (backfilling settled reads as status only) and indexes generations.input_message_id', () => {
-  const file = path.join(dir, 'morrowbot.sqlite');
+  const file = path.join(dir, 'orikami.sqlite');
   const db = new DatabaseSync(file);
   for (const sql of MIGRATIONS.slice(0, 16)) db.exec(sql);
   db.exec('PRAGMA user_version = 16');

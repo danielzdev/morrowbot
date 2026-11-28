@@ -10,7 +10,7 @@ import { sequence } from './testing/test-host.ts';
 let dataDir: string;
 let chat: ChatFixture;
 beforeEach(async () => {
-  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'morrowbot-vault-host-')));
+  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-vault-host-')));
   chat = await startChatFixture({ dataDir, sequence: sequence() });
 });
 afterEach(async () => {

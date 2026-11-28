@@ -1,6 +1,6 @@
 # Google Antigravity (subscription)
 
-A provider built into MorrowBot that answers with the Antigravity `agy` CLI you already have,
+A provider built into Ori Kami that answers with the Antigravity `agy` CLI you already have,
 signed in with your own Google plan. It runs one shared daemon,
 
 ```
@@ -9,12 +9,12 @@ agy acp --gemini-dir <plugin data>/gemini
 
 speaking the Agent Client Protocol (ACP v1) through the SDK's ACP client
 (`acp.startAcpClient`, shared with OpenCode). Provider-info
-starts it and registers it with the host before any turn uses it. `--gemini-dir` gives MorrowBot its own
+starts it and registers it with the host before any turn uses it. `--gemini-dir` gives Ori Kami its own
 Antigravity settings, permission grants, hooks, plugins and MCP servers, apart from your
 `~/.gemini`. The sign-in is still yours: agy keeps it in the system keychain.
 
-**No MorrowBot tools yet.** agy 1.5.18 reports no HTTP MCP support (`mcpCapabilities`), and a
-stdio bridge would run a process agy starts outside MorrowBot's process guard, so its sessions
+**No Ori Kami tools yet.** agy 1.5.18 reports no HTTP MCP support (`mcpCapabilities`), and a
+stdio bridge would run a process agy starts outside Ori Kami's process guard, so its sessions
 open with no MCP servers and its agents cannot message other agents or keep memories from a turn.
 
 **Models.** agy lists its models, each model's thinking levels (they differ by model) and the plan
@@ -30,7 +30,7 @@ provider-info answers `ready-models-later`.
 the session in agy's Default mode, which asks before every edit and command, and sets the picked
 model and thinking level (`session/set_config_option`). Then it sends `session/prompt`, and
 closes the session at the end. agy loads the workspace's `AGENTS.md` by itself but not the agent's
-`SOUL.md`, so MorrowBot sends `SOUL.md` ahead of every prompt in an `<instructions>` block. Stop sends `session/cancel`. If agy ignores it, the host ends the
+`SOUL.md`, so Ori Kami sends `SOUL.md` ahead of every prompt in an `<instructions>` block. Stop sends `session/cancel`. If agy ignores it, the host ends the
 daemon and the next turn gets a new one.
 
 agy reports a plan (`_meta.antigravity.tier`, shown as the account label) but no account, so the
@@ -42,15 +42,15 @@ filtered out, for the day agy names an account.
 workspace's instructions (`personal`).
 
 **Full** (interactive and background; only the owner may choose it): the session stays in Default
-mode and MorrowBot allows everything agy asks for once, without a card (never `allow_always`, so no
+mode and Ori Kami allows everything agy asks for once, without a card (never `allow_always`, so no
 grant is saved for read-only sessions). The client stops fencing that session (`allowChanges`,
 remembered after it ends so a late update cannot trip the fence), and the workspace's
 customization folders are not checked. Stop sends `session/cancel`, which ends the command agy is
 running (checked on real agy 1.5.18 by
 `provider-antigravity-live.test.ts`; the fixture test checks that Stop sends it). agy runs each
 command in its own process group, so something a command leaves running in the background (`cmd &`)
-outlives Stop and the daemon; MorrowBot does not chase it (see `docs/decisions.md`). A full-access
-turn can also change MorrowBot's own Antigravity folder (`--gemini-dir`), and read-only turns then
+outlives Stop and the daemon; Ori Kami does not chase it (see `docs/decisions.md`). A full-access
+turn can also change Ori Kami's own Antigravity folder (`--gemini-dir`), and read-only turns then
 run with what it set, such as a hook or an MCP server.
 
 **Read-only** (interactive):
@@ -58,7 +58,7 @@ run with what it set, such as a hook or an MCP server.
 - every write and every command agy asks permission for is denied without a card;
 - a read, search or fetch it asks for (agy asks when one reaches outside the workspace) goes to an
   approval card, "Allow once" or "Deny". `allow_always` is never chosen;
-- requests from agy to write a file or run a terminal through MorrowBot (`fs/write_text_file`,
+- requests from agy to write a file or run a terminal through Ori Kami (`fs/write_text_file`,
   `terminal/*`) are refused, and the client offers neither;
 - a turn is refused in a workspace that has one of agy's own customization folders (`.agents`,
   `.agent`, `_agents`, `_agent`), there or in a folder above it up to its git root, on its path as
@@ -66,7 +66,7 @@ run with what it set, such as a hook or an MCP server.
   with its own `--gemini-dir` (checked on agy 1.5.18). The check runs before the session opens and
   again just before the prompt; a folder another program adds during the turn is not seen;
 - if agy reports an edit or command that finished without asking, in any session on the daemon
-  but a full one (even one MorrowBot has not finished setting up, and the provider-info probe), or
+  but a full one (even one Ori Kami has not finished setting up, and the provider-info probe), or
   a read-only session leaves Default mode, every turn on the daemon fails at once
   (`access-not-supported`), the daemon ends, and both profiles are withheld
   until the provider restarts, with no new daemon started. Open approval cards are withdrawn and a
@@ -74,7 +74,7 @@ run with what it set, such as a hook or an MCP server.
 
 **Held back** (checked on agy 1.5.18, shown on the Plugins page):
 
-- workspace-write: MorrowBot cannot yet confine each write to the workspace, and agy runs commands
+- workspace-write: Ori Kami cannot yet confine each write to the workspace, and agy runs commands
   outside any sandbox;
 - `isolated` instructions: agy always loads the workspace's `AGENTS.md`;
 - background read-only turns: a read outside the workspace needs a card;
@@ -90,6 +90,6 @@ Settings:
 **Fixtures.** `fixtures/1.5.18/` holds redacted real ACP traffic: `initialize`, a `session/new`
 reply with its models, and six prompts (a reply, a read inside the workspace, and denied writes,
 commands and reads outside it). `session-replay.test.ts` and `models.test.ts` replay them. The host
-tests run `apps/host/src/features/providers/fixtures/fake-agy.ts`. With `MORROWBOT_LIVE_AGY=1` (and
-`MORROWBOT_AGY_PATH`), `provider-antigravity-live.test.ts` runs the checks on your real agy. The
+tests run `apps/host/src/features/providers/fixtures/fake-agy.ts`. With `ORIKAMI_LIVE_AGY=1` (and
+`ORIKAMI_AGY_PATH`), `provider-antigravity-live.test.ts` runs the checks on your real agy. The
 live check spends a little of your plan.

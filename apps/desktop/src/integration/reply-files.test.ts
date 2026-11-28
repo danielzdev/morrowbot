@@ -27,7 +27,7 @@ const attachmentsOf = (screen: ThreadScreen): readonly ReplyAttachment[] => {
 };
 
 it('a reply shows the files its agent attached, the window loads them through main without the token, and opens or saves them', async () => {
-  const dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'morrowbot-reply-files-')));
+  const dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-reply-files-')));
   cleanup.push(() => rm(dataDir, { recursive: true, force: true }));
   let chat = await startChatFixture({ dataDir });
   const agent = await chat.agent();

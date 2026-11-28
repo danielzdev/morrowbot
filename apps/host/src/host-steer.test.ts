@@ -8,7 +8,7 @@ import { hidePid, startChatFixture, type ChatFixture } from './testing/chat-fixt
 let dataDir: string;
 let chat: ChatFixture | undefined;
 beforeEach(async () => {
-  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'morrowbot-steer-')));
+  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-steer-')));
 });
 afterEach(async () => {
   await chat?.close();
@@ -276,7 +276,7 @@ it('a queued message survives a host restart, held until the user sends it', asy
         "id": "id-5",
         "state": {
           "kind": "held",
-          "reason": "Not sent: MorrowBot restarted before the agent saw it.",
+          "reason": "Not sent: Ori Kami restarted before the agent saw it.",
         },
         "text": "still here?",
         "threadId": "id-2",

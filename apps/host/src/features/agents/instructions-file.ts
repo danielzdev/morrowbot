@@ -31,12 +31,12 @@ const codeOf = (error: unknown): string | null =>
 function readError(code: string | null): string {
   switch (code) {
     case 'ELOOP':
-      return 'SOUL.md is a link. MorrowBot reads only a regular file in the workspace folder.';
+      return 'SOUL.md is a link. Ori Kami reads only a regular file in the workspace folder.';
     case 'hard-link':
-      return 'SOUL.md has more than one hard link. MorrowBot reads only a file of its own; copy it instead.';
+      return 'SOUL.md has more than one hard link. Ori Kami reads only a file of its own; copy it instead.';
     case 'EACCES':
     case 'EPERM':
-      return "MorrowBot isn't allowed to read SOUL.md.";
+      return "Ori Kami isn't allowed to read SOUL.md.";
     case 'not-a-file':
       return 'SOUL.md is not a regular file.';
     case 'too-large':
@@ -119,7 +119,7 @@ function writeError(code: string): string {
   switch (code) {
     case 'EACCES':
     case 'EPERM':
-      return "MorrowBot isn't allowed to write in this folder.";
+      return "Ori Kami isn't allowed to write in this folder.";
     case 'EROFS':
       return 'This folder is read-only.';
     case 'ENOSPC':

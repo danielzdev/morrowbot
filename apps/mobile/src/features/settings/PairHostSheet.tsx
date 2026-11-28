@@ -83,7 +83,7 @@ export function PairHostSheet() {
         </View>
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           <Text style={[typography.ui, { color: colors.text2 }]}>
-            Open MorrowBot on your computer and show a pairing code. This phone and the computer must share a network or a Tailscale tailnet.
+            Open Ori Kami on your computer and show a pairing code. This phone and the computer must share a network or a Tailscale tailnet.
           </Text>
           <View style={[styles.segments, { backgroundColor: colors.selected }]}>
             {METHODS.map((option) => (

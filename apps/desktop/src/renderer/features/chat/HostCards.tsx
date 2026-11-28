@@ -25,12 +25,12 @@ const SETTING_COPY: Readonly<Record<SafeSettingId, SettingCopy>> = {
 
 const PLUGIN_ENDING: Readonly<Record<Exclude<PluginCardState, 'offered'>, string>> = { installed: 'Installed', cancelled: 'Cancelled' };
 
-/** MorrowBot's own frame: its name, and which agent suggested the card. Agent cards get a different one. */
+/** Ori Kami's own frame: its name, and which agent suggested the card. Agent cards get a different one. */
 function HostFrame(props: { readonly agent: string; readonly icon: 'plugins' | 'settings' }) {
   return (
     <header class="host-card-frame">
       <Icon name={props.icon} size={14} />
-      <span class="host-card-from">MorrowBot</span>
+      <span class="host-card-from">Ori Kami</span>
       <span class="host-card-by">Suggested by {props.agent}</span>
     </header>
   );

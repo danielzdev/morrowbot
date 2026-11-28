@@ -20,7 +20,7 @@ function apply(next: AppearanceChoice): void {
 export function chooseAppearance(next: AppearanceChoice): void {
   apply(next);
   void SecureStore.setItemAsync(KEY, next).catch((error: unknown) => {
-    console.warn('MorrowBot settings: could not save appearance', error);
+    console.warn('Ori Kami settings: could not save appearance', error);
   });
 }
 

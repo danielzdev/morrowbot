@@ -12,7 +12,7 @@ export function registerReplyFileScheme(): void {
   protocol.registerSchemesAsPrivileged([{ scheme: REPLY_FILE_SCHEME, privileges: { standard: true, secure: true, stream: true } }]);
 }
 
-/** Serves `morrowbot-file://reply/<id>` from the current host. Call once the app is ready. */
+/** Serves `orikami-file://reply/<id>` from the current host. Call once the app is ready. */
 export function serveReplyFiles(host: () => HostTarget | undefined): void {
   protocol.handle(REPLY_FILE_SCHEME, (request) => serveReplyFile(request, host()));
 }
@@ -21,7 +21,7 @@ let openDir: Promise<string> | undefined;
 
 /** This launch's private folder for opened files (unguessable, readable only by this user), removed when the app quits. */
 function openedFiles(): Promise<string> {
-  openDir ??= mkdtemp(path.join(app.getPath('temp'), 'morrowbot-files-')).then((dir) => {
+  openDir ??= mkdtemp(path.join(app.getPath('temp'), 'orikami-files-')).then((dir) => {
     app.once('will-quit', () => {
       rmSync(dir, { recursive: true, force: true });
     });

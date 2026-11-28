@@ -8,7 +8,7 @@ export interface Invocation {
   readonly args: readonly string[];
   /** The one stream-json user frame of the turn, sent on stdin so the prompt never shows up in the process list. */
   readonly frame: string;
-  /** The system prompt and MorrowBot's MCP server config, if any, read by the CLI as files for the same reason. */
+  /** The system prompt and Ori Kami's MCP server config, if any, read by the CLI as files for the same reason. */
   readonly files: readonly string[];
 }
 
@@ -31,9 +31,9 @@ const BASE = [
 ] as const;
 
 /**
- * MorrowBot owns the instructions: no CLAUDE.md, skills, commands, plugins, hooks or MCP servers of the
+ * Ori Kami owns the instructions: no CLAUDE.md, skills, commands, plugins, hooks or MCP servers of the
  * user's. `--setting-sources ''` skips CLAUDE.md and the settings files that hold hooks and plugins;
- * `--strict-mcp-config` every MCP server but MorrowBot's own; `--disable-slash-commands` the skills and
+ * `--strict-mcp-config` every MCP server but Ori Kami's own; `--disable-slash-commands` the skills and
  * commands. Not `--safe-mode`: it drops `--mcp-config` servers too (checked on 2.1.332).
  */
 const ISOLATED = ['--strict-mcp-config', '--setting-sources', '', '--disable-slash-commands'] as const;
@@ -43,7 +43,7 @@ const ISOLATED = ['--strict-mcp-config', '--setting-sources', '', '--disable-sla
  * files, and confines the file tools to the working folder. `--tools` names the only tools offered.
  * `full` has no `--restricted` (it refuses `bypassPermissions`): Bash and the file tools run anywhere
  * without asking, in either mode. Claude Code's own auto-memory, which `--restricted` keeps off, is
- * turned off with `--settings`: the agent's memories are MorrowBot's.
+ * turned off with `--settings`: the agent's memories are Ori Kami's.
  */
 function accessFlags(access: AccessLevel, mode: TurnMode): readonly string[] {
   switch (access) {
@@ -87,7 +87,7 @@ function approvalFlags(mode: TurnMode): readonly string[] {
 }
 
 /**
- * MorrowBot's MCP server as a `--mcp-config` file, its tools allowed without asking (`mcp__morrowbot`
+ * Ori Kami's MCP server as a `--mcp-config` file, its tools allowed without asking (`mcp__orikami`
  * names them all). The token stays out of the process list.
  */
 function hostToolsConfig(tools: HostTools): string | null {

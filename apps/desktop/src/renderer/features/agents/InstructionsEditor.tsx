@@ -113,7 +113,7 @@ export function InstructionsEditor(props: {
       {props.provider.kind === 'bound' && (
         <p class="binding-note">
           {props.provider.vendorSettings === 'isolated'
-            ? "MorrowBot sends this file as the agent's instructions."
+            ? "Ori Kami sends this file as the agent's instructions."
             : `${props.providerName ?? 'This provider'} also loads your personal CLI instructions.`}
         </p>
       )}

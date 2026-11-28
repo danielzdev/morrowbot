@@ -4,7 +4,7 @@ import { pairProblem, type HostConnection } from '../../lib/host-connection.ts';
 import { parsePairingLink, type PairingTarget } from '../../lib/pairing-link.ts';
 
 /**
- * Pairs from a `morrowbot://pair` link, as when the system Camera scans the desktop's QR code.
+ * Pairs from an `orikami://pair` link, as when the system Camera scans the desktop's QR code.
  * It asks first, so a link from anywhere else cannot pair this phone with a stranger's host.
  */
 export function usePairingLinks(pair: HostConnection['pair']): void {
@@ -28,7 +28,7 @@ export function usePairingLinks(pair: HostConnection['pair']): void {
       ]);
     };
     const open = (url: string | null | undefined): void => {
-      if (url == null || !/^morrowbot:/i.test(url)) return;
+      if (url == null || !/^orikami:/i.test(url)) return;
       const input = parsePairingLink(url);
       switch (input.kind) {
         case 'ok':

@@ -11,7 +11,7 @@ import { linuxKeys } from './secret-service-key.ts';
 
 let dir: string;
 beforeEach(async () => {
-  dir = await mkdtemp(path.join(tmpdir(), 'morrowbot-vault-key-'));
+  dir = await mkdtemp(path.join(tmpdir(), 'orikami-vault-key-'));
 });
 afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
@@ -55,7 +55,7 @@ it('keeps the macOS master key in one Keychain item, passing it only on stdin an
     }
     return saved === undefined ? exited(44) : exited(0, `${saved}\n`);
   });
-  const store = keychainKeyStore('com.legendarykoi.morrowbot.vault', security.run);
+  const store = keychainKeyStore('com.legendarykoi.orikami.vault', security.run);
   const before = await store.load();
   const created = await store.create(key);
   const createdLater = await store.create(later);
@@ -72,10 +72,10 @@ it('keeps the macOS master key in one Keychain item, passing it only on stdin an
     laterGetsFirstKey: true,
     keyInArguments: false,
     calls: [
-      '/usr/bin/security find-generic-password -s com.legendarykoi.morrowbot.vault -a master-key -w',
-      '/usr/bin/security -i <<< add-generic-password -s com.legendarykoi.morrowbot.vault -a master-key -w <key>',
-      '/usr/bin/security -i <<< add-generic-password -s com.legendarykoi.morrowbot.vault -a master-key -w <key>',
-      '/usr/bin/security find-generic-password -s com.legendarykoi.morrowbot.vault -a master-key -w',
+      '/usr/bin/security find-generic-password -s com.legendarykoi.orikami.vault -a master-key -w',
+      '/usr/bin/security -i <<< add-generic-password -s com.legendarykoi.orikami.vault -a master-key -w <key>',
+      '/usr/bin/security -i <<< add-generic-password -s com.legendarykoi.orikami.vault -a master-key -w <key>',
+      '/usr/bin/security find-generic-password -s com.legendarykoi.orikami.vault -a master-key -w',
     ],
   });
 });
@@ -147,11 +147,11 @@ it('uses the Linux Secret Service when secret-tool reaches it, never makes a key
     reachable: 'secret-service',
     roundTrip: true,
     calls: [
-      'secret-tool lookup service com.legendarykoi.morrowbot.vault account master-key folder <dataDir>',
-      'secret-tool lookup service com.legendarykoi.morrowbot.vault account master-key folder <dataDir>',
-      'secret-tool store --label=MorrowBot vault key service com.legendarykoi.morrowbot.vault account master-key folder <dataDir> <<< <key>',
-      'secret-tool lookup service com.legendarykoi.morrowbot.vault account master-key folder <dataDir>',
-      'secret-tool lookup service com.legendarykoi.morrowbot.vault account master-key folder <dataDir>',
+      'secret-tool lookup service com.legendarykoi.orikami.vault account master-key folder <dataDir>',
+      'secret-tool lookup service com.legendarykoi.orikami.vault account master-key folder <dataDir>',
+      'secret-tool store --label=Ori Kami vault key service com.legendarykoi.orikami.vault account master-key folder <dataDir> <<< <key>',
+      'secret-tool lookup service com.legendarykoi.orikami.vault account master-key folder <dataDir>',
+      'secret-tool lookup service com.legendarykoi.orikami.vault account master-key folder <dataDir>',
     ],
     lockedKeyring: 'secret-service: The Secret Service could not read the vault key (secret-tool was stopped before it finished)',
     notInstalled: 'key-file: secret-tool is not installed',
@@ -175,12 +175,12 @@ it('names the failing tool, never the key, when a keystore refuses', async () =>
   ]);
 });
 
-/** Writes to the real login Keychain, so it runs only on macOS with `MORROWBOT_LIVE_KEYCHAIN=1`. */
-const LIVE = process.platform === 'darwin' && process.env.MORROWBOT_LIVE_KEYCHAIN === '1';
+/** Writes to the real login Keychain, so it runs only on macOS with `ORIKAMI_LIVE_KEYCHAIN=1`. */
+const LIVE = process.platform === 'darwin' && process.env.ORIKAMI_LIVE_KEYCHAIN === '1';
 
 describe.runIf(LIVE)('the master key in this Mac’s login Keychain', () => {
   it('saves one key under a throwaway service, keeps it when a second key is offered, and reads it back', async () => {
-    const service = `com.legendarykoi.morrowbot.vault.test-${randomUUID()}`;
+    const service = `com.legendarykoi.orikami.vault.test-${randomUUID()}`;
     const store = keychainKeyStore(service);
     const key = newMasterKey();
     try {

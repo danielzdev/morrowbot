@@ -89,7 +89,7 @@ it('masks secrets and shows the home folder as ~ in what a card or a denial says
       },
       {
         "kind": "deny",
-        "status": "Denied execute curl -H "Authorization: Bearer *** ~/x: MorrowBot runs Antigravity read-only.",
+        "status": "Denied execute curl -H "Authorization: Bearer *** ~/x: Ori Kami runs Antigravity read-only.",
       },
     ]
   `);

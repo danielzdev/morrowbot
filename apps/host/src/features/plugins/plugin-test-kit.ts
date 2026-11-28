@@ -128,7 +128,7 @@ export async function stopHosts(): Promise<void> {
 }
 
 export async function bootHost(options: BootOptions = {}): Promise<Harness> {
-  const dir = await mkdtemp(path.join(tmpdir(), 'morrowbot-plugins-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'orikami-plugins-'));
   cleanups.push(() => rm(dir, { recursive: true, force: true }));
   const store = createJsonPluginStore(path.join(dir, 'plugins.json'));
   for (const [id, record] of Object.entries(options.records ?? {})) await store.write(id, record);

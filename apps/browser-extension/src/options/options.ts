@@ -27,10 +27,10 @@ function showStatus(raw: unknown): void {
   statusNode.classList.toggle('ok', status.kind === 'connected');
   switch (status.kind) {
     case 'connecting':
-      statusNode.textContent = `Connecting to MorrowBot on port ${String(status.port)}…`;
+      statusNode.textContent = `Connecting to Ori Kami on port ${String(status.port)}…`;
       return;
     case 'connected':
-      statusNode.textContent = `Connected to MorrowBot as ${status.browserId}.`;
+      statusNode.textContent = `Connected to Ori Kami as ${status.browserId}.`;
       return;
     case 'waiting':
       statusNode.textContent = `Not connected: ${status.reason} Trying again in ${String(Math.round(status.retryInMs / 1000))} s.`;

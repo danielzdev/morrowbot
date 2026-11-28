@@ -118,7 +118,7 @@ it('streams a reply into the chat, shows it still running after a reload, and St
 });
 
 it('resyncs after the host restarts mid-turn: the cut-off reply shows as interrupted, and Continue runs it again', async () => {
-  const dataDir = await mkdtemp(path.join(tmpdir(), 'morrowbot-desktop-'));
+  const dataDir = await mkdtemp(path.join(tmpdir(), 'orikami-desktop-'));
   cleanup.push(() => rm(dataDir, { recursive: true, force: true }));
   const ids = sequence();
   const before = await startChatFixture({ dataDir, sequence: ids, timeouts: FAST_STOP });
@@ -160,7 +160,7 @@ it('resyncs after the host restarts mid-turn: the cut-off reply shows as interru
           "expiredApprovals": [],
           "messages": [
             "user: stall",
-            "assistant: hello from pid <pid>: [Interrupted: MorrowBot stopped before this reply finished.] [Continue]",
+            "assistant: hello from pid <pid>: [Interrupted: Ori Kami stopped before this reply finished.] [Continue]",
           ],
         },
       },
@@ -172,7 +172,7 @@ it('resyncs after the host restarts mid-turn: the cut-off reply shows as interru
           "expiredApprovals": [],
           "messages": [
             "user: stall",
-            "assistant: hello from pid <pid>: [Interrupted: MorrowBot stopped before this reply finished.] [Continue]",
+            "assistant: hello from pid <pid>: [Interrupted: Ori Kami stopped before this reply finished.] [Continue]",
           ],
         },
       },
@@ -184,8 +184,8 @@ it('resyncs after the host restarts mid-turn: the cut-off reply shows as interru
           "expiredApprovals": [],
           "messages": [
             "user: stall",
-            "assistant: hello from pid <pid>: [Interrupted: MorrowBot stopped before this reply finished.] [Continue]",
-            "assistant: hello from pid <pid>: [Interrupted: MorrowBot stopped before this reply finished.] [Continue]",
+            "assistant: hello from pid <pid>: [Interrupted: Ori Kami stopped before this reply finished.] [Continue]",
+            "assistant: hello from pid <pid>: [Interrupted: Ori Kami stopped before this reply finished.] [Continue]",
           ],
         },
       },
@@ -195,7 +195,7 @@ it('resyncs after the host restarts mid-turn: the cut-off reply shows as interru
 });
 
 it('keeps the history readable while the host is down, says it is reconnecting, and goes live again when the host is back', async () => {
-  const dataDir = await mkdtemp(path.join(tmpdir(), 'morrowbot-desktop-'));
+  const dataDir = await mkdtemp(path.join(tmpdir(), 'orikami-desktop-'));
   cleanup.push(() => rm(dataDir, { recursive: true, force: true }));
   const ids = sequence();
   const before = await startChatFixture({ dataDir, sequence: ids, timeouts: FAST_STOP });

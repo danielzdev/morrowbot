@@ -9,7 +9,7 @@ import { startChatFixture, type ChatFixture } from './testing/chat-fixture.ts';
 let dataDir: string;
 let chat: ChatFixture | undefined;
 beforeEach(async () => {
-  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'morrowbot-recovery-')));
+  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-recovery-')));
 });
 afterEach(async () => {
   await chat?.close();
@@ -29,7 +29,7 @@ it('settles a turn a crash left open as interrupted, keeping its saved partial t
   await chat.send(thread, 'before the crash');
   await chat.close();
   chat = undefined;
-  const storage = openStorage(path.join(dataDir, 'morrowbot.sqlite'), () => '2026-01-01T01:00:00.000Z');
+  const storage = openStorage(path.join(dataDir, 'orikami.sqlite'), () => '2026-01-01T01:00:00.000Z');
   storage.transaction(() => {
     storage.messages.insert({ kind: 'user', id: 'crash-input', threadId: thread.id, text: 'mid-turn', createdAt: '2026-01-01T01:00:00.000Z', attachments: [] });
     storage.generations.insert({

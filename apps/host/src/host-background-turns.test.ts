@@ -12,7 +12,7 @@ let clock: Sequence;
 let chat: ChatFixture;
 let closed = false;
 beforeEach(async () => {
-  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'morrowbot-background-')));
+  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-background-')));
   clock = sequence();
   chat = await startChatFixture({ dataDir, sequence: clock });
   closed = false;
@@ -229,7 +229,7 @@ it('keeps failed and stopped background read outcomes across a restart without r
   await chat.close();
   closed = true;
 
-  const inspect = openStorage(path.join(dataDir, 'morrowbot.sqlite'), () => '2026-01-01T00:00:00.000Z');
+  const inspect = openStorage(path.join(dataDir, 'orikami.sqlite'), () => '2026-01-01T00:00:00.000Z');
   const waitingAfterRestart = inspect.agentMessages.waiting(helper.thread.id).length;
   const generationsAfterRestart = inspect.generations.idsByThread(helper.thread.id).size;
   inspect.close();
@@ -283,7 +283,7 @@ it('records interrupted on recovery when a host crash leaves a background read u
   const helper = await agentWithChat('Helper');
   await chat.close();
 
-  const storage = openStorage(path.join(dataDir, 'morrowbot.sqlite'), () => '2026-01-01T01:00:00.000Z');
+  const storage = openStorage(path.join(dataDir, 'orikami.sqlite'), () => '2026-01-01T01:00:00.000Z');
   storage.transaction(() => {
     storage.agentMessages.insert({
       id: 'crash-agent-msg',
@@ -317,7 +317,7 @@ it('records interrupted on recovery when a host crash leaves a background read u
   await chat.close();
   closed = true;
 
-  const inspect = openStorage(path.join(dataDir, 'morrowbot.sqlite'), () => '2026-01-01T01:00:00.000Z');
+  const inspect = openStorage(path.join(dataDir, 'orikami.sqlite'), () => '2026-01-01T01:00:00.000Z');
   const waitingAfterRecovery = inspect.agentMessages.waiting(helper.thread.id).length;
   const generationsAfterRecovery = inspect.generations.idsByThread(helper.thread.id).size;
   inspect.close();

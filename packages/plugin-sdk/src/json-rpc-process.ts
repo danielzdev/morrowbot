@@ -75,7 +75,7 @@ export const jsonRpcProcessOver = (open: CommandRunner['open']): StartJsonRpcPro
     try {
       run();
     } catch (error) {
-      console.error(`MorrowBot jsonRpcProcess: the ${what} handler threw: ${describe(error)}`);
+      console.error(`Ori Kami jsonRpcProcess: the ${what} handler threw: ${describe(error)}`);
     }
   };
   const answer = (id: number | string, method: string, params: unknown): void => {

@@ -49,7 +49,7 @@ const GRANT_NAMES: Readonly<Record<MacPermission, string>> = { accessibility: 'A
 
 export function deniedText(missing: readonly MacPermission[]): string {
   const names = missing.map((permission) => GRANT_NAMES[permission]).join(' and ');
-  return `Computer Use needs the ${names} ${missing.length > 1 ? 'permissions' : 'permission'}, which macOS has not granted. Ask the person to turn on MorrowBot under System Settings › Privacy & Security › ${names}, or call check_permissions with prompt: true to show the macOS request. Nothing was done.`;
+  return `Computer Use needs the ${names} ${missing.length > 1 ? 'permissions' : 'permission'}, which macOS has not granted. Ask the person to turn on Ori Kami under System Settings › Privacy & Security › ${names}, or call check_permissions with prompt: true to show the macOS request. Nothing was done.`;
 }
 
 /** Words a helper reply for the agent; `onOk` presents the value. */

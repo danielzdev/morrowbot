@@ -45,7 +45,7 @@ async function stopTurn(chat: ChatFixture, thread: Thread, generationId: string)
 }
 
 it('exposes built-in browser and computer-use tools on loopback MCP, preserves image blocks, and cancels takeover on turn stop', async () => {
-  const dataDir = await makeTempDir('morrowbot-builtin-tools-');
+  const dataDir = await makeTempDir('orikami-builtin-tools-');
   const chat = await startChatFixture({ dataDir, builtinPluginsDir: REPO_PLUGINS_DIR, sequence: sequence() });
   cleanups.push(async () => {
     await chat.close();

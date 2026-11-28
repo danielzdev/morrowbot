@@ -57,9 +57,9 @@ export interface ConnectorKit {
 }
 
 export async function startConnectorKit(options: { readonly agentIds: readonly string[]; readonly safeMode?: boolean }): Promise<ConnectorKit> {
-  const dir = await mkdtemp(path.join(tmpdir(), 'morrowbot-connectors-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'orikami-connectors-'));
   const { newId, now } = sequence();
-  const storage = openStorage(path.join(dir, 'morrowbot.sqlite'), now);
+  const storage = openStorage(path.join(dir, 'orikami.sqlite'), now);
   for (const id of options.agentIds) {
     storage.agents.insert({
       id,

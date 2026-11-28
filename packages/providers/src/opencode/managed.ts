@@ -1,6 +1,6 @@
 import { listDirectory } from '@morrowbot/plugin-sdk';
 
-/** Whether admin-managed opencode config could apply. Managed config outranks MorrowBot's own, so any at all withholds. */
+/** Whether admin-managed opencode config could apply. Managed config outranks Ori Kami's own, so any at all withholds. */
 export type Managed = { readonly kind: 'clear' } | { readonly kind: 'withheld'; readonly reason: string };
 
 const PREFERENCES = '/Library/Managed Preferences';
@@ -27,7 +27,7 @@ export async function checkManagedConfig(root: string, platform: string): Promis
     }
     return { kind: 'clear' };
   } catch {
-    return { kind: 'withheld', reason: "MorrowBot could not check this computer's managed opencode config, which outranks the read-only config MorrowBot gives OpenCode." };
+    return { kind: 'withheld', reason: "Ori Kami could not check this computer's managed opencode config, which outranks the read-only config Ori Kami gives OpenCode." };
   }
 }
 
@@ -47,6 +47,6 @@ async function userFolder(dir: string): Promise<string[]> {
 function withheld(source: string): Managed {
   return {
     kind: 'withheld',
-    reason: `This computer has managed opencode config (${source}), which outranks the read-only config MorrowBot gives OpenCode. Ask your admin, or chat with another provider.`,
+    reason: `This computer has managed opencode config (${source}), which outranks the read-only config Ori Kami gives OpenCode. Ask your admin, or chat with another provider.`,
   };
 }

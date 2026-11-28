@@ -12,7 +12,7 @@ export interface BuiltinProvider {
 }
 
 /**
- * Every provider built into MorrowBot, served in the host's process on `platform`, each program it starts behind
+ * Every provider built into Ori Kami, served in the host's process on `platform`, each program it starts behind
  * `fence`. They need no
  * plugins folder, so they are there on the first launch; their settings and on/off switch are saved
  * like a plugin's. Safe mode does not stop them.

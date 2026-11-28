@@ -100,7 +100,7 @@ export function MembersSection(props: { readonly port: MembersPort; readonly now
             <div class="setting-label">Invite for {inviting.invite.member.name}</div>
             <code class="invite-link">{inviting.invite.inviteUri}</code>
             <p class="setting-description">
-              Send this link privately. It works once, until {new Date(inviting.invite.member.status.kind === 'invited' ? inviting.invite.member.status.expiresAt : now()).toLocaleDateString()}. In MorrowBot they choose Join a server and paste it.
+              Send this link privately. It works once, until {new Date(inviting.invite.member.status.kind === 'invited' ? inviting.invite.member.status.expiresAt : now()).toLocaleDateString()}. In Ori Kami they choose Join a server and paste it.
             </p>
             <div class="pair-actions">
               <button type="button" class="btn primary" onClick={() => void props.port.copy(inviting.invite.inviteUri)}>

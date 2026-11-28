@@ -19,7 +19,7 @@ export async function answerSecret({ secretId, callId, request }: Extract<Plugin
 }
 
 async function resolve(secrets: SecretResolver | null, noCall: boolean, request: SecretFillRequest): Promise<SecretResolution> {
-  if (secrets === null) return { kind: 'refused', reason: 'Only plugins that ship with MorrowBot and ask for the secrets permission may use the Secrets Vault.' };
+  if (secrets === null) return { kind: 'refused', reason: 'Only plugins that ship with Ori Kami and ask for the secrets permission may use the Secrets Vault.' };
   if (noCall) return { kind: 'refused', reason: 'Secrets are given only during a tool call.' };
   try {
     return await secrets(request);

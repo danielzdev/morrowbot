@@ -70,7 +70,7 @@ describe.skipIf(chromeMissing)('the Chromium driver on a real page', { timeout: 
 
   it('puts a file into a file input', async () => {
     const { tabId, tree: snapshot } = await t.open('form');
-    const folder = await mkdtemp(path.join(tmpdir(), 'morrowbot-upload-'));
+    const folder = await mkdtemp(path.join(tmpdir(), 'orikami-upload-'));
     const file = path.join(folder, 'avatar.txt');
     await writeFile(file, 'hello');
     const notFileInput = await t.run({ kind: 'upload-files', tabId, ref: refOf(snapshot, 'textbox "Email"'), paths: [file] });

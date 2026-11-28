@@ -21,7 +21,7 @@ function sampleAgent(
     id,
     name,
     description,
-    workspace: { kind: 'dedicated', dir: `/srv/morrowbot/agents/${id}` },
+    workspace: { kind: 'dedicated', dir: `/srv/orikami/agents/${id}` },
     avatar: { kind: 'bot', shape, color, finish },
     provider,
     folderId,

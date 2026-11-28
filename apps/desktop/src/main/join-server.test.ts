@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { afterEach, expect, it } from 'vitest';
 import { joinServer, parseServerRequest } from './join-server.ts';
 
-const RENDERER_URL = 'file:///Applications/MorrowBot.app/Contents/Resources/app/src/renderer/index.html';
+const RENDERER_URL = 'file:///Applications/Ori Kami.app/Contents/Resources/app/src/renderer/index.html';
 const TOKEN = 'x'.repeat(43);
 
 const cleanup: (() => Promise<void> | void)[] = [];

@@ -212,7 +212,7 @@ it('never follows a SOUL.md link out of the workspace: the editor and the turn r
   expect({ view, present: revision !== null, errors, history: await chat.history(thread) }).toMatchInlineSnapshot(`
     {
       "errors": [
-        "SOUL.md is a link. MorrowBot reads only a regular file in the workspace folder.",
+        "SOUL.md is a link. Ori Kami reads only a regular file in the workspace folder.",
       ],
       "history": [
         "user: describe",
@@ -222,7 +222,7 @@ it('never follows a SOUL.md link out of the workspace: the editor and the turn r
       "view": {
         "canReplace": false,
         "content": null,
-        "readError": "SOUL.md is a link. MorrowBot reads only a regular file in the workspace folder.",
+        "readError": "SOUL.md is a link. Ori Kami reads only a regular file in the workspace folder.",
       },
     }
   `);

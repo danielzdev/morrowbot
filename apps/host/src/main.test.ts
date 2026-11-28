@@ -10,11 +10,11 @@ const MAIN = fileURLToPath(new URL('./main.ts', import.meta.url));
 const FIXTURES = fileURLToPath(new URL('./features/plugins/fixtures', import.meta.url));
 
 function hostEnv(dataDir: string): NodeJS.ProcessEnv {
-  return { PATH: process.env.PATH, MORROWBOT_HOST_PORT: '0', MORROWBOT_DATA_DIR: dataDir, MORROWBOT_PLUGINS_DIR: FIXTURES };
+  return { PATH: process.env.PATH, ORIKAMI_HOST_PORT: '0', ORIKAMI_DATA_DIR: dataDir, ORIKAMI_PLUGINS_DIR: FIXTURES };
 }
 
 async function withDataDir(body: (dataDir: string) => Promise<void>): Promise<void> {
-  const dataDir = await mkdtemp(path.join(tmpdir(), 'morrowbot-main-'));
+  const dataDir = await mkdtemp(path.join(tmpdir(), 'orikami-main-'));
   try {
     await body(dataDir);
   } finally {
@@ -70,12 +70,12 @@ it('boots in safe mode with only the built-in providers running and stops cleanl
       {
         "code": 0,
         "lines": [
-          "MorrowBot host 0.0.0 listening on http://127.0.0.1:PORT",
-          "MorrowBot host: plugin provider-antigravity is running",
-          "MorrowBot host: plugin provider-claude is running",
-          "MorrowBot host: plugin provider-openai is running",
-          "MorrowBot host: plugin provider-opencode is running",
-          "MorrowBot host: safe mode, only the 4 built-in provider(s) running",
+          "Ori Kami host 0.0.0 listening on http://127.0.0.1:PORT",
+          "Ori Kami host: plugin provider-antigravity is running",
+          "Ori Kami host: plugin provider-claude is running",
+          "Ori Kami host: plugin provider-openai is running",
+          "Ori Kami host: plugin provider-opencode is running",
+          "Ori Kami host: safe mode, only the 4 built-in provider(s) running",
         ],
       }
     `);
@@ -84,7 +84,7 @@ it('boots in safe mode with only the built-in providers running and stops cleanl
 
 it('runs the built-in Claude, Codex, Antigravity and OpenCode providers with no plugins folder configured', async () => {
   await withDataDir(async (dataDir) => {
-    const env = { PATH: process.env.PATH, HOME: dataDir, MORROWBOT_HOST_PORT: '0', MORROWBOT_DATA_DIR: path.join(dataDir, 'data') };
+    const env = { PATH: process.env.PATH, HOME: dataDir, ORIKAMI_HOST_PORT: '0', ORIKAMI_DATA_DIR: path.join(dataDir, 'data') };
     const host = spawn(process.execPath, [MAIN], { env, stdio: ['ignore', 'pipe', 'pipe'] });
     let output = '';
     let signalled = false;
@@ -99,12 +99,12 @@ it('runs the built-in Claude, Codex, Antigravity and OpenCode providers with no 
       {
         "code": 0,
         "lines": [
-          "MorrowBot host 0.0.0 listening on http://127.0.0.1:PORT",
-          "MorrowBot host: 4 plugin(s) running",
-          "MorrowBot host: plugin provider-antigravity is running",
-          "MorrowBot host: plugin provider-claude is running",
-          "MorrowBot host: plugin provider-openai is running",
-          "MorrowBot host: plugin provider-opencode is running",
+          "Ori Kami host 0.0.0 listening on http://127.0.0.1:PORT",
+          "Ori Kami host: 4 plugin(s) running",
+          "Ori Kami host: plugin provider-antigravity is running",
+          "Ori Kami host: plugin provider-claude is running",
+          "Ori Kami host: plugin provider-openai is running",
+          "Ori Kami host: plugin provider-opencode is running",
         ],
       }
     `);
@@ -181,7 +181,7 @@ it('a second host process on the same data directory exits before opening the ma
           "message": {
             "kind": "already-running",
           },
-          "output": "MorrowBot host: already running for <dataDir>
+          "output": "Ori Kami host: already running for <dataDir>
         ",
         }
       `);

@@ -7,7 +7,7 @@ import { InitializeResponse, ThreadStatusChanged, ThreadScoped, TokenUsageUpdate
  */
 const LAUNCH_ARGS = ['app-server', '-c', 'thread_unload_delay_secs=0'] as const;
 const INITIALIZE_MS = 30_000;
-const CLIENT_INFO = { name: 'morrowbot', title: 'MorrowBot', version: '0.1.0' } as const;
+const CLIENT_INFO = { name: 'orikami', title: 'Ori Kami', version: '0.1.0' } as const;
 
 /** The answer to one daemon call: a parsed result, the daemon's own error, or no usable answer. */
 export type Call<T> =
@@ -47,14 +47,14 @@ export interface CodexDaemon {
 export type DaemonStart = { readonly kind: 'started'; readonly daemon: CodexDaemon } | { readonly kind: 'failed'; readonly reason: string };
 
 /**
- * Approval requests MorrowBot answers. Codex turns run with approval policy `never`, so a request
+ * Approval requests Ori Kami answers. Codex turns run with approval policy `never`, so a request
  * here is unexpected; it is declined without a card.
  */
 const DECLINES: Readonly<Record<string, unknown>> = {
   'item/commandExecution/requestApproval': { decision: 'decline' },
   'item/fileChange/requestApproval': { decision: 'decline' },
-  execCommandApproval: { decision: { denied: { rejection: 'MorrowBot turns do not approve this.' } } },
-  applyPatchApproval: { decision: { denied: { rejection: 'MorrowBot turns do not approve this.' } } },
+  execCommandApproval: { decision: { denied: { rejection: 'Ori Kami turns do not approve this.' } } },
+  applyPatchApproval: { decision: { denied: { rejection: 'Ori Kami turns do not approve this.' } } },
 };
 
 /** Starts `codex app-server` as this plugin's shared daemon and completes the `initialize` handshake. */
@@ -94,7 +94,7 @@ export async function startDaemon(jsonRpcProcess: StartJsonRpcProcess, cliPath: 
     },
     onRequest: (method, params) => {
       const decline = DECLINES[method];
-      if (decline === undefined) return Promise.reject(new Error(`MorrowBot does not answer ${method}`));
+      if (decline === undefined) return Promise.reject(new Error(`Ori Kami does not answer ${method}`));
       tell({ kind: 'declined', method, params });
       return Promise.resolve(decline);
     },
@@ -116,7 +116,7 @@ export async function startDaemon(jsonRpcProcess: StartJsonRpcProcess, cliPath: 
         const parsed = schema.safeParse(reply.value);
         return parsed.success
           ? { kind: 'ok', value: parsed.data }
-          : { kind: 'unanswered', reason: `Codex answered ${method} in a shape MorrowBot does not know: ${parsed.error.message}` };
+          : { kind: 'unanswered', reason: `Codex answered ${method} in a shape Ori Kami does not know: ${parsed.error.message}` };
       }
     }
   };

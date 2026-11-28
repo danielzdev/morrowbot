@@ -15,7 +15,7 @@ let sealedDir: string;
 let secrets: SecretStore;
 let errors: unknown[];
 beforeEach(async () => {
-  dir = await mkdtemp(path.join(tmpdir(), 'morrowbot-vault-'));
+  dir = await mkdtemp(path.join(tmpdir(), 'orikami-vault-'));
   sealedDir = path.join(dir, 'sealed');
   await mkdir(sealedDir);
   secrets = sealedStore();
@@ -337,7 +337,7 @@ it('lists nothing and changes nothing while vault.json cannot be read, and keeps
   const untouched = (await readFile(file, 'utf8')) === broken;
   await writeFile(file, good);
   const fixed = await open(sealedStore());
-  const reason = 'vault.json in the data folder is not a vault file MorrowBot can read; fix it or move it aside to start with an empty vault';
+  const reason = 'vault.json in the data folder is not a vault file Ori Kami can read; fix it or move it aside to start with an empty vault';
   expect({ meanwhile, reported, untouched, afterFix: used(await fixed.resolve(id)) }).toEqual({
     meanwhile: { list: [], create: { kind: 'invalid', reason }, update: { kind: 'invalid', reason }, delete: false, resolve: reason },
     reported: [`${file}: ${reason}`],

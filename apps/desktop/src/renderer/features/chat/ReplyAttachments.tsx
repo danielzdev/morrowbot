@@ -45,7 +45,7 @@ function useAction(files: ReplyFiles, attachment: ReplyAttachment): { readonly p
       },
       () => {
         setBusy(false);
-        setProblem("MorrowBot couldn't get this file.");
+        setProblem("Ori Kami couldn't get this file.");
       },
     );
   };

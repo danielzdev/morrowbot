@@ -6,7 +6,7 @@ export interface DaemonOptions {
   readonly cliPath: string;
   /** Where the daemon runs: the provider's own data folder. */
   readonly cwd: string;
-  /** MorrowBot's own Antigravity folder, kept apart from the user's `~/.gemini`. */
+  /** Ori Kami's own Antigravity folder, kept apart from the user's `~/.gemini`. */
   readonly geminiDir: string;
   readonly home: string | null;
   /** Hears, once, why this daemon broke the read-only rules, before it ends. */
@@ -15,7 +15,7 @@ export interface DaemonOptions {
 
 /**
  * Starts `agy acp` as this provider's shared daemon over the SDK's ACP client.
- * `geminiDir` is MorrowBot's own Antigravity folder, so agy reads none of the user's settings,
+ * `geminiDir` is Ori Kami's own Antigravity folder, so agy reads none of the user's settings,
  * permission grants, hooks, plugins or MCP servers; the Google sign-in is shared through the keychain.
  */
 export async function startDaemon(jsonRpcProcess: StartJsonRpcProcess, options: DaemonOptions): Promise<acp.AcpStart> {
@@ -34,5 +34,5 @@ export async function startDaemon(jsonRpcProcess: StartJsonRpcProcess, options: 
 function breachReason(breach: acp.Breach, version: string | null): string {
   const agy = version === null ? 'agy' : `agy ${version}`;
   const what = breach.kind === 'unasked-change' ? `ran "${breach.tool}" without asking` : `left its Default mode for "${breach.mode}"`;
-  return `Antigravity (${agy}) ${what}. MorrowBot ended it and offers no Antigravity turns until the provider restarts.`;
+  return `Antigravity (${agy}) ${what}. Ori Kami ended it and offers no Antigravity turns until the provider restarts.`;
 }
