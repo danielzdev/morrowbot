@@ -2,14 +2,15 @@
 /**
  * A stand-in for the `claude` CLI (2.1.332) that prints stream-json lines shaped like the real ones.
  * It reads `--input-format stream-json` frames: exactly one user frame per run, whose last user
- * message picks the behavior, then control responses, until stdin closes. It keeps its state in
+ * message picks the behavior (`run: <script>` runs the script with `/bin/sh`, as the Bash tool would, and answers
+ * with what it printed), then control responses, until stdin closes. It keeps its state in
  * `$HOME/fake-claude/`: every invocation is appended to `log.jsonl`; `auth.json`, when present, is
  * what `auth status` prints; `hang-version`, when present, makes `--version` hang and ignore SIGTERM;
  * `hold-auth`, when present, is renamed to `auth-held` by the next `auth status`, which reads its
  * answer and then waits to print it until `auth-held` is removed; `policy-after-auths` holds a count N
  * of `auth status` runs to let pass, and the next one writes a server-managed policy cache first.
  */
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { createInterface } from 'node:readline';
@@ -162,6 +163,11 @@ function command(prompt: string): string {
 async function reply(prompt: string): Promise<void> {
   line({ type: 'system', subtype: 'init', model: flag('--model') ?? 'claude-fable-5-2', tools: ['Read', 'Glob', 'Grep'] });
   const said = command(prompt);
+  if (said.startsWith('run: ')) {
+    const ran = spawnSync('/bin/sh', ['-c', said.slice('run: '.length)], { encoding: 'utf8' });
+    finish(`${ran.stdout}${ran.stderr}`.trim());
+    return;
+  }
   switch (said) {
     case 'hello':
       streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '' } });

@@ -148,13 +148,15 @@ export function steerDelivered(core: ChatCore, turn: Turn, steerId: string): voi
   const item = store.queued.listByThread(turn.threadId).find((entry) => entry.id === steerId);
   if (item === undefined) return;
   const at = now();
-  const base: AssistantMessage = { kind: 'assistant', id: newId(), threadId: turn.threadId, text: turn.text, outcome: { kind: 'steered' }, createdAt: at };
+  const attachments = store.replyAttachments.listOpen(turn.generationId).map(({ attachment }) => attachment);
+  const base: AssistantMessage = { kind: 'assistant', id: newId(), threadId: turn.threadId, text: turn.text, outcome: { kind: 'steered' }, attachments, createdAt: at };
   const segment: AssistantMessage = turn.seedTruncated ? { ...base, seedTruncated: true } : base;
   const userMessage: UserMessage = { kind: 'user', id: item.id, threadId: turn.threadId, text: item.text, createdAt: at, attachments: [] };
   try {
     store.transaction(() => {
       store.messages.insert(segment);
       store.toolSteps.close(turn.generationId, segment.id);
+      store.replyAttachments.close(turn.generationId, segment.id);
       store.messages.insert(userMessage);
       store.queued.delete(item.id);
       store.threads.touch(turn.threadId, at);

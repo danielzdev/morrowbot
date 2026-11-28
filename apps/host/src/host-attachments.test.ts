@@ -47,6 +47,7 @@ it('sends an uploaded image and text file with the message, and the provider get
         "threadId": "id-2",
       },
       {
+        "attachments": [],
         "createdAt": "2026-01-01T00:00:06.000Z",
         "id": "id-7",
         "kind": "assistant",

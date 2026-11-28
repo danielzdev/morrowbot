@@ -2,12 +2,13 @@ import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { OPEN } from './fence.ts';
 import { commandFilePath, createCommandRunner, LINE_LIMIT, PROBE_OUTPUT_LIMIT, type CommandExit, type CommandOptions } from './command.ts';
 import { createGroupLink } from './host-link.ts';
 import { waitUntilGone } from './testing/processes.ts';
 
 /** These tests own the commands themselves: with no host connected, groups are acknowledged at once. */
-const commands = createCommandRunner(createGroupLink(), process.env);
+const commands = createCommandRunner(createGroupLink(), process.env, OPEN);
 let work: string;
 beforeEach(async () => {
   work = await realpath(await mkdtemp(path.join(tmpdir(), 'morrowbot-sdk-command-')));
@@ -312,7 +313,7 @@ it('reports a missing program as not-found and an aborted signal as an immediate
 });
 
 it('abandon closes every owner pipe: each guard sweeps its group, and no command starts afterwards', async () => {
-  const owner = createCommandRunner(createGroupLink(), process.env);
+  const owner = createCommandRunner(createGroupLink(), process.env, OPEN);
   const ready = Promise.withResolvers<number>();
   const opened = owner.open('/bin/sh', {
     ...options({ args: ['-c', 'sleep 30 & echo $!; wait'] }),

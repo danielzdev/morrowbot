@@ -12,7 +12,7 @@ const LATER = '2026-01-03T00:00:00.000Z';
 
 let dir: string;
 beforeEach(async () => {
-  dir = await mkdtemp(path.join(tmpdir(), 'morrowbot-migration-18-'));
+  dir = await mkdtemp(path.join(tmpdir(), 'morrowbot-migration-19-'));
 });
 afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
@@ -21,8 +21,8 @@ afterEach(async () => {
 it('adds queued_messages.attachment_ids and threads.archived_at, indexes active agent threads, and shields queued attachments from unsent sweeps', () => {
   const file = path.join(dir, 'morrowbot.sqlite');
   const db = new DatabaseSync(file);
-  for (const sql of MIGRATIONS.slice(0, 17)) db.exec(sql);
-  db.exec('PRAGMA user_version = 17');
+  for (const sql of MIGRATIONS.slice(0, 18)) db.exec(sql);
+  db.exec('PRAGMA user_version = 18');
   const workspace = JSON.stringify({ kind: 'shared', dir: '/work' });
   const avatar = JSON.stringify({ kind: 'bot', shape: 'chat', color: '#0ea5e9', finish: 'flat' });
   const provider = JSON.stringify({ kind: 'unbound' });

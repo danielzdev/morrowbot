@@ -14,6 +14,7 @@ import { outcomeCopy, type CopyContext, type OutcomeAction } from './outcome-cop
 import { OutcomeNote } from './OutcomeNote.tsx';
 import { reactionsByMessage } from './reactions.ts';
 import { ReactionPicker, ReactionPills } from './Reactions.tsx';
+import { ReplyAttachments, type ReplyFiles } from './ReplyAttachments.tsx';
 import { SentAttachments } from './SentAttachments.tsx';
 import { SubagentGroup, type EngineLabel } from './SubagentGroup.tsx';
 import type { ActiveTurnView, ApprovalStep, FinishedTurn, ThreadView, TurnStep } from './thread-model.ts';
@@ -35,6 +36,8 @@ export interface TimelineContext {
   readonly agentName: string;
   /** A sent image as a data URL; null when it can't be loaded. */
   readonly image: (id: string) => Promise<string | null>;
+  /** The files agents attached to their replies. */
+  readonly files: ReplyFiles;
   readonly peers: PeerDirectory;
   readonly engine: EngineLabel;
   /** This chat's agent's avatar, moving as `activity` shows. */
@@ -76,8 +79,8 @@ const MessageItem = memo(function MessageItem(props: {
   readonly busy: boolean;
   /** A user message sent into the reply above it with Steer now. */
   readonly steeredIn: boolean;
-  /** The latest reply's avatar: celebrating just after its turn, then resting. Null on other messages. */
-  readonly avatar: 'completed' | 'idle' | null;
+  /** The latest reply's avatar during its brief completion beat; null once idle or on other messages. */
+  readonly avatar: 'completed' | null;
   /** The emoji on this message. */
   readonly reactions: readonly MessageReaction[];
   readonly ctx: TimelineContext;
@@ -108,6 +111,7 @@ const MessageItem = memo(function MessageItem(props: {
       )}
       {finished !== undefined && <TurnSteps steps={finished.steps} display={ctx.display} approval={approvalFor(ctx, NO_ANSWERS, false)} />}
       {message.text !== '' && <div data-find-id={message.id}><Markdown text={message.text} actions={ctx.actions} /></div>}
+      {message.attachments.length > 0 && <ReplyAttachments attachments={message.attachments} files={ctx.files} />}
       <OutcomeNote
         copy={copy}
         seedTruncated={message.seedTruncated === true}
@@ -246,7 +250,7 @@ export function Timeline(props: {
                 steeredIn={steeredIn.has(item.message.id)}
                 reactions={reactions.get(item.message.id) ?? NO_REACTIONS}
                 busy={item.message === last && (!props.idle || props.locked || props.offline)}
-                avatar={item.message === last && item.message.kind === 'assistant' && active?.trigger.kind !== 'chat' ? (props.activity === 'completed' ? 'completed' : 'idle') : null}
+                avatar={item.message === last && item.message.kind === 'assistant' && active?.trigger.kind !== 'chat' && props.activity === 'completed' ? 'completed' : null}
                 ctx={ctx}
               />
             );

@@ -7,6 +7,7 @@ import type {
   Agent,
   Attachment,
   AttachmentContent,
+  ReplyAttachment,
   CreateMemoryRequest,
   Memory,
   SkillList,
@@ -238,8 +239,10 @@ export interface ApiAttachments {
     request: UploadAttachmentRequest,
   ): Promise<{ readonly kind: 'saved'; readonly attachment: Attachment } | { readonly kind: 'not-found' } | { readonly kind: 'invalid'; readonly reason: string }>;
   content(id: string): Promise<AttachmentContent | undefined>;
-  /** The thread an attachment was uploaded to, or undefined for an unknown id. */
+  /** The thread an attachment was uploaded to, or a reply attachment's chat; undefined for an unknown id. */
   threadOf(id: string): string | undefined;
+  /** A file an agent attached to its reply, and where its bytes are kept. */
+  reply(id: string): { readonly attachment: ReplyAttachment; readonly file: string } | undefined;
 }
 
 /** Each call is undefined for an unknown agent (or memory). */

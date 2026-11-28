@@ -149,6 +149,7 @@ it('Steer now on a provider that takes steers mid-turn saves the reply so far, t
       "steer": 204,
       "steered": {
         "segment": {
+          "attachments": [],
           "createdAt": "2026-01-01T00:00:05.000Z",
           "id": "id-6",
           "kind": "assistant",

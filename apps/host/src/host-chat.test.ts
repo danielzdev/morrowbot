@@ -57,6 +57,7 @@ it('streams a reply through the echo plugin and stores it with its usage', async
         "generationId": "id-3",
         "kind": "generation.finished",
         "message": {
+          "attachments": [],
           "createdAt": "2026-01-01T00:00:04.000Z",
           "id": "id-5",
           "kind": "assistant",

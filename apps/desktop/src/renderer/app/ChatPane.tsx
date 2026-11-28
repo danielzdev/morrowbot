@@ -15,7 +15,7 @@ import { choiceFor, providerChoicesOf, threadStatusOf } from './derive.ts';
 import { InspectorPane } from './InspectorPane.tsx';
 import type { Models } from './models.ts';
 
-/** The agent's avatar beside its running turn and latest reply, in CSS pixels. */
+/** The agent's avatar beside its running turn and brief completion beat, in CSS pixels. */
 const CHAT_AVATAR_SIZE = 32;
 
 export interface Chrome {
@@ -46,6 +46,8 @@ export function ChatPane(props: {
   readonly onToggleInspector: () => void;
   /** False for a scoped member: the server's engines are the owner's, so the host alone decides whether a turn may run. */
   readonly ownerEngines: boolean;
+  /** True only for the server's owner, who may grant full access (shell commands). */
+  readonly allowFull: boolean;
 }) {
   const { models, agent } = props;
   const display = useMemo(() => chatDisplay(props.info, agent.workspace.dir), [props.info, agent.workspace.dir]);
@@ -189,6 +191,7 @@ export function ChatPane(props: {
                 choice={choice}
                 binding={agent.provider}
                 openRequest={props.bindingRequest}
+                allowFull={props.allowFull}
                 onCommit={commit}
                 redact={display.redact}
                 onOpenProviders={props.onOpenProviders}

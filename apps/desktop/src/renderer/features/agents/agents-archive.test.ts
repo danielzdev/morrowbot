@@ -48,6 +48,7 @@ function bridgeFor(request: (method: ApiMethod, path: string, body?: unknown) =>
     runReset: () => Promise.resolve({ kind: 'refused', reason: 'test' }),
     serverMode: () => Promise.resolve({ kind: 'local' }),
     chooseServer: () => Promise.resolve({ kind: 'ready' }),
+    fileAction: () => Promise.resolve({ kind: 'cancelled' }),
   };
 }
 

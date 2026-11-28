@@ -74,6 +74,8 @@ export function AgentSettingsDialog(props: {
   readonly section: AgentSection;
   readonly onSection: (section: AgentSection) => void;
   readonly choices: readonly ProviderChoice[];
+  /** False for server members (including co-owners), who may not grant full access. */
+  readonly allowFull: boolean;
   readonly avatarEditor: AvatarEditor;
   /** The Routines section, which the routines feature draws. */
   readonly routines: ComponentChildren;
@@ -124,7 +126,7 @@ export function AgentSettingsDialog(props: {
           <AgentGeneral model={model} appearance={props.appearance} agent={agent} avatarEditor={props.avatarEditor} redact={props.redact} onDirty={mark('general')} />
         </div>
         <div hidden={props.section !== 'brain'}>
-          <AgentBrain model={model} agent={agent} choices={props.choices} redact={props.redact} onOpenProviders={leave(props.onOpenProviders)} onDirty={mark('brain')} />
+          <AgentBrain model={model} agent={agent} choices={props.choices} allowFull={props.allowFull} redact={props.redact} onOpenProviders={leave(props.onOpenProviders)} onDirty={mark('brain')} />
         </div>
         {props.extensions !== null && (
           <div hidden={props.section !== 'extensions'}>
