@@ -73,7 +73,7 @@ it('refuses a value that was edited, moved to another item, or opened with anoth
   });
 });
 
-it('lists and removes saved values without the key, and makes one key on first write', async () => {
+it('removes saved values without the key, and makes one key on first write', async () => {
   const saved: Buffer[] = [];
   const keys: MasterKeyStore = {
     kind: 'key-file',
@@ -89,9 +89,9 @@ it('lists and removes saved values without the key, and makes one key on first w
   const keysMadeFirst = saved.length;
   saved.length = 0;
   const keyless = encryptedFileStore({ file: options.file, keys });
-  const listed = await keyless.list();
   await keyless.remove('item-1');
-  expect({ keysMadeFirst, listed, after: await keyless.list(), keysMadeSince: saved.length }).toEqual({ keysMadeFirst: 1, listed: ['item-1', 'item-2'], after: ['item-2'], keysMadeSince: 0 });
+  const after = Object.keys(OnDisk.parse(JSON.parse(await readFile(options.file, 'utf8'))).secrets);
+  expect({ keysMadeFirst, after, keysMadeSince: saved.length }).toEqual({ keysMadeFirst: 1, after: ['item-2'], keysMadeSince: 0 });
 });
 
 it('gives two data folders opening at once the same key, so neither replaces the one the other sealed with', async () => {

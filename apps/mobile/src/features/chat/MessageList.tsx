@@ -4,8 +4,10 @@ import { Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewInstance 
 import { radii, spacing, typography } from '../../lib/theme.ts';
 import { useTheme } from '../../lib/useTheme.ts';
 import { ApprovalCard } from './ApprovalCard.tsx';
+import type { QueuedControls } from './composer-controls.ts';
 import { Markdown } from './Markdown.tsx';
 import { outcomeNote } from './outcome-copy.ts';
+import { QueuedBubble } from './QueuedBubble.tsx';
 import { ReplyFileChips } from './ReplyFileChips.tsx';
 import type { ActiveTurnView, ToolStep, TurnStep } from './thread-view.ts';
 import { ToolTimeline } from './ToolTimeline.tsx';
@@ -15,31 +17,13 @@ const tools = (steps: readonly TurnStep[]): ToolStep[] => steps.flatMap((step) =
 /** How close to the end still counts as "at the end", so streaming keeps the newest text in view. */
 const FOLLOW_SLACK = 80;
 
-function UserBubble(props: { readonly text: string; readonly note?: string }) {
+function UserBubble(props: { readonly text: string }) {
   const { colors } = useTheme();
   return (
-    <View style={[styles.user, { backgroundColor: colors.surfaceUser }, props.note !== undefined && styles.queued]}>
+    <View style={[styles.user, { backgroundColor: colors.surfaceUser }]}>
       <Text selectable style={[typography.body, { color: colors.text1 }]}>{props.text}</Text>
-      {props.note === undefined ? null : <Text style={[typography.meta, { color: colors.text3 }]}>{props.note}</Text>}
     </View>
   );
-}
-
-function queueText(message: QueuedMessage): string {
-  const files = message.attachments.map((attachment) => attachment.name).join(', ');
-  if (message.text === '') return files;
-  return files === '' ? message.text : `${message.text}\n[${files}]`;
-}
-
-function queueNote(message: QueuedMessage): string {
-  switch (message.state.kind) {
-    case 'queued':
-      return 'Queued';
-    case 'steering':
-      return 'Steering…';
-    case 'held':
-      return `Held: ${message.state.reason}`;
-  }
 }
 
 function Outcome(props: {
@@ -79,6 +63,9 @@ export function MessageList(props: {
   readonly finished: Readonly<Record<string, readonly TurnStep[]>>;
   readonly activeTurn: ActiveTurnView | null;
   readonly queue: readonly QueuedMessage[];
+  readonly agentName: string;
+  readonly queueControls: (message: QueuedMessage) => QueuedControls;
+  readonly onQueued: (action: 'now' | 'edit' | 'cancel', queuedId: string) => void;
   readonly answering: readonly string[];
   /** The chat is catching up with the host: approvals and Continue wait. */
   readonly stale: boolean;
@@ -99,6 +86,7 @@ export function MessageList(props: {
       style={styles.fill}
       contentContainerStyle={[styles.content, { paddingBottom: props.bottomInset + spacing[4] }]}
       keyboardDismissMode="interactive"
+      keyboardShouldPersistTaps="handled"
       scrollEventThrottle={32}
       onScrollBeginDrag={() => {
         settled.current = true;
@@ -111,7 +99,7 @@ export function MessageList(props: {
         if (following.current) scroll.current?.scrollToEnd({ animated: settled.current });
       }}
     >
-      {props.messages.length === 0 && activeTurn === null ? (
+      {props.messages.length === 0 && activeTurn === null && props.queue.length === 0 ? (
         <Text style={[typography.ui, styles.empty, { color: colors.text3 }]}>Say hello to start this chat.</Text>
       ) : null}
       {props.messages.map((message) =>
@@ -160,7 +148,21 @@ export function MessageList(props: {
         </View>
       )}
       {props.queue.map((message) => (
-        <UserBubble key={message.id} text={queueText(message)} note={queueNote(message)} />
+        <QueuedBubble
+          key={message.id}
+          message={message}
+          agentName={props.agentName}
+          controls={props.queueControls(message)}
+          onNow={() => {
+            props.onQueued('now', message.id);
+          }}
+          onEdit={() => {
+            props.onQueued('edit', message.id);
+          }}
+          onCancel={() => {
+            props.onQueued('cancel', message.id);
+          }}
+        />
       ))}
     </ScrollView>
   );
@@ -171,7 +173,6 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: spacing[4], paddingTop: spacing[2], gap: spacing[4] },
   empty: { textAlign: 'center', marginTop: spacing[8] },
   user: { alignSelf: 'flex-end', maxWidth: '85%', borderRadius: radii.xl, paddingHorizontal: spacing[4], paddingVertical: spacing[3] },
-  queued: { opacity: 0.6, gap: spacing[1] },
   assistant: { gap: spacing[3] },
   outcome: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
   outcomeText: { flex: 1 },
