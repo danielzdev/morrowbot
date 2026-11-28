@@ -1,8 +1,10 @@
 import { afterAll, beforeAll } from 'vitest';
 import type { BrowserCommand, BrowserEvent, BrowserResult } from '@morrowbot/contracts';
 import { createCdpDriver, type CdpDriver } from '../cdp/driver.ts';
-import { launchChrome, type ChromeUnderTest } from './chrome.ts';
+import { chromeMissing, launchChrome, type ChromeUnderTest } from './chrome.ts';
 import { servePages } from './pages.ts';
+
+const HOOK_TIMEOUT_MS = 90_000;
 
 /** A Chromium driver on a real headless Chrome and the test pages, for one test file. */
 export interface DriverUnderTest {
@@ -31,6 +33,7 @@ export function driverUnderTest(): DriverUnderTest {
   };
 
   beforeAll(async () => {
+    if (chromeMissing) return;
     chrome = await launchChrome();
     pages = await servePages();
     driver = createCdpDriver({
@@ -48,12 +51,12 @@ export function driverUnderTest(): DriverUnderTest {
       },
     });
     driver.onEvent((event) => events.push(event));
-  }, 90_000);
+  }, HOOK_TIMEOUT_MS);
 
   afterAll(async () => {
     await chrome?.close();
     await pages?.close();
-  });
+  }, HOOK_TIMEOUT_MS);
 
   const harness: DriverUnderTest = {
     get chrome() {

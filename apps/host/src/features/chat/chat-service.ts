@@ -7,18 +7,20 @@ import type {
   QueuedMessage,
   SessionChoice,
   StopGenerationResponse,
+  SubagentRun,
   Thread,
   ThreadState,
   ThreadSummary,
 } from '@morrowbot/contracts';
 import { admit, type AdmitResult } from './admission.ts';
 import { backgroundPrompt } from './background.ts';
+import { parentTurn, publishSubagent, stopChildren, stopTurn as stopWithChildren, subagentsOf, subagentView, type ParentTurn } from './children.ts';
 import { dispatch } from './dispatch.ts';
 import { EventLog, type Replay } from './event-log.ts';
 import type { ChatListener, ChatServiceOptions, RecheckAnswer } from './ports.ts';
 import { createSummaryFeed, type SummaryListener } from './thread-summary.ts';
 import { afterTurn, cancelQueued, enqueue, queueOf, sendsQueue, steerQueued, type QueueAnswer } from './queue.ts';
-import { laneOf, localSettlement, queueNote, settle, type ChatCore, type StoredReply, type Turn } from './turn.ts';
+import { laneOf, queueNote, type ChatCore, type StoredReply, type Turn } from './turn.ts';
 import { readUsage, type UsageAnswer } from './usage.ts';
 
 export type ApprovalResult = { readonly kind: 'replied' } | { readonly kind: 'not_found' };
@@ -27,6 +29,9 @@ export type ApprovalResult = { readonly kind: 'replied' } | { readonly kind: 'no
 export type StopResult = StopGenerationResponse | { readonly kind: 'not_stored' };
 
 export type RecheckResult = RecheckAnswer;
+
+/** A sub-agent's turn was admitted in its chat, or why not (nothing was written). */
+export type SubagentStart = { readonly kind: 'started'; readonly run: SubagentRun } | { readonly kind: 'refused'; readonly reason: string };
 
 /** A send starts a turn, or waits in the thread's queue while a turn runs. */
 /** A send starts a turn, or waits in the queue while a turn runs; files cannot wait there yet. */
@@ -69,6 +74,14 @@ export interface ChatService {
    * (every chat when null) once that chat is idle. Each chat reads its next message whenever it goes idle.
    */
   readAgentMessages(threadId: string | null): void;
+  /** Runs a sub-agent's prompt in its chat (made with its record), while the turn that started it runs. */
+  startSubagent(threadId: string, text: string): Promise<SubagentStart>;
+  /** The running turn `generationId`, which sub-agents inherit from; undefined once it settles or is stopping. */
+  parentTurn(generationId: string): ParentTurn | undefined;
+  /** One sub-agent as its parent chat shows it. */
+  subagent(threadId: string): SubagentRun | undefined;
+  /** The sub-agents a chat's turns started, oldest first. */
+  subagents(parentThreadId: string): SubagentRun[];
   /** Whether any turn of the agent (in any of its chats, routine runs included) is queued or running. */
   agentBusy(agentId: string): boolean;
   /** The events a client missed since `since`, or `resync`. Synchronous with `subscribe`. */
@@ -101,6 +114,12 @@ export function createChatService(options: ChatServiceOptions): ChatService {
     readNext: (threadId) => {
       readNext(threadId);
     },
+    endChildren: (turn) => {
+      stopChildren(core, turn).catch(options.report);
+    },
+    subagentChanged: (turn) => {
+      publishSubagent(core, turn);
+    },
     closed: false,
   };
 
@@ -117,30 +136,7 @@ export function createChatService(options: ChatServiceOptions): ChatService {
   recover(options);
   const summaries = createSummaryFeed(core);
 
-  /** Stops a turn the way its state allows. Resolves once cleanup is over (see `Turn.quiet`), with its reply. */
-  const stopTurn = async (turn: Turn): Promise<StoredReply> => {
-    switch (turn.state) {
-      case 'queued': {
-        const lane = laneOf(core, turn);
-        lane.queue.splice(lane.queue.indexOf(turn), 1);
-        settle(core, turn, localSettlement({ kind: 'cancelled' }));
-        break;
-      }
-      case 'dispatching':
-        turn.stopRequested = true;
-        break;
-      case 'running':
-        turn.stopRequested = true;
-        options.tools.close(turn.generationId);
-        options.plugins.cancelTurn(turn.pluginId, turn.generationId);
-        break;
-      case 'settled':
-        break;
-    }
-    const reply = await turn.settled.promise;
-    await turn.quiet.promise;
-    return reply;
-  };
+  const stopTurn = (turn: Turn): Promise<StoredReply> => stopWithChildren(core, turn);
 
   const stop = async (threadId: string): Promise<StopResult> => {
     const turn = core.active.get(threadId);
@@ -201,7 +197,12 @@ export function createChatService(options: ChatServiceOptions): ChatService {
       return next;
     },
     deleteThread: async (id) => {
-      const removed = await exclusively(core.deletingThreads, id, (turn) => turn.threadId === id, () => store.threads.delete(id));
+      const removed = await exclusively(
+        core.deletingThreads,
+        id,
+        (turn) => turn.threadId === id || turn.parent?.threadId === id,
+        () => store.threads.delete(id),
+      );
       if (removed) {
         core.events.forget(id);
         summaries.forget(id);
@@ -224,6 +225,7 @@ export function createChatService(options: ChatServiceOptions): ChatService {
         activeTurn: activeTurn(threadId),
         queue: queueOf(core, threadId),
         blockedGroups: options.plugins.blockedGroups(store.generations.idsByThread(threadId)),
+        subagents: subagentsOf(core, threadId),
         cursor: core.events.cursor(threadId),
       };
     },
@@ -265,6 +267,18 @@ export function createChatService(options: ChatServiceOptions): ChatService {
       const threads = threadId === null ? new Set(options.inbox.waiting(null).map(({ to }) => to.threadId)) : [threadId];
       for (const each of threads) readNext(each);
     },
+    startSubagent: async (threadId, text) => {
+      const result = await admit(core, threadId, { kind: 'subagent', text }, { kind: 'auto' });
+      const record = store.subagents.get(threadId);
+      if (result.kind === 'started' && record !== undefined) return { kind: 'started', run: subagentView(core, record) };
+      return { kind: 'refused', reason: subagentRefusal(result) };
+    },
+    parentTurn: (generationId) => parentTurn(core, generationId),
+    subagent: (threadId) => {
+      const record = store.subagents.get(threadId);
+      return record === undefined ? undefined : subagentView(core, record);
+    },
+    subagents: (parentThreadId) => subagentsOf(core, parentThreadId),
     agentBusy: (agentId) => [...core.active.values()].some((turn) => turn.agentId === agentId && turn.state !== 'settled'),
     replay: (threadId, since) => core.events.replay(threadId, since),
     subscribe: (listener) => core.events.subscribe(listener),
@@ -276,12 +290,36 @@ export function createChatService(options: ChatServiceOptions): ChatService {
   };
 }
 
+function subagentRefusal(result: AdmitResult): string {
+  switch (result.kind) {
+    case 'started':
+      return 'The sub-agent chat is gone.';
+    case 'thread_not_found':
+      return 'The chat or its agent is gone.';
+    case 'busy':
+      return 'The sub-agent is already running.';
+    case 'no_provider':
+    case 'not_continuable':
+      return result.reason;
+    case 'provider_unavailable':
+      return `The provider is not available right now (${result.reason}).`;
+    case 'binding_changed':
+      return 'The provider changed while the sub-agent was starting. Try again.';
+    case 'session_choice_required':
+      return `The provider session needs a choice (${result.reason}).`;
+    case 'attachments_missing':
+      return 'A sub-agent takes no files.';
+  }
+}
+
 /**
  * Turns a crash left unsettled end as interrupted, keeping the text saved so far. A background turn (its input
- * is not a chat message) ends quietly: the chat never showed it.
+ * is not a chat message) ends quietly: the chat never showed it. A sub-agent the crash caught before its turn
+ * was admitted never started, so it is deleted.
  */
 function recover(options: ChatServiceOptions): void {
   const { store } = options;
+  store.subagents.deleteUnstarted();
   for (const generation of store.generations.unsettled()) {
     if (store.messages.get(generation.inputMessageId) === undefined) {
       store.generations.settle(generation.id, null);

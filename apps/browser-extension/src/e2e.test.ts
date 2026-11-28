@@ -66,7 +66,7 @@ afterAll(async () => {
   await bridge.close();
   await chrome.close();
   await pages.close();
-});
+}, 90_000);
 
 const text = (output: ToolOutput): string => (output.kind === 'image' ? `image ${output.mimeType}` : `${output.kind}: ${output.text}`.replaceAll(String(pages.port), '<port>'));
 

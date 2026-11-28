@@ -7,6 +7,7 @@ import type {
   Message,
   PendingApproval,
   QueuedMessage,
+  SubagentRun,
   Thread,
   ThreadState,
   TurnOutcome,
@@ -82,6 +83,8 @@ export interface ThreadView {
   readonly agentMessages: readonly AgentMessage[];
   /** How background turns this window watched ended without telling the user, by the agent message they read. */
   readonly quietEnds: Readonly<Record<string, TurnOutcome>>;
+  /** The sub-agents this chat's turns started, oldest first. */
+  readonly subagents: readonly SubagentRun[];
 }
 
 export type ThreadEvent = Exclude<ChatEvent, { kind: 'usage.updated' }>;
@@ -145,6 +148,7 @@ export function viewOf(
     messages: state.messages,
     queue: state.queue,
     blockedGroups: state.blockedGroups,
+    subagents: state.subagents,
     cursor: state.cursor,
     agentMessages,
     quietEnds: previous?.quietEnds ?? {},
@@ -180,6 +184,11 @@ export function withAgentMessages(view: ThreadView, messages: readonly AgentMess
   return here.length === 0 ? view : { ...view, agentMessages: [...view.agentMessages, ...here].sort(byTime) };
 }
 
+/** The runs with `run` in place of the one with its id, or added last. */
+function withRun(runs: readonly SubagentRun[], run: SubagentRun): SubagentRun[] {
+  return runs.some(({ id }) => id === run.id) ? runs.map((each) => (each.id === run.id ? run : each)) : [...runs, run];
+}
+
 /** Applies one thread event, only if it is the next one after the view's cursor. `now` is this window's clock. */
 export function applyEvent(view: ThreadView, event: ThreadEvent, now: number): Applied {
   if (event.cursor.hostEpoch !== view.cursor.hostEpoch) return { kind: 'resync' };
@@ -210,6 +219,7 @@ function endingOf(resolution: ApprovalResolution, approval: PendingApproval): Ap
 /** The view after `event`, or undefined when the event does not fit what the view knows. */
 function change(view: ThreadView, event: ThreadEvent, now: number): ThreadView | undefined {
   if (event.kind === 'queue.changed') return { ...view, queue: event.queue };
+  if (event.kind === 'subagent.changed') return { ...view, subagents: withRun(view.subagents, event.run) };
   if (event.kind === 'generation.started' || event.kind === 'generation.background-started') {
     const started = event.kind === 'generation.started' ? event.userMessage : null;
     const messages = started === null || view.messages.some(({ id }) => id === started.id) ? view.messages : [...view.messages, started];

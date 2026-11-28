@@ -1,4 +1,4 @@
-import type { T3EventKind, T3WatchState } from '@morrowbot/contracts';
+import { EntityId, type T3EventKind, type T3WatchState } from '@morrowbot/contracts';
 import { z } from 'zod';
 import { Binding, resolveIdentity, type Identity } from './identity.ts';
 import { phaseOf, type Observation, type ProbeResult } from './observation.ts';
@@ -42,10 +42,12 @@ export const WatchMemory = z.strictObject({
    * event, even for requests already reported. Cleared by any event, or by a read with nothing pending.
    */
   recovery: z.enum(['needs_you', 'finished']).nullable().default(null),
+  /** Optional routine bound when the watch was registered via agent tools. */
+  routineId: EntityId.nullable().default(null),
 });
 export type WatchMemory = z.infer<typeof WatchMemory>;
 
-export function freshMemory(binding: Binding, stallAfterMs: number): WatchMemory {
+export function freshMemory(binding: Binding, stallAfterMs: number, routineId: string | null = null): WatchMemory {
   return {
     binding,
     stallAfterMs,
@@ -57,6 +59,7 @@ export function freshMemory(binding: Binding, stallAfterMs: number): WatchMemory
     notFoundReads: 0,
     requests: null,
     recovery: null,
+    routineId,
   };
 }
 

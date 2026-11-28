@@ -1,7 +1,7 @@
 name: Private release
 
 # Builds, signs, notarizes and publishes MorrowBot.app (arm64 .dmg, .zip and latest-mac.yml) to the
-# private releases repo on every push to main, after the same check CI runs. Repos without the release
+# private releases repo on every push to main (Protect Main & CI already run npm run check). Repos without the release
 # secrets (forks included) and other branches skip it instead of failing. Setup: apps/desktop/RELEASING.md.
 
 on:
@@ -57,7 +57,6 @@ jobs:
           node-version: 26
           cache: npm
       - run: npm ci
-      - run: npm run check
       - name: Version this build
         run: |
           base="$(node -p "require('./apps/desktop/package.json').version.split('.').slice(0, 2).join('.')")"

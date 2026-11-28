@@ -37,13 +37,20 @@ export type RunResult =
 
 export type OpenWaitResult = { readonly kind: 'opened'; readonly wait: Wait } | { readonly kind: 'invalid'; readonly reason: string };
 
+export type NoUpdateResult =
+  | { readonly kind: 'marked'; readonly routineId: string; readonly runId: string }
+  | { readonly kind: 'not-a-routine-run' };
+
 export interface RoutineService {
   list(agentId?: string): Routine[];
+  get(id: string): Routine | undefined;
   create(request: CreateRoutineRequest): SaveResult;
   update(id: string, request: UpdateRoutineRequest): SaveResult;
   delete(id: string): boolean;
   /** Runs a routine now, paused or not; resolves once the provider admitted (or refused) the run. */
   run(id: string, request: RunRoutineRequest): Promise<RunResult>;
+  /** Marks an active routine run in `threadId` owned by `agentId` as silent (nothing to report). */
+  markNoUpdate(agentId: string, threadId: string): NoUpdateResult;
   listWaits(): Wait[];
   openWait(request: OpenWaitRequest): OpenWaitResult;
   /** Closes a wait without waking anything. False when no such wait exists. */
@@ -63,6 +70,7 @@ const STOPPED = 'The host stopped during this run.';
 export function createRoutineService(options: RoutineServiceOptions): RoutineService {
   const { store, chat, clock } = options;
   const running = new Map<string, string>();
+  const activeRuns = new Map<string, { readonly runId: string; readonly routineId: string; readonly agentId: string; silent: boolean }>();
   const listeners = new Set<() => void>();
   const followed: RoutineChat = {
     ...chat,
@@ -75,7 +83,21 @@ export function createRoutineService(options: RoutineServiceOptions): RoutineSer
       };
     },
   };
-  const context = { store, chat: followed, newId: options.newId, now: options.now, report: options.report };
+  const context = {
+    store,
+    chat: followed,
+    newId: options.newId,
+    now: options.now,
+    report: options.report,
+    onRunOpen: (run: { readonly runId: string; readonly routineId: string; readonly agentId: string; readonly threadId: string }) => {
+      activeRuns.set(run.threadId, { runId: run.runId, routineId: run.routineId, agentId: run.agentId, silent: false });
+    },
+    onRunClose: (threadId: string) => {
+      const active = activeRuns.get(threadId);
+      activeRuns.delete(threadId);
+      return active?.silent ?? false;
+    },
+  };
 
   for (const run of store.runs.running()) store.runs.finish(run.id, { kind: 'failed', finishedAt: options.now(), reason: STOPPED }, run.threadId);
 
@@ -147,6 +169,10 @@ export function createRoutineService(options: RoutineServiceOptions): RoutineSer
       const latest = store.runs.latest();
       return store.routines.list(agentId).map((record) => view(record, latest));
     },
+    get: (id) => {
+      const record = store.routines.get(id);
+      return record === undefined ? undefined : view(record);
+    },
     create: (request) => {
       if (!chat.agentExists(request.agentId)) return { kind: 'invalid', reason: 'No such agent.' };
       const schedule = normalized(request.schedule);
@@ -216,6 +242,12 @@ export function createRoutineService(options: RoutineServiceOptions): RoutineSer
       });
       return { kind: 'started', run };
     },
+    markNoUpdate: (agentId, threadId) => {
+      const active = activeRuns.get(threadId);
+      if (active?.agentId !== agentId) return { kind: 'not-a-routine-run' };
+      active.silent = true;
+      return { kind: 'marked', routineId: active.routineId, runId: active.runId };
+    },
     listWaits: () => store.waits.listOpen(),
     openWait: (request) => {
       if (!chat.agentExists(request.agentId)) return { kind: 'invalid', reason: 'No such agent.' };
@@ -238,6 +270,7 @@ export function createRoutineService(options: RoutineServiceOptions): RoutineSer
       listeners.clear();
       for (const run of store.runs.running()) store.runs.finish(run.id, { kind: 'failed', finishedAt: options.now(), reason: STOPPED }, run.threadId);
       running.clear();
+      activeRuns.clear();
     },
   };
 }

@@ -36,5 +36,6 @@ export * from './browser-commands.ts';
 export * from './browser-bridge.ts';
 export { lenient } from './lenient.ts';
 export * from './members.ts';
+export * from './subagents.ts';
 export * from './vault.ts';
 export * from './connectors.ts';

@@ -4,6 +4,7 @@ import type {
   Attachment,
   AttachmentContent,
   BlockedGroup,
+  BoundProvider,
   ChatEvent,
   HostTools,
   LastMessage,
@@ -45,6 +46,16 @@ export interface SessionRecord {
   readonly systemHash: string;
   readonly vendorSettings: VendorSettings;
   readonly state: SessionState;
+}
+
+/** A sub-agent's chat (`threadId`), a hidden child of the chat whose turn `parentGenerationId` started it. */
+export interface SubagentRecord {
+  readonly threadId: string;
+  readonly parentThreadId: string;
+  readonly parentGenerationId: string;
+  readonly role: string;
+  readonly binding: BoundProvider;
+  readonly createdAt: string;
 }
 
 /** The storage the chat feature needs (the storage feature provides it). */
@@ -126,6 +137,12 @@ export interface ChatStore {
   };
   readonly attachments: {
     pending(threadId: string, ids: readonly string[]): Attachment[] | undefined;
+  };
+  readonly subagents: {
+    get(threadId: string): SubagentRecord | undefined;
+    listByParent(parentThreadId: string): SubagentRecord[];
+    /** Deletes the sub-agents whose turn was never admitted; returns how many. */
+    deleteUnstarted(): number;
   };
   /** Threads a recorded turn process group still holds. */
   heldThreads(): Set<string>;
