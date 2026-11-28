@@ -1,4 +1,4 @@
-import type { AgentMessage, ApiError, AssistantMessage, EventServerFrame, SessionChoice, SessionChoiceReason, ThreadState } from '@morrowbot/contracts';
+import { MAX_ATTACHMENTS, type AgentMessage, type ApiError, type AssistantMessage, type EventServerFrame, type SessionChoice, type SessionChoiceReason, type ThreadState } from '@morrowbot/contracts';
 import type { MorrowbotBridge } from '../../bridge.ts';
 import type { Api, ApiResult } from '../../shared/api.ts';
 import { Store, type Loadable } from '../../shared/store.ts';
@@ -260,9 +260,9 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
     return false;
   }
 
-  function queuedText(queuedId: string): string | undefined {
+  function queuedItem(queuedId: string) {
     const { view } = screen.get();
-    return view.kind === 'loaded' ? view.value.queue.find(({ id }) => id === queuedId)?.text : undefined;
+    return view.kind === 'loaded' ? view.value.queue.find(({ id }) => id === queuedId) : undefined;
   }
 
   function problemAction(): PendingAction | undefined {
@@ -337,10 +337,24 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
       await onQueued(queuedId, () => api.steerQueued(threadId, queuedId));
     },
     editQueued: async (queuedId) => {
-      const text = queuedText(queuedId);
-      if (text === undefined || !(await onQueued(queuedId, () => api.cancelQueued(threadId, queuedId)))) return;
-      const typed = screen.get().draft.trim();
-      patch({ draft: typed === '' ? text : `${text}\n\n${typed}` });
+      const item = queuedItem(queuedId);
+      if (item === undefined) return;
+      if (item.attachments.length > 0) {
+        const current = attachments.items.get();
+        const existingIds = new Set(current.flatMap((each) => (each.kind === 'ready' ? [each.attachment.id] : [])));
+        const taken = current.filter((each) => each.kind !== 'failed').length;
+        const added = item.attachments.filter((each) => !existingIds.has(each.id)).length;
+        if (taken + added > MAX_ATTACHMENTS) {
+          patch({ problem: { kind: 'error', message: `Remove a file from the message box before editing (up to ${String(MAX_ATTACHMENTS)} files).` } });
+          return;
+        }
+      }
+      if (!(await onQueued(queuedId, () => api.cancelQueued(threadId, queuedId)))) return;
+      if (item.text.trim() !== '') {
+        const typed = screen.get().draft.trim();
+        patch({ draft: typed === '' ? item.text : `${item.text}\n\n${typed}` });
+      }
+      if (item.attachments.length > 0) attachments.restore(item.attachments, image);
     },
     cancelQueued: async (queuedId) => {
       await onQueued(queuedId, () => api.cancelQueued(threadId, queuedId));

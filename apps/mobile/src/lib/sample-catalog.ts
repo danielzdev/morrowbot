@@ -35,7 +35,7 @@ function sampleAgent(
 
 function sampleThread(agentId: string, id: string, title: string, minutesAgo: number, now: number): Thread {
   const createdDaysAgo = id.endsWith('-main') ? 30 : 7;
-  return { id, agentId, title, createdAt: at(60 * 24 * createdDaysAgo, now), updatedAt: at(minutesAgo, now) };
+  return { id, agentId, title, createdAt: at(60 * 24 * createdDaysAgo, now), updatedAt: at(minutesAgo, now), archivedAt: null };
 }
 
 export type SampleThreadActivity =

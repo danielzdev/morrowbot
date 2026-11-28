@@ -6,7 +6,7 @@ import type { PendingAction } from './thread-session.ts';
 
 const AT = '2026-01-01T00:00:00.000Z';
 const BASE: ThreadState = {
-  thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT },
+  thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT, archivedAt: null },
   messages: [],
   reactions: [],
   toolSteps: [],
@@ -17,7 +17,7 @@ const BASE: ThreadState = {
   cursor: { hostEpoch: 'e1', seq: 0 },
 };
 const COPY = { provider: 'Claude', safe: (text: string) => text };
-const reply = (id: string, outcome: TurnOutcome, text = 'Here is the plan.'): AssistantMessage => ({ kind: 'assistant', id, threadId: 't', text, createdAt: AT, outcome });
+const reply = (id: string, outcome: TurnOutcome, text = 'Here is the plan.'): AssistantMessage => ({ kind: 'assistant', attachments: [], id, threadId: 't', text, createdAt: AT, outcome });
 const user: UserMessage = { kind: 'user', id: 'u1', threadId: 't', text: 'Plan my week', createdAt: AT, attachments: [] };
 
 /** Each event's announcement in "Status only" and "Status and replies". */

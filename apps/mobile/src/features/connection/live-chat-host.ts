@@ -2,6 +2,7 @@ import {
   Agent,
   AgentInstructionsView,
   AgentList,
+  Attachment,
   ContinueResponse,
   PluginEntry,
   PluginList,
@@ -44,6 +45,9 @@ function toChat<T>(reply: HostResult<T>): ChatResult<T> {
 
 const part = encodeURIComponent;
 
+/** An 8 MB image is about 11 MB of JSON: allow a slow link a while. */
+const UPLOAD_TIMEOUT_MS = 120_000;
+
 /**
  * The chat and Extensions API of the paired host, over its transport: every reply is parsed with
  * `@morrowbot/contracts`, and `watch` is the transport's fetch-`/state`-then-subscribe watcher.
@@ -65,8 +69,10 @@ export function createLiveChatHost(transport: HostTransport): ChatHost {
       const body: CreateThreadRequest = { title: 'New chat' };
       return call({ method: 'POST', path: `/api/agents/${part(agentId)}/threads`, reply: Thread, body });
     },
-    send: (threadId, text) => {
-      const body: SendMessageRequest = { text, attachmentIds: [], sessionChoice: { kind: 'auto' } };
+    uploadAttachment: (threadId, body) =>
+      call({ method: 'POST', path: `/api/threads/${part(threadId)}/attachments`, reply: Attachment, body, timeoutMs: UPLOAD_TIMEOUT_MS }),
+    send: (threadId, text, attachmentIds) => {
+      const body: SendMessageRequest = { text, attachmentIds: [...attachmentIds], sessionChoice: { kind: 'auto' } };
       return call({ method: 'POST', path: `/api/threads/${part(threadId)}/messages`, reply: SendMessageResponse, body });
     },
     continueTurn: (threadId, failedMessageId) => {
@@ -74,6 +80,10 @@ export function createLiveChatHost(transport: HostTransport): ChatHost {
       return call({ method: 'POST', path: `/api/threads/${part(threadId)}/continue`, reply: ContinueResponse, body });
     },
     stop: (threadId) => call({ method: 'POST', path: `/api/threads/${part(threadId)}/stop`, reply: StopGenerationResponse }),
+    steerQueued: (threadId, queuedId) =>
+      call({ method: 'POST', path: `/api/threads/${part(threadId)}/queue/${part(queuedId)}/steer`, reply: NoContent }),
+    cancelQueued: (threadId, queuedId) =>
+      call({ method: 'DELETE', path: `/api/threads/${part(threadId)}/queue/${part(queuedId)}`, reply: NoContent }),
     answerApproval: (threadId, approvalId, body) =>
       call({ method: 'POST', path: `/api/threads/${part(threadId)}/approvals/${part(approvalId)}`, reply: NoContent, body }),
     providerInfo: (pluginId) => call({ method: 'GET', path: `/api/plugins/${part(pluginId)}/info`, reply: ProviderInfoResponse }),

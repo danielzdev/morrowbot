@@ -27,6 +27,8 @@ export function AgentDialogs(props: {
   readonly bridge: MorrowbotBridge;
   readonly info: AppInfo | null;
   readonly reducedMotion: boolean;
+  /** True only for the server's owner, who may grant full access (shell commands). */
+  readonly allowFull: boolean;
   readonly onOpenProviders: () => void;
   /** Opens Extensions › Connectors; null for a member who may not manage them. */
   readonly onOpenConnectors: ((target: ConnectorTarget) => void) | null;
@@ -57,6 +59,7 @@ export function AgentDialogs(props: {
           bridge={bridge}
           choices={choices}
           prefill={dialog.brain === 'prefill'}
+          allowFull={props.allowFull}
           avatarEditor={avatarEditor}
           newAvatar={freshAvatar}
           pathLabel={(path) => displayPath(path, info)}
@@ -86,6 +89,7 @@ export function AgentDialogs(props: {
           section={dialog.section}
           onSection={(section) => { props.onDialog({ ...dialog, section }); }}
           choices={choices}
+          allowFull={props.allowFull}
           avatarEditor={avatarEditor}
           routines={<RoutinesSection model={models.routines} agentId={agent.id} redact={safe} />}
           extensions={

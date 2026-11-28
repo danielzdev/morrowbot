@@ -7,10 +7,13 @@ import { deriveBottomControlInsets, parseNativeLayoutMetrics, type NativeLayoutM
 import { radii, spacing, typography } from '../../lib/theme.ts';
 import { useTheme } from '../../lib/useTheme.ts';
 import type { DetailProps, WorkspaceNavigation } from '../../lib/workspace.ts';
+import { openAttachMenu } from './attach-menu.ts';
 import { AgentSettingsSheet } from './AgentSettingsSheet.tsx';
+import { AttachmentStrip } from './AttachmentStrip.tsx';
 import { chatRequests, useChatHub } from './chat-context.tsx';
 import { threadFor } from './chat-hub.ts';
-import { composerButton } from './chat-session.ts';
+import { canPick, roomLeft } from './composer-attachments.ts';
+import { composerButtons, queuedControls } from './composer-controls.ts';
 import { Composer } from './Composer.tsx';
 import { useKeyboardOverlap } from './keyboard-overlap.ts';
 import { MessageList } from './MessageList.tsx';
@@ -70,6 +73,20 @@ function ChatThread(props: {
           finished={view.value.finished}
           activeTurn={view.value.activeTurn}
           queue={view.value.queue}
+          agentName={props.agent.name}
+          queueControls={(message) => queuedControls(screen, message)}
+          onQueued={(action, queuedId) => {
+            switch (action) {
+              case 'now':
+                void session.steer(queuedId);
+                return;
+              case 'edit':
+                void session.editQueued(queuedId);
+                return;
+              case 'cancel':
+                void session.cancelQueued(queuedId);
+            }
+          }}
           answering={screen.answering}
           stale={stale}
           bottomInset={composerHeight + frame.bottom}
@@ -107,12 +124,27 @@ function ChatThread(props: {
         <Composer
           agent={props.agent}
           draft={screen.draft}
-          button={composerButton(screen)}
+          buttons={composerButtons(screen)}
           onDraft={(text) => {
             session.setDraft(text);
           }}
           onSend={() => void session.send()}
           onStop={() => void session.stop()}
+          attachments={
+            <AttachmentStrip
+              items={screen.attachments}
+              onRetry={(key) => {
+                session.attachments.retry(key);
+              }}
+              onRemove={(key) => {
+                session.attachments.remove(key);
+              }}
+            />
+          }
+          canAttach={view.kind === 'loaded' && !stale && canPick(screen.attachments)}
+          onAttach={() => {
+            openAttachMenu(session.attachments, roomLeft(screen.attachments));
+          }}
         />
       </View>
     </View>

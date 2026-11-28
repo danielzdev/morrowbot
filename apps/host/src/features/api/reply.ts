@@ -1,10 +1,12 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Agent, AgentInstructionsView, ApiError, ConnectorScope, ProviderUnavailableReason, SessionChoiceReason } from '@morrowbot/contracts';
 import type { z } from 'zod';
+import { sendFile, type FileReply } from './file-reply.ts';
 
 export type Reply =
   | { readonly kind: 'json'; readonly status: number; readonly body: unknown }
-  | { readonly kind: 'empty'; readonly status: number };
+  | { readonly kind: 'empty'; readonly status: number; readonly headers?: Readonly<Record<string, string>> }
+  | FileReply;
 
 type ErrorKind = Exclude<
   ApiError['error']['kind'],
@@ -101,7 +103,10 @@ export function send(response: ServerResponse, reply: Reply): void {
       response.writeHead(reply.status, { 'content-type': 'application/json' }).end(JSON.stringify(reply.body));
       break;
     case 'empty':
-      response.writeHead(reply.status).end();
+      response.writeHead(reply.status, reply.headers).end();
+      break;
+    case 'file':
+      sendFile(response, reply);
       break;
   }
 }

@@ -34,7 +34,7 @@ export async function sendRequest<T>(target: HttpTarget, request: HostRequest<T>
   const abort = new AbortController();
   const timer = setTimeout(() => {
     abort.abort();
-  }, TIMEOUT_MS);
+  }, request.timeoutMs ?? TIMEOUT_MS);
   try {
     const response = await target.fetch(`${target.url}${request.path}`, {
       method: request.method,

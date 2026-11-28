@@ -16,9 +16,9 @@ function chatOf(count: number): ThreadView {
   const messages: Message[] = Array.from({ length: count }, (_, index): Message =>
     index % 2 === 0
       ? { kind: 'user', id: `m${String(index)}`, threadId: 't', text: `Question ${String(index)}`, createdAt: AT, attachments: [] }
-      : { kind: 'assistant', id: `m${String(index)}`, threadId: 't', text: REPLY.replaceAll('%n', String(index)), createdAt: AT, outcome: { kind: 'completed', finishReason: 'stop' } },
+      : { kind: 'assistant', attachments: [], id: `m${String(index)}`, threadId: 't', text: REPLY.replaceAll('%n', String(index)), createdAt: AT, outcome: { kind: 'completed', finishReason: 'stop' } },
   );
-  return viewOf({ thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT }, messages, reactions: [], toolSteps: [], activeTurn: null, queue: [], blockedGroups: [], subagents: [], cursor: { hostEpoch: 'e', seq: 0 } });
+  return viewOf({ thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT, archivedAt: null }, messages, reactions: [], toolSteps: [], activeTurn: null, queue: [], blockedGroups: [], subagents: [], cursor: { hostEpoch: 'e', seq: 0 } });
 }
 
 const CTX: TimelineContext = {
@@ -30,6 +30,7 @@ const CTX: TimelineContext = {
   onReact: () => undefined,
   agentName: 'Helper',
   image: () => Promise.resolve(null),
+  files: { url: (id) => id, act: () => Promise.resolve({ kind: 'cancelled' }) },
   peers: { name: () => 'Peer', color: () => '#6b7280', avatar: () => null },
   engine: ({ pluginId }) => pluginId,
   avatar: () => null,

@@ -15,7 +15,7 @@ const SECOND: PendingApproval = { ...EDIT, approvalId: 'a2', summary: 'Allow wri
 
 function state(pending: readonly PendingApproval[], seq: number, generationId: string | null = 'g'): ThreadState {
   return {
-    thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT },
+    thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT, archivedAt: null },
     messages: [],
     reactions: [],
     toolSteps: [],
@@ -47,7 +47,7 @@ const endings = (view: ThreadView, messageId?: string): Record<string, string> =
   return Object.fromEntries(steps.flatMap((step) => (step.kind === 'approval' ? [[step.approval.approvalId, step.ending === null ? 'pending' : JSON.stringify(step.ending)]] : [])));
 };
 
-const REPLY: AssistantMessage = { kind: 'assistant', id: 'm2', threadId: 't', text: 'Done', createdAt: AT, outcome: { kind: 'completed', finishReason: 'stop' } };
+const REPLY: AssistantMessage = { kind: 'assistant', attachments: [], id: 'm2', threadId: 't', text: 'Done', createdAt: AT, outcome: { kind: 'completed', finishReason: 'stop' } };
 
 it('ends each request from the host: chosen, expired, cleared with the turn, or vanished during a resync', () => {
   const asked = apply(viewOf(state([], 1)), [

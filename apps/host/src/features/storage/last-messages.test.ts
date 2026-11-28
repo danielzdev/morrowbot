@@ -41,7 +41,7 @@ function say(threadId: string, kind: 'user' | 'assistant', text: string): void {
   seq += 1;
   const base = { id: `m${String(seq)}`, threadId, text, createdAt: `2026-01-01T00:00:${String(seq).padStart(2, '0')}.000Z` };
   storage.messages.insert(
-    kind === 'user' ? { kind, ...base, attachments: [] } : { kind, ...base, outcome: { kind: 'completed', finishReason: 'stop' } },
+    kind === 'user' ? { kind, ...base, attachments: [] } : { kind, ...base, outcome: { kind: 'completed', finishReason: 'stop' }, attachments: [] },
   );
 }
 

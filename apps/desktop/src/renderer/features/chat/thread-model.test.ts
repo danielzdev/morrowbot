@@ -6,7 +6,7 @@ import { applyEvent, pendingApprovals, viewOf, type ThreadEvent, type ThreadView
 
 const AT = '2026-01-01T00:00:00.000Z';
 const STATE: ThreadState = {
-  thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT },
+  thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT, archivedAt: null },
   messages: [],
   reactions: [],
   toolSteps: [],
@@ -84,7 +84,7 @@ it('asks for a resync when an event belongs to a turn the view does not know', (
 });
 
 it('keeps a background turn out of the messages, notes how it ended early, and never shows it as a completed reply', () => {
-  const reply: Message = { kind: 'assistant', id: 'r', threadId: 't', text: 'Earlier reply', outcome: { kind: 'completed', finishReason: 'stop' }, createdAt: AT };
+  const reply: Message = { kind: 'assistant', attachments: [], id: 'r', threadId: 't', text: 'Earlier reply', outcome: { kind: 'completed', finishReason: 'stop' }, createdAt: AT };
   let view = viewOf({ ...STATE, messages: [reply], activeTurn: null });
   let activity: ChatActivity = 'idle';
   const seen: string[] = [];

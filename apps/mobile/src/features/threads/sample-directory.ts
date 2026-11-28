@@ -72,7 +72,7 @@ export function createSampleDirectory(clock: () => number = Date.now, hooks: Sam
         }
         created += 1;
         const time = new Date(clock()).toISOString();
-        fresh = { id: `new-${String(created)}`, agentId, title: 'New chat', createdAt: time, updatedAt: time };
+        fresh = { id: `new-${String(created)}`, agentId, title: 'New chat', createdAt: time, updatedAt: time, archivedAt: null };
       }
       appendThread(hostId, fresh);
       return { kind: 'created', thread: fresh };

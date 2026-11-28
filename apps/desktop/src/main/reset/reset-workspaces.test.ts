@@ -53,3 +53,48 @@ it("trusts a host's agent list only when this app sees every agent there: never 
   server.close();
   expect({ owner, coOwner, scoped }).toEqual({ owner: [], coOwner: [], scoped: null });
 });
+
+it('survives unknown fields added by a newer host on /api/me and /api/agents', async () => {
+  const now = '2026-11-27T12:00:00.000Z';
+  const server = createServer((request, response) => {
+    response.setHeader('content-type', 'application/json');
+    if (request.url === '/api/me') {
+      response.end(JSON.stringify({ kind: 'owner', serverVersion: '2.0.0' }));
+      return;
+    }
+    response.end(
+      JSON.stringify({
+        agents: [
+          {
+            id: 'a1',
+            name: 'Helper',
+            description: '',
+            workspace: { kind: 'dedicated', dir: '/workspace/helper', quotaMb: 512 },
+            avatar: { kind: 'bot', shape: 'chat', color: '#6b7280', finish: 'flat' },
+            provider: { kind: 'unbound' },
+            folderId: null,
+            createdAt: now,
+            updatedAt: now,
+            pinnedAt: now,
+          },
+        ],
+        folders: [],
+        lastMessages: [],
+        serverVersion: '2.0.0',
+      }),
+    );
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const address = server.address();
+    if (address === null || typeof address === 'string') throw new Error('fake host is not on TCP');
+    const workspaces = await hostWorkspaces({ url: `http://127.0.0.1:${String(address.port)}`, token: 'test' }, 'file:///index.html');
+    expect(workspaces).toEqual(['/workspace/helper']);
+  } finally {
+    await new Promise<void>((resolve) => {
+      server.close(() => {
+        resolve();
+      });
+    });
+  }
+});

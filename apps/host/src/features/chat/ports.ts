@@ -22,6 +22,7 @@ import type {
   TurnUsage,
   ToolStep,
   ReactionActor,
+  ReplyAttachment,
   UsageResult,
   UsageWindow,
   VendorSettings,
@@ -35,6 +36,7 @@ export interface QueuedRecord {
   readonly id: string;
   readonly threadId: string;
   readonly text: string;
+  readonly attachmentIds: readonly string[];
   readonly createdAt: string;
 }
 
@@ -65,16 +67,19 @@ export interface SubagentRecord {
   readonly createdAt: string;
 }
 
+export type ThreadArchiveFilter = 'active' | 'archived' | 'all';
+
 /** The storage the chat feature needs (the storage feature provides it). */
 export interface ChatStore {
   readonly threads: {
-    insert(thread: Omit<Thread, 'createdSeq'>): Thread;
+    insert(thread: Omit<Thread, 'createdSeq' | 'archivedAt'> & { readonly archivedAt?: string | null }): Thread;
     update(thread: Thread): void;
+    setArchived(id: string, archivedAt: string | null): boolean;
     touch(id: string, at: string): void;
     delete(id: string): boolean;
     get(id: string): Thread | undefined;
-    listByAgent(agentId: string): Thread[];
-    listAll(): Thread[];
+    listByAgent(agentId: string, filter?: ThreadArchiveFilter): Thread[];
+    listAll(filter?: ThreadArchiveFilter): Thread[];
   };
   readonly messages: {
     insert(message: Message): void;
@@ -98,6 +103,12 @@ export interface ChatStore {
     listOpen(generationId: string): ToolStep[];
     close(generationId: string, messageId: string | null): void;
     listByThread(threadId: string): MessageToolSteps[];
+  };
+  /** Files each turn's agent attached with `attach_files`, kept with the turn until its reply is saved. */
+  readonly replyAttachments: {
+    listOpen(generationId: string): readonly { readonly attachment: ReplyAttachment }[];
+    /** Puts the turn's open files on its reply `messageId`; with no reply they are dropped. */
+    close(generationId: string, messageId: string | null): void;
   };
   readonly reactions: {
     /** False when the actor already has this emoji on the message. */
@@ -167,6 +178,8 @@ export interface ChatStore {
   };
   readonly attachments: {
     pending(threadId: string, ids: readonly string[]): Attachment[] | undefined;
+    touch(threadId: string, ids: readonly string[], at: string): void;
+    get(id: string): Attachment | undefined;
   };
   readonly agentMessages: {
     setReadOutcome(id: string, outcome: AgentMessageReadOutcome): void;

@@ -54,6 +54,7 @@ function fakeBridge(request: MorrowbotBridge['request']): MorrowbotBridge {
     runReset: unused,
     serverMode: unused,
     chooseServer: unused,
+    fileAction: unused,
   };
 }
 

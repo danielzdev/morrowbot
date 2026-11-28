@@ -22,6 +22,7 @@ const user = (id: string, threadId: string, text: string): Message => ({
 
 const assistant = (id: string, threadId: string, text: string, outcome: Extract<Message, { kind: 'assistant' }>['outcome'] = { kind: 'completed', finishReason: 'stop' }): Message => ({
   kind: 'assistant',
+  attachments: [],
   id,
   threadId,
   text,

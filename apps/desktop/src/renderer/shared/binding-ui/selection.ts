@@ -94,12 +94,18 @@ export function statusLine(readiness: Readiness): string {
 }
 
 /**
- * The first interactive profile with no warnings, else the first interactive one (its warnings are shown).
- * Never full access: only the owner turns that on, after a confirmation.
+ * Prefers `full` access (isolated first, else any offered interactive `full` profile) when
+ * `allowFull` is not false; otherwise falls back to the first warning-free non-full interactive
+ * profile, else the first non-full interactive profile.
  */
-export function defaultProfile(info: ReadyInfo): AccessProfile | null {
-  const interactive = interactiveProfiles(info).filter((profile) => profile.access !== 'full');
-  return interactive.find((profile) => profileWarnings(profile).length === 0) ?? interactive[0] ?? null;
+export function defaultProfile(info: ReadyInfo, options?: { readonly allowFull?: boolean }): AccessProfile | null {
+  const interactive = interactiveProfiles(info);
+  if (options?.allowFull !== false) {
+    const full = interactive.filter((profile) => profile.access === 'full');
+    if (full.length > 0) return full.find((profile) => profile.vendorSettings === 'isolated') ?? full[0] ?? null;
+  }
+  const nonFull = interactive.filter((profile) => profile.access !== 'full');
+  return nonFull.find((profile) => profileWarnings(profile).length === 0) ?? nonFull[0] ?? null;
 }
 
 /** `model` pinned with each option at its default. */
@@ -119,11 +125,33 @@ export function initialSelection(info: ReadyInfo): ModelSelection {
   return model === undefined ? { kind: 'default' } : pinModel(model);
 }
 
-/** A fresh binding to `choice` (New Agent, or a provider switch); unbound when it can't run. */
-export function newBinding(choice: ProviderChoice): ProviderBinding {
+/** A fresh binding to `choice` (New Agent, or binding an unbound agent); unbound when it can't run. */
+export function newBinding(choice: ProviderChoice, options?: { readonly allowFull?: boolean }): ProviderBinding {
   const info = readyInfo(choice.info);
-  const profile = info === null ? null : defaultProfile(info);
+  const profile = info === null ? null : defaultProfile(info, options);
   if (!isRunnable(choice) || info === null || profile === null) return { kind: 'unbound' };
+  return { kind: 'bound', pluginId: choice.id, selection: initialSelection(info), access: profile.access, vendorSettings: profile.vendorSettings };
+}
+
+/**
+ * Switches an existing binding to `choice` without escalating access: preserves `current.access`
+ * when offered (subject to `allowFull`), otherwise falls back to a non-full interactive profile
+ * (or `full` only when `choice` offers nothing else and `allowFull` is not false).
+ */
+export function switchBinding(choice: ProviderChoice, current: ProviderBinding, options?: { readonly allowFull?: boolean }): ProviderBinding {
+  if (current.kind === 'unbound') return newBinding(choice, options);
+  const info = readyInfo(choice.info);
+  if (!isRunnable(choice) || info === null) return { kind: 'unbound' };
+  const allowFull = options?.allowFull !== false;
+  const interactive = interactiveProfiles(info).filter((profile) => allowFull || profile.access !== 'full');
+  const kept = interactive.filter((profile) => profile.access === current.access);
+  const profile =
+    kept.find((each) => each.vendorSettings === current.vendorSettings) ??
+    kept.find((each) => each.vendorSettings === 'isolated') ??
+    kept[0] ??
+    defaultProfile(info, { allowFull: false }) ??
+    (allowFull ? defaultProfile(info, { allowFull: true }) : null);
+  if (profile === null) return { kind: 'unbound' };
   return { kind: 'bound', pluginId: choice.id, selection: initialSelection(info), access: profile.access, vendorSettings: profile.vendorSettings };
 }
 

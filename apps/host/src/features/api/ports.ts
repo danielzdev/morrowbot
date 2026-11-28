@@ -7,6 +7,7 @@ import type {
   Agent,
   Attachment,
   AttachmentContent,
+  ReplyAttachment,
   CreateMemoryRequest,
   Memory,
   SkillList,
@@ -117,7 +118,14 @@ export type ApiAdmitResult =
   | { readonly kind: 'attachments_missing' };
 
 /** A send starts a turn, or waits in the thread's queue while a turn runs. */
-export type ApiSendResult = ApiAdmitResult | { readonly kind: 'queued'; readonly queued: QueuedMessage } | { readonly kind: 'files_wait' };
+export type ApiSendResult = ApiAdmitResult | { readonly kind: 'queued'; readonly queued: QueuedMessage };
+
+export type ApiArchiveThreadResult =
+  | { readonly kind: 'archived'; readonly thread: Thread }
+  | { readonly kind: 'not_found' }
+  | { readonly kind: 'conflict'; readonly reason: string };
+
+export type ApiThreadArchiveFilter = 'active' | 'archived' | 'all';
 
 export type ApiQueueAnswer =
   | { readonly kind: 'ok' }
@@ -127,11 +135,13 @@ export type ApiQueueAnswer =
 export type ApiReplay = { readonly kind: 'events'; readonly events: readonly ChatEvent[] } | { readonly kind: 'resync' };
 
 export interface ApiChat {
-  listThreads(agentId: string): Thread[] | undefined;
+  listThreads(agentId: string, filter?: ApiThreadArchiveFilter): Thread[] | undefined;
   listThreadSummaries(): ThreadSummary[];
   createThread(agentId: string, request: CreateThreadRequest): Thread | undefined;
   getThread(id: string): Thread | undefined;
   renameThread(id: string, title: string): Thread | undefined;
+  archiveThread(id: string): ApiArchiveThreadResult;
+  restoreThread(id: string): Thread | undefined;
   deleteThread(id: string): Promise<boolean>;
   deleteAgent(id: string): Promise<boolean>;
   listMessages(threadId: string): Message[] | undefined;
@@ -230,8 +240,10 @@ export interface ApiAttachments {
     request: UploadAttachmentRequest,
   ): Promise<{ readonly kind: 'saved'; readonly attachment: Attachment } | { readonly kind: 'not-found' } | { readonly kind: 'invalid'; readonly reason: string }>;
   content(id: string): Promise<AttachmentContent | undefined>;
-  /** The thread an attachment was uploaded to, or undefined for an unknown id. */
+  /** The thread an attachment was uploaded to, or a reply attachment's chat; undefined for an unknown id. */
   threadOf(id: string): string | undefined;
+  /** A file an agent attached to its reply, and where its bytes are kept. */
+  reply(id: string): { readonly attachment: ReplyAttachment; readonly file: string } | undefined;
 }
 
 /** Each call is undefined for an unknown agent (or memory). */

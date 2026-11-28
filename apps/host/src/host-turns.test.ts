@@ -50,6 +50,7 @@ it('Stop waits for the turn to end, and /state shows text streamed since the las
       "stopped": {
         "kind": "stopped",
         "message": {
+          "attachments": [],
           "createdAt": "2026-01-01T00:00:04.000Z",
           "id": "id-5",
           "kind": "assistant",
@@ -129,6 +130,7 @@ it('queues a third turn on one account, shows why, and cancels it on Stop withou
           "generationId": "id-9",
           "kind": "generation.finished",
           "message": {
+            "attachments": [],
             "createdAt": "2026-01-01T00:00:09.000Z",
             "id": "id-11",
             "kind": "assistant",
@@ -155,6 +157,7 @@ it('queues a third turn on one account, shows why, and cancels it on Stop withou
       "stopQueued": {
         "kind": "stopped",
         "message": {
+          "attachments": [],
           "createdAt": "2026-01-01T00:00:09.000Z",
           "id": "id-11",
           "kind": "assistant",

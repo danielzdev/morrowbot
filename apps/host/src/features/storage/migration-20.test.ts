@@ -11,15 +11,15 @@ afterEach(async () => {
   for (const dir of dirs.splice(0)) await rm(dir, { recursive: true, force: true });
 });
 
-it('upgrades from schema 17 to 18 keeping agents with empty disabledExtensions, revision 0, and atomic conflict checks', async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'morrowbot-m18-'));
+it('upgrades from schema 19 to 20 keeping agents with empty disabledExtensions, revision 0, and atomic conflict checks', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'morrowbot-m20-'));
   dirs.push(dir);
   const file = path.join(dir, 'morrowbot.sqlite');
 
   const raw = new DatabaseSync(file);
   raw.exec('PRAGMA foreign_keys = ON');
-  for (const sql of MIGRATIONS.slice(0, 17)) raw.exec(sql);
-  raw.exec('PRAGMA user_version = 17');
+  for (const sql of MIGRATIONS.slice(0, 19)) raw.exec(sql);
+  raw.exec('PRAGMA user_version = 19');
   raw
     .prepare(
       `INSERT INTO agents (id, name, description, workspace, avatar, provider, folder_id, emoji_replies, created_at, updated_at)

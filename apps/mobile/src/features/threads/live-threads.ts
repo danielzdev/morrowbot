@@ -28,15 +28,21 @@ function onScreen(summaries: readonly ThreadSummary[], screens: readonly ChatOnS
   });
 }
 
-/** The host's whole list, as after a reload. Unread stays on the threads that are still there. */
+/** The host's whole list, as after a reload. Unread stays on the active threads that are still there. */
 export function listed(state: LiveThreads, summaries: readonly ThreadSummary[]): LiveThreads {
-  const ids = new Set(summaries.map(({ thread }) => thread.id));
-  return { summaries, unread: new Set([...state.unread].filter((id) => ids.has(id))) };
+  const active = summaries.filter(({ thread }) => thread.archivedAt === null);
+  const ids = new Set(active.map(({ thread }) => thread.id));
+  return { summaries: active, unread: new Set([...state.unread].filter((id) => ids.has(id))) };
 }
 
-/** One thread's new summary. A reply newer than the last one seen is unread unless its chat is on screen. */
+/** One thread's new summary. Archived threads drop out; a reply newer than the last one seen is unread unless its chat is on screen. */
 export function changed(state: LiveThreads, summary: ThreadSummary, screens: readonly ChatOnScreen[]): LiveThreads {
   const { id } = summary.thread;
+  if (summary.thread.archivedAt !== null) {
+    const summaries = state.summaries.filter(({ thread }) => thread.id !== id);
+    const unread = new Set([...state.unread].filter((each) => each !== id));
+    return { summaries, unread };
+  }
   const before = state.summaries.find(({ thread }) => thread.id === id);
   const summaries = before === undefined ? [...state.summaries, summary] : state.summaries.map((each) => (each === before ? summary : each));
   const last = summary.lastMessage;
