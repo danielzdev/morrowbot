@@ -99,7 +99,7 @@ it('an edit opencode reports finished without asking fails the turn, ends the da
   const broken = await fixture.start(thread, 'sneaky edit');
   await fixture.events.finished(broken);
   const [launch] = await fixture.launches();
-  await until(() => launch !== undefined && !isRunning(launch.pid));
+  await until(() => launch !== undefined && !isRunning(launch.pid) && fixture.daemonPgids().length === 0);
   const next = await fixture.post(thread, 'hello');
   const info = await fixture.host.call('GET', '/api/plugins/provider-opencode/info?refresh=1');
   const body: unknown = info.body;
