@@ -15,6 +15,7 @@ import { MessageReaction } from './reactions.ts';
 import { ThreadChanged } from './thread-activity.ts';
 import { Thread } from './threads.ts';
 import { MessageToolSteps, ToolStep } from './tool-steps.ts';
+import { ThreadCard } from './thread-cards.ts';
 
 export const ProviderUnavailableReason = z.enum(['route-info-timeout', 'route-info-failed', 'daemon-blocked', 'rechecking']);
 export type ProviderUnavailableReason = z.infer<typeof ProviderUnavailableReason>;
@@ -293,6 +294,8 @@ export const ChatEvent = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('generation.background-finished'), ...ThreadEvent, outcome: TurnOutcome }),
   /** A message's reactions changed: `reactions` is its whole list now, oldest first. */
   z.strictObject({ kind: z.literal('reactions.changed'), threadId: EntityId, cursor: Cursor, messageId: EntityId, reactions: z.array(MessageReaction) }),
+  /** A card was put in the chat, or changed: `card` is its whole newest copy (see `ThreadCard.revision`). */
+  z.strictObject({ kind: z.literal('card.changed'), threadId: EntityId, cursor: Cursor, card: ThreadCard }),
   /** A sub-agent of this chat's turn `generationId` started, began running or ended. */
   z.strictObject({ kind: z.literal('subagent.changed'), ...ThreadEvent, run: SubagentRun }),
   /** Global (not part of any thread's cursor): refetch `/api/plugins/:id/usage`. */

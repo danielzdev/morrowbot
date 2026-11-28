@@ -40,6 +40,8 @@ export function Pages(props: {
   readonly onToggleInspector: () => void;
   /** First run: New Agent, prefilled or as an unbound draft. */
   readonly onFirstAgent: (brain: NewAgentBrain) => void;
+  /** Extensions, at a plugin a chat card offers; null for a member, who has no Extensions. */
+  readonly onOpenPlugin: ((pluginId: string) => void) | null;
 }) {
   const { models, bridge, agent, chrome, info, page } = props;
   const state = useStore(models.agents.state);
@@ -81,6 +83,7 @@ export function Pages(props: {
             inspectorOpen={props.inspectorOpen}
             onToggleInspector={props.onToggleInspector}
             ownerEngines={props.onNewAgent !== null}
+            onOpenPlugin={props.onOpenPlugin}
           />
         );
       }

@@ -11,12 +11,14 @@ import type {
   QueuedMessage,
   SubagentRun,
   Thread,
+  ThreadCard,
   ThreadState,
   TurnState,
   TurnTrigger,
 } from '@morrowbot/contracts';
 import { replaceReactions } from './reactions.ts';
 import { fromSaved, withSaved } from './saved-tools.ts';
+import { settleCards, withCard } from './thread-cards.ts';
 
 /**
  * A tool call seen live or saved by the host. Times are ms; only differences between them are shown. `unfinished`:
@@ -91,6 +93,8 @@ export interface ThreadView {
   readonly quietEnds: Readonly<Record<string, AgentMessageReadOutcome>>;
   /** The sub-agents this chat's turns started, oldest first. */
   readonly subagents: readonly SubagentRun[];
+  /** The cards agents put in this chat (`/api/ui/v1`), oldest first: on saved replies, or the running turn's. */
+  readonly cards: readonly ThreadCard[];
 }
 
 export type ThreadEvent = Exclude<ChatEvent, { kind: 'usage.updated' }>;
@@ -132,6 +136,7 @@ export function viewOf(
   state: ThreadState,
   previous: ThreadView | null = null,
   agentMessages: readonly AgentMessage[] = previous?.agentMessages ?? [],
+  cards: readonly ThreadCard[] = previous?.cards ?? [],
 ): ThreadView {
   const active = state.activeTurn;
   const fresh: ActiveTurnView | null =
@@ -165,6 +170,7 @@ export function viewOf(
     cursor: state.cursor,
     agentMessages,
     quietEnds: { ...previous?.quietEnds, ...savedReadEnds },
+    cards,
   };
   const before = previous?.activeTurn ?? null;
   if (before === null || previous === null) return { ...base, activeTurn: fresh, finished: kept };
@@ -248,6 +254,7 @@ function change(view: ThreadView, event: ThreadEvent, now: number): ThreadView |
   if (event.kind === 'queue.changed') return { ...view, queue: event.queue };
   if (event.kind === 'reactions.changed') return { ...view, reactions: replaceReactions(view.reactions, event.messageId, event.reactions) };
   if (event.kind === 'subagent.changed') return { ...view, subagents: withRun(view.subagents, event.run) };
+  if (event.kind === 'card.changed') return { ...view, cards: withCard(view.cards, event.card) };
   if (event.kind === 'generation.started' || event.kind === 'generation.background-started') {
     const started = event.kind === 'generation.started' ? event.userMessage : null;
     const messages = started === null || view.messages.some(({ id }) => id === started.id) ? view.messages : [...view.messages, started];
@@ -307,19 +314,22 @@ function change(view: ThreadView, event: ThreadEvent, now: number): ThreadView |
       return {
         ...view,
         messages: [...view.messages, segment, userMessage],
+        cards: settleCards(view.cards, active.generationId, segment.id),
         activeTurn: { ...active, text: '', steps: [], detail: null, startedAt: now },
         finished: { ...view.finished, [segment.id]: record },
       };
     }
     case 'generation.finished': {
-      if (view.messages.some(({ id }) => id === event.message.id)) return { ...view, activeTurn: null };
+      const cards = settleCards(view.cards, active.generationId, event.message.id);
+      if (view.messages.some(({ id }) => id === event.message.id)) return { ...view, cards, activeTurn: null };
       const record: FinishedTurn = { steps: settled(active.steps, 'unfinished'), durationMs: active.startedAt === null ? null : now - active.startedAt };
-      return { ...view, messages: [...view.messages, event.message], activeTurn: null, finished: { ...view.finished, [event.message.id]: record } };
+      return { ...view, cards, messages: [...view.messages, event.message], activeTurn: null, finished: { ...view.finished, [event.message.id]: record } };
     }
     case 'generation.background-finished': {
       const { trigger } = active;
-      if (trigger.kind === 'chat') return { ...view, activeTurn: null };
-      return { ...view, activeTurn: null, quietEnds: { ...view.quietEnds, [trigger.agentMessageId]: event.outcome.kind } };
+      const cards = settleCards(view.cards, active.generationId, null);
+      if (trigger.kind === 'chat') return { ...view, cards, activeTurn: null };
+      return { ...view, cards, activeTurn: null, quietEnds: { ...view.quietEnds, [trigger.agentMessageId]: event.outcome.kind } };
     }
   }
 }

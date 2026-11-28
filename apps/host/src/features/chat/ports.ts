@@ -15,6 +15,7 @@ import type {
   MessageToolSteps,
   ProviderInfo,
   Thread,
+  ThreadCard,
   TurnChunk,
   TurnEnd,
   TurnOutcome,
@@ -98,6 +99,12 @@ export interface ChatStore {
     listOpen(generationId: string): ToolStep[];
     close(generationId: string, messageId: string | null): void;
     listByThread(threadId: string): MessageToolSteps[];
+  };
+  /** Cards agents put in the chat (see the storage feature's cards repository). */
+  readonly cards: {
+    insert(card: ThreadCard): void;
+    countOpen(generationId: string): number;
+    close(generationId: string, messageId: string | null): void;
   };
   readonly reactions: {
     /** False when the actor already has this emoji on the message. */

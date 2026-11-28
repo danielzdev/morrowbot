@@ -1,4 +1,5 @@
-import type { PluginConfig, PluginEntry, PluginPermission, PluginProblem } from '@morrowbot/contracts';
+import type { PluginConfig, PluginEntry, PluginProblem } from '@morrowbot/contracts';
+import { PERMISSION_LABELS } from '../../shared/permission-labels.ts';
 import { ItemMark } from '../../shared/ui/ItemMark.tsx';
 import { DetailSection, Pill } from '../../shared/ui/ListDetail.tsx';
 import { SettingsForm } from '../../shared/ui/SettingsForm.tsx';
@@ -6,14 +7,6 @@ import { Toggle } from '../../shared/ui/Toggle.tsx';
 import { healthOf, problemHealth } from './plugin-health.ts';
 import type { PluginWork } from './plugins-model.ts';
 
-const PERMISSIONS: Readonly<Record<PluginPermission, string>> = {
-  network: 'Use the internet',
-  filesystem: 'Read and change files',
-  shell: 'Run commands on this computer',
-  secrets: 'Use saved passwords and keys',
-  accessibility: 'See and control apps on this Mac (Accessibility)',
-  'screen-recording': 'Take pictures of the screen (Screen Recording)',
-};
 
 export const sourceLabel = (entry: PluginEntry): string => (entry.source === 'built-in' ? 'Built-in' : 'Yours');
 
@@ -86,7 +79,7 @@ export function PluginDetail(props: {
         ) : (
           <ul class="fact-list">
             {manifest.permissions.map((permission) => (
-              <li key={permission}>{PERMISSIONS[permission]}</li>
+              <li key={permission}>{PERMISSION_LABELS[permission]}</li>
             ))}
           </ul>
         )}

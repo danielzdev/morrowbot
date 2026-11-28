@@ -24,6 +24,8 @@ export * from './thread-activity.ts';
 export * from './messages.ts';
 export * from './tool-steps.ts';
 export * from './reactions.ts';
+export * from './ui-blocks.ts';
+export * from './thread-cards.ts';
 export * from './queue.ts';
 export * from './chat-api.ts';
 export * from './host-ipc.ts';

@@ -261,6 +261,7 @@ export function App({ bridge, server, role }: AppProps) {
               inspectorOpen={inspector}
               onToggleInspector={toggleInspector}
               onFirstAgent={(brain) => { setDialog({ kind: 'new-agent', brain }); }}
+              onOpenPlugin={owner ? (pluginId) => { leave(() => { setPage({ kind: 'extensions', jump: { id: ++jumps.current, target: { kind: 'plugin', pluginId } } }); }); } : null}
             />
           </>
         )}
@@ -273,7 +274,7 @@ export function App({ bridge, server, role }: AppProps) {
         info={info}
         reducedMotion={appearance.reducedMotion}
         onOpenProviders={() => { openSettings('providers'); }}
-        onOpenConnectors={owner ? (target) => { setPage({ kind: 'extensions', jump: { id: ++jumps.current, target } }); } : null}
+        onOpenConnectors={owner ? (target) => { setPage({ kind: 'extensions', jump: { id: ++jumps.current, target: { kind: 'connectors', target } } }); } : null}
         onCreated={(created) => { newChat(created.id); }}
       />
       {settings !== null && (

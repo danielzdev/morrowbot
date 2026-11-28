@@ -172,7 +172,7 @@ const plugin = (
   source: 'built-in' | 'user',
   status: PluginEntry['status'],
 ): PluginEntry => ({
-  manifest: { protocolVersion: 1, id, name, version: '1.0.0', kind, main: 'index.js', permissions: [], envPreset: 'none', settingsSchema: {} },
+  manifest: { protocolVersion: 1, id, name, description: '', version: '1.0.0', kind, main: 'index.js', permissions: [], envPreset: 'none', settingsSchema: {} },
   source,
   status,
   enabled: status.kind !== 'disabled',

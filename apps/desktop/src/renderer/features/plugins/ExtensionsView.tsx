@@ -34,13 +34,16 @@ export interface ConnectorsSlot {
   readonly onBrowse: () => void;
 }
 
+/** Where a jump lands: the Connectors tab (then `arrive`), or a plugin's page in Plugins. */
+export type ExtensionsJumpTo = { readonly kind: 'connectors'; readonly arrive: () => void } | { readonly kind: 'plugin'; readonly pluginId: string };
+
 export interface ExtensionsViewProps {
   readonly model: PluginsModel;
   readonly info: AppInfo | null;
   /** The Connectors tab, which the connectors feature draws, and how many connectors match the search. */
   readonly connectors: { readonly count: (query: string) => number | null; readonly tab: (slot: ConnectorsSlot) => ComponentChildren };
-  /** Another screen sent the user to Connectors: each new `id` shows that tab, then calls `arrive`, after the dirty check. */
-  readonly jump: { readonly id: number; readonly arrive: () => void } | null;
+  /** Another screen sent the user here: each new `id` shows that place, after the dirty check. */
+  readonly jump: { readonly id: number; readonly to: ExtensionsJumpTo } | null;
   readonly bridge: Pick<MorrowbotBridge, 'revealPath' | 'relaunch'>;
   /** "Configure in Providers →" for a plugin that adds a community provider. */
   readonly onOpenProvider: (providerId: string) => void;
@@ -111,9 +114,18 @@ export function ExtensionsView(props: ExtensionsViewProps) {
     if (to === null) return;
     guarded.current(() => {
       setQuery('');
-      setSavedTab('connectors');
-      writePref(TAB_KEY, 'connectors');
-      to.arrive();
+      const { to: place } = to;
+      switch (place.kind) {
+        case 'connectors':
+          setSavedTab('connectors');
+          writePref(TAB_KEY, 'connectors');
+          place.arrive();
+          return;
+        case 'plugin':
+          setSavedTab('plugins');
+          writePref(TAB_KEY, 'plugins');
+          setSelectedKey(`plugin:${place.pluginId}`);
+      }
     });
   }, [jumpId]);
 

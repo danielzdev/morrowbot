@@ -28,7 +28,7 @@ function state(pending: readonly PendingApproval[], seq: number, generationId: s
 }
 
 /** A thread event without the fields every event of turn `g` shares. */
-type EventBody = ThreadEvent extends infer E ? (E extends Exclude<ThreadEvent, { kind: 'queue.changed' | 'reactions.changed' }> ? Omit<E, 'threadId' | 'generationId' | 'cursor'> : never) : never;
+type EventBody = ThreadEvent extends infer E ? (E extends Exclude<ThreadEvent, { kind: 'queue.changed' | 'reactions.changed' | 'card.changed' }> ? Omit<E, 'threadId' | 'generationId' | 'cursor'> : never) : never;
 
 /** Applies events after `view`, numbering them from its cursor. */
 function apply(view: ThreadView, bodies: readonly EventBody[]): ThreadView {

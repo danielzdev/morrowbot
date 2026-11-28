@@ -3,6 +3,7 @@ import type {
   Agent,
   AgentMessage,
   BoundProvider,
+  CardProposal,
   CreateMemoryRequest,
   CreateRoutineRequest,
   Memory,
@@ -173,6 +174,11 @@ export interface ToolPorts {
   readonly replies: {
     react(grant: ToolGrant, emoji: string): ReplyAnswer;
     stayQuiet(grant: ToolGrant): ReplyAnswer;
+  };
+  /** Cards in the turn's chat, and the Marketplace they can offer from (the cards feature provides them). */
+  readonly cards: {
+    propose(grant: ToolGrant, proposal: CardProposal): Promise<ReplyAnswer>;
+    searchMarketplace(query: string): Promise<ReplyAnswer>;
   };
   /** The vault's item names. Secret values never reach the tools. */
   readonly vault: { list(): readonly VaultItem[] };

@@ -36,6 +36,8 @@ export interface AgentsModel {
   /** Deletes the folder; its agents stay, in no folder. */
   deleteFolder(id: string): Promise<void>;
   newThread(agentId: string): Promise<void>;
+  /** Fetches one agent again, such as after a chat card changed one of its settings. */
+  refreshAgent(id: string): Promise<void>;
   /** Fetches the agent's chats again, such as after a routine posted in a new one. */
   reloadThreads(agentId: string): Promise<void>;
   openThread(agentId: string, threadId: string): void;
@@ -288,6 +290,10 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
       });
     },
     newThread,
+    refreshAgent: async (id) => {
+      const agent = await hostAgent(id);
+      if (agent !== undefined) changeAgent(agent);
+    },
     reloadThreads: loadThreads,
     openThread: setOpen,
     markFinished: (agentId, threadId) => {

@@ -46,6 +46,8 @@ export function ChatPane(props: {
   readonly onToggleInspector: () => void;
   /** False for a scoped member: the server's engines are the owner's, so the host alone decides whether a turn may run. */
   readonly ownerEngines: boolean;
+  /** Extensions, at a plugin a chat card offers; null for a member. */
+  readonly onOpenPlugin: ((pluginId: string) => void) | null;
 }) {
   const { models, agent } = props;
   const display = useMemo(() => chatDisplay(props.info, agent.workspace.dir), [props.info, agent.workspace.dir]);
@@ -156,6 +158,9 @@ export function ChatPane(props: {
             engine={engine}
             avatar={chatAvatar}
             activity={activity[session.threadId]?.activity ?? 'idle'}
+            owner={props.ownerEngines}
+            onOpenPlugin={props.onOpenPlugin}
+            onAgentChanged={(agentId) => void models.agents.refreshAgent(agentId)}
             hero={
               <>
                 <BotAvatar avatar={agent.avatar} motion={motion} size={64} reducedMotion={props.reducedMotion} />

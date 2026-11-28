@@ -148,7 +148,8 @@ export function dropNote(core: ChatCore, threadId: string, note: ReactionNote): 
   else core.reactionNotes.set(threadId, rest);
 }
 
-function runningTurn(core: ChatCore, grant: TurnGrant): Turn | undefined {
+/** The turn `grant` stands for, while it runs. */
+export function runningTurn(core: ChatCore, grant: TurnGrant): Turn | undefined {
   const turn = core.active.get(grant.threadId);
   if (turn?.generationId !== grant.turnId || turn.agentId !== grant.agentId || turn.state === 'settled') return undefined;
   return turn;

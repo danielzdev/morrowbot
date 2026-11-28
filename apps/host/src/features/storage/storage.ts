@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { agentMessageRepository, type AgentMessageRepository } from './agent-messages-repo.ts';
 import { agentRepository, type AgentRepository } from './agents-repo.ts';
 import { attachmentRepository, type AttachmentRepository } from './attachments-repo.ts';
+import { cardRepository, type CardRepository } from './cards-repo.ts';
 import { chatSettingsRepository, type ChatSettingsRepository } from './chat-settings-repo.ts';
 import { childGroupRepository, type ChildGroupRepository } from './child-groups-repo.ts';
 import { connectorRepository, type ConnectorRepository } from './connectors-repo.ts';
@@ -37,6 +38,7 @@ export interface Storage {
   readonly messages: MessageRepository;
   readonly toolSteps: ToolStepRepository;
   readonly reactions: ReactionRepository;
+  readonly cards: CardRepository;
   readonly chatSettings: ChatSettingsRepository;
   readonly queued: QueuedRepository;
   readonly plugins: PluginSettingsRepository;
@@ -79,6 +81,7 @@ export function openStorage(file: string, now: () => string): Storage {
       messages: messageRepository(db),
       toolSteps: toolStepRepository(db),
       reactions: reactionRepository(db),
+      cards: cardRepository(db),
       chatSettings: chatSettingsRepository(db),
       queued: queuedRepository(db),
       plugins: pluginSettingsRepository(db, now),

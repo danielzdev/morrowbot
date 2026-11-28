@@ -20,6 +20,7 @@ import type {
   Member,
   CreateRoutineRequest,
   BlockedGroup,
+  CardAction,
   ChatEvent,
   ChatSettings,
   MessageReaction,
@@ -52,6 +53,7 @@ import type {
   T3Watch,
   T3WatchAck,
   Thread,
+  ThreadCard,
   ThreadState,
   ThreadSummary,
   TokenRange,
@@ -338,7 +340,25 @@ export interface ApiConnectors {
   settled(id: string): Promise<void>;
 }
 
+/** Cards agents put in chats; `act` is the user's click, and sends a chosen label with `send`. */
+export interface ApiCards {
+  list(threadId: string): ThreadCard[];
+  act(
+    threadId: string,
+    cardId: string,
+    action: CardAction,
+    clicker: { readonly owner: boolean },
+    send: (text: string) => Promise<boolean>,
+  ): Promise<
+    | { readonly kind: 'done'; readonly card: ThreadCard }
+    | { readonly kind: 'not_found' }
+    | { readonly kind: 'not_sent' }
+    | { readonly kind: 'forbidden' | 'conflict' | 'invalid'; readonly reason: string }
+  >;
+}
+
 export interface ApiServices {
+  readonly cards: ApiCards;
   readonly connectors: ApiConnectors;
   readonly agents: ApiAgents;
   readonly attachments: ApiAttachments;

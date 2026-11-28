@@ -102,6 +102,7 @@ describe('lenient', () => {
                 "config": {},
                 "enabled": true,
                 "manifest": {
+                  "description": "",
                   "envPreset": "none",
                   "id": "claude",
                   "kind": "provider",

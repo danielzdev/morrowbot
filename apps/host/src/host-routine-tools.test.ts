@@ -329,6 +329,8 @@ it('hides routine tools from agents shared with scoped members and refuses direc
         "list_subagents",
         "react_to_message",
         "stay_quiet",
+        "propose_card",
+        "search_marketplace",
       ],
     }
   `);

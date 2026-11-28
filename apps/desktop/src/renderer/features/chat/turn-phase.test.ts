@@ -87,11 +87,12 @@ const CTX: TimelineContext = {
   peers: { name: () => 'Peer', color: () => '#6b7280', avatar: () => null },
   engine: ({ pluginId }) => pluginId,
   avatar: (activity) => h('i', { 'data-avatar': activity }),
+  cards: { peers: { name: () => 'Peer', color: () => '#6b7280', avatar: () => null }, owner: true, onAct: () => undefined, onOpenPlugin: null },
 };
 
 /** Each turn row as "[the avatar's activity] its text". */
 function rows(view: ThreadView, activity: ChatActivity): string[] {
-  const html = renderToString(h(Timeline, { view, start: 0, answering: [], idle: view.activeTurn === null, locked: false, offline: false, ctx: CTX, onShowEarlier: () => undefined, activity }));
+  const html = renderToString(h(Timeline, { view, start: 0, answering: [], cardActing: [], idle: view.activeTurn === null, locked: false, offline: false, ctx: CTX, onShowEarlier: () => undefined, activity }));
   return [...html.matchAll(/<div class="turn-time[^"]*">(.*?)<\/div>/g)].map(([, row = '']) =>
     row.replace(/<i data-avatar="([^"]+)"><\/i>/g, '[$1] ').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim(),
   );

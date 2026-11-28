@@ -33,10 +33,11 @@ const CTX: TimelineContext = {
   peers: { name: () => 'Peer', color: () => '#6b7280', avatar: () => null },
   engine: ({ pluginId }) => pluginId,
   avatar: () => null,
+  cards: { peers: { name: () => 'Peer', color: () => '#6b7280', avatar: () => null }, owner: true, onAct: () => undefined, onOpenPlugin: null },
 };
 
 const render = (view: ThreadView, start: number): string =>
-  renderToString(h(Timeline, { view, start, answering: [], idle: true, locked: false, offline: false, ctx: CTX, onShowEarlier: () => undefined, activity: 'idle' }));
+  renderToString(h(Timeline, { view, start, answering: [], cardActing: [], idle: true, locked: false, offline: false, ctx: CTX, onShowEarlier: () => undefined, activity: 'idle' }));
 
 it('renders only the latest 200 of 5,000 messages, and each Show earlier adds 200 more', () => {
   const view = chatOf(5_000);

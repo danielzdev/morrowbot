@@ -334,6 +334,26 @@ it('speaks MCP on loopback only to the running turn’s token', async () => {
             "properties": [],
             "required": [],
           },
+          {
+            "additionalProperties": false,
+            "description": "Puts a card in the chat under your reply. Kinds: "custom": your own card made of blocks (header, text, kv, list, badges, divider, and at most one choices block). It shows as text only, in a frame with your name: no links, images or markup. fallbackText says the same in plain words. When the user clicks a choice, its label comes to you as their next message. "plugin": offers a plugin from the Marketplace (find it with search_marketplace first). MorrowBot draws the card from the plugin’s own manifest, with Install, Open and Cancel; only the user’s click installs it. "setting": a one-click switch for a safe setting. "agent-emoji-replies" lets you answer with only an emoji, or no message, when a reply would be filler. At most 3 cards per reply. Write a short reply as well; do not repeat the card’s content.",
+            "name": "propose_card",
+            "properties": [
+              "card",
+            ],
+            "required": [
+              "card",
+            ],
+          },
+          {
+            "additionalProperties": false,
+            "description": "Searches the MorrowBot Marketplace for plugins, by words in their id, name or description (empty for all). Each result says what it does, the permissions it asks for, and whether it is installed. Offer one to the user with propose_card.",
+            "name": "search_marketplace",
+            "properties": [
+              "query",
+            ],
+            "required": [],
+          },
         ],
       },
       "unknownTool": {

@@ -29,6 +29,7 @@ import { createRoutineService, type RoutineClock } from './features/routines/ind
 import { lockDataDir, openStorage } from './features/storage/index.ts';
 import { cliProbe, createT3WatchService, type T3Probe, type T3WatchClock, type T3WatchService } from './features/t3-watch/index.ts';
 import { keyValue, loginFill, openVault, vaultBackend, type VaultKeyChoice } from './features/vault/index.ts';
+import { cardService } from './host-cards.ts';
 import { DATABASE, providerFence } from './host-fence.ts';
 import { agentInbox, agentToolPorts, chatStore, providerPlugins, subagentService } from './host-ports.ts';
 import { routineSink } from './t3-routine-sink.ts';
@@ -210,6 +211,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
       ...(options.turnOutputBudget === undefined ? {} : { turnOutputBudget: options.turnOutputBudget }),
     });
     const subagents = subagentService(storage, chat, plugins, newId, now);
+    const cards = cardService(storage, chat, plugins, agents);
     const routines = createRoutineService({
       store: { routines: storage.routines, runs: storage.routineRuns, waits: storage.waits, transaction: (work) => storage.transaction(work) },
       chat: {
@@ -246,6 +248,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
           agentMessages,
           memories,
           replies: { react: (grant, emoji) => chat.agentReact(grant, emoji), stayQuiet: (grant) => chat.stayQuiet(grant) },
+          cards,
           vault,
           subagents,
           connectors,
@@ -297,6 +300,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
           deleteAgent: (id) => afterwards(chat.deleteAgent(id), () => attachments.sweep(), report),
         },
         attachments: { ...attachments, threadOf: (id) => storage.attachments.threadOf(id) },
+        cards,
         memories,
         skills: {
           list: async (agentId) => {
