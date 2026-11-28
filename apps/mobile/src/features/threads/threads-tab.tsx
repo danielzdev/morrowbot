@@ -1,22 +1,34 @@
-import { PlaceholderList } from '../../lib/Placeholder.tsx';
-import { ACTION_PRESETS } from '../../lib/symbols.ts';
-import type { TabSlot } from '../../lib/workspace.ts';
+import type { EntityId } from '@morrowbot/contracts';
+import { createListSearch, openListSearch } from '../../lib/ListChrome.tsx';
+import { createStore } from '../../lib/store.ts';
+import type { SlotAction, TabSlot } from '../../lib/workspace.ts';
+import type { DirectorySource } from './directory.ts';
+import { newThreadInAgent, pickAgentAction } from './new-thread.ts';
+import { NO_FILTER, type ThreadFilter } from './thread-groups.ts';
+import { ThreadsSidebar } from './ThreadsSidebar.tsx';
 
-/** Placeholder until #73 lands the All Threads list (Needs you, Working, Recent). */
-export const threadsTab: TabSlot = {
-  Sidebar: (props) => (
-    <PlaceholderList
-      title="All Threads"
-      rows={[
-        {
-          label: 'Plan the weekend errands',
-          detail: 'Errand Bot · Working',
-          route: { kind: 'chat', agentId: 'errand-bot', threadId: 'weekend-errands' },
-        },
-      ]}
-      {...props}
-    />
-  ),
-  actions: [{ id: 'new', ...ACTION_PRESETS.newChat, onPress: () => undefined }],
-  onSearch: () => undefined,
-};
+export interface ThreadsSlice {
+  /** The All Threads tab, whose New Thread asks for an agent first. */
+  readonly tab: TabSlot;
+  /** New Thread for another list (Agents): asks for an agent first. */
+  readonly pickAgentForNewThread: SlotAction;
+  /** New Thread inside an agent's chat: starts in that agent. */
+  readonly newThreadIn: (agentId: EntityId) => SlotAction;
+}
+
+export function createThreadsSlice(source: DirectorySource): ThreadsSlice {
+  const search = createListSearch();
+  const filter = createStore<ThreadFilter>(NO_FILTER);
+  const pick = pickAgentAction(source);
+  return {
+    tab: {
+      Sidebar: (props) => <ThreadsSidebar {...props} directory={source.store} search={search} filter={filter} />,
+      actions: [pick],
+      onSearch: () => {
+        openListSearch(search);
+      },
+    },
+    pickAgentForNewThread: pick,
+    newThreadIn: (agentId) => newThreadInAgent(source, agentId),
+  };
+}
