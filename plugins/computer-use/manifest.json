@@ -1,0 +1,14 @@
+{
+  "protocolVersion": 1,
+  "id": "computer-use",
+  "name": "Computer Use",
+  "version": "0.1.0",
+  "kind": "tool",
+  "main": "src/index.ts",
+  "permissions": [
+    "accessibility",
+    "screen-recording"
+  ],
+  "envPreset": "cli-runtime",
+  "settingsSchema": {}
+}
