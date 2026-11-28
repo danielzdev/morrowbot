@@ -1,14 +1,6 @@
 import { mainThread, type Agent, type EntityId, type Thread } from '@morrowbot/contracts';
+import type { RowIndicator } from '../../lib/RowIndicator.tsx';
 import { hostKey, type Directory, type ThreadActivity } from './directory.ts';
-
-/** The All Threads sections, top to bottom. */
-export type ThreadGroupKind = 'needs-you' | 'working' | 'recent';
-
-export const THREAD_GROUP_LABELS: Readonly<Record<ThreadGroupKind, string>> = {
-  'needs-you': 'Needs you',
-  working: 'Working',
-  recent: 'Recent',
-};
 
 export type FolderFilter =
   | { readonly kind: 'all' }
@@ -37,22 +29,35 @@ export interface ThreadItem {
   readonly isMain: boolean;
 }
 
-export interface ThreadGroup {
-  readonly kind: ThreadGroupKind;
-  readonly items: readonly ThreadItem[];
-}
-
-export function groupOf(activity: ThreadActivity): ThreadGroupKind {
+/** Whether the thread is waiting on you: an approval, an error, or a reply not yet read. */
+export function needsYou(activity: ThreadActivity): boolean {
   switch (activity.kind) {
     case 'needs-approval':
     case 'failed':
-      return 'needs-you';
+    case 'unread':
+      return true;
     case 'working':
     case 'queued':
-      return 'working';
-    case 'unread':
     case 'idle':
-      return 'recent';
+      return false;
+  }
+}
+
+/** The row's badge when the thread needs you, a dot when unread, dots while working. */
+export function threadIndicator(activity: ThreadActivity): RowIndicator {
+  switch (activity.kind) {
+    case 'needs-approval':
+      return { kind: 'badge', label: 'Needs approval', tone: 'warn' };
+    case 'failed':
+      return { kind: 'badge', label: 'Error', tone: 'danger' };
+    case 'working':
+      return { kind: 'working', label: 'Working', animated: true };
+    case 'queued':
+      return { kind: 'working', label: 'Queued', animated: false };
+    case 'unread':
+      return { kind: 'unread' };
+    case 'idle':
+      return { kind: 'none' };
   }
 }
 
@@ -78,10 +83,10 @@ const newestFirst = (a: ThreadItem, b: ThreadItem): number =>
   b.thread.updatedAt.localeCompare(a.thread.updatedAt) || a.key.localeCompare(b.key);
 
 /**
- * Every thread of every known agent that passes the filter, in Needs you, Working and Recent,
- * newest first. Empty sections are left out. Search matches the thread title or the agent name.
+ * Every thread of every known agent that passes the filter, newest first, in one list. Search
+ * matches the thread title or the agent name.
  */
-export function groupThreads(directory: Directory, filter: ThreadFilter): readonly ThreadGroup[] {
+export function listThreads(directory: Directory, filter: ThreadFilter): readonly ThreadItem[] {
   const agents = new Map(directory.agents.map(({ hostId, agent }) => [hostKey(hostId, agent.id), agent]));
   const mains = new Set<string>();
   const byAgent = new Map<string, Thread[]>();
@@ -99,16 +104,13 @@ export function groupThreads(directory: Directory, filter: ThreadFilter): readon
     const agent = agents.get(agentKey);
     if (!agent) return [];
     if (!inFolder(agent, hostId, filter.folder) || !isAgent(agent, hostId, filter.agent)) return [];
-    if (filter.needsYouOnly && groupOf(activity) !== 'needs-you') return [];
+    if (filter.needsYouOnly && !needsYou(activity)) return [];
     const text = `${thread.title}\n${agent.name}`.toLocaleLowerCase();
     if (wanted !== '' && !text.includes(wanted)) return [];
     const key = `${agentKey}/${thread.id}`;
     return [{ key, hostId, thread, activity, agent, isMain: mains.has(key) }];
   });
-  const kinds: readonly ThreadGroupKind[] = ['needs-you', 'working', 'recent'];
-  return kinds
-    .map((kind) => ({ kind, items: items.filter((item) => groupOf(item.activity) === kind).sort(newestFirst) }))
-    .filter(({ items: inGroup }) => inGroup.length > 0);
+  return items.sort(newestFirst);
 }
 
 export interface Choice<T> {

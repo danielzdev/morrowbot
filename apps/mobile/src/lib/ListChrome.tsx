@@ -34,6 +34,15 @@ export function ListSectionHeader(props: {
   );
 }
 
+/** Collapsed section keys, kept outside the list so they survive folding and unfolding. */
+export function toggleCollapsed<K>(collapsed: Store<ReadonlySet<K>>, key: K): void {
+  collapsed.update((current) => {
+    const next = new Set(current);
+    if (!next.delete(key)) next.add(key);
+    return next;
+  });
+}
+
 /** A list's search: closed, or open with what has been typed so far. */
 export type ListSearch = { readonly kind: 'closed' } | { readonly kind: 'open'; readonly query: string };
 

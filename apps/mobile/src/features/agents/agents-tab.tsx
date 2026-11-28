@@ -1,5 +1,5 @@
 import { createListSearch, openListSearch } from '../../lib/ListChrome.tsx';
-import type { ReadableStore } from '../../lib/store.ts';
+import { createStore, type ReadableStore } from '../../lib/store.ts';
 import type { SlotAction, TabSlot } from '../../lib/workspace.ts';
 import type { AgentsDirectory } from './agent-groups.ts';
 import { AgentsSidebar } from './AgentsSidebar.tsx';
@@ -13,8 +13,9 @@ export function createAgentsTab(options: {
   readonly actions: readonly SlotAction[];
 }): TabSlot {
   const search = createListSearch();
+  const collapsed = createStore<ReadonlySet<string>>(new Set());
   return {
-    Sidebar: (props) => <AgentsSidebar {...props} directory={options.directory} search={search} />,
+    Sidebar: (props) => <AgentsSidebar {...props} directory={options.directory} search={search} collapsed={collapsed} />,
     actions: options.actions,
     onSearch: () => {
       openListSearch(search);

@@ -1,45 +1,11 @@
-import { SymbolView } from 'expo-symbols';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { relativeTime } from '../../lib/relative-time.ts';
+import { RowIndicatorView } from '../../lib/RowIndicator.tsx';
 import { radii, spacing, typography } from '../../lib/theme.ts';
 import { useTheme } from '../../lib/useTheme.ts';
-import type { ThreadActivity } from './directory.ts';
-import type { ThreadItem } from './thread-groups.ts';
+import { threadIndicator, type ThreadItem } from './thread-groups.ts';
 
-/** What the row says about the thread under its title, or null when there is nothing to flag. */
-function activityText(activity: ThreadActivity): string | null {
-  switch (activity.kind) {
-    case 'needs-approval':
-      return `Needs approval: ${activity.summary}`;
-    case 'failed':
-      return 'Failed';
-    case 'working':
-      return 'Working…';
-    case 'queued':
-      return 'Queued';
-    case 'unread':
-    case 'idle':
-      return null;
-  }
-}
-
-function StatusMark(props: { readonly activity: ThreadActivity }) {
-  const { colors } = useTheme();
-  switch (props.activity.kind) {
-    case 'needs-approval':
-    case 'failed':
-      return <SymbolView name="exclamationmark.circle.fill" size={14} tintColor={colors.warn} />;
-    case 'working':
-    case 'queued':
-      return <ActivityIndicator size="small" color={colors.accent} />;
-    case 'unread':
-      return <View style={[styles.unread, { backgroundColor: colors.accent }]} />;
-    case 'idle':
-      return null;
-  }
-}
-
-/** One thread: its agent's chip, the title over the agent and status, the age at the end. */
+/** One thread: its agent's chip, the title and age over the agent, with its badge or working dots. */
 export function ThreadRow(props: {
   readonly item: ThreadItem;
   readonly selected: boolean;
@@ -48,14 +14,15 @@ export function ThreadRow(props: {
 }) {
   const { colors } = useTheme();
   const { thread, agent, activity } = props.item;
-  const status = activityText(activity);
-  const warn = activity.kind === 'needs-approval' || activity.kind === 'failed';
-  const unread = activity.kind === 'unread';
+  const indicator = threadIndicator(activity);
+  const unread = indicator.kind === 'unread';
+  const detail = activity.kind === 'needs-approval' ? `${agent.name} · ${activity.summary}` : agent.name;
+  const status = indicator.kind === 'badge' || indicator.kind === 'working' ? indicator.label : unread ? 'Unread' : null;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected: props.selected }}
-      accessibilityLabel={[thread.title, agent.name, status].filter((part) => part !== null).join(', ')}
+      accessibilityLabel={[thread.title, detail, status].filter((part) => part !== null).join(', ')}
       onPress={props.onPress}
       style={({ pressed }) => [
         styles.row,
@@ -66,18 +33,20 @@ export function ThreadRow(props: {
         <Text style={styles.chipLetter}>{Array.from(agent.name)[0]?.toLocaleUpperCase() ?? ''}</Text>
       </View>
       <View style={styles.text}>
-        <Text numberOfLines={2} style={[typography.ui, { color: colors.text1, fontWeight: unread ? '600' : '400' }]}>
-          {thread.title}
-        </Text>
-        <Text numberOfLines={1} style={[typography.small, { color: warn ? colors.warn : colors.text3 }]}>
-          {status === null ? agent.name : `${agent.name} · ${status}`}
-        </Text>
-      </View>
-      <View style={styles.trailing}>
-        <StatusMark activity={activity} />
-        <Text style={[typography.meta, { color: unread ? colors.accent : colors.text3 }]}>
-          {relativeTime(thread.updatedAt, props.now)}
-        </Text>
+        <View style={styles.line}>
+          <Text numberOfLines={2} style={[typography.ui, styles.grow, { color: colors.text1, fontWeight: unread ? '600' : '400' }]}>
+            {thread.title}
+          </Text>
+          <Text style={[typography.meta, { color: unread ? colors.accent : colors.text3 }]}>
+            {relativeTime(thread.updatedAt, props.now)}
+          </Text>
+        </View>
+        <View style={styles.line}>
+          <Text numberOfLines={1} style={[typography.small, styles.grow, { color: colors.text3 }]}>
+            {detail}
+          </Text>
+          <RowIndicatorView indicator={indicator} />
+        </View>
       </View>
     </Pressable>
   );
@@ -98,6 +67,6 @@ const styles = StyleSheet.create({
   chip: { width: CHIP, height: CHIP, borderRadius: radii.sm, alignItems: 'center', justifyContent: 'center' },
   chipLetter: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
   text: { flex: 1, gap: 2 },
-  trailing: { flexDirection: 'row', alignItems: 'center', gap: spacing[1], minHeight: 20 },
-  unread: { width: 8, height: 8, borderRadius: 4 },
+  line: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
+  grow: { flex: 1 },
 });

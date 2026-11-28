@@ -21,6 +21,7 @@ function Pill(props: { readonly label: string; readonly active: boolean; readonl
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={props.label}
       accessibilityState={{ selected: props.active }}
       onPress={props.onPress}
       style={[

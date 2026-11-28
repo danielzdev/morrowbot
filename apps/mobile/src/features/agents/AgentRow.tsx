@@ -1,26 +1,12 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { relativeTime } from '../../lib/relative-time.ts';
-import { radii, spacing, typography, type ThemeColors } from '../../lib/theme.ts';
+import { RowIndicatorView } from '../../lib/RowIndicator.tsx';
+import { radii, spacing, typography } from '../../lib/theme.ts';
 import { useTheme } from '../../lib/useTheme.ts';
 import { AgentAvatar } from './AgentAvatar.tsx';
-import { previewLine, type AgentItem, type AgentStatus } from './agent-groups.ts';
+import { agentIndicator, previewText, type AgentItem } from './agent-groups.ts';
 
-/** The avatar's corner dot: warn for Needs you, accent for unread, none otherwise. */
-function dotColor(status: AgentStatus, colors: ThemeColors): string | null {
-  switch (status.kind) {
-    case 'needs-approval':
-    case 'needs-you':
-      return colors.warn;
-    case 'unread':
-      return colors.accent;
-    case 'working':
-    case 'queued':
-    case 'idle':
-      return null;
-  }
-}
-
-/** One agent: avatar, then name and age over the status or last message. */
+/** One agent: avatar, then name and age over the last message, with its badge or working dots. */
 export function AgentRow(props: {
   readonly item: AgentItem;
   readonly selected: boolean;
@@ -29,47 +15,22 @@ export function AgentRow(props: {
 }) {
   const { colors } = useTheme();
   const { agent, status, lastMessage } = props.item;
-  const line = previewLine(props.item);
-  const unread = status.kind === 'unread';
-  let preview;
-  switch (line.kind) {
-    case 'status':
-      preview = (
-        <View style={styles.status}>
-          {line.tone === 'working' ? <ActivityIndicator size="small" color={colors.accent} /> : null}
-          <Text numberOfLines={1} style={[typography.small, { color: line.tone === 'warn' ? colors.warn : colors.text2 }]}>
-            {line.text}
-          </Text>
-        </View>
-      );
-      break;
-    case 'message':
-      preview = (
-        <Text numberOfLines={1} style={[typography.small, styles.grow, { color: unread ? colors.text1 : colors.text3 }]}>
-          {line.text}
-        </Text>
-      );
-      break;
-    case 'empty':
-      preview = (
-        <Text numberOfLines={1} style={[typography.small, styles.grow, { color: colors.textDisabled }]}>
-          No messages yet
-        </Text>
-      );
-      break;
-  }
+  const indicator = agentIndicator(status);
+  const preview = previewText(lastMessage);
+  const unread = indicator.kind === 'unread';
+  const label = indicator.kind === 'badge' || indicator.kind === 'working' ? `${agent.name}, ${indicator.label}` : agent.name;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected: props.selected }}
-      accessibilityLabel={line.kind === 'status' ? `${agent.name}, ${line.text}` : agent.name}
+      accessibilityLabel={unread ? `${label}, unread` : label}
       onPress={props.onPress}
       style={({ pressed }) => [
         styles.row,
         (props.selected || pressed) && { backgroundColor: props.selected ? colors.selected : colors.hover },
       ]}
     >
-      <AgentAvatar name={agent.name} avatar={agent.avatar} dot={dotColor(status, colors)} />
+      <AgentAvatar name={agent.name} avatar={agent.avatar} />
       <View style={styles.text}>
         <View style={styles.line}>
           <Text numberOfLines={1} style={[typography.ui, styles.grow, styles.name, { color: colors.text1 }]}>
@@ -81,7 +42,15 @@ export function AgentRow(props: {
             </Text>
           )}
         </View>
-        <View style={styles.line}>{preview}</View>
+        <View style={styles.line}>
+          <Text
+            numberOfLines={1}
+            style={[typography.small, styles.grow, { color: preview === null ? colors.textDisabled : unread ? colors.text1 : colors.text3 }]}
+          >
+            {preview ?? 'No messages yet'}
+          </Text>
+          <RowIndicatorView indicator={indicator} />
+        </View>
       </View>
     </Pressable>
   );
@@ -101,5 +70,4 @@ const styles = StyleSheet.create({
   line: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
   grow: { flex: 1 },
   name: { fontWeight: '600' },
-  status: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing[1] },
 });

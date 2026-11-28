@@ -1,6 +1,13 @@
 import type { Agent, LastMessage } from '@morrowbot/contracts';
 import { describe, expect, it } from 'vitest';
-import { groupAgents, previewLine, sectionLabel, type AgentsDirectory, type ThreadActivityKind } from './agent-groups.ts';
+import {
+  agentIndicator,
+  groupAgents,
+  previewText,
+  sectionLabel,
+  type AgentsDirectory,
+  type ThreadActivityKind,
+} from './agent-groups.ts';
 
 const TIME = '2026-11-27T12:00:00.000Z';
 
@@ -51,48 +58,40 @@ const directory: AgentsDirectory = {
     activity('trip-planner', 'queued'),
     activity('reading-buddy', 'unread'),
     activity('zine-maker', 'failed'),
+    activity('lost-folder', 'working'),
   ],
 };
 
 function summary(query: string) {
   return groupAgents(directory, query).map(({ section, items }) => ({
-    section: sectionLabel(section),
+    section: sectionLabel(section) ?? '(no header)',
     agents: items.map(({ agent: { name }, status }) => `${name} (${status.kind})`),
   }));
 }
 
 describe('groupAgents', () => {
-  it('pins agents that need you or are working, then lists the rest by folder', () => {
+  it('keeps every agent in its home whatever its status: unfiled first, then each folder', () => {
     expect(summary('')).toMatchInlineSnapshot(`
       [
         {
           "agents": [
             "Errand Bot (needs-approval)",
-            "Garden Helper (needs-you)",
+            "Lost Folder (working)",
             "Zine Maker (needs-you)",
           ],
-          "section": "Needs you",
+          "section": "(no header)",
         },
         {
           "agents": [
-            "Trip Planner (queued)",
-          ],
-          "section": "Working",
-        },
-        {
-          "agents": [
-            "Lost Folder (idle)",
-          ],
-          "section": "Agents",
-        },
-        {
-          "agents": [
+            "Garden Helper (needs-you)",
             "Reading Buddy (unread)",
           ],
           "section": "Home",
         },
         {
-          "agents": [],
+          "agents": [
+            "Trip Planner (queued)",
+          ],
           "section": "Travel",
         },
         {
@@ -110,28 +109,23 @@ describe('groupAgents', () => {
           {
             "agents": [
               "Errand Bot (needs-approval)",
-              "Garden Helper (needs-you)",
+              "Lost Folder (working)",
               "Zine Maker (needs-you)",
             ],
-            "section": "Needs you",
+            "section": "(no header)",
+          },
+          {
+            "agents": [
+              "Garden Helper (needs-you)",
+              "Reading Buddy (unread)",
+            ],
+            "section": "Home",
           },
           {
             "agents": [
               "Trip Planner (queued)",
             ],
-            "section": "Working",
-          },
-          {
-            "agents": [
-              "Lost Folder (idle)",
-            ],
-            "section": "Agents",
-          },
-          {
-            "agents": [
-              "Reading Buddy (unread)",
-            ],
-            "section": "Home",
+            "section": "Travel",
           },
         ],
         "byName": [
@@ -146,41 +140,73 @@ describe('groupAgents', () => {
       }
     `);
   });
+
+  it('leaves out the unfiled section when every agent is in a folder', () => {
+    const allFiled = { ...directory, agents: directory.agents.filter(({ agent }) => agent.folderId !== null && agent.folderId !== 'deleted-folder') };
+    expect(groupAgents(allFiled, '').map(({ section }) => sectionLabel(section))).toMatchInlineSnapshot(`
+      [
+        "Home",
+        "Travel",
+        "Empty",
+      ]
+    `);
+  });
 });
 
-describe('previewLine', () => {
-  it('shows a status that needs attention, else the newest message on one line', () => {
-    const lines = Object.fromEntries(
-      groupAgents(directory, '').flatMap(({ items }) => items.map((item) => [item.agent.name, previewLine(item)])),
+describe('row text and indicator', () => {
+  it('flags what needs you with a badge or dot, work with dots, and previews the newest message', () => {
+    const rows = Object.fromEntries(
+      groupAgents(directory, '').flatMap(({ items }) =>
+        items.map((item) => [item.agent.name, { indicator: agentIndicator(item.status), preview: previewText(item.lastMessage) }]),
+      ),
     );
-    expect(lines).toMatchInlineSnapshot(`
+    expect(rows).toMatchInlineSnapshot(`
       {
         "Errand Bot": {
-          "kind": "status",
-          "text": "Needs approval",
-          "tone": "warn",
+          "indicator": {
+            "kind": "badge",
+            "label": "Needs approval",
+            "tone": "warn",
+          },
+          "preview": null,
         },
         "Garden Helper": {
-          "kind": "status",
-          "text": "Needs you: choose a provider",
-          "tone": "warn",
+          "indicator": {
+            "kind": "badge",
+            "label": "No provider",
+            "tone": "warn",
+          },
+          "preview": null,
         },
         "Lost Folder": {
-          "kind": "empty",
+          "indicator": {
+            "animated": true,
+            "kind": "working",
+            "label": "Working",
+          },
+          "preview": null,
         },
         "Reading Buddy": {
-          "kind": "message",
-          "text": "You: Three short novels",
+          "indicator": {
+            "kind": "unread",
+          },
+          "preview": "You: Three short novels",
         },
         "Trip Planner": {
-          "kind": "status",
-          "text": "Queued",
-          "tone": "working",
+          "indicator": {
+            "animated": false,
+            "kind": "working",
+            "label": "Queued",
+          },
+          "preview": null,
         },
         "Zine Maker": {
-          "kind": "status",
-          "text": "Needs you",
-          "tone": "warn",
+          "indicator": {
+            "kind": "badge",
+            "label": "Error",
+            "tone": "danger",
+          },
+          "preview": null,
         },
       }
     `);

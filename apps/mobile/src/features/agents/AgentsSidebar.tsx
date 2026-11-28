@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { SectionList, StyleSheet } from 'react-native';
 import {
   ListEmpty,
@@ -6,6 +5,7 @@ import {
   ListSectionHeader,
   ListTitle,
   searchQuery,
+  toggleCollapsed,
   type ListSearch,
 } from '../../lib/ListChrome.tsx';
 import { useNow } from '../../lib/relative-time.ts';
@@ -19,12 +19,16 @@ const BOTTOM_CLEARANCE = 96;
 
 /** The messenger-style Agents & Folders list. */
 export function AgentsSidebar(
-  props: SidebarProps & { readonly directory: ReadableStore<AgentsDirectory>; readonly search: Store<ListSearch> },
+  props: SidebarProps & {
+    readonly directory: ReadableStore<AgentsDirectory>;
+    readonly search: Store<ListSearch>;
+    readonly collapsed: Store<ReadonlySet<string>>;
+  },
 ) {
   const directory = useStore(props.directory);
   const search = useStore(props.search);
   const now = useNow();
-  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
+  const collapsed = useStore(props.collapsed);
   const query = searchQuery(search);
   const groups = groupAgents(directory, query);
   const searching = query.trim() !== '';
@@ -34,13 +38,6 @@ export function AgentsSidebar(
     const isCollapsed = !searching && collapsed.has(key);
     return { key, section, count: items.length, collapsed: isCollapsed, data: isCollapsed ? [] : items };
   });
-  const toggle = (key: string) => {
-    setCollapsed((current) => {
-      const next = new Set(current);
-      if (!next.delete(key)) next.add(key);
-      return next;
-    });
-  };
   return (
     <SectionList<AgentItem, { readonly key: string; readonly section: Section; readonly count: number; readonly collapsed: boolean }>
       sections={sections}
@@ -55,16 +52,19 @@ export function AgentsSidebar(
         </>
       }
       ListEmptyComponent={<ListEmpty text={searching ? 'No agents match.' : 'No agents yet.'} />}
-      renderSectionHeader={({ section }) => (
-        <ListSectionHeader
-          label={sectionLabel(section.section)}
-          count={section.count}
-          collapsed={section.collapsed}
-          onToggle={() => {
-            toggle(section.key);
-          }}
-        />
-      )}
+      renderSectionHeader={({ section }) => {
+        const label = sectionLabel(section.section);
+        return label === null ? null : (
+          <ListSectionHeader
+            label={label}
+            count={section.count}
+            collapsed={section.collapsed}
+            onToggle={() => {
+              toggleCollapsed(props.collapsed, section.key);
+            }}
+          />
+        );
+      }}
       renderItem={({ item }) => (
         <AgentRow
           item={item}

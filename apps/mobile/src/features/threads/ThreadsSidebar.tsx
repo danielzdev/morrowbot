@@ -1,19 +1,11 @@
-import { useState } from 'react';
-import { SectionList, StyleSheet } from 'react-native';
-import {
-  ListEmpty,
-  ListSearchField,
-  ListSectionHeader,
-  ListTitle,
-  searchQuery,
-  type ListSearch,
-} from '../../lib/ListChrome.tsx';
+import { FlatList, StyleSheet } from 'react-native';
+import { ListEmpty, ListSearchField, ListTitle, searchQuery, type ListSearch } from '../../lib/ListChrome.tsx';
 import { useNow } from '../../lib/relative-time.ts';
 import { useStore, type ReadableStore, type Store } from '../../lib/store.ts';
 import type { DetailRoute, SidebarProps } from '../../lib/workspace.ts';
 import type { Directory } from './directory.ts';
 import { FilterPills } from './FilterPills.tsx';
-import { NO_FILTER, THREAD_GROUP_LABELS, groupThreads, type ThreadGroupKind, type ThreadItem } from './thread-groups.ts';
+import { listThreads, type ThreadFilter, type ThreadItem } from './thread-groups.ts';
 import { ThreadRow } from './ThreadRow.tsx';
 
 /** Space for the floating Search pill and the home indicator below the last row. */
@@ -29,55 +21,42 @@ function isSelected(selected: DetailRoute | null, item: ThreadItem): boolean {
   return selected.threadId === item.thread.id || (selected.threadId === null && item.isMain);
 }
 
-/** Every thread across all agents: Needs you, Working, Recent. */
+/** Every thread across all agents in one list, newest first, narrowed by the filter pills. */
 export function ThreadsSidebar(
-  props: SidebarProps & { readonly directory: ReadableStore<Directory>; readonly search: Store<ListSearch> },
+  props: SidebarProps & {
+    readonly directory: ReadableStore<Directory>;
+    readonly search: Store<ListSearch>;
+    readonly filter: Store<ThreadFilter>;
+  },
 ) {
   const directory = useStore(props.directory);
   const search = useStore(props.search);
+  const filter = useStore(props.filter);
   const now = useNow();
-  const [filter, setFilter] = useState(NO_FILTER);
-  const [collapsed, setCollapsed] = useState<ReadonlySet<ThreadGroupKind>>(new Set());
   const query = searchQuery(search);
-  const narrowed = { ...filter, query };
-  const groups = groupThreads(directory, narrowed);
-  const sections = groups.map(({ kind, items }) => ({
-    key: kind,
-    count: items.length,
-    collapsed: collapsed.has(kind),
-    data: collapsed.has(kind) ? [] : items,
-  }));
+  const items = listThreads(directory, { ...filter, query });
   const filtering = filter.folder.kind !== 'all' || filter.agent.kind !== 'all' || filter.needsYouOnly || query.trim() !== '';
   const { selected, navigation } = props;
   return (
-    <SectionList<ThreadItem, { readonly key: ThreadGroupKind; readonly count: number; readonly collapsed: boolean }>
-      sections={sections}
+    <FlatList
+      data={items}
       keyExtractor={(item) => item.key}
-      stickySectionHeadersEnabled={false}
       keyboardShouldPersistTaps="handled"
       contentContainerStyle={styles.content}
       ListHeaderComponent={
         <>
           <ListTitle title="All Threads" />
           <ListSearchField placeholder="Search threads" search={props.search} />
-          <FilterPills directory={directory} filter={filter} onChange={setFilter} />
+          <FilterPills
+            directory={directory}
+            filter={filter}
+            onChange={(next) => {
+              props.filter.update(() => next);
+            }}
+          />
         </>
       }
       ListEmptyComponent={<ListEmpty text={filtering ? 'No threads match.' : 'No threads yet.'} />}
-      renderSectionHeader={({ section }) => (
-        <ListSectionHeader
-          label={THREAD_GROUP_LABELS[section.key]}
-          count={section.count}
-          collapsed={section.collapsed}
-          onToggle={() => {
-            setCollapsed((current) => {
-              const next = new Set(current);
-              if (!next.delete(section.key)) next.add(section.key);
-              return next;
-            });
-          }}
-        />
-      )}
       renderItem={({ item }) => (
         <ThreadRow
           item={item}

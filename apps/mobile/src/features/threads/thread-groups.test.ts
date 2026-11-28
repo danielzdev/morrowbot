@@ -4,57 +4,40 @@ import {
   agentChoices,
   filterLabel,
   folderChoices,
-  groupThreads,
+  listThreads,
   NO_FILTER,
+  threadIndicator,
   type ThreadFilter,
-  type ThreadGroup,
+  type ThreadItem,
 } from './thread-groups.ts';
 
 const directory = sampleDirectory(Date.parse('2026-11-27T12:00:00.000Z'));
 
-function titles(groups: readonly ThreadGroup[]) {
-  return groups.map(({ kind, items }) => ({
-    kind,
-    threads: items.map(({ thread, agent, isMain }) => `${agent.name}: ${thread.title}${isMain ? ' (main)' : ''}`),
-  }));
+function titles(items: readonly ThreadItem[]) {
+  return items.map(({ thread, agent, activity, isMain }) => `${agent.name}: ${thread.title} [${activity.kind}]${isMain ? ' (main)' : ''}`);
 }
 
 function only(filter: Partial<ThreadFilter>) {
-  return titles(groupThreads(directory, { ...NO_FILTER, ...filter }));
+  return titles(listThreads(directory, { ...NO_FILTER, ...filter }));
 }
 
-describe('groupThreads', () => {
-  it('sorts every thread into Needs you, Working and Recent, newest first', () => {
-    expect(titles(groupThreads(directory, NO_FILTER))).toMatchInlineSnapshot(`
+describe('listThreads', () => {
+  it('lists every thread in one list, newest first, whatever its status', () => {
+    expect(titles(listThreads(directory, NO_FILTER))).toMatchInlineSnapshot(`
       [
-        {
-          "kind": "needs-you",
-          "threads": [
-            "Errand Bot: Errands (main)",
-            "Garden Helper: Balcony garden (main)",
-          ],
-        },
-        {
-          "kind": "working",
-          "threads": [
-            "Errand Bot: Plan the weekend errands",
-            "Trip Planner: Trips (main)",
-          ],
-        },
-        {
-          "kind": "recent",
-          "threads": [
-            "Reading Buddy: Reading list (main)",
-            "Recipe Coach: Weeknight dinners (main)",
-            "Reading Buddy: Book club questions",
-            "Trip Planner: Lisbon in spring",
-          ],
-        },
+        "Errand Bot: Plan the weekend errands [working]",
+        "Errand Bot: Errands [needs-approval] (main)",
+        "Reading Buddy: Reading list [unread] (main)",
+        "Trip Planner: Trips [queued] (main)",
+        "Recipe Coach: Weeknight dinners [idle] (main)",
+        "Reading Buddy: Book club questions [idle]",
+        "Trip Planner: Lisbon in spring [idle]",
+        "Garden Helper: Balcony garden [failed] (main)",
       ]
     `);
   });
 
-  it('narrows by folder, agent, Needs you and search', () => {
+  it('narrows by folder, agent, Needs you (approval, error or unread) and search', () => {
     expect({
       travelFolder: only({ folder: { kind: 'folder', hostId: 'studio-host', folderId: 'travel' } }),
       readingBuddy: only({ agent: { kind: 'agent', hostId: 'studio-host', agentId: 'reading-buddy' } }),
@@ -65,54 +48,63 @@ describe('groupThreads', () => {
     }).toMatchInlineSnapshot(`
       {
         "needsYou": [
-          {
-            "kind": "needs-you",
-            "threads": [
-              "Errand Bot: Errands (main)",
-              "Garden Helper: Balcony garden (main)",
-            ],
-          },
+          "Errand Bot: Errands [needs-approval] (main)",
+          "Reading Buddy: Reading list [unread] (main)",
+          "Garden Helper: Balcony garden [failed] (main)",
         ],
         "noMatch": [],
         "readingBuddy": [
-          {
-            "kind": "recent",
-            "threads": [
-              "Reading Buddy: Reading list (main)",
-              "Reading Buddy: Book club questions",
-            ],
-          },
+          "Reading Buddy: Reading list [unread] (main)",
+          "Reading Buddy: Book club questions [idle]",
         ],
         "searchAgent": [
-          {
-            "kind": "recent",
-            "threads": [
-              "Recipe Coach: Weeknight dinners (main)",
-            ],
-          },
+          "Recipe Coach: Weeknight dinners [idle] (main)",
         ],
         "searchTitle": [
-          {
-            "kind": "recent",
-            "threads": [
-              "Trip Planner: Lisbon in spring",
-            ],
-          },
+          "Trip Planner: Lisbon in spring [idle]",
         ],
         "travelFolder": [
-          {
-            "kind": "working",
-            "threads": [
-              "Trip Planner: Trips (main)",
-            ],
-          },
-          {
-            "kind": "recent",
-            "threads": [
-              "Trip Planner: Lisbon in spring",
-            ],
-          },
+          "Trip Planner: Trips [queued] (main)",
+          "Trip Planner: Lisbon in spring [idle]",
         ],
+      }
+    `);
+  });
+});
+
+describe('threadIndicator', () => {
+  it('badges approvals and errors, dots unread, and shows dots that move only while running', () => {
+    const byKind = Object.fromEntries(
+      listThreads(directory, NO_FILTER).map(({ activity }) => [activity.kind, threadIndicator(activity)]),
+    );
+    expect(byKind).toMatchInlineSnapshot(`
+      {
+        "failed": {
+          "kind": "badge",
+          "label": "Error",
+          "tone": "danger",
+        },
+        "idle": {
+          "kind": "none",
+        },
+        "needs-approval": {
+          "kind": "badge",
+          "label": "Needs approval",
+          "tone": "warn",
+        },
+        "queued": {
+          "animated": false,
+          "kind": "working",
+          "label": "Queued",
+        },
+        "unread": {
+          "kind": "unread",
+        },
+        "working": {
+          "animated": true,
+          "kind": "working",
+          "label": "Working",
+        },
       }
     `);
   });
@@ -147,23 +139,18 @@ describe('filter choices', () => {
 });
 
 describe('createSampleDirectory', () => {
-  it('adds a new thread to Recent for the agent it was started in', () => {
+  it('adds a new thread to the top of the list for the agent it was started in', () => {
     const source = createSampleDirectory(() => Date.parse('2026-11-27T12:00:00.000Z'));
     const thread = source.createThread('studio-host', 'recipe-coach');
-    const groups = groupThreads(source.store.get(), {
+    const items = listThreads(source.store.get(), {
       ...NO_FILTER,
       agent: { kind: 'agent', hostId: 'studio-host', agentId: 'recipe-coach' },
     });
-    expect({ thread: { id: thread.id, title: thread.title }, groups: titles(groups) }).toMatchInlineSnapshot(`
+    expect({ thread: { id: thread.id, title: thread.title }, list: titles(items) }).toMatchInlineSnapshot(`
       {
-        "groups": [
-          {
-            "kind": "recent",
-            "threads": [
-              "Recipe Coach: New chat",
-              "Recipe Coach: Weeknight dinners (main)",
-            ],
-          },
+        "list": [
+          "Recipe Coach: New chat [idle]",
+          "Recipe Coach: Weeknight dinners [idle] (main)",
         ],
         "thread": {
           "id": "new-1",

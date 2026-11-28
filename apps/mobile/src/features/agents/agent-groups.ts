@@ -1,4 +1,5 @@
 import type { Agent, EntityId, Folder, LastMessage } from '@morrowbot/contracts';
+import type { RowIndicator } from '../../lib/RowIndicator.tsx';
 
 /**
  * The slice of the host directory the Agents list reads. `features/threads` owns the directory;
@@ -18,7 +19,7 @@ export interface AgentsDirectory {
   }[];
 }
 
-/** One agent's state across all its threads, most urgent first (as on desktop). */
+/** One agent's state across all its threads, the most urgent one winning. */
 export type AgentStatus =
   | { readonly kind: 'needs-approval' }
   | { readonly kind: 'needs-you'; readonly reason: 'unbound' | 'failed' }
@@ -37,43 +38,23 @@ export function agentStatus(agent: Agent, activities: readonly ThreadActivityKin
   return has('unread') ? { kind: 'unread' } : { kind: 'idle' };
 }
 
-/** The pinned section an agent shows in, or null when it stays in its folder. */
-function pinnedOf(status: AgentStatus): 'needs-you' | 'working' | null {
-  switch (status.kind) {
-    case 'needs-approval':
-    case 'needs-you':
-      return 'needs-you';
-    case 'working':
-    case 'queued':
-      return 'working';
-    case 'unread':
-    case 'idle':
-      return null;
-  }
-}
-
 /**
- * A list section: the two status sections pinned on top, agents in no folder, then each folder.
- * New kinds (such as Spaces) join this union and `sectionLabel`; the list chrome stays the same.
+ * A list section: agents in no folder (shown without a header), then each folder. New kinds (such
+ * as Spaces) join this union and `sectionLabel`; the list chrome stays the same.
  */
 export type Section =
-  | { readonly kind: 'needs-you' }
-  | { readonly kind: 'working' }
-  | { readonly kind: 'agents' }
+  | { readonly kind: 'unfiled' }
   | { readonly kind: 'folder'; readonly hostId: EntityId; readonly folder: Folder };
 
 export function sectionKey(section: Section): string {
   return section.kind === 'folder' ? `folder:${section.hostId}/${section.folder.id}` : section.kind;
 }
 
-export function sectionLabel(section: Section): string {
+/** The section's header text, or null for a section drawn without a header. */
+export function sectionLabel(section: Section): string | null {
   switch (section.kind) {
-    case 'needs-you':
-      return 'Needs you';
-    case 'working':
-      return 'Working';
-    case 'agents':
-      return 'Agents';
+    case 'unfiled':
+      return null;
     case 'folder':
       return section.folder.name;
   }
@@ -96,9 +77,9 @@ const byName = (a: AgentItem, b: AgentItem): number =>
   a.agent.name.localeCompare(b.agent.name, undefined, { sensitivity: 'base' }) || a.key.localeCompare(b.key);
 
 /**
- * Each agent in exactly one section, alphabetical inside. Status sections show only when they have
- * agents; Agents and every folder always show so they can be found, except while searching.
- * Search matches the agent's name or description.
+ * Each agent in its home: unfiled agents first, then each folder, alphabetical inside. Status never
+ * moves an agent; the row shows it instead. Empty folders show (so they can be found) except while
+ * searching. Search matches the agent's name or description.
  */
 export function groupAgents(directory: AgentsDirectory, query: string): readonly AgentGroup[] {
   const key = (hostId: EntityId, id: EntityId): string => `${hostId}/${id}`;
@@ -127,49 +108,43 @@ export function groupAgents(directory: AgentsDirectory, query: string): readonly
       };
     });
   const folders = new Set(directory.folders.map(({ hostId, folder }) => key(hostId, folder.id)));
-  const placed = items.filter((item) => pinnedOf(item.status) === null);
   const folderOf = ({ hostId, agent }: AgentItem): string | null =>
     agent.folderId !== null && folders.has(key(hostId, agent.folderId)) ? key(hostId, agent.folderId) : null;
   const groups: AgentGroup[] = [
-    { section: { kind: 'needs-you' }, items: items.filter(({ status }) => pinnedOf(status) === 'needs-you').sort(byName) },
-    { section: { kind: 'working' }, items: items.filter(({ status }) => pinnedOf(status) === 'working').sort(byName) },
-    { section: { kind: 'agents' }, items: placed.filter((item) => folderOf(item) === null).sort(byName) },
+    { section: { kind: 'unfiled' }, items: items.filter((item) => folderOf(item) === null).sort(byName) },
     ...directory.folders.map(
       ({ hostId, folder }): AgentGroup => ({
         section: { kind: 'folder', hostId, folder },
-        items: placed.filter((item) => folderOf(item) === key(hostId, folder.id)).sort(byName),
+        items: items.filter((item) => folderOf(item) === key(hostId, folder.id)).sort(byName),
       }),
     ),
   ];
-  return groups.filter(
-    ({ section, items: inSection }) =>
-      inSection.length > 0 || (wanted === '' && (section.kind === 'agents' || section.kind === 'folder')),
-  );
+  return groups.filter(({ section, items: inSection }) => inSection.length > 0 || (wanted === '' && section.kind === 'folder'));
 }
 
-/** What the row's second line says: a status that needs attention, or the last message. */
-export type PreviewLine =
-  | { readonly kind: 'status'; readonly text: string; readonly tone: 'warn' | 'working' }
-  | { readonly kind: 'message'; readonly text: string }
-  | { readonly kind: 'empty' };
-
-/** One line of a preview: whitespace collapsed, "You: " before the user's own words. */
-export function previewLine(item: AgentItem): PreviewLine {
-  switch (item.status.kind) {
-    case 'needs-approval':
-      return { kind: 'status', text: 'Needs approval', tone: 'warn' };
-    case 'needs-you':
-      return { kind: 'status', text: item.status.reason === 'unbound' ? 'Needs you: choose a provider' : 'Needs you', tone: 'warn' };
-    case 'working':
-      return { kind: 'status', text: 'Working…', tone: 'working' };
-    case 'queued':
-      return { kind: 'status', text: 'Queued', tone: 'working' };
-    case 'unread':
-    case 'idle':
-      break;
-  }
-  const { lastMessage } = item;
-  if (lastMessage === null) return { kind: 'empty' };
+/** The row's second line: the newest message on one line, "You: " before the user's own words. */
+export function previewText(lastMessage: LastMessage | null): string | null {
+  if (lastMessage === null) return null;
   const text = lastMessage.preview.replaceAll(/\s+/g, ' ').trim();
-  return { kind: 'message', text: lastMessage.kind === 'user' ? `You: ${text}` : text };
+  return lastMessage.kind === 'user' ? `You: ${text}` : text;
+}
+
+/** The row's badge when the agent needs you, a dot when unread, dots while working. */
+export function agentIndicator(status: AgentStatus): RowIndicator {
+  switch (status.kind) {
+    case 'needs-approval':
+      return { kind: 'badge', label: 'Needs approval', tone: 'warn' };
+    case 'needs-you':
+      return status.reason === 'unbound'
+        ? { kind: 'badge', label: 'No provider', tone: 'warn' }
+        : { kind: 'badge', label: 'Error', tone: 'danger' };
+    case 'working':
+      return { kind: 'working', label: 'Working', animated: true };
+    case 'queued':
+      return { kind: 'working', label: 'Queued', animated: false };
+    case 'unread':
+      return { kind: 'unread' };
+    case 'idle':
+      return { kind: 'none' };
+  }
 }

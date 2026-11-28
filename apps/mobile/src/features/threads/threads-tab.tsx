@@ -1,8 +1,10 @@
 import type { EntityId } from '@morrowbot/contracts';
 import { createListSearch, openListSearch } from '../../lib/ListChrome.tsx';
+import { createStore } from '../../lib/store.ts';
 import type { SlotAction, TabSlot } from '../../lib/workspace.ts';
 import type { DirectorySource } from './directory.ts';
 import { newThreadInAgent, pickAgentAction } from './new-thread.ts';
+import { NO_FILTER, type ThreadFilter } from './thread-groups.ts';
 import { ThreadsSidebar } from './ThreadsSidebar.tsx';
 
 export interface ThreadsSlice {
@@ -16,10 +18,11 @@ export interface ThreadsSlice {
 
 export function createThreadsSlice(source: DirectorySource): ThreadsSlice {
   const search = createListSearch();
+  const filter = createStore<ThreadFilter>(NO_FILTER);
   const pick = pickAgentAction(source);
   return {
     tab: {
-      Sidebar: (props) => <ThreadsSidebar {...props} directory={source.store} search={search} />,
+      Sidebar: (props) => <ThreadsSidebar {...props} directory={source.store} search={search} filter={filter} />,
       actions: [pick],
       onSearch: () => {
         openListSearch(search);
