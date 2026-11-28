@@ -1,0 +1,384 @@
+import { rm } from 'node:fs/promises';
+import { afterEach, beforeEach, expect, it } from 'vitest';
+import { fakeHome, fakeKeychain, INFO_PLIST, type FakeHome } from './reset-fixture.ts';
+import { RELEASE_TOKEN, SAFE_STORAGE } from './reset-paths.ts';
+import { deleteRefusalNow, resetOptionsOf } from './reset-plan.ts';
+
+let fake: FakeHome;
+const KEYCHAIN = [RELEASE_TOKEN, SAFE_STORAGE, { service: 'Other App Safe Storage', account: 'Other App' }];
+
+/** An installed MorrowBot with data, Library files, a skills link out of the data folder, and a shared workspace inside it. */
+async function installed(): Promise<string> {
+  await fake.file('.morrowbot/morrowbot.sqlite');
+  await fake.file('.morrowbot/morrowbot.sqlite-wal');
+  await fake.file('.morrowbot/host.lock.db');
+  await fake.file('.morrowbot/server.json', '{"kind":"remote"}');
+  await fake.file('.morrowbot/plugin-data/echo/account');
+  await fake.file('.morrowbot/plugins/shared-workspace/notes.md');
+  await fake.file('.morrowbot/workspaces/agent-1/todo.md');
+  await fake.file('.morrowbot/notes-i-keep.txt');
+  await fake.file('my-skills/skill.md');
+  await fake.link('.morrowbot/skills', `${fake.home}/my-skills`);
+  await fake.file('Library/Application Support/MorrowBot/Cookies');
+  await fake.file('Library/Preferences/com.legendarykoi.morrowbot.plist');
+  await fake.file('Library/Preferences/com.other.app.plist');
+  await fake.file('Applications/MorrowBot.app/Contents/Info.plist', INFO_PLIST('com.legendarykoi.morrowbot'));
+  return `${fake.home}/Applications/MorrowBot.app/Contents/MacOS/MorrowBot`;
+}
+
+beforeEach(async () => {
+  fake = await fakeHome();
+});
+afterEach(async () => {
+  await fake.remove();
+});
+
+it('resolves every choice for the installed app to exact paths, keeping workspaces, links and files it did not make', async () => {
+  const execPath = await installed();
+  const context = fake.context('installed', '.morrowbot', [`${fake.home}/.morrowbot/plugins/shared-workspace`, `${fake.home}/code/app`]);
+  const options = await resetOptionsOf(context, { packaged: true, execPath, updatePending: false }, fakeKeychain(KEYCHAIN));
+  expect(fake.short(options)).toMatchInlineSnapshot(`
+    [
+      {
+        "choice": "reset",
+        "kept": [
+          {
+            "path": "~/.morrowbot/plugins",
+            "reason": "An agent workspace, or holds one. Workspaces are never touched.",
+          },
+          {
+            "path": "~/.morrowbot/skills",
+            "reason": "A symbolic link. MorrowBot does not follow it.",
+          },
+          {
+            "path": "~/.morrowbot/notes-i-keep.txt",
+            "reason": "Not one of MorrowBot's own files.",
+          },
+          {
+            "path": "~/.morrowbot/workspaces",
+            "reason": "Agent workspaces are never touched.",
+          },
+          {
+            "path": "Keychain: com.legendarykoi.morrowbot.releases (account releases)",
+            "reason": "Needed for app updates while MorrowBot stays installed.",
+          },
+        ],
+        "kind": "available",
+        "steps": [
+          {
+            "kind": "delete",
+            "path": "~/.morrowbot/morrowbot.sqlite",
+          },
+          {
+            "kind": "delete",
+            "path": "~/.morrowbot/morrowbot.sqlite-wal",
+          },
+          {
+            "kind": "delete",
+            "path": "~/.morrowbot/host.lock.db",
+          },
+          {
+            "kind": "delete",
+            "path": "~/.morrowbot/server.json",
+          },
+          {
+            "kind": "delete",
+            "path": "~/.morrowbot/plugin-data",
+          },
+          {
+            "kind": "delete",
+            "path": "~/Library/Application Support/MorrowBot",
+          },
+          {
+            "kind": "delete",
+            "path": "~/Library/Preferences/com.legendarykoi.morrowbot.plist",
+          },
+          {
+            "account": "MorrowBot Key",
+            "kind": "keychain",
+            "service": "MorrowBot Safe Storage",
+          },
+        ],
+      },
+      {
+        "choice": "uninstall-app",
+        "kept": [
+          {
+            "path": "~/.morrowbot",
+            "reason": "Your agents, chats and settings stay for when you reinstall.",
+          },
+        ],
+        "kind": "available",
+        "steps": [
+          {
+            "kind": "trash",
+            "path": "~/Applications/MorrowBot.app",
+          },
+        ],
+      },
+      {
+        "choice": "full-uninstall",
+        "kept": [
+          {
+            "path": "~/.morrowbot/plugins",
+            "reason": "An agent workspace, or holds one. Workspaces are never touched.",
+          },
+          {
+            "path": "~/.morrowbot/skills",
+            "reason": "A symbolic link. MorrowBot does not follow it.",
+          },
+          {
+            "path": "~/.morrowbot/notes-i-keep.txt",
+            "reason": "Not one of MorrowBot's own files.",
+          },
+          {
+            "path": "~/.morrowbot/workspaces",
+            "reason": "Agent workspaces are never touched.",
+          },
+        ],
+        "kind": "available",
+        "steps": [
+          {
+            "kind": "trash",
+            "path": "~/Applications/MorrowBot.app",
+          },
+          {
+            "kind": "delete",
+            "path": "~/.morrowbot/morrowbot.sqlite",
+          },
+          {
+            "kind": "delete",
+            "path": "~/.morrowbot/morrowbot.sqlite-wal",
+          },
+          {
+            "kind": "delete",
+            "path": "~/.morrowbot/host.lock.db",
+          },
+          {
+            "kind": "delete",
+            "path": "~/.morrowbot/server.json",
+          },
+          {
+            "kind": "delete",
+            "path": "~/.morrowbot/plugin-data",
+          },
+          {
+            "kind": "delete",
+            "path": "~/Library/Application Support/MorrowBot",
+          },
+          {
+            "kind": "delete",
+            "path": "~/Library/Preferences/com.legendarykoi.morrowbot.plist",
+          },
+          {
+            "account": "MorrowBot Key",
+            "kind": "keychain",
+            "service": "MorrowBot Safe Storage",
+          },
+          {
+            "account": "releases",
+            "kind": "keychain",
+            "service": "com.legendarykoi.morrowbot.releases",
+          },
+        ],
+      },
+    ]
+  `);
+});
+
+it('a development run resets only its own folder and never offers to uninstall, even when the installed app and its data are there', async () => {
+  const execPath = await installed();
+  await fake.file('.morrowbot-dev/morrowbot.sqlite');
+  await fake.file('.morrowbot-dev/desktop/Cookies');
+  const keychain = fakeKeychain(KEYCHAIN);
+  const summary = async (dataDir: string, packaged: boolean, exec = execPath) =>
+    fake.short((await resetOptionsOf(fake.context('isolated', dataDir), { packaged, execPath: exec, updatePending: false }, keychain)).map((option) => (option.kind === 'available' ? { [option.choice]: option.steps } : { [option.choice]: option.reason })));
+  expect({
+    npmStart: await summary('.morrowbot-dev', false, '/repo/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron'),
+    installedAppWithDataDir: await summary('.morrowbot-dev', true),
+    pointedAtInstalledData: await summary('.morrowbot', true),
+  }).toMatchInlineSnapshot(`
+    {
+      "installedAppWithDataDir": [
+        {
+          "reset": [
+            {
+              "kind": "delete",
+              "path": "~/.morrowbot-dev/morrowbot.sqlite",
+            },
+            {
+              "kind": "delete",
+              "path": "~/.morrowbot-dev/desktop",
+            },
+          ],
+        },
+        {
+          "uninstall-app": "This is a development run. Uninstalling is offered only in the installed MorrowBot.app.",
+        },
+        {
+          "full-uninstall": "This is a development run. Uninstalling is offered only in the installed MorrowBot.app.",
+        },
+      ],
+      "npmStart": [
+        {
+          "reset": [
+            {
+              "kind": "delete",
+              "path": "~/.morrowbot-dev/morrowbot.sqlite",
+            },
+            {
+              "kind": "delete",
+              "path": "~/.morrowbot-dev/desktop",
+            },
+          ],
+        },
+        {
+          "uninstall-app": "This is a development run. Uninstalling is offered only in the installed MorrowBot.app.",
+        },
+        {
+          "full-uninstall": "This is a development run. Uninstalling is offered only in the installed MorrowBot.app.",
+        },
+      ],
+      "pointedAtInstalledData": [
+        {
+          "reset": "A development run never resets the installed app's ~/.morrowbot.",
+        },
+        {
+          "uninstall-app": "This is a development run. Uninstalling is offered only in the installed MorrowBot.app.",
+        },
+        {
+          "full-uninstall": "This is a development run. Uninstalling is offered only in the installed MorrowBot.app.",
+        },
+      ],
+    }
+  `);
+});
+
+it('refuses to delete data while the host cannot list workspaces, and to trash the app while an update is pending or when the bundle is a link, is not MorrowBot, or is outside Applications', async () => {
+  const execPath = await installed();
+  const reasons = async (workspaces: readonly string[] | null, exec = execPath, updatePending = false) =>
+    (await resetOptionsOf(fake.context('installed', '.morrowbot', workspaces), { packaged: true, execPath: exec, updatePending }, fakeKeychain([]))).map((option) => (option.kind === 'available' ? option.kind : option.reason));
+  const hostDown = await reasons(null);
+  const updatePending = await reasons([], execPath, true);
+  const notInApplications = await reasons([], `${fake.home}/Downloads/MorrowBot.app/Contents/MacOS/MorrowBot`);
+  await fake.file('Applications/MorrowBot.app/Contents/Info.plist', INFO_PLIST('com.other.app'));
+  const wrongBundleId = await reasons([]);
+  await rm(`${fake.home}/Applications/MorrowBot.app`, { recursive: true });
+  await fake.file('elsewhere/MorrowBot.app/Contents/Info.plist', INFO_PLIST('com.legendarykoi.morrowbot'));
+  await fake.link('Applications/MorrowBot.app', `${fake.home}/elsewhere/MorrowBot.app`);
+  const linkedBundle = await reasons([]);
+  await rm(`${fake.home}/Applications/MorrowBot.app`);
+  await fake.file('Applications/MorrowBot.app/Contents/Info.plist', INFO_PLIST('com.legendarykoi.morrowbot'));
+  const workspaceInBundle = await reasons([`${fake.home}/applications/morrowbot.app/Contents/Resources/agent`]);
+  expect({ hostDown, updatePending, notInApplications, wrongBundleId, linkedBundle, workspaceInBundle }).toMatchInlineSnapshot(`
+    {
+      "hostDown": [
+        "MorrowBot can't list which folders its agents use right now, so it deletes nothing. Make sure its server is running and reachable (Settings › Server), then try again.",
+        "available",
+        "MorrowBot can't list which folders its agents use right now, so it deletes nothing. Make sure its server is running and reachable (Settings › Server), then try again.",
+      ],
+      "linkedBundle": [
+        "available",
+        "MorrowBot.app is a symbolic link or could not be checked.",
+        "MorrowBot.app is a symbolic link or could not be checked.",
+      ],
+      "notInApplications": [
+        "available",
+        "Uninstalling works only for MorrowBot.app in Applications. Move it there, or drag it to the Trash yourself.",
+        "Uninstalling works only for MorrowBot.app in Applications. Move it there, or drag it to the Trash yourself.",
+      ],
+      "updatePending": [
+        "An update is on its way. Restart to update, or wait until it is done, then try again.",
+        "An update is on its way. Restart to update, or wait until it is done, then try again.",
+        "An update is on its way. Restart to update, or wait until it is done, then try again.",
+      ],
+      "workspaceInBundle": [
+        "available",
+        "An agent workspace is inside MorrowBot.app, or holds it. Move that workspace first.",
+        "An agent workspace is inside MorrowBot.app, or holds it. Move that workspace first.",
+      ],
+      "wrongBundleId": [
+        "available",
+        "This app bundle is not com.legendarykoi.morrowbot.",
+        "This app bundle is not com.legendarykoi.morrowbot.",
+      ],
+    }
+  `);
+});
+
+it("keeps Electron's Safe Storage key while its profile folder stays, and protects workspaces spelt in another case", async () => {
+  const execPath = await installed();
+  const context = fake.context('installed', '.morrowbot', [`${fake.home}/LIBRARY/application support/morrowbot/Workspace`]);
+  const [reset] = await resetOptionsOf(context, { packaged: true, execPath, updatePending: false }, fakeKeychain(KEYCHAIN));
+  const shownKept = (kept: readonly { readonly path: string }[]) => kept.filter((each) => each.path.includes('Application Support') || each.path.startsWith('Keychain'));
+  expect(fake.short(reset?.kind === 'available' ? { keychain: reset.steps.filter((step) => step.kind === 'keychain'), kept: shownKept(reset.kept) } : reset)).toMatchInlineSnapshot(`
+    {
+      "kept": [
+        {
+          "path": "~/Library/Application Support/MorrowBot",
+          "reason": "An agent workspace, or holds one. Workspaces are never touched.",
+        },
+        {
+          "path": "Keychain: com.legendarykoi.morrowbot.releases (account releases)",
+          "reason": "Needed for app updates while MorrowBot stays installed.",
+        },
+      ],
+      "keychain": [],
+    }
+  `);
+});
+
+it.skipIf(process.platform !== 'darwin')('protects a workspace the host names by another path to the same folder, such as the Data volume firmlink', async () => {
+  const execPath = await installed();
+  await fake.file('.morrowbot/attachments/a.png');
+  const alias = `/System/Volumes/Data${fake.home}`;
+  const context = fake.context('installed', '.morrowbot', [`${alias}/.morrowbot/plugin-data/echo`, `${alias}/.morrowbot/attachments/not-made-yet`]);
+  const [reset] = await resetOptionsOf(context, { packaged: true, execPath, updatePending: false }, fakeKeychain([]));
+  const now = await deleteRefusalNow(context, `${fake.home}/.morrowbot/plugin-data`);
+  const kept = reset?.kind === 'available' ? reset.kept.filter((each) => each.path.includes('plugin-data') || each.path.includes('attachments')) : reset;
+  expect(fake.short({ kept, now })).toMatchInlineSnapshot(`
+    {
+      "kept": [
+        {
+          "path": "~/.morrowbot/attachments",
+          "reason": "An agent workspace, or holds one. Workspaces are never touched.",
+        },
+        {
+          "path": "~/.morrowbot/plugin-data",
+          "reason": "An agent workspace, or holds one. Workspaces are never touched.",
+        },
+      ],
+      "now": "An agent workspace, or holds one. Workspaces are never touched.",
+    }
+  `);
+});
+
+it("refuses only the choices that delete data when the login Keychain can't be checked", async () => {
+  const execPath = await installed();
+  const broken = { has: () => Promise.reject(new Error('The login Keychain is missing, so MorrowBot leaves the Keychain alone.')), remove: () => Promise.resolve() };
+  const options = await resetOptionsOf(fake.context('installed', '.morrowbot'), { packaged: true, execPath, updatePending: false }, broken);
+  expect(options.map((option) => (option.kind === 'available' ? `${option.choice}: available` : `${option.choice}: ${option.reason}`))).toMatchInlineSnapshot(`
+    [
+      "reset: The login Keychain is missing, so MorrowBot leaves the Keychain alone.",
+      "uninstall-app: available",
+      "full-uninstall: The login Keychain is missing, so MorrowBot leaves the Keychain alone.",
+    ]
+  `);
+});
+
+it('protects the folders above a workspace link that was repointed after the plan was made', async () => {
+  await installed();
+  await fake.file('elsewhere/notes.md');
+  await fake.file('.morrowbot/plugin-data/echo/nested/todo.md');
+  await fake.link('ws-link', `${fake.home}/elsewhere`);
+  const context = fake.context('installed', '.morrowbot', [`${fake.home}/ws-link`, `${fake.home}/elsewhere`]);
+  const before = await deleteRefusalNow(context, `${fake.home}/.morrowbot/plugin-data`);
+  await rm(`${fake.home}/ws-link`);
+  await fake.link('ws-link', `${fake.home}/.morrowbot/plugin-data/echo/nested`);
+  expect({ before, after: await deleteRefusalNow(context, `${fake.home}/.morrowbot/plugin-data`) }).toMatchInlineSnapshot(`
+    {
+      "after": "An agent workspace, or holds one. Workspaces are never touched.",
+      "before": null,
+    }
+  `);
+});
