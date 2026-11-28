@@ -27,7 +27,7 @@ import { builtinProviders } from './features/providers/index.ts';
 import { findSkills, skillList } from './features/skills/index.ts';
 import { createRoutineService, type RoutineClock } from './features/routines/index.ts';
 import { lockDataDir, openStorage } from './features/storage/index.ts';
-import { cliProbe, createT3WatchService, type T3Probe, type T3WatchClock } from './features/t3-watch/index.ts';
+import { cliProbe, createT3WatchService, type T3Probe, type T3WatchClock, type T3WatchService } from './features/t3-watch/index.ts';
 import { keyValue, loginFill, openVault, vaultBackend, type VaultKeyChoice } from './features/vault/index.ts';
 import { agentInbox, agentToolPorts, chatStore, providerPlugins, subagentService } from './host-ports.ts';
 import { routineSink } from './t3-routine-sink.ts';
@@ -67,6 +67,7 @@ export interface Host {
   /** This launch's API token. It lives only in memory and is never logged. */
   readonly token: string;
   readonly plugins: PluginHost;
+  readonly t3Watches: Pick<T3WatchService, 'idle'>;
   close(): Promise<void>;
 }
 
@@ -346,6 +347,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
       url: api.url,
       token,
       plugins,
+      t3Watches,
       close: async () => {
         await api.close();
         await unwind();

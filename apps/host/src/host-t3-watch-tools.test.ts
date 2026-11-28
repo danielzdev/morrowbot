@@ -22,11 +22,11 @@ class TickingClock implements T3WatchClock {
       this.tick = () => undefined;
     };
   }
-  async advance(ms: number): Promise<void> {
+  async advance(ms: number, settle: () => Promise<void>): Promise<void> {
     for (let elapsed = 0; elapsed < ms; elapsed += 1000) {
       this.at += 1000;
       this.tick();
-      await new Promise((resolve) => setImmediate(resolve));
+      await settle();
     }
   }
 }
@@ -99,7 +99,7 @@ it('watches a T3 thread bound to the agent’s routine, delivers its batch, list
   );
   const watchReplies = (await lastReply(lead.thread)).map(hidePid);
 
-  await clock.advance(60_000);
+  await clock.advance(60_000, () => chat.host.host.t3Watches.idle());
   const run = await settledRun(routine.id);
   const prompt = MessageList.parse((await chat.host.call('GET', `/api/threads/${run.threadId ?? ''}/messages`)).body).messages[0]?.text ?? '';
   const batch = T3WatchBatch.parse(JSON.parse(/```json\n([\s\S]*)\n```/.exec(prompt)?.[1] ?? 'null'));
@@ -131,7 +131,7 @@ it('watches a T3 thread bound to the agent’s routine, delivers its batch, list
         "mcp:extra running",
       ],
       "roundtripReplies": [
-        "list_t3_watches: {"watches":[{"watchId":"id-10","threadId":"mcp:extra","source":"registered","label":"Extra task","state":"running","reason":null,"runId":"run:thread:mcp%3Aextra:ordinal:1","registeredAt":"2026-11-28T09:00:00.000Z","settledAt":null,"updatedAt":"2026-11-28T09:00:51.000Z","routineId":"id-5"},{"watchId":"id-9","threadId":"mcp:build","source":"registered","label":"CI build","state":"finished","reason":null,"runId":"run:thread:mcp%3Abuild:ordinal:1","registeredAt":"2026-11-28T09:00:00.000Z","settledAt":null,"updatedAt":"2026-11-28T09:00:21.000Z","routineId":"id-5"}],"pendingBatches":[{"batchId":"id-13","createdAt":"2026-11-28T09:00:47.000Z","attempts":1,"resendAt":"2026-11-28T09:10:48.000Z","events":[{"event":{"scope":"watch","kind":"finished","watchId":"id-9","threadId":"mcp:build","runId":"run:thread:mcp%3Abuild:ordinal:1","eventId":"id-12","fingerprint":"ok","reason":null,"at":"2026-11-28T09:00:21.000Z"},"unverified":false}]}],"pendingEvents":[{"scope":"watch","kind":"finished","watchId":"id-9","threadId":"mcp:build","runId":"run:thread:mcp%3Abuild:ordinal:1","eventId":"id-12","fingerprint":"ok","reason":null,"at":"2026-11-28T09:00:21.000Z"}]}",
+        "list_t3_watches: {"watches":[{"watchId":"id-10","threadId":"mcp:extra","source":"registered","label":"Extra task","state":"running","reason":null,"runId":"run:thread:mcp%3Aextra:ordinal:1","registeredAt":"2026-11-28T09:00:00.000Z","settledAt":null,"updatedAt":"2026-11-28T09:00:51.000Z","routineId":"id-5"},{"watchId":"id-9","threadId":"mcp:build","source":"registered","label":"CI build","state":"finished","reason":null,"runId":"run:thread:mcp%3Abuild:ordinal:1","registeredAt":"2026-11-28T09:00:00.000Z","settledAt":null,"updatedAt":"2026-11-28T09:00:21.000Z","routineId":"id-5"}],"pendingBatches":[{"batchId":"id-13","createdAt":"2026-11-28T09:00:47.000Z","attempts":1,"resendAt":"2026-11-28T09:10:47.000Z","events":[{"event":{"scope":"watch","kind":"finished","watchId":"id-9","threadId":"mcp:build","runId":"run:thread:mcp%3Abuild:ordinal:1","eventId":"id-12","fingerprint":"ok","reason":null,"at":"2026-11-28T09:00:21.000Z"},"unverified":false}]}],"pendingEvents":[{"scope":"watch","kind":"finished","watchId":"id-9","threadId":"mcp:build","runId":"run:thread:mcp%3Abuild:ordinal:1","eventId":"id-12","fingerprint":"ok","reason":null,"at":"2026-11-28T09:00:21.000Z"}]}",
         "ack_t3_batch: {"batchId":"id-13","result":"acked"}",
         "ack_t3_batch: {"batchId":"id-13","result":"already_acked"}",
         "unwatch_t3_thread: {"threadId":"mcp:extra","removedWatchIds":["id-10"]}",
@@ -163,7 +163,7 @@ it('enforces cross-agent ownership on T3 watches and batches and rejects invalid
   const [ownerWatch] = T3WatchList.parse((await chat.host.call('GET', '/api/t3-watches')).body).watches;
   if (ownerWatch === undefined) throw new Error('missing watch');
 
-  await clock.advance(60_000);
+  await clock.advance(60_000, () => chat.host.host.t3Watches.idle());
   const run = await settledRun(ownerRoutine.id);
   const prompt = MessageList.parse((await chat.host.call('GET', `/api/threads/${run.threadId ?? ''}/messages`)).body).messages[0]?.text ?? '';
   const batch = T3WatchBatch.parse(JSON.parse(/```json\n([\s\S]*)\n```/.exec(prompt)?.[1] ?? 'null'));

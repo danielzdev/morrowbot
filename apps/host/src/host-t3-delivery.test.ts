@@ -21,11 +21,11 @@ class TickingClock implements T3WatchClock {
       this.tick = () => undefined;
     };
   }
-  async advance(ms: number): Promise<void> {
+  async advance(ms: number, settle: () => Promise<void>): Promise<void> {
     for (let elapsed = 0; elapsed < ms; elapsed += 1000) {
       this.at += 1000;
       this.tick();
-      await new Promise((resolve) => setImmediate(resolve));
+      await settle();
     }
   }
 }
@@ -76,13 +76,14 @@ it('delivers one batch to the orchestrator’s own routine, never its chat, held
   for (const threadId of ['mcp:ask', 'mcp:done']) {
     await host.call('POST', '/api/t3-watches', { threadId, launchedAt: new Date(START).toISOString(), runId: runOf(threadId, 1) });
   }
+  const settle = () => host.host.t3Watches.idle();
   const typing = await host.call('POST', `/api/threads/${chat.id}/messages`, { text: 'stall-polite', sessionChoice: { kind: 'auto' } });
-  await clock.advance(60_000);
+  await clock.advance(60_000, settle);
   const runWhileTyping = await lastRun(host, routine.id);
   await host.call('POST', `/api/threads/${chat.id}/stop`);
-  await clock.advance(4000);
+  await clock.advance(4000, settle);
   const runAfter4s = await lastRun(host, routine.id);
-  await clock.advance(3000);
+  await clock.advance(3000, settle);
   const run = await settledRun(host, routine.id);
 
   const prompt = MessageList.parse((await host.call('GET', `/api/threads/${run.threadId ?? ''}/messages`)).body).messages[0]?.text ?? '';
@@ -91,7 +92,7 @@ it('delivers one batch to the orchestrator’s own routine, never its chat, held
   const again = await host.call('POST', '/api/t3-watches/acks', { batchId: batch.batchId });
   const unknown = await host.call('POST', '/api/t3-watches/acks', { batchId: 'no-such-batch' });
   const malformed = await host.call('POST', '/api/t3-watches/acks', { batchId: batch.batchId, deferredEventIds: 'all' });
-  await clock.advance(60_000);
+  await clock.advance(60_000, settle);
   const { watches } = T3WatchList.parse((await host.call('GET', '/api/t3-watches')).body);
   expect({
     typing: typing.status,

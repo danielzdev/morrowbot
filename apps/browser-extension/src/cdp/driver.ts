@@ -174,7 +174,11 @@ export function createCdpDriver({ tabs, attach, takeoverUi }: CdpDriverDeps): Cd
         await scroll(session, command.to, node);
         return done;
       case 'drag':
-        await drag(session, await centerOf(session, node(command.from)), () => centerOf(session, node(command.to)));
+        await drag(
+          session,
+          () => centerOf(session, node(command.from)),
+          () => centerOf(session, node(command.to)),
+        );
         return done;
       case 'screenshot':
         if (await showsSecret(session, state.secretNodes)) {

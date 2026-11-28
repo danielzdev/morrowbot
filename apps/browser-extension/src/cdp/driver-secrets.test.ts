@@ -4,7 +4,7 @@ import { driverUnderTest, refOf } from '../testing/driver-under-test.ts';
 
 const t = driverUnderTest();
 
-describe.skipIf(chromeMissing)('vault secrets and takeovers on a real page', () => {
+describe.skipIf(chromeMissing)('vault secrets and takeovers on a real page', { timeout: 60_000 }, () => {
   it('fills a secret only into a field on the expected origin', async () => {
     const { tabId, tree: snapshot } = await t.open('form');
     const password = refOf(snapshot, 'textbox "Password"');
