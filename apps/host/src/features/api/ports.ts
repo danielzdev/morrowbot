@@ -10,6 +10,7 @@ import type {
   AgentMessage,
   AgentInstructionsView,
   ClaimPairingRequest,
+  CreateRoutineRequest,
   BlockedGroup,
   ChatEvent,
   CreateAgentRequest,
@@ -19,6 +20,7 @@ import type {
   Folder,
   LastMessage,
   Message,
+  OpenWaitRequest,
   PairedDevice,
   PluginConfig,
   PluginManifest,
@@ -29,6 +31,9 @@ import type {
   ProviderInfo,
   QueuedMessage,
   ProviderUnavailableReason,
+  Routine,
+  RoutineRun,
+  RunRoutineRequest,
   SessionChoice,
   SessionChoiceReason,
   StopGenerationResponse,
@@ -38,8 +43,10 @@ import type {
   TokenUsageResponse,
   UpdateAgentRequest,
   UpdateFolderRequest,
+  UpdateRoutineRequest,
   UsageResponse,
   UserMessage,
+  Wait,
 } from '@morrowbot/contracts';
 
 export interface ApiAgents {
@@ -216,6 +223,31 @@ export interface ApiAgentMessages {
   subscribe(listener: (message: AgentMessage) => void): () => void;
 }
 
+export type ApiRoutineSave =
+  | { readonly kind: 'saved'; readonly routine: Routine }
+  | { readonly kind: 'not-found' }
+  | { readonly kind: 'invalid'; readonly reason: string };
+
+export interface ApiRoutines {
+  list(agentId?: string): Routine[];
+  create(request: CreateRoutineRequest): ApiRoutineSave;
+  update(id: string, request: UpdateRoutineRequest): ApiRoutineSave;
+  delete(id: string): boolean;
+  run(
+    id: string,
+    request: RunRoutineRequest,
+  ): Promise<
+    | { readonly kind: 'started'; readonly run: RoutineRun }
+    | { readonly kind: 'not-found' }
+    | { readonly kind: 'busy' }
+    | { readonly kind: 'invalid'; readonly reason: string }
+    | { readonly kind: 'wait-closed' }
+  >;
+  listWaits(): Wait[];
+  openWait(request: OpenWaitRequest): { readonly kind: 'opened'; readonly wait: Wait } | { readonly kind: 'invalid'; readonly reason: string };
+  closeWait(waitId: string): boolean;
+}
+
 export interface ApiServices {
   readonly agents: ApiAgents;
   readonly attachments: ApiAttachments;
@@ -227,4 +259,5 @@ export interface ApiServices {
   readonly usage: ApiUsage;
   readonly pairing: ApiPairing;
   readonly agentMessages: ApiAgentMessages;
+  readonly routines: ApiRoutines;
 }

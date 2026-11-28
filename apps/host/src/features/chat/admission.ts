@@ -1,5 +1,5 @@
 import { realpath } from 'node:fs/promises';
-import type { Message, ProviderUnavailableReason, SessionChoice, SessionChoiceReason, UserMessage } from '@morrowbot/contracts';
+import type { Message, ProviderUnavailableReason, SessionChoice, SessionChoiceReason, TurnMode, UserMessage } from '@morrowbot/contracts';
 import { decideSession, profileAllowed } from './admission-rules.ts';
 import { instructionsHash } from './seed.ts';
 import { laneKey, laneOf, pump, type BoundProvider, type ChatCore, type Turn } from './turn.ts';
@@ -17,7 +17,7 @@ export type AdmitResult =
   | { readonly kind: 'attachments_missing' };
 
 export type AdmitInput =
-  | { readonly kind: 'send'; readonly text: string; readonly attachmentIds: readonly string[] }
+  | { readonly kind: 'send'; readonly text: string; readonly attachmentIds: readonly string[]; readonly mode: TurnMode }
   | { readonly kind: 'continue'; readonly failedMessageId: string }
   /** A queued message, delivered as the user message with its own id; `prompt` is what the provider reads. */
   | { readonly kind: 'queued'; readonly id: string; readonly text: string; readonly prompt: string };
@@ -51,7 +51,8 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
       ? { kind: 'provider_unavailable', reason: 'daemon-blocked' }
       : { kind: 'no_provider', reason: `Provider plugin ${pluginId} is not available: ${info.reason}` };
   }
-  const refused = profileAllowed(info.info, binding, 'interactive');
+  const mode: TurnMode = input.kind === 'send' ? input.mode : 'interactive';
+  const refused = profileAllowed(info.info, binding, mode);
   if (refused !== undefined) return { kind: 'no_provider', reason: refused };
   if (info.info.kind !== 'ready' && info.info.kind !== 'ready-models-later') return { kind: 'no_provider', reason: 'not ready' };
   const capabilities = info.info.capabilities;
@@ -158,6 +159,7 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
     accountKey,
     routeKey,
     cwd,
+    mode,
     binding,
     bindingJson: second.ready.bindingJson,
     workspaceDir: second.ready.workspaceDir,

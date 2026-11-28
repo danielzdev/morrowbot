@@ -5,6 +5,7 @@ import type {
   PendingApproval,
   ProviderBinding,
   QueuedMessageState,
+  TurnMode,
   TurnOutcome,
   TurnUsage,
   UsageWindow,
@@ -37,6 +38,8 @@ export interface Turn {
   readonly routeKey: string;
   /** The canonical (realpath) workspace the turn runs in. */
   readonly cwd: string;
+  /** `background` (a routine run) never asks for approval. */
+  readonly mode: TurnMode;
   readonly binding: BoundProvider;
   readonly bindingJson: string;
   readonly workspaceDir: string;

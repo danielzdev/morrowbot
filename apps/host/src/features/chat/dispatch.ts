@@ -40,7 +40,7 @@ export async function dispatch(core: ChatCore, turn: Turn): Promise<void> {
     revision.daemonRevision === turn.daemonRevision &&
     plugins.canStart(turn.pluginId, turn.worker) &&
     info?.worker === turn.worker &&
-    profileAllowed(info.info, turn.binding, 'interactive') === undefined;
+    profileAllowed(info.info, turn.binding, turn.mode) === undefined;
   if (!unchanged) {
     settle(core, turn, localSettlement({ kind: 'failed', error: { kind: 'binding-changed' } }));
     return;
@@ -65,7 +65,7 @@ export async function dispatch(core: ChatCore, turn: Turn): Promise<void> {
   const request: TurnRequest = {
     turnId: turn.generationId,
     cwd: turn.cwd,
-    mode: 'interactive',
+    mode: turn.mode,
     access: turn.binding.access,
     vendorSettings: turn.binding.vendorSettings,
     expectedAccountKey: turn.accountKey,

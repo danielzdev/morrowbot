@@ -43,7 +43,10 @@ export interface ChatService {
   listMessages(threadId: string): Message[] | undefined;
   /** The thread, its messages, its live turn and blocked groups, and its cursor, as one snapshot. */
   state(threadId: string): ThreadState | undefined;
+  /** The user's send: while a turn runs it waits in the queue. */
   send(threadId: string, text: string, attachmentIds: readonly string[], choice: SessionChoice): Promise<SendResult>;
+  /** A routine's send: never queued (refused as busy), and its turn denies instead of asking for approval. */
+  sendUnattended(threadId: string, text: string, choice: SessionChoice): Promise<AdmitResult>;
   /** Takes a message the agent has not seen out of the queue. */
   cancelQueued(threadId: string, queuedId: string): QueueAnswer;
   /** Delivers a queued message now: into the running reply, or as the next turn when nothing runs. */
@@ -178,11 +181,12 @@ export function createChatService(options: ChatServiceOptions): ChatService {
       };
     },
     send: async (threadId, text, attachmentIds, choice) => {
-      if (!sendsQueue(core, threadId)) return admit(core, threadId, { kind: 'send', text, attachmentIds }, choice);
+      if (!sendsQueue(core, threadId)) return admit(core, threadId, { kind: 'send', text, attachmentIds, mode: 'interactive' }, choice);
       if (core.closed || core.deletingThreads.has(threadId) || store.threads.get(threadId) === undefined) return { kind: 'thread_not_found' };
       if (attachmentIds.length > 0) return { kind: 'files_wait' };
       return { kind: 'queued', queued: enqueue(core, threadId, text) };
     },
+    sendUnattended: (threadId, text, choice) => admit(core, threadId, { kind: 'send', text, attachmentIds: [], mode: 'background' }, choice),
     cancelQueued: (threadId, queuedId) => cancelQueued(core, threadId, queuedId),
     steerQueued: (threadId, queuedId) => steerQueued(core, threadId, queuedId),
     continueTurn: (threadId, failedMessageId, choice) => admit(core, threadId, { kind: 'continue', failedMessageId }, choice),

@@ -12,11 +12,14 @@ import { memoryRepository, type MemoryRepository } from './memories-repo.ts';
 import { messageRepository, type MessageRepository } from './messages-repo.ts';
 import { pluginSettingsRepository, type PluginSettingsRepository } from './plugins-repo.ts';
 import { queuedRepository, type QueuedRepository } from './queued-repo.ts';
+import { routineRunRepository, type RoutineRunRepository } from './routine-runs-repo.ts';
+import { routineRepository, type RoutineRepository } from './routines-repo.ts';
 import { migrate } from './schema.ts';
 import { sessionRepository, type SessionRepository } from './sessions-repo.ts';
 import { threadRepository, type ThreadRepository } from './threads-repo.ts';
 import { tokenTotalsRepository, type TokenTotalsRepository } from './token-totals-repo.ts';
 import { usageSnapshotRepository, type UsageSnapshotRepository } from './usage-repo.ts';
+import { waitRepository, type WaitRepository } from './waits-repo.ts';
 
 export interface Storage {
   readonly agents: AgentRepository;
@@ -34,6 +37,9 @@ export interface Storage {
   readonly attachments: AttachmentRepository;
   readonly memories: MemoryRepository;
   readonly agentMessages: AgentMessageRepository;
+  readonly routines: RoutineRepository;
+  readonly routineRuns: RoutineRunRepository;
+  readonly waits: WaitRepository;
   /** Runs `work` in one write transaction (`BEGIN IMMEDIATE`), rolled back if it throws. Not reentrant. */
   transaction<T>(work: () => T): T;
   close(): void;
@@ -64,6 +70,9 @@ export function openStorage(file: string, now: () => string): Storage {
       attachments: attachmentRepository(db),
       memories: memoryRepository(db),
       agentMessages: agentMessageRepository(db),
+      routines: routineRepository(db),
+      routineRuns: routineRunRepository(db),
+      waits: waitRepository(db),
       transaction: (work) => {
         db.exec('BEGIN IMMEDIATE');
         try {
