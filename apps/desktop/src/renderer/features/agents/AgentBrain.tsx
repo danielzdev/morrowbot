@@ -67,6 +67,7 @@ export function AgentBrain(props: {
       <BrainFields
         choices={props.choices}
         value={binding}
+        showAccess={true}
         redact={props.redact}
         onOpenProviders={props.onOpenProviders}
         onChange={(next) => {

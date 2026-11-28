@@ -7,12 +7,14 @@ import { ProviderRail } from '../../shared/binding-ui/ProviderRail.tsx';
 import { isRunnable, newBinding, pinModel, readinessOf, statusLine, withChoice, type ProviderChoice } from '../../shared/binding-ui/selection.ts';
 
 /**
- * Provider cards, then the chosen provider's models, options and access, inline (spec §5.1, §5.2).
- * Every pick only changes the staged `value`; the form around it decides when to save.
+ * Provider cards, then the chosen provider's models, options and (when `showAccess` is true) access,
+ * inline (spec §5.1, §5.2). Every pick only changes the staged `value`; the form around it decides
+ * when to save.
  */
 export function BrainFields(props: {
   readonly choices: readonly ProviderChoice[];
   readonly value: ProviderBinding;
+  readonly showAccess: boolean;
   readonly onChange: (next: ProviderBinding) => void;
   readonly redact: (text: string) => string;
   readonly onOpenProviders: () => void;
@@ -73,15 +75,17 @@ export function BrainFields(props: {
               }}
             />
           </div>
-          <AccessSegment
-            state={accessState(choice?.info, value)}
-            value={value}
-            disabled={false}
-            redact={props.redact}
-            onPick={(profile) => {
-              props.onChange({ ...value, access: profile.access, vendorSettings: profile.vendorSettings });
-            }}
-          />
+          {props.showAccess && (
+            <AccessSegment
+              state={accessState(choice?.info, value)}
+              value={value}
+              disabled={false}
+              redact={props.redact}
+              onPick={(profile) => {
+                props.onChange({ ...value, access: profile.access, vendorSettings: profile.vendorSettings });
+              }}
+            />
+          )}
         </>
       )}
     </div>

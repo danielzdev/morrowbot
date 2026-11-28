@@ -8,7 +8,7 @@ Settled product, visual, security, and workflow decisions for MorrowBot so any c
 - **Dark mode is the default on fresh installs** (`index.html` and `appearance.ts`), while Light and System options remain available and persisted preferences are respected.
 - **Mobile parity:** `apps/mobile/src/lib/theme.ts` tracks desktop Graphite tokens (enforced by `theme.test.ts`).
 - **User message bubble colors:** Outgoing user bubbles default to **Match bot** (automatically tinting to the active agent's avatar color with guaranteed WCAG AA `>= 4.5:1` contrast in light and dark mode). Users can switch globally in **Settings › Appearance** (`Match bot` / `Off` / `Custom`, defaulting custom to Sky `#0ea5e9`) or override per agent in **Agent Settings › General** (`Use global` / `Off` / `Custom`).
-- **Chat avatars:** Live animated avatars appear in the active chat turn row (queued, thinking, tool run, writing, approval, brief done beat) and stay static on thread tabs and under Reduce Motion.
+- **Chat avatars:** Live animated avatars appear in the active chat turn row (queued, thinking, tool run, writing, approval, brief done beat) and auto-hide when idle, while staying static on thread tabs and under Reduce Motion.
 
 ## First-Run Onboarding
 - **One calm decision per screen:** Server choice (**Start my own server** vs **Join a server**) → Engine setup → First agent creation. Never auto-advance between steps.
@@ -25,7 +25,7 @@ Settled product, visual, security, and workflow decisions for MorrowBot so any c
   - Routines: `list_routines`, `create_routine`, `update_routine`, `delete_routine`, `routine_no_update`
   - Calm T3 Code watches: `list_t3_watches`, `watch_t3_thread`, `unwatch_t3_thread`, `ack_t3_batch`
   - Vault metadata lookup (values never exposed to agents): `list_vault_items`
-- **Access profiles:** Trusted agents can opt into the `full` (shell/Bash) access profile with an owner-only guard and explicit desktop confirmation warning.
+- **Access profiles:** New agents default to `full` (shell/Bash) access when offered by the chosen provider (falling back to the best offered interactive profile otherwise), with the access picker kept concise in **Agent Settings › Brain** and the composer popover (owner-only guard and confirmation warning when turning full access on for an existing agent).
 - **Secrets Vault:** One AES-256-GCM encrypted file (`vault-secrets.json`) sealed under a single master key in the OS keystore (`com.legendarykoi.morrowbot.vault` on macOS Keychain; zero extra master-password prompts). Secrets are injected by `vaultId` inside MCP/Composio connector headers and browser `submit_secret` (password + TOTP with origin checks) and never returned to agents.
 - **Extensions & built-in tool plugins:** Custom MCP servers (stdio + Streamable HTTP/SSE) and Composio connectors support per-agent enablement. Built-in tool plugins (`plugins/browser` + Chromium extension; `plugins/computer-use` native macOS helper) execute over the per-turn MCP tool bridge.
 

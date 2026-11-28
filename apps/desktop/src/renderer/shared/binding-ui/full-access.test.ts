@@ -9,6 +9,7 @@ import { newBinding, type ProviderChoice } from './selection.ts';
 const READ: AccessProfile = { access: 'read-only', vendorSettings: 'isolated', modes: ['interactive', 'background'], readsOutsideCwd: false };
 const WRITE: AccessProfile = { ...READ, access: 'workspace-write' };
 const FULL: AccessProfile = { ...READ, access: 'full', readsOutsideCwd: true };
+const FULL_PERSONAL: AccessProfile = { ...FULL, vendorSettings: 'personal' };
 
 const claude = (profiles: readonly AccessProfile[]): ProviderChoice => ({
   id: 'claude',
@@ -29,12 +30,26 @@ const claude = (profiles: readonly AccessProfile[]): ProviderChoice => ({
 
 const bound = (access: AccessProfile['access']): Extract<ProviderBinding, { kind: 'bound' }> => ({ kind: 'bound', pluginId: 'claude', selection: { kind: 'default' }, access, vendorSettings: 'isolated' });
 
-it('never starts a new agent on full access, even when the provider lists it first or offers nothing else', () => {
+it('prefers full access (isolated first) for a new agent, falling back to the best offered interactive profile', () => {
   const access = (choice: ProviderChoice) => {
     const binding = newBinding(choice);
-    return binding.kind === 'bound' ? binding.access : binding.kind;
+    return binding.kind === 'bound' ? `${binding.access}/${binding.vendorSettings}` : binding.kind;
   };
-  expect({ fullFirst: access(claude([FULL, WRITE, READ])), onlyFull: access(claude([FULL])) }).toEqual({ fullFirst: 'workspace-write', onlyFull: 'unbound' });
+  expect({
+    fullLast: access(claude([READ, WRITE, FULL])),
+    onlyFull: access(claude([FULL])),
+    isolatedOverPersonal: access(claude([FULL_PERSONAL, FULL])),
+    onlyPersonalFull: access(claude([FULL_PERSONAL])),
+    noFullFallback: access(claude([READ, WRITE])),
+    noInteractive: access(claude([])),
+  }).toEqual({
+    fullLast: 'full/isolated',
+    onlyFull: 'full/isolated',
+    isolatedOverPersonal: 'full/isolated',
+    onlyPersonalFull: 'full/personal',
+    noFullFallback: 'read-only/isolated',
+    noInteractive: 'unbound',
+  });
 });
 
 it('asks before turning full access on, with the shell warning, and not when it stays on or turns off', () => {

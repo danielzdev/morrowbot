@@ -15,7 +15,7 @@ import { choiceFor, providerChoicesOf, threadStatusOf } from './derive.ts';
 import { InspectorPane } from './InspectorPane.tsx';
 import type { Models } from './models.ts';
 
-/** The agent's avatar beside its running turn and latest reply, in CSS pixels. */
+/** The agent's avatar beside its running turn and brief completion beat, in CSS pixels. */
 const CHAT_AVATAR_SIZE = 32;
 
 export interface Chrome {

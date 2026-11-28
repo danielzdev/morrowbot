@@ -1,4 +1,4 @@
-import type { AccessLevel, AccessProfile, ModelSelection, ProviderBinding, ProviderInfo, ProviderModel, VendorSettings, WithheldProfile } from '@morrowbot/contracts';
+import type { AccessLevel, AccessProfile, ModelSelection, ProviderBinding, ProviderInfo, ProviderModel, VendorSettings } from '@morrowbot/contracts';
 import { profileWarnings } from './access-copy.ts';
 import { interactiveProfiles, readyInfo, type ProviderChoice } from './selection.ts';
 
@@ -46,7 +46,6 @@ export type CurrentAccess =
 
 export interface AccessState {
   readonly offered: readonly AccessProfile[];
-  readonly withheld: readonly WithheldProfile[];
   readonly approvals: boolean;
   readonly current: CurrentAccess;
 }
@@ -70,7 +69,7 @@ export function accessState(info: ProviderInfo | undefined, saved: AccessKey): A
   const held = withheld.find((each) => sameAccess(each, saved));
   const current: CurrentAccess =
     profile !== undefined ? { kind: 'offered', profile } : held !== undefined ? { kind: 'withheld', reason: held.reason } : { kind: 'not-offered' };
-  return { offered, withheld, approvals, current };
+  return { offered, approvals, current };
 }
 
 /** The warnings a binding's access brings, as its provider reports that profile now. */

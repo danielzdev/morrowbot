@@ -94,11 +94,13 @@ export function statusLine(readiness: Readiness): string {
 }
 
 /**
- * The first interactive profile with no warnings, else the first interactive one (its warnings are shown).
- * Never full access: only the owner turns that on, after a confirmation.
+ * Prefers `full` access (isolated first, else any offered interactive `full` profile); falls back
+ * to the first warning-free interactive profile, else the first interactive profile.
  */
 export function defaultProfile(info: ReadyInfo): AccessProfile | null {
-  const interactive = interactiveProfiles(info).filter((profile) => profile.access !== 'full');
+  const interactive = interactiveProfiles(info);
+  const full = interactive.filter((profile) => profile.access === 'full');
+  if (full.length > 0) return full.find((profile) => profile.vendorSettings === 'isolated') ?? full[0] ?? null;
   return interactive.find((profile) => profileWarnings(profile).length === 0) ?? interactive[0] ?? null;
 }
 
