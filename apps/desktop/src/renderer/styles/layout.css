@@ -39,7 +39,7 @@
   min-height: 0;
   height: 100%;
   background: var(--surface-1);
-  border-right: 1px solid transparent;
+  border-right: 1px solid var(--hairline-strong);
   user-select: none;
 }
 .sidebar-top {
@@ -231,6 +231,7 @@
   width: 6px;
   cursor: col-resize;
   z-index: var(--z-sticky);
+  -webkit-app-region: no-drag;
 }
 .sidebar-resizer:is(:hover, :focus-visible) {
   outline: none;

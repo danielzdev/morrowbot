@@ -7,9 +7,8 @@ import { bindingPill, BindingControl, BindingWarnings, sendBlock, type BoundProv
 import { chatDisplay, ChatView, Composer, type ChatActivity, type EngineLabel, type PeerDirectory } from '../features/chat/index.ts';
 import { INSPECTOR_TOGGLE } from '../features/inspector/index.ts';
 import { ThreadHeader } from '../features/thread/index.ts';
-import { profileName } from '../shared/binding-ui/access-copy.ts';
 import { bubbleStyleVars } from '../shared/bubble-color.ts';
-import { displayPath, type AppInfo } from '../shared/privacy.ts';
+import type { AppInfo } from '../shared/privacy.ts';
 import { useStore } from '../shared/use-store.ts';
 import { choiceFor, providerChoicesOf, threadStatusOf } from './derive.ts';
 import { InspectorPane } from './InspectorPane.tsx';
@@ -171,10 +170,6 @@ export function ChatPane(props: {
               <>
                 <BotAvatar avatar={agent.avatar} motion={motion} size={64} reducedMotion={props.reducedMotion} />
                 <p class="hero-title">What can {agent.name} help with?</p>
-                <p class="hero-note">
-                  {props.info === null ? '…' : displayPath(agent.workspace.dir, props.info, agent.workspace.dir)}
-                  {bound !== null && ` · ${profileName(bound)}`}
-                </p>
               </>
             }
           />
