@@ -1,10 +1,10 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { constants, type BigIntStats } from 'node:fs';
-import { link, lstat, mkdir, open, unlink } from 'node:fs/promises';
+import { link, lstat, mkdir, open, realpath, stat, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import type { AgentInstructionsView } from '@morrowbot/contracts';
 
-export const INSTRUCTIONS_FILE = 'AGENTS.md';
+export const INSTRUCTIONS_FILE = 'SOUL.md';
 
 /** The longest text the instructions contract carries. */
 const MAX_CHARS = 1_000_000;
@@ -17,7 +17,7 @@ const identityOf = (stats: BigIntStats): string => [stats.dev, stats.ino, stats.
 const hashOf = (bytes: Buffer): string => createHash('sha256').update(bytes).digest('hex');
 
 /**
- * An opaque revision of the `AGENTS.md` entry: its own `lstat` identity, plus the identity and
+ * An opaque revision of the `SOUL.md` entry: its own `lstat` identity, plus the identity and
  * content hash of what it resolves to when that can be read, or the read error's code.
  */
 function revisionOf(entry: string | null, target: string | null, content: string | null, problem: string | null): string {
@@ -31,19 +31,23 @@ const codeOf = (error: unknown): string | null =>
 function readError(code: string | null): string {
   switch (code) {
     case 'ENOENT':
-      return 'AGENTS.md is a link to a file that is not there.';
+      return 'SOUL.md is a link to a file that is not there.';
     case 'ELOOP':
-      return 'AGENTS.md is a link that loops back on itself.';
+      return 'SOUL.md is a link that loops back on itself.';
     case 'EACCES':
     case 'EPERM':
-      return "MorrowBot isn't allowed to read AGENTS.md.";
+      return "MorrowBot isn't allowed to read SOUL.md.";
     case 'not-a-file':
-      return 'AGENTS.md is not a regular file.';
+      return 'SOUL.md is not a regular file.';
     case 'too-large':
-      return 'AGENTS.md is too large to edit here.';
+      return 'SOUL.md is too large to edit here.';
+    case 'outside':
+      return 'SOUL.md is a link to a file outside the workspace folder.';
+    case 'moved':
+      return 'SOUL.md changed while it was being read.';
     case null:
     default:
-      return 'AGENTS.md could not be read.';
+      return 'SOUL.md could not be read.';
   }
 }
 
@@ -51,11 +55,29 @@ const MISSING: AgentInstructionsView = { content: null, revision: null, canRepla
 
 type Target = { readonly kind: 'read'; readonly identity: string; readonly bytes: Buffer } | { readonly kind: 'too-large'; readonly identity: string };
 
-async function readTarget(file: string): Promise<Target> {
-  const handle = await open(file, constants.O_RDONLY | constants.O_NONBLOCK);
+const refusal = (code: string): Error => Object.assign(new Error(code), { code });
+
+/** Whether `child` is inside `root`; both are real paths. */
+function inside(root: string, child: string): boolean {
+  const relative = path.relative(root, child);
+  return relative !== '' && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+}
+
+/**
+ * Reads `dir/SOUL.md` only when, after every symlink, it is a regular file inside `dir`, and is still the
+ * same file once open. The host runs outside the Fence, so a link out of the workspace (to the vault or the
+ * database) is never followed.
+ */
+async function readTarget(dir: string, file: string): Promise<Target> {
+  const [root, real] = await Promise.all([realpath(dir), realpath(file)]);
+  if (!inside(root, real)) throw refusal('outside');
+  const handle = await open(real, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
     const stats = await handle.stat({ bigint: true });
-    if (!stats.isFile()) throw Object.assign(new Error('not a file'), { code: 'not-a-file' });
+    if (!stats.isFile()) throw refusal('not-a-file');
+    const again = await realpath(file).catch(() => '');
+    const now = inside(root, again) ? await stat(again, { bigint: true }).catch(() => undefined) : undefined;
+    if (now?.ino !== stats.ino || now.dev !== stats.dev) throw refusal('moved');
     const identity = identityOf(stats);
     if (stats.size > BigInt(MAX_BYTES)) return { kind: 'too-large', identity };
     const buffer = Buffer.alloc(MAX_BYTES + 1);
@@ -72,7 +94,7 @@ async function readTarget(file: string): Promise<Target> {
   }
 }
 
-/** What `dir/AGENTS.md` holds now. Occupancy comes from the entry itself, so a dangling link is present. */
+/** What `dir/SOUL.md` holds now. Occupancy comes from the entry itself, so a dangling link is present. */
 export async function readInstructionsView(dir: string): Promise<AgentInstructionsView> {
   const file = path.join(dir, INSTRUCTIONS_FILE);
   let entry: string;
@@ -84,7 +106,7 @@ export async function readInstructionsView(dir: string): Promise<AgentInstructio
     return { content: null, revision: revisionOf(null, null, null, code), canReplace: false, readError: readError(code) };
   }
   try {
-    const target = await readTarget(file);
+    const target = await readTarget(dir, file);
     const tooLarge = { content: null, revision: revisionOf(entry, target.identity, null, 'too-large'), canReplace: false, readError: readError('too-large') };
     if (target.kind === 'too-large') return tooLarge;
     const content = target.bytes.toString('utf8');
@@ -94,6 +116,14 @@ export async function readInstructionsView(dir: string): Promise<AgentInstructio
     const code = codeOf(error);
     return { content: null, revision: revisionOf(entry, null, null, code), canReplace: false, readError: readError(code) };
   }
+}
+
+/** The text of `dir/SOUL.md` for a turn: '' when there is none; throws, with a path-free message, when it can't be read. */
+export async function readInstructionsText(dir: string): Promise<string> {
+  const view = await readInstructionsView(dir);
+  if (view.content !== null) return view.content;
+  if (view.revision === null) return '';
+  throw new Error(view.readError ?? readError(null));
 }
 
 /** Why a write failed, in words that never carry a path. */
@@ -195,7 +225,7 @@ async function present(file: string): Promise<boolean> {
 
 export type CreateInstructionsResult = { readonly kind: 'created'; readonly revision: string } | { readonly kind: 'occupied' } | WriteFailure;
 
-/** Creates `dir/AGENTS.md` only when no entry has that name, so an existing file or link is never replaced. */
+/** Creates `dir/SOUL.md` only when no entry has that name, so an existing file or link is never replaced. */
 export function createInstructions(dir: string, content: string): Promise<CreateInstructionsResult> {
   return guarded(async () => {
     await mkdir(dir, { recursive: true });

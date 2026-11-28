@@ -199,7 +199,7 @@ export function turnRequest(turnId: string, prompt: string, cwd: string): TurnRe
     expectedRouteKey: '',
     selection: { kind: 'default' },
     session: { kind: 'new', seed: null },
-    system: null,
+    system: '',
     prompt,
     images: [],
     hostTools: { kind: 'none' },

@@ -32,6 +32,11 @@ workspace (`readsOutsideCwd`), in interactive or background mode:
 
 An unexpected approval request is declined without a card.
 
+**Instructions.** Codex loads your `~/.codex/AGENTS.md` and the workspace's `AGENTS.md` by itself,
+but not the agent's `SOUL.md`. MorrowBot sends `SOUL.md` as the thread's `developerInstructions`
+on every `thread/start` and `thread/resume`; when it is not empty, it takes the place of a
+`developer_instructions` from your Codex config for that thread.
+
 **MorrowBot's tools.** The one MCP server a thread runs is the host's own for the turn
 (`mcp_servers.morrowbot` in the thread's config overrides, replacing any server of yours by
 that name, with `default_tools_approval_mode = "approve"`: approvals are `never`, so Codex

@@ -46,7 +46,7 @@ it('shows "Not reported" for every field the renderer does not receive (spec §3
         "Workspace: …/shared/notes; Shared: other agents may use it too.",
         "Brain: Provider=Antigravity; Status=Ready; Model=Gemini 3 Pro; Access=Read only",
         "Session: This provider gets recent chat history each turn, within its limits.",
-        "Instructions: No AGENTS.md yet.",
+        "Instructions: No SOUL.md yet.",
         "This chat: Last turn tokens=Not reported; Model that replied=Not reported",
       ],
       "unbound": [
@@ -56,7 +56,7 @@ it('shows "Not reported" for every field the renderer does not receive (spec §3
   `);
 });
 
-it('previews the first six lines of AGENTS.md and tells missing, empty and unreadable apart', () => {
+it('previews the first six lines of SOUL.md and tells missing, empty and unreadable apart', () => {
   const safe = (text: string): string => text.replaceAll('/Users/sam', '~');
   expect({
     missing: previewOf({ content: null, revision: null }, safe),

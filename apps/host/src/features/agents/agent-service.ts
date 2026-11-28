@@ -1,7 +1,7 @@
-import { mkdir, readFile } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import type { Agent, AgentInstructionsView, AgentWorkspace, AgentWorkspaceRequest, CreateAgentRequest, UpdateAgentRequest } from '@morrowbot/contracts';
-import { createInstructions, guarded, INSTRUCTIONS_FILE, readInstructionsView, saveInstructionsCopy, type CreateInstructionsResult, type SaveCopyResult, type WriteFailure } from './instructions-file.ts';
+import { createInstructions, guarded, readInstructionsText, readInstructionsView, saveInstructionsCopy, type CreateInstructionsResult, type SaveCopyResult, type WriteFailure } from './instructions-file.ts';
 
 /** Where agent records are kept (the storage feature provides one). */
 export interface AgentRecords {
@@ -34,7 +34,7 @@ export interface AgentServiceOptions {
 export type CreateAgentResult =
   | { readonly kind: 'created'; readonly agent: Agent }
   | { readonly kind: 'invalid'; readonly reason: string }
-  /** The workspace has an `AGENTS.md` already, so `initialInstructions` was not written and no agent was made. */
+  /** The workspace has a `SOUL.md` already, so `initialInstructions` was not written and no agent was made. */
   | { readonly kind: 'instructions-occupied'; readonly current: AgentInstructionsView }
   | WriteFailure;
 
@@ -53,11 +53,11 @@ export interface AgentService {
   create(request: CreateAgentRequest): Promise<CreateAgentResult>;
   update(id: string, request: UpdateAgentRequest): UpdateAgentResult;
   delete(id: string): boolean;
-  /** Returns the agent's `AGENTS.md` for a turn ('' when it can't be found), or undefined for an unknown agent. */
+  /** Returns the agent's `SOUL.md` for a turn ('' when there is none), or undefined for an unknown agent. Throws when it is there but can't be read. */
   readInstructions(id: string): Promise<string | undefined>;
   /** What the editor shows: the text, its revision, and whether it can be read. Undefined for an unknown agent. */
   instructionsView(id: string): Promise<AgentInstructionsView | undefined>;
-  /** Creates a missing `AGENTS.md`; never replaces an entry that is there. Undefined for an unknown agent. */
+  /** Creates a missing `SOUL.md`; never replaces an entry that is there. Undefined for an unknown agent. */
   createInstructions(id: string, content: string): Promise<CreateInstructionsResult | undefined>;
   /** Saves `content` as a copy in the data folder and returns its file name. Undefined for an unknown agent. */
   saveInstructionsCopy(id: string, content: string): Promise<SaveCopyResult | undefined>;
@@ -115,7 +115,7 @@ export function createAgentService(options: AgentServiceOptions): AgentService {
           case 'occupied':
             return { kind: 'instructions-occupied', current: await readInstructionsView(agent.workspace.dir) };
           case 'failed':
-            return { kind: 'failed', message: `AGENTS.md was not written. ${written.message}` };
+            return { kind: 'failed', message: `SOUL.md was not written. ${written.message}` };
         }
       }
       if (unknownFolder(agent.folderId)) return { kind: 'invalid', reason: NO_SUCH_FOLDER };
@@ -141,12 +141,7 @@ export function createAgentService(options: AgentServiceOptions): AgentService {
     readInstructions: async (id) => {
       const agent = records.get(id);
       if (agent === undefined) return undefined;
-      try {
-        return await readFile(path.join(agent.workspace.dir, INSTRUCTIONS_FILE), 'utf8');
-      } catch (error) {
-        if (isMissingFile(error)) return '';
-        throw error;
-      }
+      return readInstructionsText(agent.workspace.dir);
     },
     instructionsView: async (id) => {
       const agent = records.get(id);
@@ -161,8 +156,4 @@ export function createAgentService(options: AgentServiceOptions): AgentService {
       return agent === undefined ? undefined : saveInstructionsCopy(path.join(options.draftsDir, agent.id), options.now(), content);
     },
   };
-}
-
-function isMissingFile(error: unknown): boolean {
-  return error instanceof Error && 'code' in error && error.code === 'ENOENT';
 }

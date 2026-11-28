@@ -16,7 +16,7 @@ const PROFILES: readonly AccessProfile[] = [
 ];
 
 const INSTRUCTIONS_REASON =
-  "Antigravity always loads the workspace's own AGENTS.md (checked on agy 1.5.18), so MorrowBot cannot replace its instructions. The agent's AGENTS.md still applies.";
+  "Antigravity always loads the workspace's own AGENTS.md (checked on agy 1.5.18), so MorrowBot cannot replace its instructions. MorrowBot still sends the agent's SOUL.md.";
 const WRITE_REASON =
   "MorrowBot can't yet confine Antigravity's file writes to the workspace, and agy runs commands outside any sandbox. Use Full access instead.";
 

@@ -48,7 +48,7 @@ function makeRequest(turnId: string): TurnRequest {
     expectedRouteKey: '',
     selection: { kind: 'default' },
     session: { kind: 'new', seed: null },
-    system: null,
+    system: '',
     prompt: 'hello',
     images: [],
     hostTools: { kind: 'none' },

@@ -23,7 +23,7 @@ function withoutKey<T>(record: Readonly<Record<string, T>>, key: string): Readon
   return Object.fromEntries(Object.entries(record).filter(([each]) => each !== key));
 }
 
-/** The first few lines of the agent's `AGENTS.md`, as a summary. */
+/** The first few lines of the agent's `SOUL.md`, as a summary. */
 function summary(view: Loadable<AgentInstructionsView>): string {
   switch (view.kind) {
     case 'loading':

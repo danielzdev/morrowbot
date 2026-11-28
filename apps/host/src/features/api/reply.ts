@@ -64,11 +64,11 @@ export function sessionChoiceRequired(reason: SessionChoiceReason): Reply {
   return json(409, body);
 }
 
-/** `AGENTS.md` was left as it is: it exists already, or replacing it is not available yet (409). */
+/** `SOUL.md` was left as it is: it exists already, or replacing it is not available yet (409). */
 export function instructionsConflict(reason: 'occupied' | 'replace-unavailable', current: AgentInstructionsView): Reply {
   const messages: Record<typeof reason, string> = {
-    occupied: 'This folder already has an AGENTS.md, so MorrowBot kept it and wrote nothing.',
-    'replace-unavailable': "Editing AGENTS.md in place isn't available yet. Nothing was changed.",
+    occupied: 'This folder already has a SOUL.md, so MorrowBot kept it and wrote nothing.',
+    'replace-unavailable': "Editing SOUL.md in place isn't available yet. Nothing was changed.",
   };
   const body: ApiError = { error: { kind: 'instructions-conflict', reason, current, message: messages[reason] } };
   return json(409, body);

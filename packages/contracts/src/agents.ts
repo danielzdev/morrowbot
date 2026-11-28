@@ -126,7 +126,7 @@ export const CreateAgentRequest = z.strictObject({
   folderId: EntityId.nullable().default(null),
   emojiReplies: AgentEmojiReplies.default('allowed'),
   disabledExtensions: DisabledExtensions.default([]),
-  /** Written to the new workspace's `AGENTS.md` only if no file or symlink is there yet. */
+  /** Written to the new workspace's `SOUL.md` only if no file or symlink is there yet. */
   initialInstructions: InstructionsText.nullable().default(null),
 });
 export type CreateAgentRequest = z.infer<typeof CreateAgentRequest>;
@@ -156,7 +156,7 @@ export const LastMessage = z.strictObject({
 export type LastMessage = z.infer<typeof LastMessage>;
 
 /**
- * The agent's `AGENTS.md` as the host found it. `revision` is null only for a missing entry; `content`
+ * The agent's `SOUL.md` as the host found it. `revision` is null only for a missing entry; `content`
  * is null when the text can't be read (missing, a dangling symlink, unreadable), and `readError` then
  * says why for an entry that is there. `canReplace` is false until the host can replace a file safely.
  */
@@ -168,14 +168,14 @@ export const AgentInstructionsView = z.strictObject({
 });
 export type AgentInstructionsView = z.infer<typeof AgentInstructionsView>;
 
-/** Creates a missing `AGENTS.md` (`expectedRevision: null`). The host never replaces an existing one yet. */
+/** Creates a missing `SOUL.md` (`expectedRevision: null`). The host never replaces an existing one yet. */
 export const PutInstructionsRequest = z.strictObject({ content: InstructionsText, expectedRevision: z.string().min(1).nullable() });
 export type PutInstructionsRequest = z.infer<typeof PutInstructionsRequest>;
 
 export const PutInstructionsReply = z.strictObject({ revision: z.string().min(1) });
 export type PutInstructionsReply = z.infer<typeof PutInstructionsReply>;
 
-/** Keeps a draft in the data folder; the live `AGENTS.md` is not touched. */
+/** Keeps a draft in the data folder; the live `SOUL.md` is not touched. */
 export const InstructionsCopyRequest = z.strictObject({ content: InstructionsText });
 export type InstructionsCopyRequest = z.infer<typeof InstructionsCopyRequest>;
 

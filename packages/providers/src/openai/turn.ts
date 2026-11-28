@@ -57,7 +57,7 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
   const { daemon, accountKey, routeKey, subscription, policy } = checked;
   const ephemeral = accountKey === '';
   if (ephemeral && request.session.kind === 'resume') return refuse({ kind: 'session-lost' });
-  const opening = openThread(daemon, { cwd: request.cwd, session: request.session, ephemeral, routeKey, policy });
+  const opening = openThread(daemon, { cwd: request.cwd, session: request.session, ephemeral, routeKey, policy, instructions: request.system });
   const opened = await unlessStopped(opening);
   if (opened === 'stopped') {
     opening

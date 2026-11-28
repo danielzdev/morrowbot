@@ -94,11 +94,11 @@ function instructionsBody(preview: InstructionsPreview): ComponentChildren {
     case 'loading':
       return <p class="inspector-text muted">Loading…</p>;
     case 'missing':
-      return <p class="inspector-text muted">No AGENTS.md yet.</p>;
+      return <p class="inspector-text muted">No SOUL.md yet.</p>;
     case 'empty':
-      return <p class="inspector-text muted">AGENTS.md is empty.</p>;
+      return <p class="inspector-text muted">SOUL.md is empty.</p>;
     case 'unreadable':
-      return <p class="inspector-text muted">AGENTS.md could not be read.</p>;
+      return <p class="inspector-text muted">SOUL.md could not be read.</p>;
     case 'failed':
       return <p class="inspector-text not-reported">{NOT_REPORTED}</p>;
     case 'text':

@@ -1,4 +1,7 @@
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import { afterEach, expect, it } from 'vitest';
+import { z } from 'zod';
 import { AGY, type AgyFixture, FAKE_AGY, startAgyFixture, turnMethods } from '../../testing/agy-fixture.ts';
 import { DEFAULT_PLUGIN_TIMEOUTS } from '../../testing/test-host.ts';
 
@@ -192,5 +195,49 @@ it('sets the picked model and thinking level on each new session, and refuses a 
         "session/close",
       ],
     }
+  `);
+});
+
+it("sends the agent's SOUL.md in every prompt, beside the workspace's AGENTS.md that agy loads itself", async () => {
+  const fixture = (agy = await startAgyFixture());
+  const agent = await fixture.agent();
+  const workspace = path.join(fixture.home, 'data', 'workspaces', agent.id);
+  await mkdir(workspace, { recursive: true });
+  await writeFile(path.join(workspace, 'SOUL.md'), 'Answer in French.\n');
+  await writeFile(path.join(workspace, 'AGENTS.md'), 'Repository rules.\n');
+  const thread = await fixture.thread(agent);
+  await fixture.send(thread, 'hello');
+  await fixture.send(thread, 'again');
+  const Prompt = z.looseObject({ prompt: z.array(z.looseObject({ text: z.string().optional() })) });
+  const prompts = (await fixture.log()).flatMap((entry) => (entry.method === 'session/prompt' ? Prompt.parse(entry.params).prompt.map((part) => part.text) : []));
+  expect(prompts).toMatchInlineSnapshot(`
+    [
+      "<instructions>
+    Answer in French.
+    </instructions>
+
+    hello",
+      "<instructions>
+    Answer in French.
+    </instructions>
+
+    Continue this conversation. Reply to the last user message.
+
+    <conversation>
+    <user>
+    hello
+    </user>
+    <assistant>
+    Echo: <instructions>
+    Answer in French.
+    </instructions>
+
+    hello
+    </assistant>
+    <user>
+    again
+    </user>
+    </conversation>",
+    ]
   `);
 });

@@ -82,17 +82,17 @@ it('reports ready with every model, its thinking levels and the plan on the firs
               },
               {
                 "access": "read-only",
-                "reason": "Antigravity always loads the workspace's own AGENTS.md (checked on agy 1.5.18), so MorrowBot cannot replace its instructions. The agent's AGENTS.md still applies.",
+                "reason": "Antigravity always loads the workspace's own AGENTS.md (checked on agy 1.5.18), so MorrowBot cannot replace its instructions. MorrowBot still sends the agent's SOUL.md.",
                 "vendorSettings": "isolated",
               },
               {
                 "access": "workspace-write",
-                "reason": "Antigravity always loads the workspace's own AGENTS.md (checked on agy 1.5.18), so MorrowBot cannot replace its instructions. The agent's AGENTS.md still applies.",
+                "reason": "Antigravity always loads the workspace's own AGENTS.md (checked on agy 1.5.18), so MorrowBot cannot replace its instructions. MorrowBot still sends the agent's SOUL.md.",
                 "vendorSettings": "isolated",
               },
               {
                 "access": "full",
-                "reason": "Antigravity always loads the workspace's own AGENTS.md (checked on agy 1.5.18), so MorrowBot cannot replace its instructions. The agent's AGENTS.md still applies.",
+                "reason": "Antigravity always loads the workspace's own AGENTS.md (checked on agy 1.5.18), so MorrowBot cannot replace its instructions. MorrowBot still sends the agent's SOUL.md.",
                 "vendorSettings": "isolated",
               },
             ],

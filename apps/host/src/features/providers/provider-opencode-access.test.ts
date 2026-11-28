@@ -124,7 +124,7 @@ it('refuses personal settings and workspace-write with their reasons before open
           "body": {
             "error": {
               "kind": "conflict",
-              "message": "MorrowBot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's AGENTS.md is sent by MorrowBot instead.",
+              "message": "MorrowBot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's SOUL.md is sent by MorrowBot instead.",
             },
           },
           "status": 409,

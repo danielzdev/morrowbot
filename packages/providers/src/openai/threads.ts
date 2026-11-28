@@ -22,6 +22,8 @@ interface OpenRequest {
   readonly ephemeral: boolean;
   readonly routeKey: string;
   readonly policy: ThreadPolicy;
+  /** The agent's SOUL.md, sent as the thread's developer instructions: Codex loads only AGENTS.md files by itself. */
+  readonly instructions: string;
 }
 
 /**
@@ -33,7 +35,15 @@ interface OpenRequest {
 export async function openThread(daemon: CodexDaemon, request: OpenRequest): Promise<Opened> {
   const { policy, routeKey, cwd } = request;
   const key = policyKey(policy, cwd);
-  const overrides = { cwd, modelProvider: policy.modelProvider, sandbox: policy.sandbox, approvalPolicy: policy.approvalPolicy, config: threadConfig(policy) };
+  const soul = request.instructions.trim();
+  const overrides = {
+    cwd,
+    modelProvider: policy.modelProvider,
+    sandbox: policy.sandbox,
+    approvalPolicy: policy.approvalPolicy,
+    config: threadConfig(policy),
+    developerInstructions: soul === '' ? null : soul,
+  };
   if (request.session.kind === 'new') {
     const started = await daemon.call('thread/start', { ...overrides, ephemeral: request.ephemeral }, ThreadOpened, OPEN_MS);
     if (started.kind !== 'ok') return refused(other('start a thread', started));

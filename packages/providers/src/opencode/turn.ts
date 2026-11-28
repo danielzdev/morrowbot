@@ -296,6 +296,6 @@ export function promptText(request: Pick<TurnRequest, 'system' | 'session' | 'pr
     seed === null || seed === ''
       ? request.prompt
       : `Continue this conversation. Reply to the last user message.\n\n<conversation>\n${seed}\n<user>\n${request.prompt}\n</user>\n</conversation>`;
-  const system = request.system?.trim() ?? '';
+  const system = request.system.trim();
   return system === '' ? body : `<instructions>\n${system}\n</instructions>\n\n${body}`;
 }

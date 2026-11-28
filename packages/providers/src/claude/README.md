@@ -17,7 +17,7 @@ starting and ending, approval cards and plan usage. Stdin stays open for approva
 answers and closes after the reply. Stopping a reply stops the CLI.
 
 **Access.** Three profiles, all with MorrowBot's own instructions (the agent's
-`AGENTS.md`, passed as the system prompt). Your own `CLAUDE.md`, skills, plugins,
+`SOUL.md`, passed as the system prompt; left out when it is empty). Your own `CLAUDE.md`, skills, plugins,
 hooks, MCP servers and settings files are not loaded. Only full access has a shell.
 `--safe-mode` is not used: on 2.1.332 it also drops `--mcp-config` servers, so
 `--strict-mcp-config`, `--setting-sources ''` and `--disable-slash-commands` (with

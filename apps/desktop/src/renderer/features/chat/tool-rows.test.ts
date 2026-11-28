@@ -22,7 +22,7 @@ const tool = (toolUseId: string, name: string, input: unknown, outcome: ToolStep
 
 it('words each provider’s tool calls as one line, with paths shown privacy-safe', () => {
   const calls: [string, unknown][] = [
-    ['Read', { file_path: '~/.morrowbot/workspaces/agent-1/AGENTS.md' }],
+    ['Read', { file_path: '~/.morrowbot/workspaces/agent-1/SOUL.md' }],
     ['Edit', { file_path: '~/.morrowbot/workspaces/agent-1/notes/plan.md', old_string: '(12 characters)' }],
     ['Write', { file_path: '/Users/sam/Documents/taxes/2026/receipts.csv' }],
     ['Bash', { command: 'ls /Users/sam/Downloads && cat sam@example.com.txt\nrm -rf build', description: 'List files' }],
@@ -40,7 +40,7 @@ it('words each provider’s tool calls as one line, with paths shown privacy-saf
   ];
   expect(calls.map(([name, input]) => describeTool(name, input, display).text)).toMatchInlineSnapshot(`
     [
-      "Read AGENTS.md",
+      "Read SOUL.md",
       "Edited notes/plan.md",
       "Wrote …/2026/receipts.csv",
       "Ran ls ~/Downloads && cat <email> …",

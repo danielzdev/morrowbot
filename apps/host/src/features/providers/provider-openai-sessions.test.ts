@@ -1,4 +1,4 @@
-import { rm } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { StartedSend } from '@morrowbot/contracts';
@@ -88,6 +88,7 @@ it('after Recheck, cold-resumes the thread with its overrides and counts a repla
           "mcp_servers.node_repl.enabled": false,
         },
         "cwd": "$HOME/data/workspaces/id-1",
+        "developerInstructions": null,
         "excludeTurns": true,
         "modelProvider": "openai",
         "sandbox": "read-only",
@@ -244,6 +245,41 @@ it('a seeded new thread gets the earlier conversation before the prompt', async 
         "type": "readOnly",
       },
       "threadId": "thread-2",
+    }
+  `);
+});
+
+it("opens and resumes each thread with the agent's SOUL.md as Codex developer instructions, beside the AGENTS.md Codex loads itself", async () => {
+  const agent = await codex.agent();
+  const workspace = path.join(codex.home, 'data', 'workspaces', agent.id);
+  await mkdir(workspace, { recursive: true });
+  await writeFile(path.join(workspace, 'SOUL.md'), 'Answer in French.\n');
+  await writeFile(path.join(workspace, 'AGENTS.md'), 'Repository rules.\n');
+  const thread = await codex.thread(agent);
+  await sendAndWait(thread, 'hello');
+  expect((await codex.host.call('POST', '/api/plugins/provider-openai/recheck')).status).toBe(200);
+  await sendAndWait(thread, 'again');
+  const opened = (await codex.log()).flatMap((entry) =>
+    entry.method === 'thread/start' || entry.method === 'thread/resume' ? [{ method: entry.method, developerInstructions: JSON.stringify(entry.params).includes('"developerInstructions":"Answer in French."') }] : [],
+  );
+  expect({ opened, history: await codex.history(thread) }).toMatchInlineSnapshot(`
+    {
+      "history": [
+        "user: hello",
+        "assistant(completed): Echo: hello",
+        "user: again",
+        "assistant(completed): Echo: again",
+      ],
+      "opened": [
+        {
+          "developerInstructions": true,
+          "method": "thread/start",
+        },
+        {
+          "developerInstructions": true,
+          "method": "thread/resume",
+        },
+      ],
     }
   `);
 });

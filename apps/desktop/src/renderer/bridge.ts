@@ -63,7 +63,7 @@ export type RevealTarget =
   | { readonly kind: 'data-dir' }
   | { readonly kind: 'plugins-dir' }
   | { readonly kind: 'agent-workspace'; readonly agentId: string }
-  /** An AGENTS.md copy kept by Save a copy; `revealId` is the file name the host returned. */
+  /** An SOUL.md copy kept by Save a copy; `revealId` is the file name the host returned. */
   | { readonly kind: 'instructions-copy'; readonly agentId: string; readonly revealId: string }
   /** A skills folder, made first if it is not there yet. */
   | { readonly kind: 'global-skills' }

@@ -140,12 +140,12 @@ it('an edit opencode reports finished without asking fails the turn, ends the da
           },
           {
             "access": "read-only",
-            "reason": "MorrowBot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's AGENTS.md is sent by MorrowBot instead.",
+            "reason": "MorrowBot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's SOUL.md is sent by MorrowBot instead.",
             "vendorSettings": "personal",
           },
           {
             "access": "workspace-write",
-            "reason": "MorrowBot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's AGENTS.md is sent by MorrowBot instead.",
+            "reason": "MorrowBot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's SOUL.md is sent by MorrowBot instead.",
             "vendorSettings": "personal",
           },
         ],
@@ -237,12 +237,12 @@ it('on a system other than macOS, provider-info withholds read-only and starts n
           },
           {
             "access": "read-only",
-            "reason": "MorrowBot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's AGENTS.md is sent by MorrowBot instead.",
+            "reason": "MorrowBot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's SOUL.md is sent by MorrowBot instead.",
             "vendorSettings": "personal",
           },
           {
             "access": "workspace-write",
-            "reason": "MorrowBot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's AGENTS.md is sent by MorrowBot instead.",
+            "reason": "MorrowBot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's SOUL.md is sent by MorrowBot instead.",
             "vendorSettings": "personal",
           },
         ],

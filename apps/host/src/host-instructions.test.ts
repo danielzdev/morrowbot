@@ -21,7 +21,7 @@ async function sharedAgent(name: string): Promise<{ readonly agent: Agent; reado
   const dir = path.join(dataDir, name);
   await mkdir(dir, { recursive: true });
   const agent = Agent.parse((await host.call('POST', '/api/agents', { name, workspace: { kind: 'shared', dir } })).body);
-  return { agent, file: path.join(dir, 'AGENTS.md') };
+  return { agent, file: path.join(dir, 'SOUL.md') };
 }
 
 /** A reply with every revision swapped for a placeholder once it is checked to be a non-empty string. */
@@ -65,11 +65,11 @@ it('leaves an existing file and a dangling symlink byte-identical when a PUT tri
               "current": {
                 "canReplace": false,
                 "content": null,
-                "readError": "AGENTS.md is a link to a file that is not there.",
+                "readError": "SOUL.md is a link to a file that is not there.",
                 "revision": "<revision>",
               },
               "kind": "instructions-conflict",
-              "message": "This folder already has an AGENTS.md, so MorrowBot kept it and wrote nothing.",
+              "message": "This folder already has a SOUL.md, so MorrowBot kept it and wrote nothing.",
               "reason": "occupied",
             },
           },
@@ -85,7 +85,7 @@ it('leaves an existing file and a dangling symlink byte-identical when a PUT tri
                 "revision": "<revision>",
               },
               "kind": "instructions-conflict",
-              "message": "This folder already has an AGENTS.md, so MorrowBot kept it and wrote nothing.",
+              "message": "This folder already has a SOUL.md, so MorrowBot kept it and wrote nothing.",
               "reason": "occupied",
             },
           },
@@ -108,7 +108,7 @@ it('never writes for a non-null expectedRevision, on a missing or an occupied en
   };
   expect({
     replies: Object.fromEntries(Object.entries(statuses).map(([name, reply]) => [name, stable(reply)])),
-    missingStillMissing: (await readdir(path.dirname(missing.file))).includes('AGENTS.md'),
+    missingStillMissing: (await readdir(path.dirname(missing.file))).includes('SOUL.md'),
     occupied: await readFile(occupied.file, 'utf8'),
   }).toMatchInlineSnapshot(`
     {
@@ -124,7 +124,7 @@ it('never writes for a non-null expectedRevision, on a missing or an occupied en
                 "revision": null,
               },
               "kind": "instructions-conflict",
-              "message": "Editing AGENTS.md in place isn't available yet. Nothing was changed.",
+              "message": "Editing SOUL.md in place isn't available yet. Nothing was changed.",
               "reason": "replace-unavailable",
             },
           },
@@ -148,7 +148,7 @@ it('never writes for a non-null expectedRevision, on a missing or an occupied en
                 "revision": "<revision>",
               },
               "kind": "instructions-conflict",
-              "message": "Editing AGENTS.md in place isn't available yet. Nothing was changed.",
+              "message": "Editing SOUL.md in place isn't available yet. Nothing was changed.",
               "reason": "replace-unavailable",
             },
           },
@@ -175,7 +175,7 @@ it('tells an empty file from a missing one and from a dangling symlink', async (
         "body": {
           "canReplace": false,
           "content": null,
-          "readError": "AGENTS.md is a link to a file that is not there.",
+          "readError": "SOUL.md is a link to a file that is not there.",
           "revision": "<revision>",
         },
         "status": 200,
@@ -200,7 +200,7 @@ it('tells an empty file from a missing one and from a dangling symlink', async (
   `);
 });
 
-it('creates a missing AGENTS.md once, with the revision a read reports, and changes the revision when a link target is edited', async () => {
+it('creates a missing SOUL.md once, with the revision a read reports, and changes the revision when a link target is edited', async () => {
   const { agent, file } = await sharedAgent('create');
   const created = await host.call('PUT', `/api/agents/${agent.id}/instructions`, { content: '# Hi', expectedRevision: null });
   const read = await view(agent);
@@ -270,13 +270,13 @@ it('writes initialInstructions to a new folder, and refuses to make the agent wh
   const fresh = Agent.parse((await host.call('POST', '/api/agents', { name: 'Fresh', initialInstructions: '# Fresh' })).body);
   const dir = path.join(dataDir, 'kept');
   await mkdir(dir);
-  await writeFile(path.join(dir, 'AGENTS.md'), 'keep me');
+  await writeFile(path.join(dir, 'SOUL.md'), 'keep me');
   const refused = await host.call('POST', '/api/agents', { name: 'Late', workspace: { kind: 'shared', dir }, initialInstructions: '# Late' });
   const list = (await host.call('GET', '/api/agents')).body;
   expect({
-    fresh: await readFile(path.join(fresh.workspace.dir, 'AGENTS.md'), 'utf8'),
+    fresh: await readFile(path.join(fresh.workspace.dir, 'SOUL.md'), 'utf8'),
     refused: { status: refused.status, kind: stable(refused) },
-    kept: await readFile(path.join(dir, 'AGENTS.md'), 'utf8'),
+    kept: await readFile(path.join(dir, 'SOUL.md'), 'utf8'),
     agents: list !== null && typeof list === 'object' && 'agents' in list && Array.isArray(list.agents) ? list.agents.length : null,
   }).toMatchObject({ fresh: '# Fresh', refused: { status: 409 }, kept: 'keep me', agents: 1 });
 });
@@ -287,11 +287,11 @@ it.skipIf(process.getuid?.() === 0)('reports an unreadable file as present with 
   await chmod(file, 0o000);
   const read = await view(agent);
   await chmod(file, 0o600);
-  expect(read).toMatchObject({ content: null, readError: "MorrowBot isn't allowed to read AGENTS.md.", canReplace: false });
+  expect(read).toMatchObject({ content: null, readError: "MorrowBot isn't allowed to read SOUL.md.", canReplace: false });
   expect(read.revision).not.toBeNull();
 });
 
-it.skipIf(process.getuid?.() === 0)('in a folder it cannot write: reports an existing AGENTS.md as occupied, refuses other writes with a path-free reason, reports nothing, leaves no staging file', async () => {
+it.skipIf(process.getuid?.() === 0)('in a folder it cannot write: reports an existing SOUL.md as occupied, refuses other writes with a path-free reason, reports nothing, leaves no staging file', async () => {
   const { agent, file } = await sharedAgent('locked');
   const dir = path.dirname(file);
   const occupied = await sharedAgent('locked-occupied');
@@ -314,7 +314,7 @@ it.skipIf(process.getuid?.() === 0)('in a folder it cannot write: reports an exi
                 "revision": "<revision>",
               },
               "kind": "instructions-conflict",
-              "message": "This folder already has an AGENTS.md, so MorrowBot kept it and wrote nothing.",
+              "message": "This folder already has a SOUL.md, so MorrowBot kept it and wrote nothing.",
               "reason": "occupied",
             },
           },
