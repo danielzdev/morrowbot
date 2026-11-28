@@ -1,12 +1,14 @@
 import type { Agent, Folder } from '@morrowbot/contracts';
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog.tsx';
 import { Menu, type MenuItem } from '../../shared/ui/Menu.tsx';
+import { AgentNotify, NOTIFY_COPY } from './agent-notify.ts';
 
-/** A menu opened from a row: its actions (at the right-click point), which waiting approval to open, or which folder to move the agent to. */
+/** A menu opened from a row: its actions (at the right-click point), which waiting approval to open, which folder to move the agent to, or its notification level. */
 export type RowPopup =
   | { readonly kind: 'actions'; readonly agent: Agent; readonly anchor: HTMLElement; readonly at: { readonly x: number; readonly y: number } | null; readonly items: readonly MenuItem[] }
   | { readonly kind: 'approval'; readonly agentId: string; readonly anchor: HTMLElement; readonly items: readonly MenuItem[] }
-  | { readonly kind: 'move'; readonly agent: Agent; readonly anchor: HTMLElement };
+  | { readonly kind: 'move'; readonly agent: Agent; readonly anchor: HTMLElement }
+  | { readonly kind: 'notify'; readonly agent: Agent; readonly anchor: HTMLElement; readonly level: AgentNotify };
 
 function popupKey(popup: RowPopup): string {
   switch (popup.kind) {
@@ -16,6 +18,8 @@ function popupKey(popup: RowPopup): string {
       return `approval-${popup.agentId}`;
     case 'move':
       return `move-${popup.agent.id}`;
+    case 'notify':
+      return `notify-${popup.agent.id}`;
   }
 }
 
@@ -27,6 +31,8 @@ function popupLabel(popup: RowPopup): string {
       return 'Choose an approval';
     case 'move':
       return `Move ${popup.agent.name} to`;
+    case 'notify':
+      return `Notifications for ${popup.agent.name}`;
   }
 }
 
@@ -42,21 +48,47 @@ export function moveItems(agent: Agent, folders: readonly Folder[], onMove: (fol
   ];
 }
 
-export function SidebarPopups(props: {
+interface SidebarPopupsProps {
   readonly popup: RowPopup | null;
   readonly folders: readonly Folder[];
   readonly deletingAgent: Agent | null;
   readonly deletingFolder: Folder | null;
   readonly onClosePopup: () => void;
   readonly onMove: (agentId: string, folderId: string | null) => void;
+  readonly onNotify: (agentId: string, level: AgentNotify) => void;
   /** Null in the rail, which has no room for the folder name field. */
   readonly onNewFolderFor: ((agentId: string) => void) | null;
   readonly onCancelDeleteAgent: () => void;
   readonly onDeleteAgent: (id: string) => void;
   readonly onCancelDeleteFolder: () => void;
   readonly onDeleteFolder: () => void;
-}) {
-  const { popup, deletingAgent, deletingFolder, onNewFolderFor: newFolderFor } = props;
+}
+
+/** The three levels, the current one checked. */
+const notifyItems = (level: AgentNotify, onSet: (level: AgentNotify) => void): readonly MenuItem[] =>
+  AgentNotify.options.map((each): MenuItem => ({
+    kind: 'action',
+    id: each,
+    label: NOTIFY_COPY[each].menu,
+    ...(each === level ? { icon: 'check' } : {}),
+    onSelect: () => { onSet(each); },
+  }));
+
+function popupItems(popup: RowPopup, props: Pick<SidebarPopupsProps, 'folders' | 'onMove' | 'onNewFolderFor' | 'onNotify'>): readonly MenuItem[] {
+  const newFolderFor = props.onNewFolderFor;
+  switch (popup.kind) {
+    case 'actions':
+    case 'approval':
+      return popup.items;
+    case 'move':
+      return moveItems(popup.agent, props.folders, (folderId) => { props.onMove(popup.agent.id, folderId); }, newFolderFor === null ? null : () => { newFolderFor(popup.agent.id); });
+    case 'notify':
+      return notifyItems(popup.level, (level) => { props.onNotify(popup.agent.id, level); });
+  }
+}
+
+export function SidebarPopups(props: SidebarPopupsProps) {
+  const { popup, deletingAgent, deletingFolder } = props;
   return (
     <>
       {popup !== null && (
@@ -67,11 +99,7 @@ export function SidebarPopups(props: {
           label={popupLabel(popup)}
           align="start"
           onClose={props.onClosePopup}
-          items={
-            popup.kind === 'move'
-              ? moveItems(popup.agent, props.folders, (folderId) => { props.onMove(popup.agent.id, folderId); }, newFolderFor === null ? null : () => { newFolderFor(popup.agent.id); })
-              : popup.items
-          }
+          items={popupItems(popup, props)}
         />
       )}
       {deletingAgent !== null && (

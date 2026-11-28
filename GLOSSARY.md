@@ -9,6 +9,7 @@ Plain-English terms used across MorrowBot (used by the `wait-what` skill and con
 - **Plugin:** A free, open-source add-on that runs in its own isolated worker process and keeps all its settings on its own plugin page.
 - **Built-in Provider:** A provider that ships inside MorrowBot (Claude, Codex, Antigravity and OpenCode, in `packages/providers`). It runs inside the host with no worker process and needs no plugins folder, but speaks the same protocol as a provider plugin, keeps its settings and on/off switch on its own page, and still starts each CLI in its own guarded process group.
 - **Safe Mode:** Starting MorrowBot with all plugins and built-in providers temporarily turned off so a broken one can never stop the app from opening.
+- **Notification Level:** Each agent's All, Quiet or Muted setting (right-click › Mute or Notifications…, or Agent Settings › Notifications), kept on this computer. All gives system notifications and the sidebar's unread dot; Quiet only the dot; Muted neither. Approval and problem badges always show.
 - **Routine:** A scheduled or one-time background run for an agent, with a "stay quiet if nothing new" option.
 - **Vault:** Encrypted storage for API keys, website logins, and secrets injected outside the agent so raw secrets never enter prompts.
 - **Expect Test:** A test that records real output and compares future runs against it as a readable diff.

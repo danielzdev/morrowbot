@@ -3,6 +3,7 @@ import type { ComponentChildren } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { MenuItem } from '../../shared/ui/Menu.tsx';
 import { useStore } from '../../shared/use-store.ts';
+import { notifyOf, type AgentNotifyModel } from './agent-notify.ts';
 import { AgentRow } from './AgentRow.tsx';
 import type { AgentsModel } from './agents-model.ts';
 import { NameInput } from '../../shared/ui/NameInput.tsx';
@@ -21,6 +22,7 @@ export type SidebarMode = 'docked' | 'rail' | 'overlay';
 
 export interface SidebarProps {
   readonly model: AgentsModel;
+  readonly notify: AgentNotifyModel;
   readonly mode: SidebarMode;
   readonly facts: (agent: Agent) => LiveFacts;
   readonly avatar: (agent: Agent, size: number) => ComponentChildren;
@@ -47,6 +49,7 @@ const RAIL_AVATAR_PX = 36;
 /** The agents list (spec §3.1, messenger style): search, Agents, the person's folders, then Extensions and Settings. */
 export function Sidebar(props: SidebarProps) {
   const state = useStore(props.model.state);
+  const levels = useStore(props.notify.state);
   const rail = props.mode === 'rail';
   const folders = useFolderUi(props.model);
   const [filter, setFilter] = useState('');
@@ -58,7 +61,7 @@ export function Sidebar(props: SidebarProps) {
   const agents = state.agents.kind === 'loaded' ? state.agents.value : [];
   const unreadAgents = new Set(Object.values(state.unread));
 
-  const facts = agents.map((agent): AgentFacts => ({ agent, ...props.facts(agent), unread: unreadAgents.has(agent.id), lastMessage: state.lastMessages[agent.id] ?? null }));
+  const facts = agents.map((agent): AgentFacts => ({ agent, ...props.facts(agent), unread: unreadAgents.has(agent.id), notify: notifyOf(levels, agent.id), lastMessage: state.lastMessages[agent.id] ?? null }));
   const groups = groupAgents(facts, state.folders, rail ? '' : filter);
   const items = itemsOf(groups, rail, filter === '' || rail ? folders.folded : NONE_FOLDED);
   const view = useAgentList(items, state.selectedAgentId, rail);
@@ -95,6 +98,20 @@ export function Sidebar(props: SidebarProps) {
             },
           } satisfies MenuItem,
         ]),
+    { kind: 'separator', id: 'sep-notify' },
+    notifyOf(levels, agent.id) === 'muted'
+      ? { kind: 'action', id: 'unmute', label: 'Unmute', icon: 'bell', onSelect: () => { props.notify.set(agent.id, 'all'); } }
+      : { kind: 'action', id: 'mute', label: 'Mute', icon: 'bell-off', onSelect: () => { props.notify.set(agent.id, 'muted'); } },
+    {
+      kind: 'action',
+      id: 'notifications',
+      label: 'Notifications…',
+      icon: 'bell',
+      onSelect: () => {
+        const anchor = rowOf(agent.id);
+        if (anchor !== null) setPopup({ kind: 'notify', agent, anchor, level: notifyOf(props.notify.state.get(), agent.id) });
+      },
+    },
     { kind: 'separator', id: 'sep' },
     { kind: 'action', id: 'delete', label: 'Delete…', icon: 'trash', danger: true, onSelect: () => { setDeleting(agent); } },
   ];
@@ -179,6 +196,7 @@ export function Sidebar(props: SidebarProps) {
         deletingFolder={folders.deleting}
         onClosePopup={() => { setPopup(null); }}
         onMove={(agentId, folderId) => void props.model.updateAgent(agentId, { folderId })}
+        onNotify={props.notify.set}
         onNewFolderFor={rail ? null : folders.startDraft}
         onCancelDeleteAgent={() => { setDeleting(null); }}
         onDeleteAgent={(id) => {
