@@ -2,6 +2,7 @@ import { SendAgentMessageRequest } from '@morrowbot/contracts';
 import type { AgentMessageService, SendRefusal } from './features/agent-messages/index.ts';
 import type { ToolPorts } from './features/agent-tools/index.ts';
 import type { createChatService, ProviderPlugins } from './features/chat/index.ts';
+import type { ConnectorService } from './features/connectors/index.ts';
 import type { MemoryService } from './features/memories/index.ts';
 import type { PluginHost } from './features/plugins/index.ts';
 import type { Storage } from './features/storage/index.ts';
@@ -25,12 +26,13 @@ export function agentInbox(storage: Storage, agentMessages: AgentMessageService)
   };
 }
 
-/** What the agent tools act on: every agent, the agent-messages service, the memories service and enabled tool plugins. */
+/** What the agent tools act on: agents, agent-messages, memories, connectors and enabled tool plugins. */
 export function agentToolPorts(
   storage: Storage,
   agents: ToolPorts['agents'],
   agentMessages: AgentMessageService,
   memories: MemoryService,
+  connectors: ConnectorService,
   plugins: PluginHost,
   isPluginAllowedForAgent?: (agentId: string, pluginId: string) => boolean,
 ): ToolPorts {
@@ -44,6 +46,7 @@ export function agentToolPorts(
       },
     },
     memories,
+    connectors: { tools: (agentId) => connectors.toolsFor(agentId), call: (agentId, name, args, signal) => connectors.call(agentId, name, args, signal) },
     pluginTools: {
       list: () => plugins.listPluginTools(),
       ...(isPluginAllowedForAgent === undefined ? {} : { isAllowedForAgent: isPluginAllowedForAgent }),

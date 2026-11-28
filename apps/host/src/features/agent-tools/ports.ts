@@ -43,7 +43,24 @@ export interface PluginToolsPort {
   }): Promise<PluginToolCallOutcome>;
 }
 
-/** What the tools act on (the agents, agent-messages, memories and plugins features provide it). */
+/** A connector tool as `tools/list` shows it, named `<connector label key>__<tool>`. */
+export interface ConnectorTool {
+  readonly name: string;
+  readonly description: string;
+  readonly inputSchema: Readonly<Record<string, unknown>>;
+}
+
+/** A connector tool call's outcome: the connector server's result as it is, or why nothing was called. */
+export type ConnectorCall =
+  | {
+      readonly kind: 'result';
+      readonly content: readonly Readonly<Record<string, unknown>>[];
+      readonly structuredContent: Readonly<Record<string, unknown>> | null;
+      readonly isError: boolean;
+    }
+  | { readonly kind: 'refused'; readonly reason: string };
+
+/** What the tools act on (the agents, agent-messages, memories, connectors and plugins features provide it). */
 export interface ToolPorts {
   readonly agents: { list(): readonly Agent[] };
   readonly messages: {
@@ -57,6 +74,11 @@ export interface ToolPorts {
     create(agentId: string, request: CreateMemoryRequest): Memory | undefined;
     update(agentId: string, id: string, request: UpdateMemoryRequest): Memory | undefined;
     delete(agentId: string, id: string): boolean;
+  };
+  /** The agent's connector tools; each list and each call checks that connector's scope and status again. */
+  readonly connectors: {
+    tools(agentId: string): readonly ConnectorTool[];
+    call(agentId: string, name: string, args: unknown, signal: AbortSignal): Promise<ConnectorCall>;
   };
   /** Optional tool plugins bridge (absent in hosts/tests without tool plugins). */
   readonly pluginTools?: PluginToolsPort;

@@ -1,0 +1,154 @@
+/* Connectors (spec IA §3–§5): the list's facts and filters, the detail forms, and Agent Settings › Extensions. */
+.connector-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1);
+}
+.scope-chip {
+  padding: 1px var(--s-2);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-pill);
+  color: var(--text-2);
+  font: var(--t-meta);
+  white-space: nowrap;
+}
+.connector-filters .segmented {
+  flex-wrap: wrap;
+}
+.connector-add {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.connector-form {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--s-3);
+  max-width: var(--reading-w);
+}
+.connector-form .segmented,
+.scope-picker .segmented {
+  align-self: flex-start;
+}
+.connector-form input[type='password'],
+.secret-rows input[type='password'] {
+  min-height: var(--hit);
+  padding: var(--s-1) var(--s-2);
+  background: var(--surface-2);
+  border: 1px solid var(--control-edge);
+  border-radius: var(--r-sm);
+  font: var(--t-ui);
+  color: var(--text-1);
+}
+.connector-form input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+.connector-form textarea {
+  resize: vertical;
+}
+.secret-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+.secret-rows legend {
+  margin-bottom: 6px;
+  padding: 0;
+  color: var(--text-2);
+  font: var(--t-small);
+  font-weight: 500;
+}
+.secret-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) 2.5rem auto;
+  align-items: center;
+  gap: var(--s-2);
+}
+.secret-row input:read-only {
+  border-color: var(--hairline-strong);
+  color: var(--text-2);
+}
+.add-row {
+  align-self: flex-start;
+}
+.scope-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.scope-filter {
+  max-width: 260px;
+}
+.scope-agents {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 240px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.scope-agent {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--hit);
+  font: var(--t-ui);
+}
+.connector-tools li {
+  display: flex;
+  flex-direction: column;
+  overflow-wrap: anywhere;
+}
+.agent-connectors {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.agent-connector {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding: var(--s-2) 0;
+  border-bottom: 1px solid var(--hairline);
+  font: var(--t-ui);
+}
+.agent-connector p {
+  margin: 0;
+}
+.agent-connector-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+.agent-connector-name {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 12rem;
+}
+.agent-connector-label {
+  min-width: 0;
+  overflow: hidden;
+  font: var(--t-ui-strong);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.agent-connector.dimmed .agent-connector-name {
+  color: var(--text-3);
+}
+.agent-connector.dimmed .item-mark {
+  background: var(--selected);
+  color: var(--text-3);
+}

@@ -1,4 +1,5 @@
 import type { PluginEntry } from '@morrowbot/contracts';
+import type { ComponentChildren } from 'preact';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { z } from 'zod';
 import type { MorrowbotBridge } from '../../bridge.ts';
@@ -11,7 +12,7 @@ import { Icon } from '../../shared/ui/Icon.tsx';
 import { MenuButton } from '../../shared/ui/Menu.tsx';
 import { isTextField } from '../../shared/ui/SettingsShell.tsx';
 import { useStore } from '../../shared/use-store.ts';
-import { ConnectorsTab, MarketplaceTab, type CatalogFilter } from './OtherTabs.tsx';
+import { MarketplaceTab, type CatalogFilter } from './MarketplaceTab.tsx';
 import { pluginItems, PluginsTab } from './PluginsTab.tsx';
 import { isListedPlugin } from './plugin-health.ts';
 import type { PluginsModel } from './plugins-model.ts';
@@ -22,12 +23,29 @@ type Tab = z.infer<typeof Tab>;
 const TAB_KEY = 'morrowbot.extensions.tab';
 const TAB_LABEL: Readonly<Record<Tab, string>> = { plugins: 'Plugins', connectors: 'Connectors', marketplace: 'Marketplace' };
 
+/** What the Connectors tab gets from Extensions. */
+export interface ConnectorsSlot {
+  /** The search, which filters every tab. */
+  readonly query: string;
+  readonly onDirty: (dirty: boolean) => void;
+  /** Runs an action after the "Discard changes?" check. */
+  readonly guard: (action: () => void) => void;
+  /** Opens the Marketplace on connectors. */
+  readonly onBrowse: () => void;
+}
+
 export interface ExtensionsViewProps {
   readonly model: PluginsModel;
   readonly info: AppInfo | null;
+  /** The Connectors tab, which the connectors feature draws, and how many connectors match the search. */
+  readonly connectors: { readonly count: (query: string) => number | null; readonly tab: (slot: ConnectorsSlot) => ComponentChildren };
+  /** Another screen sent the user to Connectors: each new `id` shows that tab, then calls `arrive`, after the dirty check. */
+  readonly jump: { readonly id: number; readonly arrive: () => void } | null;
   readonly bridge: Pick<MorrowbotBridge, 'revealPath' | 'relaunch'>;
   /** "Configure in Providers →" for a plugin that adds a community provider. */
   readonly onOpenProvider: (providerId: string) => void;
+  /** Hands the dirty check to the app while Extensions is open, so leaving by the sidebar asks too; null on close. */
+  readonly onLeaveCheck: (check: ((action: () => void) => void) | null) => void;
   /** Esc: back to chat, after the dirty check. */
   readonly onExit: () => void;
 }
@@ -75,6 +93,29 @@ export function ExtensionsView(props: ExtensionsViewProps) {
   const onDirty = useCallback((next: boolean) => {
     setDirty(next);
   }, []);
+  const guard = useCallback((action: () => void) => {
+    guarded.current(action);
+  }, []);
+  const { onLeaveCheck } = props;
+  useEffect(() => {
+    onLeaveCheck(guard);
+    return () => {
+      onLeaveCheck(null);
+    };
+  }, [guard, onLeaveCheck]);
+  const jump = useRef(props.jump);
+  jump.current = props.jump;
+  const jumpId = props.jump?.id;
+  useEffect(() => {
+    const to = jump.current;
+    if (to === null) return;
+    guarded.current(() => {
+      setQuery('');
+      setSavedTab('connectors');
+      writePref(TAB_KEY, 'connectors');
+      to.arrive();
+    });
+  }, [jumpId]);
 
   if (info === null || loaded.kind === 'loading') return <p class="muted page-pad">Loading extensions…</p>;
   if (loaded.kind === 'failed') {
@@ -102,7 +143,7 @@ export function ExtensionsView(props: ExtensionsViewProps) {
       writePref(TAB_KEY, next);
     });
   };
-  const counts: Readonly<Record<Tab, number | null>> = { plugins: items.length, connectors: 0, marketplace: null };
+  const counts: Readonly<Record<Tab, number | null>> = { plugins: items.length, connectors: props.connectors.count(query), marketplace: null };
   const actionsFor = (entry: PluginEntry) => {
     const id = entry.manifest.id;
     return {
@@ -184,7 +225,7 @@ export function ExtensionsView(props: ExtensionsViewProps) {
             actionsFor={actionsFor}
           />
         )}
-        {tab === 'connectors' && <ConnectorsTab onBrowse={() => { setCatalog('connectors'); showTab('marketplace'); }} />}
+        {tab === 'connectors' && props.connectors.tab({ query, onDirty, guard, onBrowse: () => { setCatalog('connectors'); showTab('marketplace'); } })}
         {tab === 'marketplace' && (
           <MarketplaceTab
             filter={catalog}

@@ -57,15 +57,15 @@ export async function startToolServer(options: ToolServerOptions): Promise<ToolS
       case 'rejected':
         return body.answer;
       case 'read': {
-        const requestAbort = new AbortController();
+        const dropped = new AbortController();
         const onClose = (): void => {
-          if (!response.writableEnded) requestAbort.abort();
+          if (!response.writableEnded) dropped.abort();
         };
         response.on('close', onClose);
         try {
-          const signal = AbortSignal.any([grant.signal, requestAbort.signal]);
+          const signal = AbortSignal.any([grant.signal, dropped.signal]);
           const tools = resolveTools(builtins, options.ports.pluginTools, grant.agentId, warn);
-          const answer = await answerMcp(body.value, grant, tools, options.version, signal);
+          const answer = await answerMcp(body.value, { grant, tools, connectors: options.ports.connectors, signal }, options.version);
           return answer.kind === 'accepted' ? { status: 202, body: null } : { status: 200, body: answer.body };
         } finally {
           response.off('close', onClose);
