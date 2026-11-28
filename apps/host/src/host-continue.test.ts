@@ -1,4 +1,4 @@
-import { ContinueResponse, MessageList, SendMessageResponse } from '@morrowbot/contracts';
+import { ContinueResponse, MessageList, StartedSend } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { hidePid, startChatFixture, type ChatFixture } from './testing/chat-fixture.ts';
 
@@ -64,7 +64,7 @@ it('refuses a Continue on a message that is not the latest, on a completed reply
   const busyThread = await chat.thread(agent, 'Busy');
   await chat.send(busyThread, 'fail');
   const busyFailed = await latestId(busyThread.id);
-  const running = SendMessageResponse.safeParse(
+  const running = StartedSend.safeParse(
     (await chat.host.call('POST', `/api/threads/${busyThread.id}/messages`, { text: 'stall-polite' })).body,
   );
   const replies = {

@@ -24,7 +24,7 @@ export interface ChatViewProps {
   readonly bridge: Pick<MorrowbotBridge, 'openExternal' | 'copyText'>;
   /** Bumped by every ⌘F. */
   readonly findRequest: number;
-  /** Opened from the sidebar's "Needs you" row: focus the pending approval's heading once (spec §4.3), never its Allow button. */
+  /** Opened from a sidebar row with an Approval badge: focus the pending approval's heading once (spec §4.3), never its Allow button. */
   readonly focusApproval: boolean;
   readonly onApprovalFocused: () => void;
   /** The empty chat's avatar and question (spec §4.1). */

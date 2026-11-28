@@ -10,6 +10,7 @@ export type IconName =
   | 'settings'
   | 'plugins'
   | 'sidebar'
+  | 'inspector'
   | 'trash'
   | 'pencil'
   | 'copy'
@@ -80,6 +81,12 @@ const SHAPES: Readonly<Record<IconName, ComponentChildren>> = {
     <>
       <rect x="2" y="3" width="12" height="10" rx="2" />
       <path d="M6.5 3v10" />
+    </>
+  ),
+  inspector: (
+    <>
+      <rect x="2" y="3" width="12" height="10" rx="2" />
+      <path d="M9.5 3v10M11.25 6h.5M11.25 8h.5" />
     </>
   ),
   trash: <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5" />,

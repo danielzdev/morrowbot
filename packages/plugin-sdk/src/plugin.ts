@@ -26,6 +26,13 @@ export interface LifecycleHooks {
   shutdown?(): void | Promise<void>;
 }
 
+/** A message the user sent into the running turn. */
+export interface Steer {
+  readonly steerId: string;
+  /** The user's words with a note asking the agent to answer them visibly; send it to the vendor as it is. */
+  readonly text: string;
+}
+
 export interface TurnContext {
   readonly request: TurnRequest;
   /** Aborted when the host cancels the turn. Commands given this signal stop with it. */
@@ -37,6 +44,14 @@ export interface TurnContext {
    * once without asking; a pending approval is refused after 30 minutes or when the turn ends.
    */
   readonly ask: (request: ApprovalAsk) => Promise<ApprovalAnswer>;
+  /**
+   * Takes the user's mid-turn messages. Register at the start of `turn`: a steer that arrives with no
+   * handler is refused at once, and the host stops the turn and runs the message next instead. For
+   * each steer the handler takes, emit `steer-delivered` once the vendor has it in the turn, or
+   * `steer-refused` while none of it has reached the vendor. A steer the turn ends without
+   * delivering must not have reached the vendor: the host sends it again as the next turn.
+   */
+  readonly onSteer: (handler: (steer: Steer) => void) => void;
 }
 
 export interface ToolPlugin extends LifecycleHooks {

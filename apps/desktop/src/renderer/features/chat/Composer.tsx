@@ -6,6 +6,7 @@ import { isSendPress, PLATFORM } from '../../shared/keys.ts';
 import { useStore } from '../../shared/use-store.ts';
 import { AttachmentStrip } from './AttachmentStrip.tsx';
 import { ComposerBanners } from './ComposerBanners.tsx';
+import { QueueList } from './QueueList.tsx';
 import { ACCEPT, readFiles } from './read-files.ts';
 import type { ThreadSession } from './thread-session.ts';
 
@@ -55,8 +56,13 @@ export function Composer(props: {
   const blocked = (view?.blockedGroups.length ?? 0) > 0;
   const disabledReason = props.disabledReason ?? (screen.connection === 'reconnecting' ? RECONNECTING : null);
   const uploading = items.some((item) => item.kind === 'uploading');
-  const hasContent = screen.draft.trim() !== '' || items.some((item) => item.kind === 'ready');
-  const canSend = view !== null && !running && !blocked && screen.busy === null && disabledReason === null && hasContent && !uploading;
+  const files = items.some((item) => item.kind === 'ready');
+  const hasContent = screen.draft.trim() !== '' || files;
+  /** Only text can wait in the queue; files go once the reply ends. */
+  const filesWait = running && files;
+  const canSend = view !== null && !blocked && screen.busy === null && disabledReason === null && hasContent && !uploading && !filesWait;
+  const sendLabel =
+    screen.busy === 'sending' ? 'Sending…' : uploading ? 'Uploading files…' : filesWait ? 'Files can be sent once this reply ends' : running ? 'Queue: sent after this reply' : 'Send';
   return (
     <div class="composer">
       <ComposerBanners
@@ -67,6 +73,7 @@ export function Composer(props: {
         safe={props.safe}
         onOpenProviders={props.onOpenProviders}
       />
+      {view !== null && <QueueList session={session} view={view} screen={screen} agentName={props.agentName} />}
       <div
         class={`composer-box${dropping ? ' dropping' : ''}`}
         onDragOver={(event) => {
@@ -87,7 +94,7 @@ export function Composer(props: {
         <textarea
           ref={box}
           aria-label="Message"
-          placeholder={running ? 'Wait for the reply, or stop it…' : `Message ${props.agentName}…`}
+          placeholder={running ? `Queue a message: ${props.agentName} sees it after this reply, or when you Steer now…` : `Message ${props.agentName}…`}
           value={screen.draft}
           rows={1}
           onInput={(event) => {
@@ -123,16 +130,19 @@ export function Composer(props: {
             <Icon name="paperclip" />
           </button>
           <div class="toolbar">{props.toolbar}</div>
-          {disabledReason !== null && !running && <span class="composer-reason">{disabledReason}</span>}
-          {running ? (
-            <button class="round-btn stop" aria-label={screen.busy === 'stopping' ? 'Stopping…' : 'Stop'} title="Stop" disabled={screen.busy !== null || screen.connection !== 'live'} onClick={() => void session.stop()}>
-              <Icon name="stop" />
-            </button>
-          ) : (
-            <button class="round-btn send" aria-label={screen.busy === 'sending' ? 'Sending…' : uploading ? 'Uploading files…' : 'Send'} title={uploading ? 'Uploading files…' : 'Send'} disabled={!canSend} onClick={() => void session.send()}>
-              <Icon name="send" />
-            </button>
-          )}
+          {disabledReason !== null && <span class="composer-reason">{disabledReason}</span>}
+          <div class="composer-sends">
+            {running && (
+              <button class="round-btn stop" aria-label={screen.busy === 'stopping' ? 'Stopping…' : 'Stop'} title="Stop" disabled={screen.busy !== null || screen.connection !== 'live'} onClick={() => void session.stop()}>
+                <Icon name="stop" />
+              </button>
+            )}
+            {(!running || hasContent) && (
+              <button class="round-btn send" aria-label={sendLabel} title={sendLabel} disabled={!canSend} onClick={() => void session.send()}>
+                <Icon name="send" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
       {props.notes}

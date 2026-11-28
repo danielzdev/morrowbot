@@ -16,7 +16,7 @@ import {
 /**
  * The messages the host and a plugin process exchange over the Node IPC channel (wire protocol v1).
  * A request with an `id` gets exactly one matching result or `error`. Turns are not requests:
- * `turn`, `cancel`, `approval-reply`, `turn-chunk` and `turn-end` carry the host's `turnId` instead.
+ * `turn`, `cancel`, `approval-reply`, `steer`, `turn-chunk` and `turn-end` carry the host's `turnId` instead.
  * `child-group-*` messages are unsolicited notifications.
  */
 export const PROTOCOL_VERSION = 1;
@@ -55,6 +55,8 @@ export const HostMessage = z.discriminatedUnion('kind', [
     approvalId: z.string().min(1),
     choiceId: z.string().min(1),
   }),
+  /** The user's message for the running turn. The plugin answers with a `steer-delivered` or `steer-refused` chunk. */
+  z.strictObject({ kind: z.literal('steer'), turnId: EntityId, steerId: z.string().min(1), text: z.string().min(1) }),
   z.strictObject({ kind: z.literal('child-group-ack'), pgid: Pgid }),
   z.strictObject({ kind: z.literal('kill-child-group'), pgid: Pgid }),
 ]);

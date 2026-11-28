@@ -32,6 +32,7 @@ it('runs read-only and isolated, with the model, system prompt file and seeded c
         "stream-json",
         "--verbose",
         "--include-partial-messages",
+        "--replay-user-messages",
         "--no-session-persistence",
         "--safe-mode",
         "--strict-mcp-config",
@@ -84,6 +85,7 @@ it('sends an unseeded prompt as is, with no model or system flags', () => {
         "stream-json",
         "--verbose",
         "--include-partial-messages",
+        "--replay-user-messages",
         "--no-session-persistence",
         "--safe-mode",
         "--strict-mcp-config",
@@ -109,7 +111,7 @@ it('sends an unseeded prompt as is, with no model or system flags', () => {
 
 it('lets workspace-write edit with the file tools only, asking the host interactively and nobody in the background', () => {
   const flags = (mode: 'interactive' | 'background') =>
-    buildInvocation({ access: 'workspace-write', mode, selection: { kind: 'default' }, system: null, seed: null, prompt: 'hi', images: [], effort: null }).args.slice(10);
+    buildInvocation({ access: 'workspace-write', mode, selection: { kind: 'default' }, system: null, seed: null, prompt: 'hi', images: [], effort: null }).args.slice(11);
   expect({ interactive: flags('interactive'), background: flags('background') }).toMatchInlineSnapshot(`
     {
       "background": [

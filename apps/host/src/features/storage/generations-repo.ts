@@ -11,7 +11,7 @@ export interface GenerationRecord {
   readonly threadId: string;
   readonly pluginId: string;
   readonly accountKey: string;
-  /** The user message this turn answers (its source input). */
+  /** What this turn answers: the user's message, or another agent's message for a background turn. */
   readonly inputMessageId: string;
   readonly startedAt: string;
   /** The provider session row the turn will use, and that row's state before the turn. */
@@ -62,8 +62,13 @@ export interface GenerationRepository {
   insert(record: GenerationRecord): void;
   markDispatched(id: string, at: string): void;
   setAttemptedSessionRow(id: string, row: number): void;
+  /** A steer reached the running turn: the turn now answers that message (Continue starts from it). */
+  setInputMessage(id: string, messageId: string): void;
   flushPartial(id: string, text: string): void;
-  settle(id: string, resultMessageId: string): void;
+  /** `resultMessageId` is null for a background turn that told the user nothing. */
+  settle(id: string, resultMessageId: string | null): void;
+  /** Whether a turn has taken `messageId` as its input. */
+  hasInput(messageId: string): boolean;
   /** Generations a crash left unsettled, oldest first. */
   unsettled(): UnsettledGeneration[];
   /** The generation whose reply is `messageId`, for Continue. Migrated messages have none. */
@@ -81,9 +86,11 @@ export function generationRepository(db: DatabaseSync): GenerationRepository {
   );
   const dispatched = db.prepare('UPDATE generations SET dispatched_at = ? WHERE id = ?');
   const attempted = db.prepare('UPDATE generations SET attempted_session_row = ? WHERE id = ?');
+  const input = db.prepare('UPDATE generations SET input_message_id = ? WHERE id = ?');
   const partial = db.prepare('UPDATE generations SET partial_text = ? WHERE id = ? AND settled = 0');
   const settle = db.prepare('UPDATE generations SET settled = 1, result_message_id = ? WHERE id = ?');
   const unsettled = db.prepare('SELECT * FROM generations WHERE settled = 0 ORDER BY started_at, rowid');
+  const hasInput = db.prepare('SELECT 1 FROM generations WHERE input_message_id = ? LIMIT 1');
   const byResult = db.prepare('SELECT id, input_message_id FROM generations WHERE result_message_id = ?');
   const idsByThread = db.prepare('SELECT id FROM generations WHERE thread_id = ?');
   const continuation = db.prepare('SELECT generation_id FROM continuations WHERE thread_id = ? AND failed_message_id = ?');
@@ -106,12 +113,16 @@ export function generationRepository(db: DatabaseSync): GenerationRepository {
     setAttemptedSessionRow: (id, row) => {
       attempted.run(row, id);
     },
+    setInputMessage: (id, messageId) => {
+      input.run(messageId, id);
+    },
     flushPartial: (id, text) => {
       partial.run(text, id);
     },
     settle: (id, resultMessageId) => {
       settle.run(resultMessageId, id);
     },
+    hasInput: (messageId) => hasInput.get(messageId) !== undefined,
     unsettled: () => unsettled.all().map((row) => GenerationRow.parse(row)),
     byResultMessage: (messageId) => {
       const row = z.object({ id: z.string(), input_message_id: z.string() }).optional().parse(byResult.get(messageId));

@@ -29,6 +29,7 @@ import type {
   PluginStatus,
   SendAgentMessageRequest,
   ProviderInfo,
+  QueuedMessage,
   ProviderUnavailableReason,
   Routine,
   RoutineRun,
@@ -96,6 +97,14 @@ export type ApiAdmitResult =
   | { readonly kind: 'not_continuable'; readonly reason: string }
   | { readonly kind: 'attachments_missing' };
 
+/** A send starts a turn, or waits in the thread's queue while a turn runs. */
+export type ApiSendResult = ApiAdmitResult | { readonly kind: 'queued'; readonly queued: QueuedMessage } | { readonly kind: 'files_wait' };
+
+export type ApiQueueAnswer =
+  | { readonly kind: 'ok' }
+  | { readonly kind: 'not_found' }
+  | { readonly kind: 'conflict'; readonly reason: string };
+
 export type ApiReplay = { readonly kind: 'events'; readonly events: readonly ChatEvent[] } | { readonly kind: 'resync' };
 
 export interface ApiChat {
@@ -108,7 +117,9 @@ export interface ApiChat {
   deleteAgent(id: string): Promise<boolean>;
   listMessages(threadId: string): Message[] | undefined;
   state(threadId: string): ThreadState | undefined;
-  send(threadId: string, text: string, attachmentIds: readonly string[], choice: SessionChoice): Promise<ApiAdmitResult>;
+  send(threadId: string, text: string, attachmentIds: readonly string[], choice: SessionChoice): Promise<ApiSendResult>;
+  cancelQueued(threadId: string, queuedId: string): ApiQueueAnswer;
+  steerQueued(threadId: string, queuedId: string): ApiQueueAnswer;
   continueTurn(threadId: string, failedMessageId: string, choice: SessionChoice): Promise<ApiAdmitResult>;
   stop(threadId: string): Promise<StopGenerationResponse | { readonly kind: 'not_stored' }>;
   replyApproval(

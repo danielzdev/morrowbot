@@ -57,6 +57,7 @@ export const ROWS = {
   chatWidth: row('appearance', 'chat-width', 'Chat width', 'How wide the chat column gets: Normal is 720px, Wide is 920px.'),
   reduceMotion: row('appearance', 'reduce-motion', 'Reduce motion', "On stills avatars and slide-ins. Your system's reduce-motion setting always applies."),
   sendWith: row('chat', 'send-with', 'Send with', 'Which key sends your message. Shift+Enter always starts a new line.'),
+  notifications: row('chat', 'notifications', 'Notifications', 'While MorrowBot is in the background, a system notification says when an agent needs approval or finishes.'),
   providers: row('providers', 'providers', 'AI providers', 'Claude, Codex, Antigravity, OpenCode and community engines: set up, sign in, check status and change settings.'),
   version: row('about', 'version', 'MorrowBot', 'Apache License 2.0 · Published by Legendary Koi'),
   updates: row('about', 'updates', 'Updates', 'Downloads new versions in the background and installs them when you restart.'),
@@ -79,6 +80,7 @@ const SHORTCUT_COPY: Readonly<Record<ShortcutId, readonly [label: string, descri
   extensions: ['Extensions', 'Open Extensions: your plugins, connectors and the Marketplace.'],
   find: ['Find in chat', 'Search the open chat. Enter and Shift+Enter move between matches.'],
   binding: ['Model and access', "Change the current agent's model, effort and access."],
+  inspector: ['Agent Inspector', "Show or hide the panel with the agent's workspace, brain and instructions."],
 };
 
 const CONTEXT_COPY: Readonly<Record<ContextKey, readonly [label: string, description: string]>> = {
@@ -125,6 +127,7 @@ export function keysOf(id: KeyRowId, platform: Platform, sendWith: SendWith): st
     case 'extensions':
     case 'find':
     case 'binding':
+    case 'inspector':
       return shortcutLabel(id, platform);
   }
 }

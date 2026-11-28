@@ -18,7 +18,7 @@ function chatOf(count: number): ThreadView {
       ? { kind: 'user', id: `m${String(index)}`, threadId: 't', text: `Question ${String(index)}`, createdAt: AT, attachments: [] }
       : { kind: 'assistant', id: `m${String(index)}`, threadId: 't', text: REPLY.replaceAll('%n', String(index)), createdAt: AT, outcome: { kind: 'completed', finishReason: 'stop' } },
   );
-  return viewOf({ thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT }, messages, activeTurn: null, blockedGroups: [], cursor: { hostEpoch: 'e', seq: 0 } });
+  return viewOf({ thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT }, messages, activeTurn: null, queue: [], blockedGroups: [], cursor: { hostEpoch: 'e', seq: 0 } });
 }
 
 const CTX: TimelineContext = {
@@ -96,6 +96,6 @@ it('follows new output near the bottom and shows the pill otherwise', () => {
     following: onGrowth(true, false),
     reading: onGrowth(false, false),
     sentWhileReading: onGrowth(false, true),
-    growsOnText: growthOf(view) !== growthOf({ ...view, activeTurn: { generationId: 'g', state: 'running', queueNote: null, detail: null, text: 'x', steps: [], startedAt: 0 } }),
+    growsOnText: growthOf(view) !== growthOf({ ...view, activeTurn: { generationId: 'g', trigger: { kind: 'chat' }, state: 'running', queueNote: null, detail: null, text: 'x', steps: [], startedAt: 0 } }),
   }).toEqual({ atBottom: true, readingAbove: false, following: 'follow', reading: 'pill', sentWhileReading: 'follow', growsOnText: true });
 });

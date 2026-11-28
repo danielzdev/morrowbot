@@ -17,6 +17,7 @@ export * from './provider.ts';
 export * from './agents.ts';
 export * from './threads.ts';
 export * from './messages.ts';
+export * from './queue.ts';
 export * from './chat-api.ts';
 export * from './host-ipc.ts';
 export * from './usage.ts';
