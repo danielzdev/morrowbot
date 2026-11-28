@@ -90,6 +90,7 @@ export function engineRows(
         busy: card.busy !== null,
         installing,
         progress: installing && detail !== null ? redact(detail, info) : null,
+        note: !installing && status.state === 'outdated' ? 'Update later in Settings › Providers.' : null,
         action: installing ? { kind: 'install', downloadUrl: null } : actionOf(card, status, info, oneClick, capabilities),
       };
     });

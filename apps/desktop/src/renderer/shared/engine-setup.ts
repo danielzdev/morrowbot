@@ -34,6 +34,8 @@ export interface EngineRow {
   readonly busy: boolean;
   readonly installing: boolean;
   readonly progress: string | null;
+  /** Optional calm hint shown under the row (e.g. outdated engine updated later in Settings › Providers). */
+  readonly note?: string | null;
   readonly action: SetupAction;
 }
 

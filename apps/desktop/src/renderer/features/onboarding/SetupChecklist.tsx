@@ -170,6 +170,7 @@ function EngineAction(props: { readonly row: EngineRow; readonly actions: Engine
           {row.progress}
         </p>
       )}
+      {!row.installing && note === null && row.note != null && <p class="engine-note">{row.note}</p>}
       {!row.installing && note !== null && (
         <p class={`engine-note${note.kind === 'error' ? ' error' : ''}`} role={note.kind === 'error' ? 'alert' : 'status'}>
           {note.text}

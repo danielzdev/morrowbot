@@ -59,6 +59,18 @@ const ROWS: readonly EngineRow[] = [
     progress: 'Installing with Homebrew (antigravity-cli)…',
     action: { kind: 'install', downloadUrl: null },
   },
+  {
+    id: 'provider-outdated',
+    name: 'Outdated Engine',
+    tone: 'warning',
+    status: 'Needs update · found 2.0.1, needs 2.4',
+    ready: false,
+    busy: false,
+    installing: false,
+    progress: null,
+    note: 'Update later in Settings › Providers.',
+    action: { kind: 'none' },
+  },
 ];
 
 it('renders one calm signal per row without duplicate warning triangle, yellow status pill, How to install, or Update', () => {
@@ -68,6 +80,7 @@ it('renders one calm signal per row without duplicate warning triangle, yellow s
     hasWarningTriangle: html.includes('M8 2.5 14 13.5H2z'),
     hasHowToInstall: html.includes('How to install'),
     hasUpdateButton: html.includes('>Update<'),
+    hasOutdatedHint: html.includes('<p class="engine-note">Update later in Settings › Providers.</p>'),
     hasMutedNotInstalled: html.includes('<span class="engine-indicator muted" aria-hidden="true"><span class="status-dot muted"></span></span><span class="engine-name">OpenCode (free models)</span><span class="engine-status muted">Not installed</span>'),
     hasInstallButton: html.includes('aria-label="Install, OpenCode (free models)">Install</button>'),
     hasSignInButton: html.includes('aria-label="Sign in, OpenAI Codex (subscription)">Sign in</button>'),
@@ -78,6 +91,7 @@ it('renders one calm signal per row without duplicate warning triangle, yellow s
     hasWarningTriangle: false,
     hasHowToInstall: false,
     hasUpdateButton: false,
+    hasOutdatedHint: true,
     hasMutedNotInstalled: true,
     hasInstallButton: true,
     hasSignInButton: true,

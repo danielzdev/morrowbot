@@ -47,14 +47,14 @@ const CARDS: readonly ProviderCard[] = [
 
 const table = (oneClick: boolean, capabilities: ProviderInstallCapabilities = {}) =>
   engineRows(CARDS, INFO, oneClick, capabilities).map(
-    ({ id, tone, status, ready: isReady, action }) =>
+    ({ id, tone, status, ready: isReady, note, action }) =>
       `${id} [${tone}]: ${status}${isReady ? ' (ready)' : ''} → ${
         action.kind === 'copy'
           ? `copy "${action.text}"`
           : action.kind === 'guide'
             ? `${action.label} ${action.url.includes('#') ? action.url.replace(/^.*#/, '#') : action.url}`
             : action.kind
-      }`,
+      }${note != null ? ` (${note})` : ''}`,
   );
 
 it('gives each built-in engine its onboarding action: Install or Download when missing, Sign in when signed out, and never Update or How to install (spec §7)', () => {
@@ -72,7 +72,7 @@ it('gives each built-in engine its onboarding action: Install or Download when m
         "provider-claude [ok]: Ready · Claude Max 5x (ready) → none",
         "provider-openai [warning]: Sign-in needed → sign-in-terminal",
         "provider-antigravity [muted]: Not installed → none",
-        "provider-opencode [warning]: Needs update · found 2.0.1, needs 2.4 → none",
+        "provider-opencode [warning]: Needs update · found 2.0.1, needs 2.4 → none (Update later in Settings › Providers.)",
         "signed-out-private [warning]: Sign-in needed → sign-in-terminal",
         "turned-off [muted]: Turned off → turn-on",
         "crashed [error]: Crashed → recheck",
@@ -82,7 +82,7 @@ it('gives each built-in engine its onboarding action: Install or Download when m
         "provider-claude [ok]: Ready · Claude Max 5x (ready) → none",
         "provider-openai [warning]: Sign-in needed → copy "codex login"",
         "provider-antigravity [muted]: Not installed → none",
-        "provider-opencode [warning]: Needs update · found 2.0.1, needs 2.4 → none",
+        "provider-opencode [warning]: Needs update · found 2.0.1, needs 2.4 → none (Update later in Settings › Providers.)",
         "signed-out-private [warning]: Sign-in needed → recheck",
         "turned-off [muted]: Turned off → turn-on",
         "crashed [error]: Crashed → recheck",
@@ -92,7 +92,7 @@ it('gives each built-in engine its onboarding action: Install or Download when m
         "provider-claude [ok]: Ready · Claude Max 5x (ready) → none",
         "provider-openai [warning]: Sign-in needed → sign-in-terminal",
         "provider-antigravity [muted]: Not installed → install",
-        "provider-opencode [warning]: Needs update · found 2.0.1, needs 2.4 → none",
+        "provider-opencode [warning]: Needs update · found 2.0.1, needs 2.4 → none (Update later in Settings › Providers.)",
         "signed-out-private [warning]: Sign-in needed → sign-in-terminal",
         "turned-off [muted]: Turned off → turn-on",
         "crashed [error]: Crashed → recheck",
@@ -102,7 +102,7 @@ it('gives each built-in engine its onboarding action: Install or Download when m
         "provider-claude [ok]: Ready · Claude Max 5x (ready) → none",
         "provider-openai [warning]: Sign-in needed → sign-in-terminal",
         "provider-antigravity [muted]: Not installed → Download https://antigravity.google/product/antigravity-cli",
-        "provider-opencode [warning]: Needs update · found 2.0.1, needs 2.4 → none",
+        "provider-opencode [warning]: Needs update · found 2.0.1, needs 2.4 → none (Update later in Settings › Providers.)",
         "signed-out-private [warning]: Sign-in needed → sign-in-terminal",
         "turned-off [muted]: Turned off → turn-on",
         "crashed [error]: Crashed → recheck",
