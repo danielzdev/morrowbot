@@ -1,10 +1,11 @@
-import { access, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Agent, MessageList, StartedSend, Thread, UsageResponse } from '@morrowbot/contracts';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { AGY } from '../../testing/agy-fixture.ts';
+import { isRunning, until } from '../../testing/daemon-fixture.ts';
 import { startTestHost, type EventClient, type TestHost } from '../../testing/test-host.ts';
 
 /**
@@ -63,7 +64,7 @@ function deniedByMorrowBot(generationId: string, kind: string): boolean {
 
 describe.skipIf(!LIVE)('provider-antigravity on your agy login', () => {
   it(
-    'is ready once a session lists models; a read-only turn loads the workspace AGENTS.md; a write inside, a write outside, a command and a write through a symlink are each denied and change nothing',
+    'is ready with models on the first provider-info; a read-only turn loads the workspace AGENTS.md; a write inside, a write outside, a command and a write through a symlink are each denied and change nothing',
     async () => {
       const before = Info.parse((await host.call('GET', '/api/plugins/provider-antigravity/info')).body).info;
       const agent = Agent.parse((await host.call('POST', '/api/agents', { name: 'Live', provider: AGY })).body);
@@ -101,7 +102,7 @@ describe.skipIf(!LIVE)('provider-antigravity on your agy login', () => {
         usage: usage.usage.kind === 'unavailable' ? usage.usage.reason : usage.usage.kind,
         errors: host.errors,
       }).toEqual({
-        before: 'ready-models-later',
+        before: 'ready',
         after: { kind: 'ready', accountKey: '', labelled: true, models: true },
         outcomes: ['completed', 'completed', 'completed', 'completed', 'completed'],
         canary: true,
@@ -109,6 +110,43 @@ describe.skipIf(!LIVE)('provider-antigravity on your agy login', () => {
         usage: 'unsupported',
         errors: [],
       });
+    },
+    TURN_MS,
+  );
+
+  it(
+    "offers full access with each model's thinking levels on the first provider-info; a full-access command runs without a card, and Stop ends a long command",
+    async () => {
+      const Models = z.looseObject({ info: z.looseObject({ models: z.array(z.looseObject({ options: z.array(z.unknown()) })) }) });
+      const { models } = Models.parse((await host.call('GET', '/api/plugins/provider-antigravity/info')).body).info;
+      const agent = Agent.parse((await host.call('POST', '/api/agents', { name: 'Live full', provider: { ...AGY, access: 'full' } })).body);
+      const thread = Thread.parse((await host.call('POST', `/api/agents/${agent.id}/threads`, { title: 'Live full' })).body);
+      await events.watch(thread.id);
+      const workspace = path.join(root, 'data', 'workspaces', agent.id);
+      const ran = await send(thread, 'Use your command tool to run exactly: touch ran.txt . Do not use any other tool.');
+      const reply = await host.call('POST', `/api/threads/${thread.id}/messages`, {
+        text: "Use your command tool to run exactly this command in the foreground and wait for it to finish (it takes five minutes): sh -c 'echo $$ > child.pid; exec sleep 300'",
+        sessionChoice: { kind: 'auto' },
+      });
+      const { generationId } = StartedSend.parse(reply.body);
+      await until(() => exists(path.join(workspace, 'child.pid')), 120_000);
+      await until(async () => (await readFile(path.join(workspace, 'child.pid'), 'utf8')).trim() !== '');
+      const pid = Number((await readFile(path.join(workspace, 'child.pid'), 'utf8')).trim());
+      const runningBefore = isRunning(pid);
+      const stop = await host.call('POST', `/api/threads/${thread.id}/stop`);
+      await events.finished(generationId);
+      await until(() => !isRunning(pid));
+      const { messages } = MessageList.parse((await host.call('GET', `/api/threads/${thread.id}/messages`)).body);
+      expect({
+        thinkingModels: models.some((model) => model.options.length > 0),
+        ran: await exists(path.join(workspace, 'ran.txt')),
+        cards: events.received.some((event) => event.kind === 'generation.approval-requested' && event.generationId === ran),
+        stop: stop.status,
+        runningBefore,
+        runningAfter: isRunning(pid),
+        outcomes: messages.flatMap((message) => (message.kind === 'assistant' ? [message.outcome.kind] : [])),
+        errors: host.errors,
+      }).toEqual({ thinkingModels: true, ran: true, cards: false, stop: 200, runningBefore: true, runningAfter: false, outcomes: ['completed', 'cancelled'], errors: [] });
     },
     TURN_MS,
   );

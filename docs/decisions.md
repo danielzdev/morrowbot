@@ -26,6 +26,7 @@ Settled product, visual, security, and workflow decisions for MorrowBot so any c
   - Calm T3 Code watches: `list_t3_watches`, `watch_t3_thread`, `unwatch_t3_thread`, `ack_t3_batch`
   - Vault metadata lookup (values never exposed to agents): `list_vault_items`
 - **Access profiles:** Trusted agents can opt into the `full` (shell/Bash) access profile with an owner-only guard and explicit desktop confirmation warning.
+- **Full-access Stop is best-effort:** Stop cancels the active turn (ending the provider's process or its `session/cancel`), and a provider is not held back from `full` because a command's detached or backgrounded child (`cmd &`, `setsid`) can outlive Stop.
 - **Secrets Vault:** One AES-256-GCM encrypted file (`vault-secrets.json`) sealed under a single master key in the OS keystore (`com.legendarykoi.morrowbot.vault` on macOS Keychain; zero extra master-password prompts). Secrets are injected by `vaultId` inside MCP/Composio connector headers and browser `submit_secret` (password + TOTP with origin checks) and never returned to agents.
 - **Extensions & built-in tool plugins:** Custom MCP servers (stdio + Streamable HTTP/SSE) and Composio connectors support per-agent enablement. Built-in tool plugins (`plugins/browser` + Chromium extension; `plugins/computer-use` native macOS helper) execute over the per-turn MCP tool bridge.
 

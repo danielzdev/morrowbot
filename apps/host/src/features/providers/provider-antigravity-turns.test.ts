@@ -99,17 +99,25 @@ it('a daemon that ignores session/cancel is killed after turnStopMs, the turn en
     `);
 });
 
-it('a signed-out agy fails the turn as signed-out, and provider-info then offers the login command', async () => {
+it('a signed-out agy fails the turn as signed-out, provider-info offers the login command, and a turn runs once agy is signed in again', async () => {
   const fixture = (agy = await startAgyFixture());
   const thread = await fixture.thread(await fixture.agent());
+  await fixture.host.call('GET', '/api/plugins/provider-antigravity/info');
   await fixture.setState({ signedOut: true });
   await fixture.send(thread, 'hello');
   const info = await fixture.host.call('GET', '/api/plugins/provider-antigravity/info?refresh=1');
-  expect(redact(fixture, { history: await fixture.history(thread), info: info.body })).toMatchInlineSnapshot(`
+  await fixture.setState({ signedOut: false });
+  const again = await fixture.host.call('GET', '/api/plugins/provider-antigravity/info?refresh=1');
+  await fixture.send(thread, 'back');
+  const kind = (body: unknown): unknown => (typeof body === 'object' && body !== null && 'info' in body && typeof body.info === 'object' && body.info !== null && 'kind' in body.info ? body.info.kind : null);
+  expect(redact(fixture, { history: await fixture.history(thread), info: info.body, again: kind(again.body) })).toMatchInlineSnapshot(`
     {
+      "again": "ready",
       "history": [
         "user: hello",
         "assistant(failed signed-out): ",
+        "user: back",
+        "assistant(completed): Echo: back",
       ],
       "info": {
         "info": {
@@ -159,12 +167,12 @@ it('sets the picked model and thinking level on each new session, and refuses a 
       "configured": [
         {
           "configId": "model",
-          "sessionId": "sess-<pid>-2",
+          "sessionId": "sess-<pid>-3",
           "value": "fake-flash",
         },
         {
           "configId": "thought_level",
-          "sessionId": "sess-<pid>-2",
+          "sessionId": "sess-<pid>-3",
           "value": "minimal",
         },
       ],

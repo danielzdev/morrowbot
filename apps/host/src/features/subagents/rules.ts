@@ -14,8 +14,8 @@ export type Target = { readonly kind: 'ok'; readonly binding: BoundProvider } | 
 
 const ACCESS_RANK: Readonly<Record<AccessLevel, number>> = { 'read-only': 0, 'workspace-write': 1, full: 2 };
 
-/** A model option that sets reasoning effort (Claude's `effort`, Codex's `reasoningEffort`). */
-export const isEffortOption = (optionId: string): boolean => /effort/i.test(optionId);
+/** A model option that sets reasoning effort (Claude's `effort`, Codex's `reasoningEffort`, Antigravity's `thought_level`). */
+export const isEffortOption = (optionId: string): boolean => /effort|thought_level/i.test(optionId);
 
 /**
  * The binding a sub-agent runs with: the parent's, changed only where the request says, and never with more
