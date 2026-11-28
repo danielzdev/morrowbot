@@ -21,7 +21,7 @@ export function UsageScreen() {
   const groups = usage.kind === 'ready' ? byModel(usage.value.totals) : [];
   return (
     <GroupedScroll>
-      <View style={[styles.segments, { backgroundColor: colors.surface3 }]}>
+      <View style={[styles.segments, { backgroundColor: colors.selected }]}>
         {RANGES.map((option) => (
           <Pressable
             key={option.range}

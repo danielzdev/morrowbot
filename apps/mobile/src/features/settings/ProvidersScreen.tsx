@@ -22,7 +22,7 @@ function ProviderGroup(props: { readonly entry: PluginEntry }) {
   const status = pluginStatus(entry);
   return (
     <Group header={entry.manifest.name} footer={null}>
-      <Row label="Status" detail={status.label} leading={<StatusDot tone={status.tone} />} trailing={null} tone="default" selected={false} onPress={null} />
+      <Row label="Status" detail={status.label} leading={null} trailing={<StatusDot tone={status.tone} />} tone="default" selected={false} onPress={null} />
       {entry.status.kind === 'running' ? <ProviderModels pluginId={entry.manifest.id} /> : null}
     </Group>
   );

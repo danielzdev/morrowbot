@@ -4,6 +4,7 @@ import { useHostConnection, type HostConnection, type HostReachability, type Pai
 import { Check, Group, GroupedScroll, IconTile, Note, Row, StatusDot } from './grouped.tsx';
 import { describeLink, describeReachability, type StatusLabel } from './link-status.ts';
 import { settingsUi } from './settings-store.ts';
+import { useClock } from './use-clock.ts';
 
 /** Paired hosts: which one is active, whether each answers, and adding or forgetting one. */
 export function ConnectionsScreen() {
@@ -129,18 +130,4 @@ function useReachability(connection: HostConnection): ReadonlyMap<string, HostRe
     };
   }, [key]);
   return reachability;
-}
-
-/** The time, ticking each second, for the reconnect countdown. */
-function useClock(): number {
-  const [now, setNow] = useState(Date.now);
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setNow(Date.now());
-    }, 1000);
-    return () => {
-      clearInterval(timer);
-    };
-  }, []);
-  return now;
 }

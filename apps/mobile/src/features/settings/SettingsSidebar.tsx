@@ -9,12 +9,14 @@ import { describeLink } from './link-status.ts';
 import { PairHostSheet } from './PairHostSheet.tsx';
 import { searchSections } from './sections.ts';
 import { settingsUi, useSettingsUi } from './settings-store.ts';
+import { useClock } from './use-clock.ts';
 
 /** The Settings list: the active host up top, then each section; filtered while searching. */
 export function SettingsSidebar(props: SidebarProps) {
   const { colors, scheme } = useTheme();
   const ui = useSettingsUi();
   const connection = useHostConnection();
+  const now = useClock();
   const active = connection.state.kind === 'ready' ? connection.state.active : null;
   const query = ui.search.kind === 'open' ? ui.search.query : '';
   const sections = searchSections(query);
@@ -22,7 +24,7 @@ export function SettingsSidebar(props: SidebarProps) {
   const openConnections = (): void => {
     props.navigation.open({ kind: 'settings', section: 'connections' });
   };
-  const status = active === null ? null : describeLink(active.status, Date.now());
+  const status = active === null ? null : describeLink(active.status, now);
 
   return (
     <ScrollView contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
@@ -62,7 +64,7 @@ export function SettingsSidebar(props: SidebarProps) {
             <Text style={[typography.title, { color: colors.text1 }]} numberOfLines={1}>
               {active === null ? 'Pair a Host' : active.host.hostName}
             </Text>
-            <View style={styles.hostStatus}>
+            <View style={[styles.hostStatus, status !== null && styles.hostStatusWithDot]}>
               {status === null ? null : <StatusDot tone={status.tone} />}
               <Text style={[typography.small, { color: colors.text3 }]} numberOfLines={1}>
                 {status === null ? 'Connect to MorrowBot on your computer' : status.label}
@@ -106,5 +108,6 @@ const styles = StyleSheet.create({
   hostCard: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], padding: spacing[4], borderRadius: radii.lg, borderWidth: StyleSheet.hairlineWidth },
   hostIcon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   hostText: { flex: 1, gap: 2 },
-  hostStatus: { flexDirection: 'row', alignItems: 'center', marginLeft: -10 },
+  hostStatus: { flexDirection: 'row', alignItems: 'center' },
+  hostStatusWithDot: { marginLeft: -10 },
 });
