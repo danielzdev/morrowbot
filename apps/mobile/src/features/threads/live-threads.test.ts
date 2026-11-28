@@ -7,7 +7,7 @@ const HOST = 'studio-host';
 function summary(id: string, title: string, minute: number, activity: ThreadActivity, last: LastMessage['kind'] | null): ThreadSummary {
   const at = `2026-11-27T12:${String(minute).padStart(2, '0')}:00.000Z`;
   return {
-    thread: { id, agentId: 'trip-planner', title, createdAt: id === 'trips' ? '2026-11-01T00:00:00.000Z' : at, updatedAt: at },
+    thread: { id, agentId: 'trip-planner', title, createdAt: id === 'trips' ? '2026-11-01T00:00:00.000Z' : at, updatedAt: at, archivedAt: null },
     activity,
     lastMessage: last === null ? null : { agentId: 'trip-planner', threadId: id, kind: last, preview: `${title} ${last}`, at },
   };
@@ -93,6 +93,36 @@ describe('live threads', () => {
         "olderIgnored": [
           "Lisbon assistant",
         ],
+      }
+    `);
+  });
+
+  it('drops archived threads from summaries and clears their unread mark', () => {
+    const unreadState = changed(
+      listed(NO_THREADS, [summary('trips', 'Trips', 1, { kind: 'idle' }, 'user')]),
+      summary('lisbon', 'Lisbon', 2, { kind: 'idle' }, 'assistant'),
+      [],
+    );
+    const archivedSummary = summary('lisbon', 'Lisbon', 3, { kind: 'idle' }, 'assistant');
+    const afterArchive = changed(
+      unreadState,
+      { ...archivedSummary, thread: { ...archivedSummary.thread, archivedAt: '2026-11-27T12:04:00.000Z' } },
+      [],
+    );
+    expect({
+      before: rows(unreadState),
+      after: rows(afterArchive),
+      unreadAfter: [...afterArchive.unread],
+    }).toMatchInlineSnapshot(`
+      {
+        "after": [
+          "Trips: idle",
+        ],
+        "before": [
+          "Trips: idle",
+          "Lisbon: unread",
+        ],
+        "unreadAfter": [],
       }
     `);
   });

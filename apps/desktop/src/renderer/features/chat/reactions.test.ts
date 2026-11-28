@@ -29,7 +29,7 @@ const CTX: TimelineContext = {
 };
 
 it("labels the agent's reaction on a user message and makes the user's own on a reply a pressed toggle", () => {
-  const state = { thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT }, messages: MESSAGES, toolSteps: [], activeTurn: null, queue: [], blockedGroups: [], subagents: [], cursor: { hostEpoch: 'e', seq: 0 } };
+  const state = { thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT, archivedAt: null }, messages: MESSAGES, toolSteps: [], activeTurn: null, queue: [], blockedGroups: [], subagents: [], cursor: { hostEpoch: 'e', seq: 0 } };
   const reactions = replaceReactions([reaction('u1', 'agent', '👍')], 'a1', [reaction('a1', 'user', '🎉')]);
   const html = renderToString(h(Timeline, { view: viewOf({ ...state, reactions: [...reactions] }), start: 0, answering: [], idle: true, locked: false, offline: false, ctx: CTX, onShowEarlier: () => undefined, activity: 'idle' }));
   const pills = [...html.matchAll(/<(button|span) [^>]*class="reaction-pill[^"]*"[^>]*>/g)].map(([tag = '']) => tag);

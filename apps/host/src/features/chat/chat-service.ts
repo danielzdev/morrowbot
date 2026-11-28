@@ -1,6 +1,5 @@
 import type {
   ActiveTurn,
-  AssistantMessage,
   CreateThreadRequest,
   Cursor,
   Message,
@@ -19,8 +18,9 @@ import { parentTurn, publishSubagent, stopChildren, stopTurn as stopWithChildren
 import { dispatch } from './dispatch.ts';
 import { EventLog, type Replay } from './event-log.ts';
 import { attributionOf, forgetSettled, startedBy, type TurnInitiator } from './initiator.ts';
-import type { ChatListener, ChatServiceOptions, RecheckAnswer } from './ports.ts';
+import type { ChatListener, ChatServiceOptions, RecheckAnswer, ThreadArchiveFilter } from './ports.ts';
 import { agentReact, attachRefusal, dropNote, emojiReplies, nextNote, reactionPrompt, readOrGone, setUserReaction, stayQuiet, type ReplyToolAnswer, type SetReactionAnswer, type TurnGrant } from './reactions.ts';
+import { recover } from './recover.ts';
 import { createSummaryFeed, type SummaryListener } from './thread-summary.ts';
 import { afterTurn, cancelQueued, enqueue, queueOf, sendsQueue, steerQueued, type QueueAnswer } from './queue.ts';
 import { laneOf, queueNote, type ChatCore, type StoredReply, type Turn } from './turn.ts';
@@ -36,16 +36,23 @@ export type RecheckResult = RecheckAnswer;
 /** A sub-agent's turn was admitted in its chat, or why not (nothing was written). */
 export type SubagentStart = { readonly kind: 'started'; readonly run: SubagentRun } | { readonly kind: 'refused'; readonly reason: string };
 
-/** A send starts a turn, or waits in the queue while a turn runs; files cannot wait there yet. */
-export type SendResult = AdmitResult | { readonly kind: 'queued'; readonly queued: QueuedMessage } | { readonly kind: 'files_wait' };
+/** A send starts a turn, or waits in the thread's queue while a turn runs. */
+export type SendResult = AdmitResult | { readonly kind: 'queued'; readonly queued: QueuedMessage };
+
+export type ArchiveThreadResult =
+  | { readonly kind: 'archived'; readonly thread: Thread }
+  | { readonly kind: 'not_found' }
+  | { readonly kind: 'conflict'; readonly reason: string };
 
 export interface ChatService {
-  listThreads(agentId: string): Thread[] | undefined;
-  /** Every agent's threads with what each is doing, most recently changed first. */
+  listThreads(agentId: string, filter?: ThreadArchiveFilter): Thread[] | undefined;
+  /** Every agent's active threads with what each is doing, most recently changed first. */
   listThreadSummaries(): ThreadSummary[];
   createThread(agentId: string, request: CreateThreadRequest): Thread | undefined;
   getThread(id: string): Thread | undefined;
   renameThread(id: string, title: string): Thread | undefined;
+  archiveThread(id: string): ArchiveThreadResult;
+  restoreThread(id: string): Thread | undefined;
   /** Stops the thread's turn, then deletes the thread. No new turn can start meanwhile. */
   deleteThread(id: string): Promise<boolean>;
   /** Stops every turn of the agent, then deletes the agent and its threads. */
@@ -148,6 +155,7 @@ export function createChatService(options: ChatServiceOptions): ChatService {
    */
   function readNext(threadId: string): void {
     if (core.closed || core.active.has(threadId) || core.draining.has(threadId)) return;
+    if (store.threads.get(threadId)?.archivedAt !== null) return;
     const [message] = options.inbox.waiting(threadId);
     if (message !== undefined) {
       const sender = agents.get(message.from.agentId)?.name ?? 'another agent';
@@ -217,7 +225,7 @@ export function createChatService(options: ChatServiceOptions): ChatService {
   };
 
   return {
-    listThreads: (agentId) => (agents.get(agentId) === undefined ? undefined : store.threads.listByAgent(agentId)),
+    listThreads: (agentId, filter = 'active') => (agents.get(agentId) === undefined ? undefined : store.threads.listByAgent(agentId, filter)),
     listThreadSummaries: () => summaries.list(),
     createThread: (agentId, request) => {
       if (agents.get(agentId) === undefined) return undefined;
@@ -233,6 +241,33 @@ export function createChatService(options: ChatServiceOptions): ChatService {
       const next: Thread = { ...current, title, updatedAt: options.now() };
       store.threads.update(next);
       summaries.check(id);
+      return next;
+    },
+    archiveThread: (id) => {
+      const current = store.threads.get(id);
+      if (current === undefined || core.deletingThreads.has(id) || core.deletingAgents.has(current.agentId) || store.subagents.get(id) !== undefined) {
+        return { kind: 'not_found' };
+      }
+      if (current.archivedAt !== null) return { kind: 'archived', thread: current };
+      if (core.active.has(id) || core.draining.has(id) || store.heldThreads().has(id)) {
+        return { kind: 'conflict', reason: 'Stop the reply before archiving this chat.' };
+      }
+      const archivedAt = options.now();
+      if (!store.threads.setArchived(id, archivedAt)) return { kind: 'not_found' };
+      const next: Thread = { ...current, archivedAt };
+      summaries.check(id);
+      return { kind: 'archived', thread: next };
+    },
+    restoreThread: (id) => {
+      const current = store.threads.get(id);
+      if (current === undefined || core.deletingThreads.has(id) || core.deletingAgents.has(current.agentId) || store.subagents.get(id) !== undefined) {
+        return undefined;
+      }
+      if (current.archivedAt === null) return current;
+      if (!store.threads.setArchived(id, null)) return undefined;
+      const next: Thread = { ...current, archivedAt: null };
+      summaries.check(id);
+      readNext(id);
       return next;
     },
     deleteThread: async (id) => {
@@ -252,7 +287,7 @@ export function createChatService(options: ChatServiceOptions): ChatService {
       return removed;
     },
     deleteAgent: async (id) => {
-      const threadIds = store.threads.listByAgent(id).map((thread) => thread.id);
+      const threadIds = store.threads.listByAgent(id, 'all').map((thread) => thread.id);
       const forget = attributionOf(core, threadIds);
       const removed = await exclusively(core.deletingAgents, id, (turn) => turn.agentId === id, () => agents.delete(id));
       if (removed) {
@@ -279,9 +314,10 @@ export function createChatService(options: ChatServiceOptions): ChatService {
     },
     send: async (threadId, text, attachmentIds, choice, by) => {
       if (!sendsQueue(core, threadId)) return admit(core, threadId, { kind: 'send', text, attachmentIds, mode: 'interactive', by }, choice);
-      if (core.closed || core.deletingThreads.has(threadId) || store.threads.get(threadId) === undefined) return { kind: 'thread_not_found' };
-      if (attachmentIds.length > 0) return { kind: 'files_wait' };
-      return { kind: 'queued', queued: enqueue(core, threadId, text, by) };
+      const thread = store.threads.get(threadId);
+      if (core.closed || core.deletingThreads.has(threadId) || thread === undefined) return { kind: 'thread_not_found' };
+      if (thread.archivedAt !== null) return { kind: 'not_continuable', reason: 'Restore this chat before sending a message.' };
+      return enqueue(core, threadId, text, attachmentIds, by);
     },
     sendUnattended: (threadId, text, choice) => admit(core, threadId, { kind: 'send', text, attachmentIds: [], mode: 'background', by: 'owner' }, choice),
     setReaction: (threadId, request, by) => setUserReaction(core, threadId, request, by),
@@ -341,42 +377,4 @@ export function createChatService(options: ChatServiceOptions): ChatService {
       await Promise.all([...core.active.values()].map((turn) => stopTurn(turn)));
     },
   };
-}
-
-/**
- * Turns a crash left unsettled end as interrupted, keeping the text saved so far. A background turn (its input
- * is not a chat message) ends quietly: the chat never showed it. A sub-agent the crash caught before its turn
- * was admitted never started, so it is deleted.
- */
-function recover(options: ChatServiceOptions): void {
-  const { store } = options;
-  store.subagents.deleteUnstarted();
-  for (const generation of store.generations.unsettled()) {
-    if (store.messages.get(generation.inputMessageId) === undefined) {
-      store.transaction(() => {
-        store.generations.settle(generation.id, null);
-        store.toolSteps.close(generation.id, null);
-        store.replyAttachments.close(generation.id, null);
-        store.agentMessages.setReadOutcome(generation.inputMessageId, 'interrupted');
-      });
-      continue;
-    }
-    const at = options.now();
-    const message: AssistantMessage = {
-      kind: 'assistant',
-      id: options.newId(),
-      threadId: generation.threadId,
-      text: generation.partialText,
-      outcome: { kind: 'interrupted' },
-      attachments: store.replyAttachments.listOpen(generation.id).map(({ attachment }) => attachment),
-      createdAt: at,
-    };
-    store.transaction(() => {
-      store.messages.insert(message);
-      store.threads.touch(generation.threadId, at);
-      store.generations.settle(generation.id, message.id);
-      store.toolSteps.close(generation.id, message.id);
-      store.replyAttachments.close(generation.id, message.id);
-    });
-  }
 }

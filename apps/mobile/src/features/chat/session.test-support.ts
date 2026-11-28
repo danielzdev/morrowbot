@@ -7,7 +7,7 @@ export const AT = '2026-01-01T00:00:00.000Z';
 /** A thread's `/state`: idle, or with a running chat turn that (by default) waits on approval `a1`. */
 export function state(seq: number, running: boolean, pending = running, queue: QueuedMessage[] = []): ThreadState {
   return {
-    thread: { id: 't', agentId: 'a', title: 'Main', createdAt: AT, updatedAt: AT },
+    thread: { id: 't', agentId: 'a', title: 'Main', createdAt: AT, updatedAt: AT, archivedAt: null },
     messages: [],
     reactions: [],
     toolSteps: [],
@@ -30,7 +30,7 @@ export function state(seq: number, running: boolean, pending = running, queue: Q
 }
 
 export function queued(id: string, text: string, queueState: QueuedMessageState = { kind: 'queued' }): QueuedMessage {
-  return { id, threadId: 't', text, createdAt: AT, state: queueState };
+  return { id, threadId: 't', text, attachments: [], createdAt: AT, state: queueState };
 }
 
 const unused = (): never => {
@@ -50,6 +50,7 @@ export function scripted(states: ThreadState[], overrides: Partial<ChatHost> = {
     agents: unused,
     threads: unused,
     createThread: unused,
+    uploadAttachment: unused,
     send: (_threadId, text) => {
       sent.push(text);
       return ok({ kind: 'started', generationId: 'g8', userMessage: { kind: 'user', id: 'u', threadId: 't', text, createdAt: AT, attachments: [] } });

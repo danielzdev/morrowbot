@@ -6,7 +6,7 @@ import type { PendingAction } from './thread-session.ts';
 
 const AT = '2026-01-01T00:00:00.000Z';
 const BASE: ThreadState = {
-  thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT },
+  thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT, archivedAt: null },
   messages: [],
   reactions: [],
   toolSteps: [],

@@ -1,6 +1,8 @@
-import { EventServerFrame, type EventClientFrame } from '@morrowbot/contracts';
+import { EventServerFrame, lenient, type EventClientFrame } from '@morrowbot/contracts';
 import WebSocket from 'ws';
 import type { HostTarget } from './ipc-proxy.ts';
+
+const Frame = lenient(EventServerFrame);
 
 export interface EventStream {
   /** Sends a subscribe or unsubscribe frame, once the socket is open. */
@@ -32,7 +34,7 @@ export function openEventStream(target: HostTarget, handlers: EventStreamHandler
     if (!closing) handlers.onLost?.();
   });
   socket.on('message', (data: WebSocket.RawData) => {
-    const parsed = EventServerFrame.safeParse(parseJson(textOf(data)));
+    const parsed = Frame.safeParse(parseJson(textOf(data)));
     if (parsed.success) onEvent(parsed.data);
     else report(new Error(`Ignored a malformed host event: ${parsed.error.message}`));
   });

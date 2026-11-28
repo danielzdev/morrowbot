@@ -29,16 +29,24 @@ export function QueuedBubble(props: {
   const edge = state.kind === 'steering' ? colors.accent : colors.hairlineStrong;
   const tone = { queued: colors.text3, steering: colors.accent, held: colors.warn }[state.kind];
   const { controls } = props;
+  const files = props.message.attachments.map((attachment) => attachment.name).join(', ');
   return (
     <View
       style={[styles.bubble, { backgroundColor: colors.surfaceUser, borderColor: edge, borderStyle: state.kind === 'queued' ? 'dashed' : 'solid' }]}
     >
       <Text accessibilityLiveRegion="polite" style={[typography.meta, { color: tone }]}>{queueStatus(state, props.agentName)}</Text>
-      <Text selectable numberOfLines={6} style={[typography.body, { color: colors.text1 }]}>{props.message.text}</Text>
+      {props.message.text === '' ? null : (
+        <Text selectable numberOfLines={6} style={[typography.body, { color: colors.text1 }]}>{props.message.text}</Text>
+      )}
+      {files === '' ? null : (
+        <Text numberOfLines={2} style={[typography.small, { color: colors.text2 }]}>{files}</Text>
+      )}
       {controls.kind === 'none' ? null : (
         <View style={styles.actions}>
           <Action label={controls.now.label} tone={state.kind === 'queued' ? 'primary' : 'secondary'} enabled={controls.now.enabled} onPress={props.onNow} />
-          <Action label="Edit" hint="Moves it back to the message box" tone="ghost" enabled={controls.editable} onPress={props.onEdit} />
+          {props.message.attachments.length === 0 ? (
+            <Action label="Edit" hint="Moves it back to the message box" tone="ghost" enabled={controls.editable} onPress={props.onEdit} />
+          ) : null}
           <Action label="Cancel" hint="Takes it out of the queue" tone="ghost" enabled={controls.editable} onPress={props.onCancel} />
         </View>
       )}

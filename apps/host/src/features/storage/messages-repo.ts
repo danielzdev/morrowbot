@@ -80,7 +80,7 @@ export function messageRepository(db: DatabaseSync): MessageRepository {
        SELECT t.agent_id, m.thread_id, m.kind, trim(m.text, ${BLANKS}) AS body, m.created_at, m.seq,
          row_number() OVER (PARTITION BY t.agent_id ORDER BY m.seq DESC) AS rank
        FROM messages m JOIN threads t ON t.id = m.thread_id
-       WHERE t.parent_thread_id IS NULL AND trim(m.text, ${BLANKS}) <> '' AND instr(CAST(m.text AS BLOB), x'00') = 0
+       WHERE t.parent_thread_id IS NULL AND t.archived_at IS NULL AND trim(m.text, ${BLANKS}) <> '' AND instr(CAST(m.text AS BLOB), x'00') = 0
      ) WHERE rank = 1 ORDER BY seq DESC`,
   );
   const lastInThread = db.prepare(

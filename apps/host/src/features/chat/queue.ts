@@ -1,6 +1,7 @@
-import type { AssistantMessage, GenerationOutcome, QueuedMessage, QueuedMessageState, UserMessage } from '@morrowbot/contracts';
+import type { AssistantMessage, Attachment, GenerationOutcome, QueuedMessage, QueuedMessageState, UserMessage } from '@morrowbot/contracts';
 import { admit, type AdmitInput, type AdmitResult } from './admission.ts';
 import { lesser, type TurnInitiator } from './initiator.ts';
+import type { QueuedRecord } from './ports.ts';
 import { interruptedPrompt, steerPrompt } from './steer-prompt.ts';
 import type { ChatCore, Turn } from './turn.ts';
 
@@ -13,8 +14,28 @@ export type QueueAnswer =
   | { readonly kind: 'not_found' }
   | { readonly kind: 'conflict'; readonly reason: string };
 
+export type EnqueueResult = { readonly kind: 'queued'; readonly queued: QueuedMessage } | { readonly kind: 'attachments_missing' };
+
+function attachmentsOf(core: ChatCore, ids: readonly string[]): Attachment[] {
+  return ids.flatMap((id) => {
+    const attachment = core.options.store.attachments.get(id);
+    return attachment === undefined ? [] : [attachment];
+  });
+}
+
+function toView(core: ChatCore, record: QueuedRecord): QueuedMessage {
+  return {
+    id: record.id,
+    threadId: record.threadId,
+    text: record.text,
+    attachments: attachmentsOf(core, record.attachmentIds),
+    createdAt: record.createdAt,
+    state: core.queueStates.get(record.id) ?? RESTARTED,
+  };
+}
+
 export function queueOf(core: ChatCore, threadId: string): QueuedMessage[] {
-  return core.options.store.queued.listByThread(threadId).map((record) => ({ ...record, state: core.queueStates.get(record.id) ?? RESTARTED }));
+  return core.options.store.queued.listByThread(threadId).map((record) => toView(core, record));
 }
 
 function publishQueue(core: ChatCore, threadId: string): void {
@@ -31,22 +52,33 @@ export function sendsQueue(core: ChatCore, threadId: string): boolean {
   return core.active.has(threadId) || core.draining.has(threadId);
 }
 
-export function enqueue(core: ChatCore, threadId: string, text: string, by: TurnInitiator): QueuedMessage {
-  const record = { id: core.options.newId(), threadId, text, createdAt: core.options.now() };
-  core.options.store.queued.insert(record);
+export function enqueue(core: ChatCore, threadId: string, text: string, attachmentIds: readonly string[], by: TurnInitiator): EnqueueResult {
+  const { store } = core.options;
+  const attachments = attachmentIds.length === 0 ? [] : store.attachments.pending(threadId, attachmentIds);
+  if (attachments === undefined) return { kind: 'attachments_missing' };
+  if (attachmentIds.length > 0) {
+    const claimed = new Set(store.queued.listByThread(threadId).flatMap((entry) => entry.attachmentIds));
+    if (attachmentIds.some((id) => claimed.has(id))) return { kind: 'attachments_missing' };
+  }
+  const record: QueuedRecord = { id: core.options.newId(), threadId, text, attachmentIds: [...attachmentIds], createdAt: core.options.now() };
+  store.queued.insert(record);
   core.queueStates.set(record.id, QUEUED);
   core.queueAuthors.set(record.id, by);
   publishQueue(core, threadId);
-  return { ...record, state: QUEUED };
+  return { kind: 'queued', queued: { id: record.id, threadId, text, attachments, createdAt: record.createdAt, state: QUEUED } };
 }
 
 const STEERING = 'This message is already on its way to the agent.';
 
 export function cancelQueued(core: ChatCore, threadId: string, id: string): QueueAnswer {
-  const item = queueOf(core, threadId).find((entry) => entry.id === id);
-  if (item === undefined) return { kind: 'not_found' };
-  if (item.state.kind === 'steering' || core.draining.get(threadId) === id) return { kind: 'conflict', reason: STEERING };
-  core.options.store.queued.delete(id);
+  const record = core.options.store.queued.listByThread(threadId).find((entry) => entry.id === id);
+  if (record === undefined) return { kind: 'not_found' };
+  const state = core.queueStates.get(record.id) ?? RESTARTED;
+  if (state.kind === 'steering' || core.draining.get(threadId) === id) return { kind: 'conflict', reason: STEERING };
+  core.options.store.transaction(() => {
+    core.options.store.queued.delete(id);
+    if (record.attachmentIds.length > 0) core.options.store.attachments.touch(threadId, record.attachmentIds, core.options.now());
+  });
   core.queueStates.delete(id);
   core.queueAuthors.delete(id);
   publishQueue(core, threadId);
@@ -58,17 +90,21 @@ export function cancelQueued(core: ChatCore, threadId: string, id: string): Queu
  * message next), or, when nothing runs, out as the next turn at once.
  */
 export function steerQueued(core: ChatCore, threadId: string, id: string, by: TurnInitiator): QueueAnswer {
-  const queue = queueOf(core, threadId);
-  const item = queue.find((entry) => entry.id === id);
-  if (item === undefined) return { kind: 'not_found' };
+  const thread = core.options.store.threads.get(threadId);
+  if (thread === undefined) return { kind: 'not_found' };
+  if (thread.archivedAt !== null) return { kind: 'conflict', reason: 'Restore this chat before sending a message.' };
+  const records = core.options.store.queued.listByThread(threadId);
+  const record = records.find((entry) => entry.id === id);
+  if (record === undefined) return { kind: 'not_found' };
   core.queueAuthors.set(id, lesser(by, authorOf(core, id)));
-  if (item.state.kind === 'steering' || core.draining.get(threadId) === id) return { kind: 'ok' };
-  if (queue.some((entry) => entry.state.kind === 'steering') || core.draining.has(threadId)) {
+  const stateOf = (entryId: string): QueuedMessageState => core.queueStates.get(entryId) ?? RESTARTED;
+  if (stateOf(id).kind === 'steering' || core.draining.get(threadId) === id) return { kind: 'ok' };
+  if (records.some((entry) => stateOf(entry.id).kind === 'steering') || core.draining.has(threadId)) {
     return { kind: 'conflict', reason: 'Another message is already on its way to the agent.' };
   }
   const turn = core.active.get(threadId);
   if (turn === undefined) {
-    void deliver(core, threadId, item, 'next');
+    void deliver(core, threadId, record, 'next');
     return { kind: 'ok' };
   }
   if (turn.source.kind === 'agent-message') {
@@ -84,10 +120,17 @@ export function steerQueued(core: ChatCore, threadId: string, id: string, by: Tu
       if (turn.stopRequested) return { kind: 'conflict', reason: 'The reply is ending. Send this once it has.' };
       break;
   }
+  if (record.attachmentIds.length > 0) {
+    turn.steer = { id, via: 'interrupt' };
+    setState(core, threadId, [id], { kind: 'steering', via: 'interrupt' });
+    core.options.tools.close(turn.generationId);
+    core.options.plugins.cancelTurn(turn.pluginId, turn.generationId);
+    return { kind: 'ok' };
+  }
   turn.steer = { id, via: 'native' };
   core.initiators.set(turn.generationId, lesser(core.initiators.get(turn.generationId) ?? 'member', authorOf(core, id)));
   setState(core, threadId, [id], { kind: 'steering', via: 'native' });
-  core.options.plugins.steerTurn(turn.pluginId, turn.generationId, id, steerPrompt(item.text));
+  core.options.plugins.steerTurn(turn.pluginId, turn.generationId, id, steerPrompt(record.text));
   return { kind: 'ok' };
 }
 
@@ -149,7 +192,9 @@ export function steerDelivered(core: ChatCore, turn: Turn, steerId: string): voi
 export function afterTurn(core: ChatCore, turn: Turn, outcome: GenerationOutcome): void {
   const { threadId } = turn;
   if (core.closed || core.deletingThreads.has(threadId) || core.active.has(threadId)) return;
-  const waiting = queueOf(core, threadId).filter((entry) => entry.state.kind !== 'held');
+  const waiting = core.options.store.queued
+    .listByThread(threadId)
+    .filter((entry) => (core.queueStates.get(entry.id) ?? RESTARTED).kind !== 'held');
   const steered = turn.steer === null ? undefined : waiting.find((entry) => entry.id === turn.steer?.id);
   if (steered !== undefined && (outcome.kind === 'steered' || outcome.kind === 'completed')) {
     void deliver(core, threadId, steered, outcome.kind === 'steered' ? 'interrupted' : 'next');
@@ -183,12 +228,18 @@ function heldReason(outcome: Exclude<GenerationOutcome, { kind: 'completed' }>):
 }
 
 /** Sends one queued message as the thread's next turn; a refusal holds the whole queue with its reason. */
-async function deliver(core: ChatCore, threadId: string, item: QueuedMessage, how: 'next' | 'interrupted'): Promise<void> {
+async function deliver(core: ChatCore, threadId: string, item: QueuedRecord, how: 'next' | 'interrupted'): Promise<void> {
   core.draining.set(threadId, item.id);
   let result: AdmitResult;
   try {
-    const prompt = how === 'next' ? item.text : interruptedPrompt(item.text);
-    const input: AdmitInput = { kind: 'queued', id: item.id, text: item.text, prompt, by: authorOf(core, item.id) };
+    const input: AdmitInput = {
+      kind: 'queued',
+      id: item.id,
+      text: item.text,
+      attachmentIds: item.attachmentIds,
+      prompt: how === 'next' ? item.text : interruptedPrompt(item.text),
+      by: authorOf(core, item.id),
+    };
     if (how === 'next') {
       result = await admit(core, threadId, input, { kind: 'auto' });
     } else {

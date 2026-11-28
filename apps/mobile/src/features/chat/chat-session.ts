@@ -1,7 +1,8 @@
 import type { ApiError } from '@morrowbot/contracts';
 import type { ChatHost, ChatResult } from '../../lib/chat-host.ts';
 import type { ThreadEvent } from '../../lib/host-connection.ts';
-import { queuedControls } from './composer-controls.ts';
+import { attachmentTray, sendableIds, type AttachmentTray, type ComposerAttachment } from './composer-attachments.ts';
+import { queuedControls, sendable } from './composer-controls.ts';
 import { Store, type Loadable } from './store.ts';
 import { applyEvent, endApproval, pendingApprovals, viewOf, type ThreadView } from './thread-view.ts';
 
@@ -18,6 +19,8 @@ export type ComposerProblem =
 export interface ChatScreen {
   readonly view: Loadable<ThreadView>;
   readonly draft: string;
+  /** The tiles above the message box; a send carries the uploaded ones. */
+  readonly attachments: readonly ComposerAttachment[];
   readonly busy: 'sending' | 'stopping' | null;
   /** Approval ids whose answer is on its way to the host. */
   readonly answering: readonly string[];
@@ -56,6 +59,7 @@ export interface ChatSession {
   /** Watches the thread again from a fresh `/state`, replacing the view when it arrives. */
   load(): void;
   setDraft(text: string): void;
+  readonly attachments: AttachmentTray;
   send(): Promise<void>;
   /** Runs the failed or interrupted latest turn again. */
   continueTurn(failedMessageId: string): Promise<void>;
@@ -75,13 +79,28 @@ export interface ChatSession {
 }
 
 export function openChatSession(host: ChatHost, threadId: string): ChatSession {
-  const screen = new Store<ChatScreen>({ view: { kind: 'loading' }, draft: '', busy: null, answering: [], queueActing: [], problem: null, stale: false });
+  const screen = new Store<ChatScreen>({
+    view: { kind: 'loading' },
+    draft: '',
+    attachments: [],
+    busy: null,
+    answering: [],
+    queueActing: [],
+    problem: null,
+    stale: false,
+  });
   const patch = (change: Partial<ChatScreen>): void => {
     screen.update((current) => {
       const next = { ...current, ...change };
       return change.view === undefined ? next : { ...next, answering: next.answering.filter((id) => stillPending(next.view, id)) };
     });
   };
+  const attachments = attachmentTray((request) => host.uploadAttachment(threadId, request), {
+    get: () => screen.get().attachments,
+    set: (next) => {
+      patch({ attachments: next });
+    },
+  });
   let closed = false;
   let unwatch: () => void = () => undefined;
 
@@ -128,14 +147,16 @@ export function openChatSession(host: ChatHost, threadId: string): ChatSession {
 
   const idle = (): boolean => screen.get().busy === null && !screen.get().stale;
 
-  async function run(action: PendingAction): Promise<void> {
+  /** `attachmentIds` go with a send; the problem keeps only the action, since Retry carries the tiles as they are then. */
+  async function run(action: PendingAction, attachmentIds: readonly string[] = []): Promise<void> {
     if (!idle()) return;
     patch({ busy: 'sending', problem: null });
     const result =
-      action.kind === 'send' ? await host.send(threadId, action.text) : await host.continueTurn(threadId, action.failedMessageId);
+      action.kind === 'send' ? await host.send(threadId, action.text, attachmentIds) : await host.continueTurn(threadId, action.failedMessageId);
     if (result.kind === 'ok') {
       const { draft } = screen.get();
       patch({ busy: null, draft: action.kind === 'send' && draft.trim() === action.text ? '' : draft });
+      attachments.sent(attachmentIds);
       return;
     }
     patch({ busy: null, problem: problemOf(result.error, action) });
@@ -181,9 +202,10 @@ export function openChatSession(host: ChatHost, threadId: string): ChatSession {
     setDraft: (draft) => {
       patch({ draft });
     },
+    attachments,
     send: async () => {
-      const text = screen.get().draft.trim();
-      if (text !== '') await run({ kind: 'send', text });
+      const what = sendable(screen.get());
+      if (what !== null) await run({ kind: 'send', text: what.text }, what.attachmentIds);
     },
     continueTurn: (failedMessageId) => run({ kind: 'continue', failedMessageId }),
     retry: async () => {
@@ -193,9 +215,9 @@ export function openChatSession(host: ChatHost, threadId: string): ChatSession {
         await run(problem.action);
         return;
       }
-      const text = screen.get().draft.trim();
-      if (text === '') patch({ problem: null });
-      else await run({ kind: 'send', text });
+      const what = sendable(screen.get());
+      if (what !== null) await run({ kind: 'send', text: what.text }, what.attachmentIds);
+      else if (sendableIds(screen.get().attachments) !== null) patch({ problem: null });
     },
     stop: async () => {
       if (!idle()) return;

@@ -2,6 +2,7 @@ import type { Agent, Thread } from '@morrowbot/contracts';
 import type { ComponentChildren } from 'preact';
 import { useRef, useState } from 'preact/hooks';
 import { ariaShortcut, PLATFORM } from '../../shared/keys.ts';
+import type { Loadable } from '../../shared/store.ts';
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog.tsx';
 import { Icon } from '../../shared/ui/Icon.tsx';
 import { Menu, MenuButton, type MenuItem } from '../../shared/ui/Menu.tsx';
@@ -14,9 +15,11 @@ import { useTabs } from './use-tabs.ts';
 export interface ThreadHeaderProps {
   readonly agent: Agent;
   readonly avatar: ComponentChildren;
-  /** This agent's chats, newest first; empty while they load. */
+  /** This agent's active chats, newest first; empty while they load. */
   readonly threads: readonly Thread[];
   readonly threadsLoaded: boolean;
+  /** This agent's archived chats, most recently archived first; undefined until opened. */
+  readonly archivedThreads: Loadable<readonly Thread[]> | undefined;
   readonly openThreadId: string | null;
   readonly statusOf: (threadId: string) => ThreadStatus;
   readonly unread: (threadId: string) => boolean;
@@ -27,6 +30,9 @@ export interface ThreadHeaderProps {
   readonly onNewChat: () => void;
   readonly onOpen: (threadId: string) => void;
   readonly onRename: (threadId: string, title: string) => void;
+  readonly onLoadArchived: () => void;
+  readonly onArchive: (threadId: string) => void;
+  readonly onRestore: (threadId: string) => void;
   readonly onDelete: (threadId: string) => void;
   readonly onCopy: (threadId: string) => void;
   /** The Agent Inspector toggle (⌘I); `inspectorToggle` marks it so the overlay drawer ignores presses on it. */
@@ -67,6 +73,7 @@ export function ThreadHeader(props: ThreadHeaderProps) {
       { kind: 'action', id: 'close-others', label: 'Close other tabs', onSelect: () => { closeOthers(target.id); } },
       ...(withSettings ? [{ kind: 'action', id: 'settings', label: 'Agent settings', icon: 'settings', onSelect: props.onAgentSettings } satisfies MenuItem] : []),
       { kind: 'separator', id: 'sep' },
+      { kind: 'action', id: 'archive', label: 'Archive chat', icon: 'archive', onSelect: () => { props.onArchive(target.id); } },
       { kind: 'action', id: 'delete', label: 'Delete chat…', icon: 'trash', danger: true, onSelect: () => { setDeleting(target); } },
     ];
   };
@@ -115,9 +122,11 @@ export function ThreadHeader(props: ThreadHeaderProps) {
       {tabMenu !== null && <Menu key={`${tabMenu.threadId}-${tabMenu.at === null ? 'key' : `${String(tabMenu.at.x)},${String(tabMenu.at.y)}`}`} anchor={{ current: tabMenu.anchor }} at={tabMenu.at ?? undefined} label="Tab actions" align="start" items={tabMenu.items} onClose={() => { setTabMenu(null); }} />}
       {switcher && (
         <ChatSwitcher
+          key={props.agent.id}
           anchor={listButton}
           agentName={props.agent.name}
           threads={props.threads}
+          archivedThreads={props.archivedThreads}
           mainId={tabs.main?.id ?? null}
           openThreadId={props.openThreadId}
           statusOf={props.statusOf}
@@ -125,6 +134,9 @@ export function ThreadHeader(props: ThreadHeaderProps) {
           onNewChat={props.onNewChat}
           onOpen={props.onOpen}
           onRename={props.onRename}
+          onLoadArchived={props.onLoadArchived}
+          onArchive={props.onArchive}
+          onRestore={props.onRestore}
           onDelete={(target) => {
             setSwitcher(false);
             setDeleting(target);

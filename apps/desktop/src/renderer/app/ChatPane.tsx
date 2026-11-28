@@ -114,6 +114,7 @@ export function ChatPane(props: {
         avatar={<BotAvatar avatar={agent.avatar} size={20} reducedMotion={props.reducedMotion} />}
         threads={threads?.kind === 'loaded' ? threads.value : []}
         threadsLoaded={threads?.kind === 'loaded'}
+        archivedThreads={state.archivedThreads[agent.id]}
         openThreadId={threadId}
         statusOf={(id) => threadStatusOf(activity, id)}
         unread={(id) => id in state.unread}
@@ -125,6 +126,9 @@ export function ChatPane(props: {
           models.agents.openThread(agent.id, id);
         }}
         onRename={(id, title) => void models.agents.renameThread(agent.id, id, title)}
+        onLoadArchived={() => void models.agents.loadArchivedThreads(agent.id)}
+        onArchive={(id) => void models.agents.archiveThread(agent.id, id)}
+        onRestore={(id) => void models.agents.restoreThread(agent.id, id)}
         onDelete={(id) => void models.agents.deleteThread(agent.id, id)}
         onCopy={props.onCopy}
         inspectorOpen={props.inspectorOpen}

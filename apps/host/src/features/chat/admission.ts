@@ -25,7 +25,7 @@ export type AdmitInput =
   /** `by` clicked Continue; the turn also answers whoever started the failed one. */
   | { readonly kind: 'continue'; readonly failedMessageId: string; readonly by: TurnInitiator }
   /** A queued message, delivered as the user message with its own id; `prompt` is what the provider reads. */
-  | { readonly kind: 'queued'; readonly id: string; readonly text: string; readonly prompt: string; readonly by: TurnInitiator }
+  | { readonly kind: 'queued'; readonly id: string; readonly text: string; readonly attachmentIds: readonly string[]; readonly prompt: string; readonly by: TurnInitiator }
   | { readonly kind: 'agent-message'; readonly message: AgentMessage; readonly prompt: string }
   /** The user's reaction to the agent's reply `message`, read with `prompt`. */
   | { readonly kind: 'reaction'; readonly message: AssistantMessage; readonly emoji: string; readonly prompt: string; readonly by: TurnInitiator }
@@ -120,8 +120,16 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
   const messages = store.messages.listByThread(threadId);
   const source = sourceOf(core, second.thread.agentId, messages, input);
   if (source.kind === 'refused') return { kind: 'not_continuable', reason: source.reason };
-  const attachments = source.kind === 'new' ? store.attachments.pending(threadId, source.attachmentIds) : [];
+  const attachments =
+    source.kind === 'new' || source.kind === 'queued' ? store.attachments.pending(threadId, source.attachmentIds) : [];
   if (attachments === undefined) return { kind: 'attachments_missing' };
+  if ((source.kind === 'new' || source.kind === 'queued') && source.attachmentIds.length > 0) {
+    const excludeId = source.kind === 'queued' ? source.id : undefined;
+    const claimed = new Set(
+      store.queued.listByThread(threadId).flatMap((entry) => (entry.id === excludeId ? [] : entry.attachmentIds)),
+    );
+    if (source.attachmentIds.some((id) => claimed.has(id))) return { kind: 'attachments_missing' };
+  }
   const history = source.kind === 'existing' ? messages.slice(0, messages.indexOf(source.message)) : input.kind === 'continue' ? messages.slice(0, -1) : messages;
   const key = { pluginId, accountKey, routeKey, cwd, threadId };
   const row = capabilities.sessions && accountKey !== '' ? store.sessions.find(key) : undefined;
@@ -223,7 +231,7 @@ type Parent = Turn['parent'];
 
 type Checked =
   | { readonly kind: 'ready'; readonly thread: { readonly id: string; readonly agentId: string }; readonly ready: Ready; readonly parent: Parent }
-  | Extract<AdmitResult, { kind: 'thread_not_found' | 'busy' | 'no_provider' }>;
+  | Extract<AdmitResult, { kind: 'thread_not_found' | 'busy' | 'no_provider' | 'not_continuable' }>;
 
 /** `background` for a routine's send and a sub-agent: neither can wait on the user's approval. */
 function modeOf(input: AdmitInput): TurnMode {
@@ -270,6 +278,7 @@ function check(core: ChatCore, threadId: string, input: AdmitInput): Checked {
   if (core.closed || core.deletingThreads.has(threadId)) return { kind: 'thread_not_found' };
   const thread = store.threads.get(threadId);
   if (thread === undefined || core.deletingAgents.has(thread.agentId)) return { kind: 'thread_not_found' };
+  if (thread.archivedAt !== null) return { kind: 'not_continuable', reason: 'Restore this chat before sending a message.' };
   const record = store.subagents.get(threadId);
   if ((record !== undefined) !== (input.kind === 'subagent')) return { kind: 'thread_not_found' };
   if (record !== undefined && core.deletingThreads.has(record.parentThreadId)) return { kind: 'thread_not_found' };
@@ -291,7 +300,7 @@ function check(core: ChatCore, threadId: string, input: AdmitInput): Checked {
 
 type Source =
   | { readonly kind: 'new'; readonly text: string; readonly attachmentIds: readonly string[] }
-  | { readonly kind: 'queued'; readonly id: string; readonly text: string; readonly prompt: string }
+  | { readonly kind: 'queued'; readonly id: string; readonly text: string; readonly attachmentIds: readonly string[]; readonly prompt: string }
   | { readonly kind: 'existing'; readonly message: UserMessage }
   | { readonly kind: 'background'; readonly message: AgentMessage; readonly prompt: string }
   | { readonly kind: 'reaction'; readonly message: AssistantMessage; readonly emoji: string; readonly prompt: string }

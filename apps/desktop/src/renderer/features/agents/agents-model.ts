@@ -1,10 +1,13 @@
-import { mainThread, type Agent, type AgentList, type CreateAgentRequest, type Folder, type LastMessage, type SkillList, type Thread, type UpdateAgentRequest } from '@morrowbot/contracts';
+import { mainThread, type Agent, type CreateAgentRequest, type Folder, type LastMessage, type SkillList, type Thread, type UpdateAgentRequest } from '@morrowbot/contracts';
 import type { z } from 'zod';
 import type { MorrowbotBridge } from '../../bridge.ts';
-import type { Api, ApiResult } from '../../shared/api.ts';
+import type { Api } from '../../shared/api.ts';
 import { Store, type Loadable } from '../../shared/store.ts';
+import { applied, byNewest, lastByAgent, saved, titleFrom, UNTITLED, updateKey, withFields, type Saved } from './agents-helpers.ts';
 import { createInstructionsEditor, type InstructionsEditor } from './instructions-editor.ts';
 import { createMemoriesEditor, loadSkills, type MemoriesEditor } from './memories-editor.ts';
+
+export { titleFrom, type Saved } from './agents-helpers.ts';
 
 export interface AgentsState {
   readonly agents: Loadable<readonly Agent[]>;
@@ -13,16 +16,16 @@ export interface AgentsState {
   /** Each agent's newest message across its chats, by agent id. */
   readonly lastMessages: Readonly<Record<string, LastMessage>>;
   readonly selectedAgentId: string | null;
-  /** Each agent's chats, newest first. */
+  /** Each agent's active chats, newest first. */
   readonly threads: Readonly<Record<string, Loadable<readonly Thread[]>>>;
+  /** Each agent's archived chats, most recently archived first. */
+  readonly archivedThreads: Readonly<Record<string, Loadable<readonly Thread[]>>>;
   /** The open chat of each agent. */
   readonly openThread: Readonly<Record<string, string>>;
   /** Chats whose turn finished while they were not on screen, by chat id, with their agent's id. */
   readonly unread: Readonly<Record<string, string>>;
   readonly problem: string | null;
 }
-
-export type Saved<T> = { readonly kind: 'saved'; readonly value: T } | { readonly kind: 'refused'; readonly message: string };
 
 export interface AgentsModel {
   readonly state: Store<AgentsState>;
@@ -38,8 +41,12 @@ export interface AgentsModel {
   newThread(agentId: string): Promise<void>;
   /** Fetches the agent's chats again, such as after a routine posted in a new one. */
   reloadThreads(agentId: string): Promise<void>;
+  /** Loads the agent's archived chats, most recently archived first. */
+  loadArchivedThreads(agentId: string): Promise<void>;
   openThread(agentId: string, threadId: string): void;
   renameThread(agentId: string, threadId: string, title: string): Promise<void>;
+  archiveThread(agentId: string, threadId: string): Promise<void>;
+  restoreThread(agentId: string, threadId: string): Promise<void>;
   deleteThread(agentId: string, threadId: string): Promise<void>;
   /** A turn finished in this chat; it counts as unread unless it is the chat on screen. */
   markFinished(agentId: string, threadId: string): void;
@@ -54,50 +61,13 @@ export interface AgentsModel {
   close(): void;
 }
 
-const UNTITLED = 'New chat';
-const byNewest = (threads: readonly Thread[]): readonly Thread[] => [...threads].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-
-function saved<T, U>(result: ApiResult<T>, pick: (value: T) => U): Saved<U> {
-  return result.kind === 'ok' ? { kind: 'saved', value: pick(result.value) } : { kind: 'refused', message: result.error.message };
-}
-
-const updateKey = (id: string, request: UpdateAgentRequest): string =>
-  [id, ...[request.name, request.description, request.avatar, request.provider, request.folderId, request.emojiReplies].map((field) => field !== undefined)].join('|');
-
-/** The agent as `request` asks for it. */
-const applied = (agent: Agent, request: UpdateAgentRequest): Agent => ({
-  ...agent,
-  name: request.name ?? agent.name,
-  description: request.description ?? agent.description,
-  avatar: request.avatar ?? agent.avatar,
-  provider: request.provider ?? agent.provider,
-  folderId: request.folderId === undefined ? agent.folderId : request.folderId,
-  emojiReplies: request.emojiReplies ?? agent.emojiReplies,
-});
-
-/** `agent` with the fields `request` names taken from `source`; other fields, maybe still saving, stay. */
-const withFields = (agent: Agent, request: UpdateAgentRequest, source: Agent): Agent => ({
-  ...agent,
-  name: request.name === undefined ? agent.name : source.name,
-  description: request.description === undefined ? agent.description : source.description,
-  avatar: request.avatar === undefined ? agent.avatar : source.avatar,
-  provider: request.provider === undefined ? agent.provider : source.provider,
-  folderId: request.folderId === undefined ? agent.folderId : source.folderId,
-  emojiReplies: request.emojiReplies === undefined ? agent.emojiReplies : source.emojiReplies,
-});
-
-const lastByAgent = (list: AgentList): AgentsState['lastMessages'] => Object.fromEntries(list.lastMessages.map((last) => [last.agentId, last]));
-
-export function titleFrom(text: string): string {
-  const line = text.trim().split('\n')[0]?.trim() ?? '';
-  return line.length <= 48 ? line : `${line.slice(0, 47)}…`;
-}
-
 export interface AgentsModelOptions {
   readonly api: Api;
   readonly bridge: Pick<MorrowbotBridge, 'onHostReady'>;
-  /** Chats that no longer exist, so their open sessions can stop following them. */
+  /** Chats that no longer exist, so their open sessions and drafts can be removed. */
   readonly onThreadsDeleted?: (threadIds: readonly string[]) => void;
+  /** Chats that were archived, so their live sessions and activity badges can detach. */
+  readonly onThreadsArchived?: (threadIds: readonly string[]) => void;
 }
 
 export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
@@ -106,18 +76,22 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
   let threadSeq = 0;
   /** The latest thread-list request per agent; a reply to an older one, or one sent before a full load, is dropped. */
   const threadLoads = new Map<string, number>();
+  const archivedLoads = new Map<string, number>();
   /**
    * Updates show at once. Updates of the same fields of an agent go to the host one at a time, in
    * order; only the last one's reply is shown, and a refused one shows what the host kept.
    */
   const updates = new Map<string, Promise<unknown>>();
-  const state = new Store<AgentsState>({ agents: { kind: 'loading' }, folders: [], lastMessages: {}, selectedAgentId: null, threads: {}, openThread: {}, unread: {}, problem: null });
+  const state = new Store<AgentsState>({ agents: { kind: 'loading' }, folders: [], lastMessages: {}, selectedAgentId: null, threads: {}, archivedThreads: {}, openThread: {}, unread: {}, problem: null });
   let summaries = 0;
   const patch = (change: Partial<AgentsState>): void => {
     state.update((current) => ({ ...current, ...change }));
   };
   const setThreads = (agentId: string, threads: Loadable<readonly Thread[]>): void => {
     state.update((current) => ({ ...current, threads: { ...current.threads, [agentId]: threads } }));
+  };
+  const setArchived = (agentId: string, threads: Loadable<readonly Thread[]>): void => {
+    state.update((current) => ({ ...current, archivedThreads: { ...current.archivedThreads, [agentId]: threads } }));
   };
   const setOpen = (agentId: string, threadId: string | undefined): void => {
     state.update((current) => {
@@ -133,6 +107,24 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
     const threads = state.get().threads[agentId];
     return threads?.kind === 'loaded' ? threads.value : [];
   };
+  const archivedOf = (agentId: string): readonly Thread[] => {
+    const threads = state.get().archivedThreads[agentId];
+    return threads?.kind === 'loaded' ? threads.value : [];
+  };
+
+  async function loadArchivedThreads(agentId: string): Promise<void> {
+    const mine = ++threadSeq;
+    archivedLoads.set(agentId, mine);
+    if (state.get().archivedThreads[agentId] === undefined) setArchived(agentId, { kind: 'loading' });
+    const result = await api.listArchivedThreads(agentId);
+    if (archivedLoads.get(agentId) !== mine) return;
+    setArchived(
+      agentId,
+      result.kind === 'failed'
+        ? { kind: 'failed', message: result.error.message }
+        : { kind: 'loaded', value: result.value.threads.filter((thread) => thread.archivedAt !== null) },
+    );
+  }
 
   async function loadThreads(agentId: string): Promise<void> {
     const mine = ++threadSeq;
@@ -157,6 +149,7 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
   async function load(): Promise<void> {
     const mine = ++loads;
     threadLoads.clear();
+    archivedLoads.clear();
     const result = await api.listAgents();
     if (mine !== loads) return;
     if (result.kind === 'failed') {
@@ -166,7 +159,7 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
     const agents = result.value.agents;
     const selected = state.get().selectedAgentId;
     summaries++;
-    patch({ agents: { kind: 'loaded', value: agents }, folders: result.value.folders, lastMessages: lastByAgent(result.value), threads: {} });
+    patch({ agents: { kind: 'loaded', value: agents }, folders: result.value.folders, lastMessages: lastByAgent(result.value), threads: {}, archivedThreads: {} });
     const keep = agents.find(({ id }) => id === selected) ?? agents[0];
     if (keep === undefined) patch({ selectedAgentId: null });
     else selectAgent(keep.id);
@@ -251,7 +244,11 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
     },
     deleteAgent: async (id) => {
       const open = state.get().openThread[id];
-      const threadIds = [...threadsOf(id).map((thread) => thread.id), ...(open === undefined ? [] : [open])];
+      const threadIds = [
+        ...threadsOf(id).map((thread) => thread.id),
+        ...archivedOf(id).map((thread) => thread.id),
+        ...(open === undefined ? [] : [open]),
+      ];
       const result = await api.deleteAgent(id);
       if (result.kind === 'failed') {
         patch({ problem: result.error.message });
@@ -289,6 +286,7 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
     },
     newThread,
     reloadThreads: loadThreads,
+    loadArchivedThreads,
     openThread: setOpen,
     markFinished: (agentId, threadId) => {
       void refreshSummary();
@@ -301,6 +299,45 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
       if (result.kind === 'failed') patch({ problem: result.error.message });
       else setThreads(agentId, { kind: 'loaded', value: threadsOf(agentId).map((each) => (each.id === threadId ? result.value : each)) });
     },
+    archiveThread: async (agentId, threadId) => {
+      const result = await api.archiveThread(threadId);
+      if (result.kind === 'failed') {
+        patch({ problem: result.error.message });
+        return;
+      }
+      threadLoads.set(agentId, ++threadSeq);
+      archivedLoads.set(agentId, ++threadSeq);
+      state.update((current) => ({ ...current, unread: seen(current.unread, threadId) }));
+      const remaining = threadsOf(agentId).filter(({ id }) => id !== threadId);
+      setThreads(agentId, { kind: 'loaded', value: remaining });
+      const archivedState = state.get().archivedThreads[agentId];
+      if (archivedState?.kind === 'loaded') {
+        setArchived(agentId, { kind: 'loaded', value: [result.value, ...archivedOf(agentId).filter(({ id }) => id !== threadId)] });
+      } else if (archivedState?.kind === 'loading') {
+        void loadArchivedThreads(agentId);
+      }
+      if (state.get().openThread[agentId] === threadId) setOpen(agentId, mainThread(remaining)?.id);
+      options.onThreadsArchived?.([threadId]);
+      void refreshSummary();
+    },
+    restoreThread: async (agentId, threadId) => {
+      const result = await api.restoreThread(threadId);
+      if (result.kind === 'failed') {
+        patch({ problem: result.error.message });
+        return;
+      }
+      threadLoads.set(agentId, ++threadSeq);
+      archivedLoads.set(agentId, ++threadSeq);
+      const archivedState = state.get().archivedThreads[agentId];
+      if (archivedState?.kind === 'loaded') {
+        setArchived(agentId, { kind: 'loaded', value: archivedOf(agentId).filter(({ id }) => id !== threadId) });
+      } else if (archivedState?.kind === 'loading') {
+        void loadArchivedThreads(agentId);
+      }
+      setThreads(agentId, { kind: 'loaded', value: byNewest([result.value, ...threadsOf(agentId).filter(({ id }) => id !== threadId)]) });
+      setOpen(agentId, result.value.id);
+      void refreshSummary();
+    },
     deleteThread: async (agentId, threadId) => {
       const result = await api.deleteThread(threadId);
       if (result.kind === 'failed') {
@@ -310,6 +347,9 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
       state.update((current) => ({ ...current, unread: seen(current.unread, threadId) }));
       const remaining = threadsOf(agentId).filter(({ id }) => id !== threadId);
       setThreads(agentId, { kind: 'loaded', value: remaining });
+      if (state.get().archivedThreads[agentId]?.kind === 'loaded') {
+        setArchived(agentId, { kind: 'loaded', value: archivedOf(agentId).filter(({ id }) => id !== threadId) });
+      }
       if (state.get().openThread[agentId] === threadId) setOpen(agentId, mainThread(remaining)?.id);
       options.onThreadsDeleted?.([threadId]);
       void refreshSummary();

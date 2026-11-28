@@ -24,7 +24,7 @@ function subagent(id: string, second: number, status: SubagentStatus, pluginId =
 const DONE: SubagentStatus = { kind: 'finished', outcome: { kind: 'completed', finishReason: 'stop' }, reply: 'Looks good', finishedAt: at(9) };
 
 const STATE: ThreadState = {
-  thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: at(0), updatedAt: at(0) },
+  thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: at(0), updatedAt: at(0), archivedAt: null },
   messages: [],
   reactions: [],
   toolSteps: [],

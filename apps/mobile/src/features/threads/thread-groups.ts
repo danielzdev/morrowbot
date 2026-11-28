@@ -91,6 +91,7 @@ export function listThreads(directory: Directory, filter: ThreadFilter): readonl
   const mains = new Set<string>();
   const byAgent = new Map<string, Thread[]>();
   for (const { hostId, thread } of directory.threads) {
+    if (thread.archivedAt !== null) continue;
     const key = hostKey(hostId, thread.agentId);
     byAgent.set(key, [...(byAgent.get(key) ?? []), thread]);
   }
@@ -100,6 +101,7 @@ export function listThreads(directory: Directory, filter: ThreadFilter): readonl
   }
   const wanted = filter.query.trim().toLocaleLowerCase();
   const items = directory.threads.flatMap(({ hostId, thread, activity }): ThreadItem[] => {
+    if (thread.archivedAt !== null) return [];
     const agentKey = hostKey(hostId, thread.agentId);
     const agent = agents.get(agentKey);
     if (!agent) return [];

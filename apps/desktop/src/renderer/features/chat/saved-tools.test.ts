@@ -8,7 +8,7 @@ const BASH = { toolUseId: 'bash-1', name: 'Bash', input: { command: 'make test' 
 const REPLY: Message = { kind: 'assistant', attachments: [], id: 'a1', threadId: 't', text: 'Done', outcome: { kind: 'completed', finishReason: 'stop' }, createdAt: AT };
 
 const state = (patch: Partial<ThreadState>): ThreadState => ({
-  thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT },
+  thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT, archivedAt: null },
   messages: [],
   reactions: [],
   toolSteps: [],

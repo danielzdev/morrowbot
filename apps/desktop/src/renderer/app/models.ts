@@ -45,6 +45,9 @@ export function createModels(bridge: MorrowbotBridge): Models {
     onThreadsDeleted: (threadIds) => {
       for (const threadId of threadIds) chats.forget(threadId);
     },
+    onThreadsArchived: (threadIds) => {
+      for (const threadId of threadIds) chats.detach(threadId);
+    },
   });
   const providers = createProvidersModel({
     api,

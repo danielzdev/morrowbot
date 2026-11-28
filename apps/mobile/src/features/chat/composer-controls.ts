@@ -1,10 +1,19 @@
 import type { QueuedMessage } from '@morrowbot/contracts';
 import type { ChatScreen } from './chat-session.ts';
+import { sendableIds } from './composer-attachments.ts';
+
+/** What Send would carry now, or null when there is nothing to send or a file is still uploading. */
+export function sendable(screen: ChatScreen): { readonly text: string; readonly attachmentIds: readonly string[] } | null {
+  const attachmentIds = sendableIds(screen.attachments);
+  const text = screen.draft.trim();
+  return attachmentIds === null || (text === '' && attachmentIds.length === 0) ? null : { text, attachmentIds };
+}
 
 /**
  * The composer's round buttons. `send` is Send while the thread is idle and Queue while a turn runs
  * (the host keeps the message until the reply ends, or until Steer now); while a turn runs it shows
- * only with a draft. `stop` shows only while a turn runs. Nothing is enabled while the chat is stale.
+ * only with a draft. Either waits while a file is still uploading. `stop` shows only while a turn runs.
+ * Nothing is enabled while the chat is stale.
  */
 export interface ComposerButtons {
   readonly send: { readonly kind: 'send' | 'queue'; readonly enabled: boolean } | null;
@@ -15,8 +24,9 @@ export function composerButtons(screen: ChatScreen): ComposerButtons {
   if (screen.view.kind !== 'loaded') return { send: { kind: 'send', enabled: false }, stop: null };
   const ready = screen.busy === null && !screen.stale;
   const typed = screen.draft.trim() !== '';
-  if (screen.view.value.activeTurn === null && screen.busy !== 'stopping') return { send: { kind: 'send', enabled: ready && typed }, stop: null };
-  return { send: typed ? { kind: 'queue', enabled: ready } : null, stop: { enabled: ready } };
+  const carries = ready && sendable(screen) !== null;
+  if (screen.view.value.activeTurn === null && screen.busy !== 'stopping') return { send: { kind: 'send', enabled: carries }, stop: null };
+  return { send: typed ? { kind: 'queue', enabled: carries } : null, stop: { enabled: ready } };
 }
 
 /**
