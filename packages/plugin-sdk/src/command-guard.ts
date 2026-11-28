@@ -72,10 +72,20 @@ function start(own: Readonly<Record<string, string>>, fence: Fence): void {
   starting = true;
   const env = { ...process.env, ...own };
   delete env.ELECTRON_RUN_AS_NODE;
-  fencedProgram(fence, command, args, env.PATH ?? '').then(
+  fencedProgram(fence, command, args, env.PATH).then(
     (program) => {
-      if (program === null) failed('ENOENT', `${command} was not found on PATH`);
-      else launch(program.file, program.args, env);
+      if (stopping) return;
+      switch (program.kind) {
+        case 'program':
+          launch(program.file, program.args, env);
+          return;
+        case 'missing':
+          failed('ENOENT', `${command} was not found on PATH`);
+          return;
+        case 'not-executable':
+          failed('EACCES', `${command} is not executable`);
+          return;
+      }
     },
     (error: unknown) => {
       failed('', error instanceof Error ? error.message : String(error));

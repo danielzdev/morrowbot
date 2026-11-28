@@ -148,7 +148,7 @@ function openCommand(command: string, options: CommandOptions, owner: Owner): Op
       cwd: options.cwd,
       detached: true,
       env: guardEnv(owner.env),
-      execArgv: [],
+      execArgv: ['--disable-sigusr1'],
       serialization: 'json',
       stdio,
     });

@@ -6,7 +6,7 @@ export function forkChannel(entryPath: string, cwd: string, env: Readonly<Record
   return (events) => {
     const child = fork(entryPath, [], {
       cwd,
-      execArgv: [],
+      execArgv: ['--disable-sigusr1'],
       env,
       serialization: 'json',
       stdio: ['ignore', 'inherit', 'inherit', 'ipc'],

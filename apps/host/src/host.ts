@@ -3,7 +3,6 @@ import { mkdir, realpath } from 'node:fs/promises';
 import { hostname } from 'node:os';
 import path from 'node:path';
 import type { PluginStatusEvent } from '@morrowbot/contracts';
-import { hiddenFilesFence } from '@morrowbot/plugin-sdk';
 import { createAgentMessageService } from './features/agent-messages/index.ts';
 import { startToolServer, type ToolGrant, type ToolServer } from './features/agent-tools/index.ts';
 import { createAgentService, createFolderService } from './features/agents/index.ts';
@@ -30,14 +29,11 @@ import { createRoutineService, type RoutineClock } from './features/routines/ind
 import { lockDataDir, openStorage } from './features/storage/index.ts';
 import { cliProbe, createT3WatchService, type T3Probe, type T3WatchClock, type T3WatchService } from './features/t3-watch/index.ts';
 import { keyValue, loginFill, openVault, vaultBackend, type VaultKeyChoice } from './features/vault/index.ts';
+import { DATABASE, providerFence } from './host-fence.ts';
 import { agentInbox, agentToolPorts, chatStore, providerPlugins, subagentService } from './host-ports.ts';
 import { routineSink } from './t3-routine-sink.ts';
 
 export { DataDirLockedError as HostLockedError } from './features/storage/index.ts';
-
-const DATABASE = 'morrowbot.sqlite';
-/** What built-in providers' programs (an agent's shell among them) may not touch: every vault file, and the database. */
-const HOST_FILES = ['vault', DATABASE];
 
 export interface HostOptions {
   readonly config: HostConfig;
@@ -114,7 +110,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
     const plugins = await startPluginHost({
       pluginsDir: config.pluginsDir,
       builtinPluginsDir: config.builtinPluginsDir,
-      builtins: builtinProviders(platform, hiddenFilesFence(process.platform, dataDir, HOST_FILES)),
+      builtins: builtinProviders(platform, await providerFence(dataDir, config.pluginsDir, process.execPath)),
       safeMode: config.safeMode,
       dataDir: path.join(dataDir, 'plugin-data'),
       store: storage.plugins,
