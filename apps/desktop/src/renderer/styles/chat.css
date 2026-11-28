@@ -30,7 +30,8 @@
   text-align: center;
 }
 .hero-title {
-  font: var(--t-dialog);
+  font: var(--t-display);
+  letter-spacing: -0.02em;
 }
 .hero-note {
   color: var(--text-3);
@@ -98,11 +99,11 @@
 }
 .message.user .bubble {
   max-width: 80%;
-  padding: var(--s-2) var(--s-3);
+  padding: 9px 14px;
   background: var(--user-bubble-bg, var(--surface-user));
   border: 1px solid var(--user-bubble-border, transparent);
   color: var(--user-bubble-fg, var(--text-1));
-  border-radius: var(--r-lg);
+  border-radius: 18px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -110,6 +111,16 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+.message.assistant > [data-find-id] {
+  width: fit-content;
+  max-width: 100%;
+  padding: 10px 14px;
+  background: var(--surface-2);
+  border-radius: 18px;
+}
+.message.assistant .md-code {
+  background: var(--surface-0);
 }
 .note {
   font: var(--t-ui);
@@ -236,12 +247,13 @@
 }
 .composer-box {
   padding: var(--s-3) var(--s-3) var(--s-2);
-  background: var(--surface-2);
+  background: var(--surface-3);
   border: 1px solid var(--hairline-strong);
-  border-radius: var(--r-lg);
+  border-radius: 22px;
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 .composer-box:focus-within {
-  border-color: var(--accent);
+  border-color: var(--control-edge);
 }
 .composer textarea {
   width: 100%;
@@ -295,9 +307,6 @@
   border-radius: var(--r-md);
   background: var(--surface-1);
 }
-.attachment-chip.uploading {
-  opacity: 0.7;
-}
 .attachment-chip.failed {
   border-color: var(--danger);
   background: var(--danger-bg);
@@ -337,11 +346,6 @@
 .attachment-chip.failed .attachment-note {
   color: var(--danger);
   white-space: normal;
-}
-.message.user {
-  flex-direction: column;
-  align-items: flex-end;
-  gap: var(--s-1);
 }
 .sent-attachments {
   display: flex;

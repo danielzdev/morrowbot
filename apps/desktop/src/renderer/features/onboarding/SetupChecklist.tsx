@@ -64,10 +64,10 @@ function EngineAction(props: { readonly row: EngineRow; readonly actions: Engine
     });
   };
 
-  const button = (label: string, run: () => void, options: { readonly primary: boolean; readonly external: boolean; readonly describedBy: boolean }) => (
+  const button = (label: string, run: () => void, options: { readonly external: boolean; readonly describedBy: boolean }) => (
     <button
       type="button"
-      class={`btn ${options.primary ? 'primary' : 'secondary'}`}
+      class="btn secondary"
       disabled={row.busy}
       aria-describedby={options.describedBy ? `engine-note-${row.id}` : undefined}
       aria-label={`${label}, ${row.name}${options.external ? ', opens in your browser' : ''}`}
@@ -77,7 +77,7 @@ function EngineAction(props: { readonly row: EngineRow; readonly actions: Engine
     </button>
   );
 
-  const plain = { primary: false, external: false, describedBy: false };
+  const plain = { external: false, describedBy: false };
 
   const control = (() => {
     if (row.installing) {
@@ -131,7 +131,7 @@ function EngineAction(props: { readonly row: EngineRow; readonly actions: Engine
                 : { kind: 'error', text: reason, downloadUrl: null },
             );
           });
-        }, { ...plain, primary: true });
+        }, plain);
       case 'copy': {
         const { text } = row.action;
         return button('Copy command', () => {

@@ -34,12 +34,12 @@ export const finishLabel = (finish: AvatarFinish): string => FINISH_LABELS[finis
 
 /** The named swatches; any other #rrggbb comes from the custom colour input. */
 export const SWATCHES: readonly { readonly name: string; readonly color: string }[] = [
-  { name: 'Indigo', color: '#6366f1' },
+  { name: 'Ocean', color: '#2563eb' },
   { name: 'Sky', color: '#0ea5e9' },
   { name: 'Mint', color: '#10b981' },
   { name: 'Amber', color: '#f59e0b' },
   { name: 'Coral', color: '#ef4444' },
-  { name: 'Violet', color: '#8b5cf6' },
+  { name: 'Copper', color: '#b55b29' },
   { name: 'Rose', color: '#ec4899' },
   { name: 'Slate', color: '#6b7280' },
 ];

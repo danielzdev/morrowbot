@@ -1,38 +1,47 @@
-/* Design tokens (spec §1). Dark is the default; light and system switch through color-scheme. */
+/* Design tokens (spec §1), Graphite: greys everywhere, blue only for signals. Dark is the default; light and system switch through color-scheme. */
 :root {
   color-scheme: dark;
 
-  --surface-0: light-dark(#FFFFFF, #0A0A0B);
-  --surface-1: light-dark(#F7F7F8, #0E0E10);
-  --surface-2: light-dark(#FFFFFF, #141417);
-  --surface-3: light-dark(#FFFFFF, #1A1A1E);
-  --surface-user: light-dark(#F1EFFA, #1B1B22);
-  --hover: light-dark(rgba(0, 0, 0, 0.04), rgba(255, 255, 255, 0.04));
-  --selected: light-dark(rgba(0, 0, 0, 0.06), rgba(255, 255, 255, 0.07));
-  --hairline: light-dark(rgba(0, 0, 0, 0.08), rgba(255, 255, 255, 0.07));
-  --hairline-strong: light-dark(rgba(0, 0, 0, 0.14), rgba(255, 255, 255, 0.12));
-  --control-edge: light-dark(#777781, #767680);
-  --text-1: light-dark(#17171A, #ECECEE);
-  --text-2: light-dark(#45454F, #B4B4BE);
-  --text-3: light-dark(#61616B, #9696A0);
-  --text-disabled: light-dark(#B8B8C0, #4A4A50);
-  --accent: light-dark(#6A4FD8, #A48BFA);
-  --accent-hover: light-dark(#5A3FC8, #B6A1FB);
-  --on-accent: light-dark(#FFFFFF, #120D1F);
-  --accent-soft: light-dark(rgba(106, 79, 216, 0.1), rgba(164, 139, 250, 0.14));
+  --surface-chrome: light-dark(#F0F0F0, #0D0D0D);
+  --surface-0: light-dark(#FAFAFA, #1A1A1A);
+  --surface-1: light-dark(#FAFAFA, #1A1A1A);
+  --surface-2: light-dark(#F2F2F2, #212121);
+  --surface-3: light-dark(#FFFFFF, #242424);
+  --surface-user: light-dark(#EAEAEA, #2A2A2A);
+  --hover: light-dark(rgba(0, 0, 0, 0.04), rgba(255, 255, 255, 0.035));
+  --selected: light-dark(rgba(0, 0, 0, 0.06), rgba(255, 255, 255, 0.055));
+  --hairline: light-dark(rgba(0, 0, 0, 0.08), rgba(255, 255, 255, 0.04));
+  --hairline-strong: light-dark(rgba(0, 0, 0, 0.14), rgba(255, 255, 255, 0.10));
+  --control-edge: light-dark(#757575, #808080);
+  --fill-secondary: light-dark(rgba(0, 0, 0, 0.07), rgba(255, 255, 255, 0.09));
+  --segmented-track: light-dark(rgba(0, 0, 0, 0.06), rgba(0, 0, 0, 0.25));
+  --segmented-thumb: light-dark(#FFFFFF, rgba(255, 255, 255, 0.14));
+  --text-1: light-dark(#0D0D0D, #FFFFFF);
+  --text-2: light-dark(#4F4F4F, #ADADAD);
+  --text-3: light-dark(#5E5E5E, #9E9E9E);
+  --text-disabled: light-dark(#B0B0B0, #5E5E5E);
+  --primary: light-dark(#0D0D0D, #FFFFFF);
+  --primary-hover: light-dark(#333333, #E3E3E3);
+  --on-primary: light-dark(#FFFFFF, #0D0D0D);
+  --accent: light-dark(#0B5FC5, #74B9FF);
+  --accent-hover: light-dark(#094EA3, #93C8FF);
+  --on-accent: light-dark(#FFFFFF, #0D0D0D);
+  --accent-soft: light-dark(rgba(11, 95, 197, 0.1), rgba(116, 185, 255, 0.1));
+  --focus-halo: light-dark(rgba(11, 95, 197, 0.25), rgba(116, 185, 255, 0.35));
   --ok: light-dark(#116D33, #4ADE80);
   --ok-bg: light-dark(#F0FDF4, rgba(74, 222, 128, 0.12));
-  --warn: light-dark(#8A5A06, #F5C451);
+  --warn: light-dark(#805300, #F5C451);
   --warn-bg: light-dark(#FFFBEB, rgba(245, 196, 81, 0.12));
-  --danger: light-dark(#B91C1C, #F87171);
-  --danger-bg: light-dark(#FEF2F2, rgba(248, 113, 113, 0.12));
-  --on-danger: light-dark(#FFFFFF, #0A0A0B);
+  --danger: light-dark(#B91C1C, #F87C7C);
+  --danger-bg: light-dark(#FEF2F2, #2E1A1A);
+  --danger-hover: light-dark(#991B1B, #FCA5A5);
+  --on-danger: light-dark(#FFFFFF, #0D0D0D);
   --info: light-dark(#1958C2, #7AB8FF);
   --info-bg: light-dark(#EFF6FF, rgba(122, 184, 255, 0.12));
   --scrim: light-dark(rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0.6));
   --qr-ink: #000000;
   --qr-paper: #FFFFFF;
-  --shadow-pop: 0 8px 24px light-dark(rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.45));
+  --shadow-pop: 0 0 0 1px light-dark(rgba(0, 0, 0, 0.06), rgba(255, 255, 255, 0.06)), 0 12px 32px light-dark(rgba(0, 0, 0, 0.14), rgba(0, 0, 0, 0.55));
 
   --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
@@ -43,6 +52,7 @@
   --t-body: 400 0.875rem/1.375rem var(--font-ui);
   --t-title: 600 1rem/1.375rem var(--font-ui);
   --t-dialog: 600 1.25rem/1.75rem var(--font-ui);
+  --t-display: 600 1.625rem/2rem var(--font-ui);
   --t-mono: 400 0.75rem/1.125rem var(--font-mono);
 
   --s-1: 0.25rem;
@@ -58,6 +68,7 @@
   --r-sm: 6px;
   --r-md: 8px;
   --r-lg: 12px;
+  --r-xl: 16px;
   --r-pill: 999px;
 
   --row-menu: 1.75rem;
@@ -86,6 +97,7 @@
   --ease: cubic-bezier(0.2, 0, 0, 1);
   --pop-shift: 4px;
   --modal-scale: 0.98;
+  --press-scale: 0.98;
 }
 
 :root[data-theme='light'] {
@@ -103,6 +115,15 @@
 :root[data-motion='reduced'] {
   --pop-shift: 0px;
   --modal-scale: 1;
+  --press-scale: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion]) {
+    --pop-shift: 0px;
+    --modal-scale: 1;
+    --press-scale: 1;
+  }
 }
 
 @media (prefers-contrast: more) {
@@ -111,5 +132,7 @@
     --hairline-strong: light-dark(rgba(0, 0, 0, 0.2), rgba(255, 255, 255, 0.2));
     --text-3: var(--text-2);
     --focus-width: 3px;
+    --control-edge: var(--text-2);
+    --focus-halo: var(--accent);
   }
 }

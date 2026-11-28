@@ -1,12 +1,16 @@
-/* First run (spec §7): Welcome, two steps, and the engine checklist. */
+/* First run (spec §7): one decision per screen (server, engine, first agent) and the engine checklist. */
 .welcome {
   display: flex;
   flex-direction: column;
   gap: var(--s-5);
   width: 100%;
-  max-width: 620px;
+  max-width: 520px;
   margin: 0 auto;
   padding: var(--s-12) var(--s-6) var(--s-8);
+}
+.choose-server {
+  max-height: 100dvh;
+  overflow-y: auto;
 }
 .welcome-hero {
   display: flex;
@@ -15,7 +19,13 @@
 }
 .welcome-title {
   margin: 0;
-  font: var(--t-dialog);
+  font: var(--t-display);
+  letter-spacing: -0.02em;
+}
+.welcome-progress {
+  margin: 0;
+  color: var(--text-3);
+  font: var(--t-meta);
 }
 .welcome-lede {
   margin: 0;
@@ -27,8 +37,8 @@
   flex-direction: column;
   gap: var(--s-3);
   padding: var(--s-5);
-  border: 1px solid var(--hairline-strong);
-  border-radius: var(--r-lg);
+  border: 1px solid transparent;
+  border-radius: var(--r-xl);
   background: var(--surface-2);
 }
 .welcome-step-head {
@@ -40,18 +50,6 @@
   flex: 1;
   margin: 0;
   font: var(--t-title);
-}
-.step-number {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  flex: none;
-  border-radius: var(--r-pill);
-  background: var(--accent-soft);
-  color: var(--accent);
-  font: var(--t-meta);
 }
 .welcome-count {
   color: var(--text-3);
@@ -66,6 +64,19 @@
 .welcome-actions {
   display: flex;
   flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.welcome-status {
+  flex: 1;
+  margin: 0;
+  color: var(--text-2);
+  font: var(--t-ui);
+}
+.welcome-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
   gap: var(--s-2);
 }
 .welcome-footer {

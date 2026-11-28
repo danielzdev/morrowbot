@@ -54,15 +54,13 @@ kbd {
 
 /* Buttons: a plain reset, then variants. Older screens use the bare variant classes. */
 button {
-  cursor: pointer;
+  cursor: default;
+  user-select: none;
   background: none;
   border: 1px solid transparent;
   border-radius: var(--r-md);
   padding: 0;
-  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
-}
-button:disabled {
-  cursor: default;
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 .btn,
 button.primary,
@@ -79,19 +77,19 @@ button.danger {
   white-space: nowrap;
 }
 .primary {
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--primary);
+  color: var(--on-primary);
 }
 .primary:hover:not(:disabled) {
-  background: var(--accent-hover);
+  background: var(--primary-hover);
 }
 .secondary {
-  background: var(--surface-2);
-  border-color: var(--hairline-strong);
+  background: var(--fill-secondary);
+  border-color: transparent;
   color: var(--text-1);
 }
 .secondary:hover:not(:disabled) {
-  background-image: linear-gradient(var(--hover), var(--hover));
+  border-color: var(--control-edge);
 }
 .ghost {
   color: var(--text-2);
@@ -104,6 +102,12 @@ button.danger,
 .btn.danger {
   background: var(--danger);
   color: var(--on-danger);
+}
+:is(button.danger, .btn.danger):hover:not(:disabled) {
+  background: var(--danger-hover);
+}
+:is(.btn, button.primary, button.secondary, button.ghost, button.danger, .icon-btn, .round-btn):active:not(:disabled) {
+  transform: scale(var(--press-scale));
 }
 :is(.btn, button.primary, button.secondary, button.ghost, button.danger):disabled {
   background: var(--selected);
@@ -144,14 +148,16 @@ textarea {
   padding: var(--s-1) var(--s-2);
   background: var(--surface-2);
   border: 1px solid var(--control-edge);
-  border-radius: var(--r-sm);
+  border-radius: var(--r-md);
   font: var(--t-ui);
   color: var(--text-1);
+  user-select: text;
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 :is(input, select, textarea):focus-visible {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 calc(var(--focus-width) - 1px) var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-halo);
 }
 ::placeholder {
   color: var(--text-3);

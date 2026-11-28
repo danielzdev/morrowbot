@@ -39,7 +39,8 @@
   min-height: 0;
   height: 100%;
   background: var(--surface-1);
-  border-right: 1px solid var(--hairline);
+  border-right: 1px solid transparent;
+  user-select: none;
 }
 .sidebar-top {
   display: flex;
@@ -48,6 +49,7 @@
   flex: none;
   height: var(--header-h);
   padding: 0 var(--s-2);
+  background: var(--surface-chrome);
 }
 [data-platform='mac'] .sidebar-top {
   padding-left: 84px;
@@ -74,13 +76,15 @@
   min-width: 0;
   height: 32px;
   padding: 0 var(--s-3);
-  border: 1px solid var(--hairline);
+  border: 1px solid transparent;
   border-radius: var(--r-pill);
-  background: var(--surface-3);
+  background: var(--surface-2);
   color: var(--text-3);
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 .search-field:focus-within {
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-halo);
 }
 :is(.search-field, .switcher-filter) input {
   flex: 1;
@@ -95,12 +99,12 @@
   width: 32px;
   height: 32px;
   border-radius: var(--r-pill);
-  background: var(--text-1);
-  color: var(--surface-0);
+  background: var(--primary);
+  color: var(--on-primary);
 }
 .icon-btn.round-btn:hover {
-  background: var(--text-2);
-  color: var(--surface-0);
+  background: var(--primary-hover);
+  color: var(--on-primary);
 }
 .folder-draft {
   display: flex;
@@ -268,7 +272,9 @@
   flex: none;
   height: var(--header-h);
   padding: 0 var(--s-3) 0 var(--s-4);
-  border-bottom: 1px solid var(--hairline);
+  border-bottom: 1px solid transparent;
+  background: var(--surface-chrome);
+  user-select: none;
 }
 [data-platform='mac'] .shell.rail .page-header {
   padding-left: calc(84px - var(--rail-w));

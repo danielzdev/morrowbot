@@ -105,24 +105,27 @@ it('meets every §1.1 contrast target on every composited background, in both th
   expect(failures).toEqual([]);
   expect(table).toMatchInlineSnapshot(`
     {
-      "accent": "dark 5.07 on accent-soft/surface-3 | light 4.34 on selected/surface-user",
-      "control-edge": "dark 3.09 on accent-soft/surface-3 | light 3.41 on selected/surface-user",
-      "danger": "dark 5.03 on accent-soft/surface-3 | light 4.98 on selected/surface-user",
-      "info": "dark 6.68 on info-bg/surface-3 | light 5.03 on selected/surface-user",
-      "ok": "dark 7.81 on ok-bg/surface-3 | light 4.96 on selected/surface-user",
-      "text-1": "dark 11.79 on accent-soft/surface-3 | light 13.78 on selected/surface-user",
-      "text-2": "dark 6.76 on accent-soft/surface-3 | light 7.29 on selected/surface-user",
-      "text-3": "dark 4.75 on accent-soft/surface-3 | light 4.71 on selected/surface-user",
-      "warn": "dark 8.21 on warn-bg/surface-3 | light 4.56 on selected/surface-user",
+      "accent": "dark 5.85 on selected/surface-user | light 4.42 on selected/surface-user",
+      "control-edge": "dark 3.07 on selected/surface-user | light 3.35 on selected/surface-user",
+      "danger": "dark 4.71 on selected/surface-user | light 4.71 on selected/surface-user",
+      "info": "dark 5.85 on selected/surface-user | light 4.75 on selected/surface-user",
+      "ok": "dark 6.90 on ok-bg/surface-3 | light 4.69 on selected/surface-user",
+      "text-1": "dark 12.13 on selected/surface-user | light 14.16 on selected/surface-user",
+      "text-2": "dark 5.40 on selected/surface-user | light 5.97 on selected/surface-user",
+      "text-3": "dark 4.52 on selected/surface-user | light 4.72 on selected/surface-user",
+      "warn": "dark 7.23 on warn-bg/surface-3 | light 4.85 on selected/surface-user",
     }
   `);
 });
 
-it('keeps text on solid accent and danger fills readable, and accent text on surfaces', () => {
+it('keeps text on solid primary, accent and danger fills readable, and accent text on surfaces', () => {
   const pairs = (['dark', 'light'] as const).flatMap((theme) => [
     { pair: `${theme} on-accent/accent`, ratio: ratio(token('on-accent', theme), token('accent', theme)), min: 4.5 },
     { pair: `${theme} on-accent/accent-hover`, ratio: ratio(token('on-accent', theme), token('accent-hover', theme)), min: 4.5 },
+    { pair: `${theme} on-primary/primary`, ratio: ratio(token('on-primary', theme), token('primary', theme)), min: 4.5 },
+    { pair: `${theme} on-primary/primary-hover`, ratio: ratio(token('on-primary', theme), token('primary-hover', theme)), min: 4.5 },
     { pair: `${theme} on-danger/danger`, ratio: ratio(token('on-danger', theme), token('danger', theme)), min: 4.5 },
+    { pair: `${theme} on-danger/danger-hover`, ratio: ratio(token('on-danger', theme), token('danger-hover', theme)), min: 4.5 },
     ...SURFACES.map((surface) => ({ pair: `${theme} accent/${surface}`, ratio: ratio(token('accent', theme), token(surface, theme)), min: 4.5 })),
   ]);
   expect(pairs.filter(({ ratio: value, min }) => value < min).map(({ pair, ratio: value }) => `${pair} ${value.toFixed(2)}`)).toEqual([]);

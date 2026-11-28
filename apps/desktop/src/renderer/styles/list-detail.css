@@ -61,6 +61,9 @@
 .list-row.selected {
   background: var(--selected);
 }
+.list-row.selected .item-mark {
+  color: var(--text-2);
+}
 .list-row-main {
   display: flex;
   align-items: center;

@@ -17,8 +17,8 @@ export const BUBBLE_SWATCHES: readonly { readonly name: string; readonly color: 
   { name: 'Amber', color: '#f59e0b' },
   { name: 'Coral', color: '#ef4444' },
   { name: 'Rose', color: '#ec4899' },
-  { name: 'Indigo', color: '#6366f1' },
-  { name: 'Violet', color: '#8b5cf6' },
+  { name: 'Ocean', color: '#2563eb' },
+  { name: 'Copper', color: '#b55b29' },
   { name: 'Slate', color: '#6b7280' },
 ];
 

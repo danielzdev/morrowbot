@@ -6,7 +6,7 @@
   flex: none;
   height: var(--header-h);
   padding: 0 var(--s-3) 0 0;
-  background: var(--surface-1);
+  background: var(--surface-chrome);
   border-bottom: 1px solid var(--hairline);
 }
 .thread-header > :is(.icon-btn, .tooltip-anchor, .menu-button) {
