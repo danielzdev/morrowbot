@@ -39,6 +39,6 @@ export async function vaultBackend(choice: VaultKeyChoice, platform: NodeJS.Plat
   if (choice === 'file') return backend(keyFileStore(keyFile), null);
   if (platform === 'darwin') return backend(keychainKeyStore(), null);
   if (platform === 'win32') return backend(dpapiKeyStore(path.join(dataDir, 'vault.key.dpapi')), null);
-  const linux = await linuxKeys(keyFile);
+  const linux = await linuxKeys(dataDir);
   return backend(linux.store, linux.kind === 'headless' ? linux.reason : null);
 }

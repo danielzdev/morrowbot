@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -124,33 +124,34 @@ it('uses the Linux Secret Service when secret-tool reaches it, never makes a key
     }
     return exited(stored === undefined ? 1 : 0, stored ?? '');
   });
-  const linux = await linuxKeys(path.join(dir, 'vault.key'), reachable.run);
+  const linux = await linuxKeys(dir, reachable.run);
   await linux.store.create(key);
   const roundTrip = (await linux.store.load())?.equals(key);
-  const timedOut = await linuxKeys(path.join(dir, 'vault.key'), fakeProgram(() => ({ kind: 'exited', code: null, stdout: '', stderr: '' })).run);
-  const keyFile = path.join(dir, 'existing.key');
-  await writeFile(keyFile, `${newMasterKey().toString('base64')}\n`);
-  const why = async (run: Run, file = path.join(dir, 'vault.key')) => {
-    const chosen = await linuxKeys(file, run);
+  const timedOut = await linuxKeys(dir, fakeProgram(() => ({ kind: 'exited', code: null, stdout: '', stderr: '' })).run);
+  const earlierRun = path.join(dir, 'earlier-run');
+  await mkdir(earlierRun);
+  await writeFile(path.join(earlierRun, 'vault.key'), `${newMasterKey().toString('base64')}\n`);
+  const why = async (run: Run, dataDir = path.join(dir, 'fresh')) => {
+    const chosen = await linuxKeys(dataDir, run);
     return chosen.kind === 'headless' ? `${chosen.store.kind}: ${chosen.reason}` : chosen.store.kind;
   };
   expect({
     reachable: linux.kind,
     roundTrip,
-    calls: reachable.calls.map(({ args, input }) => `secret-tool ${args.join(' ')}${input === '' ? '' : ' <<< <key>'}`),
+    calls: reachable.calls.map(({ args, input }) => `secret-tool ${args.join(' ').replace(dir, '<dataDir>')}${input === '' ? '' : ' <<< <key>'}`),
     lockedKeyring: `${timedOut.kind}: ${await failure(timedOut.store.create(key))}`,
     notInstalled: await why(fakeProgram(() => ({ kind: 'missing' })).run),
     noSession: await why(fakeProgram(() => exited(1, '', 'Cannot autolaunch D-Bus without X11 $DISPLAY')).run),
-    keyFileAlreadyThere: await why(reachable.run, keyFile),
+    keyFileAlreadyThere: await why(reachable.run, earlierRun),
   }).toEqual({
     reachable: 'secret-service',
     roundTrip: true,
     calls: [
-      'secret-tool lookup service com.legendarykoi.morrowbot.vault account master-key',
-      'secret-tool lookup service com.legendarykoi.morrowbot.vault account master-key',
-      'secret-tool store --label=MorrowBot vault key service com.legendarykoi.morrowbot.vault account master-key <<< <key>',
-      'secret-tool lookup service com.legendarykoi.morrowbot.vault account master-key',
-      'secret-tool lookup service com.legendarykoi.morrowbot.vault account master-key',
+      'secret-tool lookup service com.legendarykoi.morrowbot.vault account master-key folder <dataDir>',
+      'secret-tool lookup service com.legendarykoi.morrowbot.vault account master-key folder <dataDir>',
+      'secret-tool store --label=MorrowBot vault key service com.legendarykoi.morrowbot.vault account master-key folder <dataDir> <<< <key>',
+      'secret-tool lookup service com.legendarykoi.morrowbot.vault account master-key folder <dataDir>',
+      'secret-tool lookup service com.legendarykoi.morrowbot.vault account master-key folder <dataDir>',
     ],
     lockedKeyring: 'secret-service: The Secret Service could not read the vault key (secret-tool was stopped before it finished)',
     notInstalled: 'key-file: secret-tool is not installed',
@@ -165,7 +166,7 @@ it('names the failing tool, never the key, when a keystore refuses', async () =>
   const messages = [
     await failure(keychainKeyStore(undefined, refuse.run).create(key)),
     await failure(dpapiKeyStore(path.join(dir, 'k.dpapi'), refuse.run).create(key)),
-    await failure((await linuxKeys(path.join(dir, 'none.key'), fakeProgram(({ args }) => (args[0] === 'lookup' ? exited(1) : exited(1, '', 'stderr'))).run)).store.create(key)),
+    await failure((await linuxKeys(path.join(dir, 'none'), fakeProgram(({ args }) => (args[0] === 'lookup' ? exited(1) : exited(1, '', 'stderr'))).run)).store.create(key)),
   ];
   expect(messages).toEqual([
     'The macOS Keychain could not save the vault key (security exited with 1)',

@@ -22,14 +22,21 @@ async function flushedTemp(file: string, data: string): Promise<string> {
   }
 }
 
-/** Flushes the folder's entry list, so a finished rename or link survives a power cut. Windows cannot open a folder. */
+/**
+ * Flushes the folder's entry list, so a finished rename or link survives a power cut. Never throws: the rename has
+ * already happened, and a caller told it failed would undo a change that is in place. Windows cannot open a folder.
+ */
 async function syncFolder(file: string): Promise<void> {
   if (process.platform === 'win32') return;
-  const handle = await open(path.dirname(file), 'r');
   try {
-    await handle.sync();
-  } finally {
-    await handle.close();
+    const handle = await open(path.dirname(file), 'r');
+    try {
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+  } catch {
+    return;
   }
 }
 

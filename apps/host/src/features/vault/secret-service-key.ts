@@ -1,10 +1,15 @@
 import { access } from 'node:fs/promises';
+import path from 'node:path';
 import { keyFileStore, keyFromText, savedFirst, VAULT_KEY_ACCOUNT, VAULT_KEY_SERVICE, type MasterKeyStore } from './master-key.ts';
 import { runProgram, type Run, type RunResult } from './run.ts';
 import { SecretStoreError } from './secret-store.ts';
 
 const SECRET_TOOL = 'secret-tool';
-const ATTRIBUTES = ['service', VAULT_KEY_SERVICE, 'account', VAULT_KEY_ACCOUNT] as const;
+/**
+ * The item's attributes. Unlike the macOS Keychain, the Secret Service has no "add only if absent", so each data
+ * folder keeps its own key: the host's lock on its folder then makes sure no two processes ever save the same item.
+ */
+const attributes = (dataDir: string): readonly string[] => ['service', VAULT_KEY_SERVICE, 'account', VAULT_KEY_ACCOUNT, 'folder', dataDir];
 
 /** `secret-tool lookup` ended cleanly without printing a key: nothing is saved under the attributes. */
 const notFound = (result: RunResult): boolean =>
@@ -17,9 +22,9 @@ const exitedWith = (code: number | null): string => (code === null ? 'was stoppe
  * "nothing saved" counts as no key; a lookup that times out (an unanswered unlock prompt) or fails is an error, so a
  * locked keyring never leads to a new key replacing the one other data folders use.
  */
-export function secretServiceKeyStore(run: Run = runProgram): MasterKeyStore {
+export function secretServiceKeyStore(dataDir: string, run: Run = runProgram): MasterKeyStore {
   const load = async (): Promise<Buffer | undefined> => {
-    const result = await run(SECRET_TOOL, ['lookup', ...ATTRIBUTES], '');
+    const result = await run(SECRET_TOOL, ['lookup', ...attributes(dataDir)], '');
     if (result.kind === 'missing') throw new SecretStoreError('secret-tool could not be started to read the vault key');
     if (notFound(result)) return undefined;
     if (result.code === 0) return keyFromText(result.stdout, 'The Secret Service item');
@@ -31,7 +36,7 @@ export function secretServiceKeyStore(run: Run = runProgram): MasterKeyStore {
     create: async (key) => {
       const saved = await load();
       if (saved !== undefined) return saved;
-      const result = await run(SECRET_TOOL, ['store', '--label=MorrowBot vault key', ...ATTRIBUTES], key.toString('base64'));
+      const result = await run(SECRET_TOOL, ['store', '--label=MorrowBot vault key', ...attributes(dataDir)], key.toString('base64'));
       if (result.kind === 'missing') throw new SecretStoreError('secret-tool could not be started to save the vault key');
       if (result.code !== 0) throw new SecretStoreError(`The Secret Service could not save the vault key (secret-tool ${exitedWith(result.code)})`);
       return savedFirst({ load });
@@ -48,12 +53,13 @@ export type LinuxKeys =
  * The Secret Service when `secret-tool` runs and can reach it; otherwise the owner-only `keyFile`. A key file that
  * already exists keeps being used, so a desktop session that appears later never strands the key it holds.
  */
-export async function linuxKeys(keyFile: string, run: Run = runProgram): Promise<LinuxKeys> {
+export async function linuxKeys(dataDir: string, run: Run = runProgram): Promise<LinuxKeys> {
+  const keyFile = path.join(dataDir, 'vault.key');
   const fallback = (reason: string): LinuxKeys => ({ kind: 'headless', store: keyFileStore(keyFile), reason });
   if (await exists(keyFile)) return fallback('the vault key is in the data folder from an earlier run without a Secret Service');
-  const probe = await run(SECRET_TOOL, ['lookup', ...ATTRIBUTES], '');
+  const probe = await run(SECRET_TOOL, ['lookup', ...attributes(dataDir)], '');
   if (probe.kind === 'missing') return fallback('secret-tool is not installed');
-  if (probe.code === null || probe.code === 0 || notFound(probe)) return { kind: 'secret-service', store: secretServiceKeyStore(run) };
+  if (probe.code === null || probe.code === 0 || notFound(probe)) return { kind: 'secret-service', store: secretServiceKeyStore(dataDir, run) };
   return fallback('the Secret Service is not reachable from this session');
 }
 
