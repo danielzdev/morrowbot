@@ -26,6 +26,8 @@ export interface SessionHandlers {
   readonly onRefused: (method: string) => void;
   /** Whether the agent is replaying the session's saved history. */
   readonly replaying: () => boolean;
+  /** When true, edits, commands, and mode changes on this session do not trip the read-only breach tripwire. */
+  readonly allowChanges?: boolean;
 }
 
 /** One running ACP agent (`agy acp`, `opencode acp`): a provider's shared daemon. */
@@ -42,12 +44,6 @@ export interface AcpClient {
   notify(method: string, params: unknown): void;
   /** Routes one session's updates and requests here until the returned function is called. */
   attach(sessionId: string, handlers: SessionHandlers): () => void;
-  /**
-   * Marks a session the provider runs with full access: the changes it makes are allowed, so the
-   * tripwire stops watching it until the returned function is called (once the agent closed it).
-   * Every other session stays fenced.
-   */
-  trust(sessionId: string): () => void;
   /** Hears the agent exit. */
   readonly exited: Promise<void>;
   close(): Promise<void>;
@@ -71,20 +67,24 @@ export interface AcpClientOptions {
 
 export type AcpStart = { readonly kind: 'started'; readonly client: AcpClient } | { readonly kind: 'failed'; readonly reason: string };
 
+/** Detached unrestricted sessions remembered past detach so late updates never trip the read-only tripwire. */
+const MAX_UNRESTRICTED = 1_000;
+
 /**
  * Starts an ACP v1 agent as a provider's shared daemon (`jsonRpcProcess`, scope `daemon`) and
- * completes the `initialize` handshake. The client is read-only:
- * - it offers no file or terminal access: the agent's own requests to write a file or run a
- *   terminal are refused, and so is any other request but `session/request_permission`, which goes
- *   to the session's handlers (refused when no session holds it);
- * - every session's updates go through a tripwire, held by a session or not, except a loaded
- *   session's replayed history and a session marked `trust`ed (full access). A change the agent reports finished without asking is a breach:
- *   `onBreach` hears it once and the agent ends, failing every request still waiting on it.
+ * completes the `initialize` handshake:
+ * - it offers no client-hosted file or terminal access: the agent's own requests to write a file
+ *   or run a terminal are refused, and so is any other request but `session/request_permission`,
+ *   which goes to the session's handlers (refused when no session holds it);
+ * - updates for sessions without `allowChanges` (and any unattached unknown session) go through a
+ *   read-only tripwire, except a loaded session's replayed history. A change reported finished
+ *   without asking is a breach: `onBreach` hears it once and the agent ends, failing every request
+ *   still waiting on it.
  */
 export async function startAcpClient(jsonRpcProcess: StartJsonRpcProcess, command: string, options: AcpClientOptions): Promise<AcpStart> {
   const { name } = options;
   const sessions = new Map<string, SessionHandlers>();
-  const trusted = new Set<string>();
+  const detachedUnrestricted = new Set<string>();
   const ending = new AbortController();
   let alive = true;
   let version: string | null = null;
@@ -115,7 +115,8 @@ export async function startAcpClient(jsonRpcProcess: StartJsonRpcProcess, comman
       if (!notification.success) return;
       const { sessionId, update } = notification.data;
       const handlers = sessions.get(sessionId);
-      if (handlers?.replaying() !== true && !trusted.has(sessionId)) tripwire.hear(sessionId, update);
+      const allowed = handlers?.allowChanges === true || detachedUnrestricted.has(sessionId);
+      if (handlers?.replaying() !== true && !allowed) tripwire.hear(sessionId, update);
       handlers?.onUpdate(update);
     },
     onRequest: (method, params) => {
@@ -125,8 +126,10 @@ export async function startAcpClient(jsonRpcProcess: StartJsonRpcProcess, comman
         const handlers = sessions.get(request.data.sessionId);
         return handlers === undefined ? Promise.resolve(refusal(request.data.options)) : handlers.onPermission(request.data);
       }
-      if (method === 'fs/write_text_file') return refuse(method, params, `MorrowBot runs ${name} read-only: it writes no files.`);
-      if (method.startsWith('terminal/')) return refuse(method, params, `MorrowBot runs ${name} read-only: it runs no commands.`);
+      const scoped = SessionScoped.safeParse(params);
+      const full = scoped.success && sessions.get(scoped.data.sessionId)?.allowChanges === true;
+      if (!full && method === 'fs/write_text_file') return refuse(method, params, `MorrowBot runs ${name} read-only: it writes no files.`);
+      if (!full && method.startsWith('terminal/')) return refuse(method, params, `MorrowBot runs ${name} read-only: it runs no commands.`);
       return refuse(method, params, `MorrowBot does not answer ${method}.`);
     },
   });
@@ -177,15 +180,16 @@ export async function startAcpClient(jsonRpcProcess: StartJsonRpcProcess, comman
         rpc.notify(method, params);
       },
       attach: (sessionId, handlers) => {
+        detachedUnrestricted.delete(sessionId);
         sessions.set(sessionId, handlers);
         return () => {
-          if (sessions.get(sessionId) === handlers) sessions.delete(sessionId);
-        };
-      },
-      trust: (sessionId) => {
-        trusted.add(sessionId);
-        return () => {
-          trusted.delete(sessionId);
+          if (sessions.get(sessionId) !== handlers) return;
+          sessions.delete(sessionId);
+          if (handlers.allowChanges !== true) return;
+          detachedUnrestricted.delete(sessionId);
+          detachedUnrestricted.add(sessionId);
+          const oldest = detachedUnrestricted.values().next();
+          if (detachedUnrestricted.size > MAX_UNRESTRICTED && oldest.done !== true) detachedUnrestricted.delete(oldest.value);
         };
       },
       exited,

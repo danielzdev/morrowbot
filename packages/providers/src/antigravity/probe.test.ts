@@ -35,7 +35,6 @@ function daemon(sent: string[]): acp.AcpClient {
     },
     notify: () => undefined,
     attach: () => () => undefined,
-    trust: () => () => undefined,
     exited: new Promise(() => undefined),
     close: () => Promise.resolve(),
     breach: () => undefined,

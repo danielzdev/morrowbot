@@ -42,9 +42,10 @@ workspace's instructions (`personal`).
 
 **Full** (interactive and background; only the owner may choose it): the session stays in Default
 mode and MorrowBot allows everything agy asks for once, without a card (never `allow_always`, so no
-grant is saved for read-only sessions). The client stops fencing that session (`trust`) until it is
-closed, and the workspace's customization folders are not checked. Stop sends `session/cancel`,
-which ends the command agy is running (checked on real agy 1.5.18 by
+grant is saved for read-only sessions). The client stops fencing that session (`allowChanges`,
+remembered after it ends so a late update cannot trip the fence), and the workspace's
+customization folders are not checked. Stop sends `session/cancel`, which ends the command agy is
+running (checked on real agy 1.5.18 by
 `provider-antigravity-live.test.ts`; the fixture test checks that Stop sends it). agy runs each
 command in its own process group, so something a command leaves running in the background (`cmd &`)
 outlives Stop and the daemon; MorrowBot does not chase it (see `docs/decisions.md`). A full-access

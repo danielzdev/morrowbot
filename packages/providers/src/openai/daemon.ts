@@ -47,8 +47,8 @@ export interface CodexDaemon {
 export type DaemonStart = { readonly kind: 'started'; readonly daemon: CodexDaemon } | { readonly kind: 'failed'; readonly reason: string };
 
 /**
- * Approval requests MorrowBot answers. v1 Codex turns are read-only with approval policy `never`,
- * so a request here is unexpected; it is declined without a card.
+ * Approval requests MorrowBot answers. Codex turns run with approval policy `never`, so a request
+ * here is unexpected; it is declined without a card.
  */
 const DECLINES: Readonly<Record<string, unknown>> = {
   'item/commandExecution/requestApproval': { decision: 'decline' },

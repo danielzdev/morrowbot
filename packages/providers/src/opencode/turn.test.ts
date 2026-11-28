@@ -1,6 +1,6 @@
 import { acp, type TurnChunk, type TurnContext, type TurnRequest } from '@morrowbot/plugin-sdk';
 import { expect, it } from 'vitest';
-import { BUILD_MODE } from './config.ts';
+import { BUILD_MODE, FULL_MODE } from './config.ts';
 import { createModelCatalog } from './models.ts';
 import { runTurn, type Live } from './turn.ts';
 
@@ -37,7 +37,7 @@ function createTrackedFence(): TrackedFence {
   };
 }
 
-function makeRequest(turnId: string): TurnRequest {
+function makeRequest(turnId: string, overrides: Partial<TurnRequest> = {}): TurnRequest {
   return {
     turnId,
     cwd: '/work/ws',
@@ -52,6 +52,7 @@ function makeRequest(turnId: string): TurnRequest {
     prompt: 'hello',
     images: [],
     hostTools: { kind: 'none' },
+    ...overrides,
   };
 }
 
@@ -93,7 +94,6 @@ function makeClient(options: {
         if (attached.get(sessionId) === handlers) attached.delete(sessionId);
       };
     },
-    trust: () => () => undefined,
     exited: new Promise(() => undefined),
     close: () => Promise.resolve(),
     breach: () => undefined,
@@ -181,5 +181,55 @@ it('keeps fence listeners O(1) across many turns (including approvals) and notif
     pastTurnStatusEvents: 0,
     activeChunks: [{ kind: 'status', text: 'OpenCode broke read-only rules.' }],
     outcome: { kind: 'failed', error: { kind: 'access-not-supported', reason: 'OpenCode broke read-only rules.' } },
+  });
+});
+
+it('allows background mode for full turns, refuses background read-only turns, and refuses if opencode will not switch to full mode', async () => {
+  const fence = createTrackedFence();
+  let modeReply = FULL_MODE;
+  const base = makeClient();
+  const client: acp.AcpClient = {
+    ...base,
+    call: async (method, params, schema, timeoutMs) => {
+      if (method === 'session/set_config_option') {
+        return {
+          kind: 'ok',
+          value: schema.parse({
+            configOptions: [{ id: 'mode', name: 'Mode', type: 'select', currentValue: modeReply, options: [{ value: BUILD_MODE, name: 'Build' }, { value: FULL_MODE, name: 'Full' }] }],
+          }),
+        };
+      }
+      return base.call(method, params, schema, timeoutMs);
+    },
+  };
+  const deps = {
+    live: () => ({ client, catalog: createModelCatalog() }),
+    checkCli: () => Promise.resolve(null),
+    checkManaged: () => Promise.resolve(null),
+    platformReason: null,
+    fence,
+    home: '/work',
+  };
+  const run = (overrides: Partial<TurnRequest>) =>
+    runTurn(
+      {
+        request: makeRequest('turn-bg', overrides),
+        signal: new AbortController().signal,
+        emit: () => undefined,
+        ask: () => Promise.resolve({ kind: 'refused', reason: 'background' }),
+        onSteer: () => () => undefined,
+      },
+      deps,
+    );
+
+  const bgFull = await run({ access: 'full', mode: 'background' });
+  const bgReadOnly = await run({ access: 'read-only', mode: 'background' });
+  modeReply = BUILD_MODE;
+  const stuckMode = await run({ access: 'full', mode: 'interactive' });
+
+  expect({ bgFull: bgFull.outcome, bgReadOnly: bgReadOnly.outcome, stuckMode: stuckMode.outcome }).toEqual({
+    bgFull: { kind: 'completed', finishReason: 'stop' },
+    bgReadOnly: { kind: 'failed', error: { kind: 'background-not-allowed' } },
+    stuckMode: { kind: 'failed', error: { kind: 'access-not-supported', reason: 'OpenCode would not switch this chat to its full-access mode.' } },
   });
 });

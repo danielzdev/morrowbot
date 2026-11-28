@@ -175,4 +175,27 @@ describe.skipIf(!LIVE)('provider-openai on the pinned Codex', () => {
     const project = Config.parse(await codex.call('config/read', { includeLayers: false, cwd })).config;
     expect({ provider: project.model_provider, url: project.openai_base_url }).toEqual({ provider: plain.model_provider, url: plain.openai_base_url });
   });
+
+  it('opens a full-access thread with dangerFullAccess, approvalPolicy never, and no activePermissionProfile', async () => {
+    const cwd = path.join(root, 'full');
+    await mkdir(path.join(cwd, '.git'), { recursive: true });
+    codex = await rawCodex();
+    const opened = Opened.parse(
+      await codex.call('thread/start', { cwd, modelProvider: 'openai', sandbox: 'danger-full-access', approvalPolicy: 'never', config: {}, ephemeral: true }),
+    );
+    await codex.call('thread/unsubscribe', { threadId: opened.thread.id });
+    expect({
+      sandbox: opened.sandbox,
+      approvalPolicy: opened.approvalPolicy,
+      modelProvider: opened.modelProvider,
+      activePermissionProfile: opened.activePermissionProfile,
+      deprecations: codex.notes.filter((note) => note.method === 'deprecationNotice').length,
+    }).toEqual({
+      sandbox: { type: 'dangerFullAccess' },
+      approvalPolicy: 'never',
+      modelProvider: 'openai',
+      activePermissionProfile: null,
+      deprecations: 0,
+    });
+  });
 });

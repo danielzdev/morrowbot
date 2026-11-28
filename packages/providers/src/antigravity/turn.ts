@@ -131,6 +131,7 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
         emit({ kind: 'status', text: full ? `Refused Antigravity's ${method}: MorrowBot offers it no file or terminal access of its own.` : `Refused Antigravity's ${method}: MorrowBot runs it read-only.` });
       },
       replaying: () => false,
+      allowChanges: full,
     };
 
     try {
@@ -153,7 +154,6 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
         return refuse(opened.error);
       }
       sessionId = opened.sessionId;
-      const untrust = full ? daemon.trust(opened.sessionId) : () => undefined;
       live.signedOut = false;
       live.tier = opened.tier ?? live.tier;
       try {
@@ -187,7 +187,7 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
         return await prompt(opened.sessionId, configured.model);
       } finally {
         opened.detach();
-        closeSession(daemon, opened.sessionId, untrust);
+        closeSession(daemon, opened.sessionId);
       }
     } finally {
       over = true;
