@@ -30,6 +30,8 @@ export interface Live {
   readonly catalog: ModelCatalog;
   tier: string | null;
   signedOut: boolean;
+  /** Whether a probe has tried every model, so each one's thinking levels are known. */
+  probed: boolean;
 }
 
 /**
@@ -151,7 +153,7 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
         return refuse(opened.error);
       }
       sessionId = opened.sessionId;
-      if (full) daemon.trust(opened.sessionId);
+      const untrust = full ? daemon.trust(opened.sessionId) : () => undefined;
       live.signedOut = false;
       live.tier = opened.tier ?? live.tier;
       try {
@@ -185,7 +187,7 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
         return await prompt(opened.sessionId, configured.model);
       } finally {
         opened.detach();
-        closeSession(daemon, opened.sessionId);
+        closeSession(daemon, opened.sessionId, untrust);
       }
     } finally {
       over = true;

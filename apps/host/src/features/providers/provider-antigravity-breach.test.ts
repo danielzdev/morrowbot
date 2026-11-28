@@ -101,6 +101,20 @@ it('refuses a turn, before its prompt, whose session leaves Default mode while M
   `);
 });
 
+it('ends the daemon when agy reports a finished edit in the provider-info probe session, and withholds every profile', async () => {
+  await agy.setState({ sneakOnNew: true });
+  await agy.host.call('GET', '/api/plugins/provider-antigravity/info');
+  expect({ prompts: await methods('session/prompt'), withheld: await withheld() }).toMatchInlineSnapshot(`
+    {
+      "prompts": 0,
+      "withheld": {
+        "breach": true,
+        "profiles": true,
+      },
+    }
+  `);
+});
+
 it("ends a session's turn before its prompt when agy reports a finished edit for it before MorrowBot holds the session", async () => {
   const thread = await agy.thread(await agy.agent());
   await agy.host.call('GET', '/api/plugins/provider-antigravity/info');

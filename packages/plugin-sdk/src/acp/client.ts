@@ -43,10 +43,11 @@ export interface AcpClient {
   /** Routes one session's updates and requests here until the returned function is called. */
   attach(sessionId: string, handlers: SessionHandlers): () => void;
   /**
-   * Marks a session the provider runs with full access, for the agent's life: the changes it makes
-   * are allowed, so the tripwire stops watching it. Every other session stays fenced.
+   * Marks a session the provider runs with full access: the changes it makes are allowed, so the
+   * tripwire stops watching it until the returned function is called (once the session is closed).
+   * Every other session stays fenced.
    */
-  trust(sessionId: string): void;
+  trust(sessionId: string): () => void;
   /** Hears the agent exit. */
   readonly exited: Promise<void>;
   close(): Promise<void>;
@@ -183,6 +184,9 @@ export async function startAcpClient(jsonRpcProcess: StartJsonRpcProcess, comman
       },
       trust: (sessionId) => {
         trusted.add(sessionId);
+        return () => {
+          trusted.delete(sessionId);
+        };
       },
       exited,
       close,

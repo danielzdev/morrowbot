@@ -189,7 +189,7 @@ async function spawned(sessionId: string, session: Session): Promise<unknown> {
     update(sessionId, { sessionUpdate: 'tool_call_update', ...toolCall, status: 'failed' });
     return { stopReason: 'end_turn', usage: USAGE };
   }
-  const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { cwd: session.cwd, stdio: 'ignore', detached: true });
+  const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 120_000)'], { cwd: session.cwd, stdio: 'ignore', detached: true });
   log({ method: 'spawned', params: { pid: child.pid ?? null } });
   update(sessionId, { sessionUpdate: 'tool_call_update', ...toolCall, status: 'in_progress' });
   await cancelled(session, 60_000);

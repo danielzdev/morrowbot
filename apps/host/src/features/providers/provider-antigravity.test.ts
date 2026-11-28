@@ -77,7 +77,7 @@ it('reports ready with every model, its thinking levels and the plan on the firs
             "withheld": [
               {
                 "access": "workspace-write",
-                "reason": "MorrowBot runs Antigravity read-only in this version: it cannot yet confine each file write to the workspace, and agy runs commands outside any sandbox.",
+                "reason": "MorrowBot can't yet confine Antigravity's file writes to the workspace, and agy runs commands outside any sandbox. Use Full access instead.",
                 "vendorSettings": "personal",
               },
               {
@@ -87,6 +87,11 @@ it('reports ready with every model, its thinking levels and the plan on the firs
               },
               {
                 "access": "workspace-write",
+                "reason": "Antigravity always loads the workspace's own AGENTS.md (checked on agy 1.5.18), so MorrowBot cannot replace its instructions. The agent's AGENTS.md still applies.",
+                "vendorSettings": "isolated",
+              },
+              {
+                "access": "full",
                 "reason": "Antigravity always loads the workspace's own AGENTS.md (checked on agy 1.5.18), so MorrowBot cannot replace its instructions. The agent's AGENTS.md still applies.",
                 "vendorSettings": "isolated",
               },

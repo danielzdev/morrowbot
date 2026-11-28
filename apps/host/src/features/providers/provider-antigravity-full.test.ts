@@ -16,18 +16,20 @@ afterEach(async () => {
 
 const FULL: Extract<ProviderBinding, { kind: 'bound' }> = { ...AGY, access: 'full' };
 
-it('a full-access turn runs the command agy asks for without a card, and the daemon stays up for a read-only turn', async () => {
+it('a full-access turn runs the command agy asks for without a card, and a read-only turn on the same daemon still has its command denied', async () => {
   const fixture = (agy = await startAgyFixture());
   const agent = await fixture.agent(FULL);
   const thread = await fixture.thread(agent);
   const turn = await fixture.start(thread, 'command');
   await fixture.events.finished(turn);
   const workspace = path.join(fixture.home, 'data', 'workspaces', agent.id);
-  const readOnly = await fixture.thread(await fixture.agent());
-  await fixture.send(readOnly, 'hello');
+  const readOnlyAgent = await fixture.agent();
+  const readOnly = await fixture.thread(readOnlyAgent);
+  await fixture.send(readOnly, 'command');
   const log = await fixture.log();
   expect({
     ran: existsSync(path.join(workspace, 'ran.txt')),
+    ranReadOnly: existsSync(path.join(fixture.home, 'data', 'workspaces', readOnlyAgent.id, 'ran.txt')),
     steps: fixture.steps(turn),
     permission: log.filter((entry) => entry.method === 'permission-reply').map((entry) => entry.params),
     launches: (await fixture.launches()).length,
@@ -40,8 +42,8 @@ it('a full-access turn runs the command agy asks for without a card, and the dae
           "assistant(completed): ran it",
         ],
         [
-          "user: hello",
-          "assistant(completed): Echo: hello",
+          "user: command",
+          "assistant(completed): ",
         ],
       ],
       "launches": 1,
@@ -50,8 +52,13 @@ it('a full-access turn runs the command agy asks for without a card, and the dae
           "choice": "allow",
           "tool": "execute",
         },
+        {
+          "choice": "deny",
+          "tool": "execute",
+        },
       ],
       "ran": true,
+      "ranReadOnly": false,
       "steps": [
         "tool-start Shell: {"title":"touch ran.txt"}",
         "tool-end: ok",

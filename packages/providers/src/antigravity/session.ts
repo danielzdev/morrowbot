@@ -115,12 +115,18 @@ export async function configureSession(
   return { kind: 'configured', model: acp.selectOf(options, MODEL)?.current ?? null };
 }
 
-/** Frees the session in the daemon; agy keeps it on disk. */
-export function closeSession(daemon: AcpDaemon, sessionId: string): void {
-  if (!daemon.canClose || !daemon.alive()) return;
-  daemon.call('session/close', { sessionId }, acp.Ignored, CLOSE_MS).catch((error: unknown) => {
-    console.error('provider-antigravity: could not close a session', error);
-  });
+/** Frees the session in the daemon (agy keeps it on disk), then calls `closed`. */
+export function closeSession(daemon: AcpDaemon, sessionId: string, closed: () => void = () => undefined): void {
+  if (!daemon.canClose || !daemon.alive()) {
+    closed();
+    return;
+  }
+  daemon
+    .call('session/close', { sessionId }, acp.Ignored, CLOSE_MS)
+    .catch((error: unknown) => {
+      console.error('provider-antigravity: could not close a session', error);
+    })
+    .finally(closed);
 }
 
 /** An error agy answered a request with, as the contract's error. */

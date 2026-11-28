@@ -18,12 +18,13 @@ const PROFILES: readonly AccessProfile[] = [
 const INSTRUCTIONS_REASON =
   "Antigravity always loads the workspace's own AGENTS.md (checked on agy 1.5.18), so MorrowBot cannot replace its instructions. The agent's AGENTS.md still applies.";
 const WRITE_REASON =
-  'MorrowBot runs Antigravity read-only in this version: it cannot yet confine each file write to the workspace, and agy runs commands outside any sandbox.';
+  "MorrowBot can't yet confine Antigravity's file writes to the workspace, and agy runs commands outside any sandbox. Use Full access instead.";
 
 const STATIC_WITHHELD: readonly WithheldProfile[] = [
   { access: 'workspace-write', vendorSettings: 'personal', reason: WRITE_REASON },
   { access: 'read-only', vendorSettings: 'isolated', reason: INSTRUCTIONS_REASON },
   { access: 'workspace-write', vendorSettings: 'isolated', reason: INSTRUCTIONS_REASON },
+  { access: 'full', vendorSettings: 'isolated', reason: INSTRUCTIONS_REASON },
 ];
 
 /** Why every profile is held back on `platform`, or null. */

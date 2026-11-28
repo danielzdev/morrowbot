@@ -20,8 +20,11 @@ open with no MCP servers and its agents cannot message other agents or keep memo
 **Models.** agy lists its models, each model's thinking levels (they differ by model) and the plan
 only inside a session. While none are known, or the user was signed out, provider-info opens a probe
 session in the provider's data folder that never prompts: `session/new`, each model set in turn,
-`session/close` (about 1 s on agy 1.5.18). A `session/new` refused for sign-in (`-32000`) answers
-`signed-out` at once. If the probe cannot run, provider-info answers `ready-models-later`.
+`session/close` (about 1 s on agy 1.5.18). A model agy will not switch to is skipped; the probe runs
+again on the next provider-info until every model was tried. It fits in one 27 s budget with the
+version check and daemon start, under the host's 30 s provider-info deadline. A `session/new`
+refused for sign-in (`-32000`) answers `signed-out` at once. If the probe cannot run in time,
+provider-info answers `ready-models-later`.
 
 **Turns.** Each turn opens a new ACP session (`session/new`) in the agent's workspace. It puts
 the session in agy's Default mode, which asks before every edit and command, and sets the picked
@@ -39,11 +42,14 @@ workspace's instructions (`personal`).
 
 **Full** (interactive and background; only the owner may choose it): the session stays in Default
 mode and MorrowBot allows everything agy asks for once, without a card (never `allow_always`, so no
-grant is saved for read-only sessions). The client stops fencing that session (`trust`), and the
-workspace's customization folders are not checked. Stop sends `session/cancel`, which ends the
-command agy is running (checked on agy 1.5.18; `provider-antigravity-full.test.ts`). agy runs each
+grant is saved for read-only sessions). The client stops fencing that session (`trust`) until it is
+closed, and the workspace's customization folders are not checked. Stop sends `session/cancel`,
+which ends the command agy is running (checked on real agy 1.5.18 by
+`provider-antigravity-live.test.ts`; the fixture test checks that Stop sends it). agy runs each
 command in its own process group, so something a command leaves running in the background (`cmd &`)
-outlives Stop and the daemon; MorrowBot does not chase it (see `docs/decisions.md`).
+outlives Stop and the daemon; MorrowBot does not chase it (see `docs/decisions.md`). A full-access
+turn can also change MorrowBot's own Antigravity folder (`--gemini-dir`), and read-only turns then
+run with what it set, such as a hook or an MCP server.
 
 **Read-only** (interactive):
 
