@@ -122,6 +122,62 @@
   width: 100%;
   margin-top: var(--s-3);
 }
+/* Sub-agents: the same quiet line, with the role and a provider badge; each card shows its prompt and reply. */
+.subagents .exchange-pill .pulse {
+  flex: none;
+}
+.subagent-role {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-2);
+  font: var(--t-ui-strong);
+  text-overflow: ellipsis;
+}
+.subagent-badge {
+  flex: none;
+  padding: 0 var(--s-2);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  color: var(--text-2);
+  font: var(--t-small);
+}
+.subagents .tone-warn {
+  color: var(--warn);
+}
+.subagents .tone-danger {
+  color: var(--danger);
+}
+.subagent-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  margin-bottom: var(--s-1);
+}
+.subagent-access {
+  color: var(--text-3);
+  font: var(--t-small);
+}
+.subagent-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  margin-left: auto;
+  color: var(--text-3);
+  font: var(--t-small);
+}
+.subagent-status .pulse.queued {
+  background: var(--text-3);
+  animation: none;
+}
+.subagent-label {
+  margin: var(--s-2) 0 var(--s-1);
+  color: var(--text-3);
+  font: var(--t-ui-strong);
+}
+.subagent-label:first-child {
+  margin-top: 0;
+}
 [data-motion='reduced'] .exchange-cards {
   animation: none;
 }

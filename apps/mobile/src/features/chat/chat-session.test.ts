@@ -22,6 +22,7 @@ function state(seq: number, running: boolean, pending = running): ThreadState {
         }
       : null,
     blockedGroups: [],
+    subagents: [],
     queue: [],
     cursor: { hostEpoch: 'e1', seq },
   };

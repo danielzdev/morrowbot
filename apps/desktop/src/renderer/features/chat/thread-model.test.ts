@@ -18,6 +18,7 @@ const STATE: ThreadState = {
   },
   queue: [],
   blockedGroups: [],
+  subagents: [],
   cursor: { hostEpoch: 'e1', seq: 4 },
 };
 

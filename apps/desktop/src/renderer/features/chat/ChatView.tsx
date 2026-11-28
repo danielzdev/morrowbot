@@ -12,6 +12,7 @@ import { readingSpot, restoreSpot, type ReadingSpot } from './reading-spot.ts';
 import { earlierStart, firstShown, growthOf, nearBottom, onGrowth } from './scroll-anchor.ts';
 import { pendingApprovals, type ThreadView } from './thread-model.ts';
 import type { ThreadSession } from './thread-session.ts';
+import type { EngineLabel } from './SubagentGroup.tsx';
 import { Timeline, type TimelineContext } from './Timeline.tsx';
 
 export interface ChatViewProps {
@@ -33,6 +34,8 @@ export interface ChatViewProps {
   readonly onOpenProviders: () => void;
   /** Names, colors and avatars for agent messages. */
   readonly peers: PeerDirectory;
+  /** The provider and model badge of a sub-agent. */
+  readonly engine: EngineLabel;
 }
 
 /** The chat canvas: history in a window of recent messages, the live turn, FindBar and announcements. */
@@ -52,7 +55,7 @@ export function ChatView(props: ChatViewProps) {
   latest.current = props;
   const begin = start ?? (view === null ? 0 : firstShown(view.messages.length));
   const growth = view === null ? '' : growthOf(view);
-  const fresh = view !== null && view.messages.length === 0 && view.agentMessages.length === 0 && view.activeTurn === null;
+  const fresh = view !== null && view.messages.length === 0 && view.agentMessages.length === 0 && view.subagents.length === 0 && view.activeTurn === null;
 
   const ctx = useMemo<TimelineContext>(
     () => ({
@@ -74,8 +77,9 @@ export function ChatView(props: ChatViewProps) {
       agentName: props.agentName,
       image: session.image,
       peers: props.peers,
+      engine: props.engine,
     }),
-    [session, props.display, props.providerName, props.peers, props.agentName],
+    [session, props.display, props.providerName, props.peers, props.agentName, props.engine],
   );
 
   const announce = (text: string): void => { setSaid((before) => ({ text, n: before.n + 1 })); };

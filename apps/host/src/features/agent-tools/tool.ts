@@ -28,7 +28,7 @@ export function tool<S extends z.ZodType>(definition: {
   readonly description: string;
   readonly input: S;
   readonly visible?: (agentId: string) => boolean;
-  readonly run: (grant: ToolGrant, input: z.output<S>) => ToolResult;
+  readonly run: (grant: ToolGrant, input: z.output<S>) => ToolResult | Promise<ToolResult>;
 }): Tool {
   const inputSchema = z.toJSONSchema(definition.input, { io: 'input' });
   delete inputSchema.$schema;

@@ -118,3 +118,20 @@ it('lets the agent react to a message the user steered into a reaction turn', as
     }
   `);
 });
+
+it('gives a sub-agent no react_to_message or stay_quiet: the turn that started it waits for its text', async () => {
+  const thread = await chat.thread(await chat.agent());
+  const prompt = ['host-tool react_to_message {"emoji":"👍"}', 'host-tool stay_quiet {}'].join('\n');
+  await chat.send(thread, [`host-tool spawn_subagent ${JSON.stringify({ role: 'Helper', prompt })}`, 'host-tool wait_subagents {}'].join('\n'));
+  const { subagents, reactions } = ThreadState.parse((await chat.host.call('GET', `/api/threads/${thread.id}/state`)).body);
+
+  expect({ replies: subagents.map(({ status }) => (status.kind === 'finished' ? status.reply : status.kind)), reactions }).toMatchInlineSnapshot(`
+    {
+      "reactions": [],
+      "replies": [
+        "react_to_message: rpc error Unknown tool: react_to_message
+    stay_quiet: rpc error Unknown tool: stay_quiet",
+      ],
+    }
+  `);
+});

@@ -23,4 +23,5 @@ export type { FileCursor, T3OutboxEntry, T3OutboxRepository, T3OutboxSchedule } 
 export type { T3BatchRecord, T3BatchRepository } from './t3-batches-repo.ts';
 export type { ReactionRepository } from './reactions-repo.ts';
 export type { ChatSettingsRepository } from './chat-settings-repo.ts';
+export type { SubagentRecord, SubagentRunRepository } from './subagent-runs-repo.ts';
 export type { ConnectorRecord, ConnectorRepository, NewConnector, ScopeWrite } from './connectors-repo.ts';

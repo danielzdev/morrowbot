@@ -2,7 +2,7 @@ import type { AgentMessage, Message, MessageReaction } from '@morrowbot/contract
 import { memo } from 'preact/compat';
 import { useEffect, useId, useMemo, useState } from 'preact/hooks';
 import { Icon } from '../../shared/ui/Icon.tsx';
-import { backgroundVerb, timelineItems } from './agent-exchange.ts';
+import { backgroundVerb } from './agent-exchange.ts';
 import { AgentExchange, Peer, type PeerDirectory } from './AgentExchange.tsx';
 import { ApprovalCard } from './ApprovalCard.tsx';
 import type { ChatDisplay } from './display.ts';
@@ -13,8 +13,10 @@ import { OutcomeNote } from './OutcomeNote.tsx';
 import { reactionsByMessage } from './reactions.ts';
 import { ReactionPicker, ReactionPills } from './Reactions.tsx';
 import { SentAttachments } from './SentAttachments.tsx';
+import { SubagentGroup, type EngineLabel } from './SubagentGroup.tsx';
 import type { ActiveTurnView, ApprovalStep, FinishedTurn, ThreadView, TurnStep } from './thread-model.ts';
 import { TurnSteps } from './ToolGroup.tsx';
+import { timelineItems } from './timeline-items.ts';
 import { elapsed } from './tool-rows.ts';
 
 /** Everything a message needs that does not change while a reply streams, so history can skip re-rendering. */
@@ -31,6 +33,7 @@ export interface TimelineContext {
   /** A sent image as a data URL; null when it can't be loaded. */
   readonly image: (id: string) => Promise<string | null>;
   readonly peers: PeerDirectory;
+  readonly engine: EngineLabel;
 }
 
 export const TOOLS_NOT_KEPT = "Tool steps from before this session aren't shown.";
@@ -194,7 +197,7 @@ export function Timeline(props: {
   const last = messages.at(-1);
   const steeredIn = useMemo(() => new Set(messages.flatMap((message, index) => (message.kind === 'user' && steered(messages[index - 1]) ? [message.id] : []))), [messages]);
   const reactions = useMemo(() => reactionsByMessage(view.reactions), [view.reactions]);
-  const items = useMemo(() => timelineItems(messages, view.agentMessages, start), [messages, view.agentMessages, start]);
+  const items = useMemo(() => timelineItems(messages, view.agentMessages, view.subagents, start), [messages, view.agentMessages, view.subagents, start]);
   const active = view.activeTurn;
   const reading = active?.trigger.kind === 'agent-message' ? active.trigger.agentMessageId : null;
   const background = view.agentMessages.find(({ id }) => id === reading);
@@ -206,29 +209,36 @@ export function Timeline(props: {
         </button>
       )}
       {unwatched && <div class="note muted reload-note">{TOOLS_NOT_KEPT}</div>}
-      {items.map((item) =>
-        item.kind === 'exchange' ? (
-          <AgentExchange
-            key={`exchange-${item.messages[0]?.id ?? ''}`}
-            messages={item.messages}
-            threadId={view.thread.id}
-            peers={ctx.peers}
-            actions={ctx.actions}
-            readEnds={view.quietEnds}
-          />
-        ) : (
-          <MessageItem
-            key={item.message.id}
-            message={item.message}
-            finished={finished[item.message.id]}
-            latest={item.message === last}
-            steeredIn={steeredIn.has(item.message.id)}
-            reactions={reactions.get(item.message.id) ?? NO_REACTIONS}
-            busy={item.message === last && (!props.idle || props.locked || props.offline)}
-            ctx={ctx}
-          />
-        ),
-      )}
+      {items.map((item) => {
+        switch (item.kind) {
+          case 'exchange':
+            return (
+              <AgentExchange
+                key={`exchange-${item.messages[0]?.id ?? ''}`}
+                messages={item.messages}
+                threadId={view.thread.id}
+                peers={ctx.peers}
+                actions={ctx.actions}
+                readEnds={view.quietEnds}
+              />
+            );
+          case 'subagents':
+            return <SubagentGroup key={`subagents-${item.runs[0]?.id ?? ''}`} runs={item.runs} engine={ctx.engine} actions={ctx.actions} />;
+          case 'message':
+            return (
+              <MessageItem
+                key={item.message.id}
+                message={item.message}
+                finished={finished[item.message.id]}
+                latest={item.message === last}
+                steeredIn={steeredIn.has(item.message.id)}
+                reactions={reactions.get(item.message.id) ?? NO_REACTIONS}
+                busy={item.message === last && (!props.idle || props.locked || props.offline)}
+                ctx={ctx}
+              />
+            );
+        }
+      })}
       {active?.trigger.kind === 'chat' && <ActiveTurn turn={active} answering={props.answering} offline={props.offline} ctx={ctx} />}
       {active?.trigger.kind === 'agent-message' && (
         <BackgroundTurn

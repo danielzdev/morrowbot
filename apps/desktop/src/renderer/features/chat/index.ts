@@ -2,6 +2,7 @@ export type { ChatActivity } from './activity.ts';
 export { createChatHub, type ChatHub, type ThreadActivity } from './chat-hub.ts';
 export { ChatView } from './ChatView.tsx';
 export type { PeerDirectory } from './AgentExchange.tsx';
+export type { EngineLabel } from './SubagentGroup.tsx';
 export { Composer } from './Composer.tsx';
 export { chatDisplay, type ChatDisplay } from './display.ts';
 export { localDrafts, memoryDrafts, type DraftStore } from './drafts.ts';

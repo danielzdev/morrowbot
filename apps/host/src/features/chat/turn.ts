@@ -66,6 +66,8 @@ export interface Turn {
   readonly plan: SessionPlan;
   /** What the turn answers now: a delivered steer makes it answer the steered message. */
   source: TurnSource;
+  /** For a sub-agent's turn, the turn that started it: it never outlives that turn. */
+  readonly parent: { readonly threadId: string; readonly generationId: string } | null;
   /** The thread's messages before a chat input (all of them for a background turn): what a seed is made from. */
   readonly history: readonly Message[];
   state: 'queued' | 'dispatching' | 'running' | 'settled';
@@ -140,6 +142,10 @@ export interface ChatCore {
   readonly afterTurn: (turn: Turn, outcome: GenerationOutcome) => void;
   /** Starts a turn on the next message waiting from another agent, or the next reaction, if the thread is free. */
   readonly readNext: (threadId: string) => void;
+  /** A turn settled: its sub-agents still queued or running are stopped. */
+  readonly endChildren: (turn: Turn) => void;
+  /** A sub-agent's turn started, began running or settled: its parent chat hears `subagent.changed`. */
+  readonly subagentChanged: (turn: Turn) => void;
   closed: boolean;
 }
 
@@ -178,6 +184,7 @@ export function settle(core: ChatCore, turn: Turn, result: Settlement): Assistan
   if (turn.state === 'settled') return undefined;
   turn.state = 'settled';
   core.options.tools.close(turn.generationId);
+  core.endChildren(turn);
   clearTimeout(turn.flushTimer);
   const { newId, now } = core.options;
   const createdAt = now();
@@ -208,6 +215,7 @@ export function settle(core: ChatCore, turn: Turn, result: Settlement): Assistan
     turn.settled.resolve({ kind: 'stored', message });
     core.events.publish({ kind: 'generation.finished', ...ref, message });
   }
+  core.subagentChanged(turn);
   releaseWhenGone(core, turn, { keepThreadBusy: false, outcome });
   return message ?? undefined;
 }

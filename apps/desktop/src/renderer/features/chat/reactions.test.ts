@@ -21,12 +21,13 @@ const CTX: TimelineContext = {
   onAnswer: () => undefined,
   onReact: () => undefined,
   agentName: 'Helper',
+  engine: ({ pluginId }) => pluginId,
   image: () => Promise.resolve(null),
   peers: { name: () => 'Peer', color: () => '#6b7280', avatar: () => null },
 };
 
 it("labels the agent's reaction on a user message and makes the user's own on a reply a pressed toggle", () => {
-  const state = { thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT }, messages: MESSAGES, activeTurn: null, queue: [], blockedGroups: [], cursor: { hostEpoch: 'e', seq: 0 } };
+  const state = { thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT }, messages: MESSAGES, activeTurn: null, queue: [], blockedGroups: [], subagents: [], cursor: { hostEpoch: 'e', seq: 0 } };
   const reactions = replaceReactions([reaction('u1', 'agent', '👍')], 'a1', [reaction('a1', 'user', '🎉')]);
   const html = renderToString(h(Timeline, { view: viewOf({ ...state, reactions: [...reactions] }), start: 0, answering: [], idle: true, locked: false, offline: false, ctx: CTX, onShowEarlier: () => undefined }));
   const pills = [...html.matchAll(/<(button|span) [^>]*class="reaction-pill[^"]*"[^>]*>/g)].map(([tag = '']) => tag);

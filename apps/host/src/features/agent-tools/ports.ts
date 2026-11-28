@@ -1,6 +1,8 @@
 import type {
+  AccessLevel,
   Agent,
   AgentMessage,
+  BoundProvider,
   CreateMemoryRequest,
   CreateRoutineRequest,
   Memory,
@@ -8,6 +10,7 @@ import type {
   PluginToolResult,
   Routine,
   SendAgentMessageRequest,
+  SubagentRun,
   T3Watch,
   T3WatchAck,
   T3WatchEvent,
@@ -15,13 +18,24 @@ import type {
   UpdateRoutineRequest,
   VaultItem,
 } from '@morrowbot/contracts';
-
 import type { ToolGrant } from './grants.ts';
 
 export type SendAnswer = { readonly kind: 'sent'; readonly message: AgentMessage } | { readonly kind: 'refused'; readonly reason: string };
 
 /** A reply tool's outcome: a JSON value for the model, or why nothing was done. */
 export type ReplyAnswer = { readonly kind: 'done'; readonly value: object } | { readonly kind: 'refused'; readonly reason: string };
+
+export type Refused = { readonly kind: 'refused'; readonly reason: string };
+
+/** What a turn asks a sub-agent to be. Left out, the provider, model and access are the parent's. */
+export interface SpawnInput {
+  readonly role: string;
+  readonly prompt: string;
+  readonly provider: string | undefined;
+  readonly model: string | undefined;
+  readonly effort: string | undefined;
+  readonly access: AccessLevel | undefined;
+}
 
 /** One currently serving tool plugin and its declared tools. */
 export interface PluginToolSource {
@@ -140,7 +154,7 @@ export interface T3WatchToolsPort {
   ack(agentId: string, ack: T3WatchAck): T3AckResult;
 }
 
-/** What the tools act on (the agents, agent-messages, memories, chat, vault, routines, t3-watch, connectors and plugins features provide it). */
+/** What the tools act on (the agents, agent-messages, memories, chat, vault, routines, t3-watch, sub-agents, connectors and plugins features provide it). */
 export interface ToolPorts {
   readonly agents: { list(): readonly Agent[] };
   readonly messages: {
@@ -162,6 +176,14 @@ export interface ToolPorts {
   };
   /** The vault's item names. Secret values never reach the tools. */
   readonly vault: { list(): readonly VaultItem[] };
+  /** Each call acts as the grant's turn, with every guardrail of the sub-agents feature. */
+  readonly subagents: {
+    /** A sub-agent's own chat, whose turns get only the read-only tools. */
+    isSubagent(threadId: string): boolean;
+    spawn(grant: ToolGrant, input: SpawnInput): Promise<{ readonly kind: 'started'; readonly run: SubagentRun } | Refused>;
+    wait(grant: ToolGrant, runIds: readonly string[] | undefined, timeoutMs: number): Promise<{ readonly kind: 'waited'; readonly runs: SubagentRun[]; readonly timedOut: boolean } | Refused>;
+    list(grant: ToolGrant): Promise<{ readonly kind: 'listed'; readonly you: BoundProvider; readonly runs: SubagentRun[]; readonly providers: object[] } | Refused>;
+  };
   /** The agent's connector tools; each list and each call checks that connector's scope and status again. */
   readonly connectors: {
     tools(agentId: string): readonly ConnectorTool[];

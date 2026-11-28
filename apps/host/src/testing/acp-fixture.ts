@@ -125,6 +125,7 @@ function describeStep(event: ChatEvent): string[] {
     case 'generation.background-started':
     case 'generation.background-finished':
     case 'reactions.changed':
+    case 'subagent.changed':
     case 'usage.updated':
       return [];
   }

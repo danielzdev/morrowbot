@@ -88,7 +88,7 @@ it('speaks MCP on loopback only to the running turn’s token', async () => {
                 "listChanged": false,
               },
             },
-            "instructions": "MorrowBot tools: message your teammate agents, keep your own memories, see the names of the user's vault items, answer the user with an emoji reaction or no message instead of filler text, manage your own routines and T3 Code watches, and use the connectors the user gave you (named <connector>__<tool>). They act only as you, and only during this turn.",
+            "instructions": "MorrowBot tools: message your teammate agents, keep your own memories, see the names of the user's vault items, answer the user with an emoji reaction or no message instead of filler text, manage your own routines and T3 Code watches, start sub-agents, and use the connectors the user gave you (named <connector>__<tool>). They act only as you, and only during this turn.",
             "protocolVersion": "2025-06-18",
             "serverInfo": {
               "name": "morrowbot",
@@ -281,6 +281,40 @@ it('speaks MCP on loopback only to the running turn’s token', async () => {
             "required": [
               "batchId",
             ],
+          },
+          {
+            "additionalProperties": false,
+            "description": "Starts a sub-agent: one background turn, in your workspace, that works on a prompt and replies, on your provider and model or on another one from list_subagents (for example a second opinion from a different model). It has at most your access and cannot start sub-agents itself. Up to 4 run at once, 12 per turn. Returns its runId at once; start several to work in parallel, then collect their replies with wait_subagents. Any still running when your turn ends are stopped.",
+            "name": "spawn_subagent",
+            "properties": [
+              "role",
+              "prompt",
+              "provider",
+              "model",
+              "effort",
+              "access",
+            ],
+            "required": [
+              "role",
+              "prompt",
+            ],
+          },
+          {
+            "additionalProperties": false,
+            "description": "Waits until your sub-agents finish and returns their replies. Names runIds, or every sub-agent this turn started. Returns after timeoutSeconds even if some still run (timedOut: true): call it again to keep waiting.",
+            "name": "wait_subagents",
+            "properties": [
+              "runIds",
+              "timeoutSeconds",
+            ],
+            "required": [],
+          },
+          {
+            "additionalProperties": false,
+            "description": "Lists the sub-agents of this chat with their status, your own provider and access, and the providers and models you can start sub-agents on.",
+            "name": "list_subagents",
+            "properties": [],
+            "required": [],
           },
           {
             "additionalProperties": false,

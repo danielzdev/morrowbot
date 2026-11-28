@@ -140,6 +140,7 @@ export function createSampleChatHost(now: () => string = () => new Date().toISOS
       reactions: [],
       activeTurn: turn === undefined ? null : copy(turn),
       blockedGroups: [],
+      subagents: [],
       queue: [],
       cursor: { hostEpoch: EPOCH, seq: seqs.get(thread.id) ?? 0 },
     };
