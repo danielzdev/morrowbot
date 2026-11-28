@@ -1,8 +1,8 @@
 /**
- * Migration 13 (reactions and silent replies). Each actor puts a given emoji on a message at most once; deleting
+ * Migration 14 (reactions and silent replies). Each actor puts a given emoji on a message at most once; deleting
  * the message removes its reactions. Agents get their own emoji-only setting, and the host one row of chat settings.
  */
-export const MIGRATION_13 = `
+export const MIGRATION_14 = `
   CREATE TABLE message_reactions (
     message_id TEXT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
     actor TEXT NOT NULL CHECK (actor IN ('user', 'agent')),
