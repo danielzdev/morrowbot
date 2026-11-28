@@ -4,7 +4,7 @@ import { EventServerFrame, ThreadState, type AgentMessage, type ChatEvent, type 
 import WebSocket, { type RawData } from 'ws';
 import type { ChildGroupClock, PluginTimeouts, ProcessProbe } from '../features/plugins/index.ts';
 import type { RoutineClock } from '../features/routines/index.ts';
-import { startHost, type Host } from '../host.ts';
+import { startHost, type Host, type HostOptions } from '../host.ts';
 
 export { DEFAULT_PLUGIN_TIMEOUTS } from '../features/plugins/index.ts';
 export type { PluginTimeouts } from '../features/plugins/index.ts';
@@ -41,6 +41,7 @@ export interface TestHostOptions {
   /** The OS the built-in providers act on. Defaults to this one. */
   readonly platform?: NodeJS.Platform;
   readonly routineClock?: RoutineClock;
+  readonly t3Watch?: HostOptions['t3Watch'];
 }
 
 export interface Reply {
@@ -69,6 +70,7 @@ export async function startTestHost(options: TestHostOptions): Promise<TestHost>
       dataDir: options.dataDir,
       pluginsDir: options.pluginsDir ?? path.join(options.dataDir, 'plugins'),
       builtinPluginsDir: options.builtinPluginsDir ?? null,
+      t3Watch: { dir: path.join(options.dataDir, 't3-watch'), bin: '/nonexistent/t3', projects: [] },
     },
     version: '0.0.0-test',
     hostName: 'Studio Host',
@@ -81,6 +83,7 @@ export async function startTestHost(options: TestHostOptions): Promise<TestHost>
     ...(options.clock === undefined ? {} : { clock: options.clock }),
     ...(options.platform === undefined ? {} : { platform: options.platform }),
     ...(options.routineClock === undefined ? {} : { routineClock: options.routineClock }),
+    ...(options.t3Watch === undefined ? {} : { t3Watch: options.t3Watch }),
   });
   const call = async (method: string, route: string, body?: unknown): Promise<Reply> => {
     const headers: Record<string, string> = { authorization: `Bearer ${host.token}` };
