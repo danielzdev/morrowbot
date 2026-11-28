@@ -114,12 +114,20 @@ export type JoinTarget =
 export function parseJoinTarget(link: string, typedUrl: string, typedCode: string): JoinTarget {
   const pasted = link.trim();
   if (pasted !== '') {
-    const parsed = URL.parse(pasted);
+    const parsed = urlOf(pasted);
     const kind = parsed?.protocol === 'morrowbot:' ? parsed.host : '';
     if (parsed === null || (kind !== 'join' && kind !== 'pair')) return { kind: 'invalid', reason: 'Paste a morrowbot://join link' };
     return targetOf(parsed.searchParams.get('url') ?? '', parsed.searchParams.get('code') ?? '');
   }
   return targetOf(typedUrl.trim(), typedCode.trim().replaceAll(' ', ''));
+}
+
+function urlOf(text: string): URL | null {
+  try {
+    return new URL(text);
+  } catch {
+    return null;
+  }
 }
 
 function targetOf(rawUrl: string, code: string): JoinTarget {
