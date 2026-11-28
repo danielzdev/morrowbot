@@ -1,5 +1,6 @@
 import type { AccessProfile, ModelSelection, ProviderBinding, ProviderInfo, ProviderModel } from '@morrowbot/contracts';
 import { planLabel } from '../privacy.ts';
+import { profileWarnings } from './access-copy.ts';
 
 /** A provider as every picker sees it (spec §4.6): its list entry and the info it last reported. */
 export interface ProviderChoice {
@@ -92,13 +93,13 @@ export function statusLine(readiness: Readiness): string {
   }
 }
 
-/** Whether a profile shows a warning: it reads outside the workspace, or loads the user's own CLI setup. */
-export const hasWarnings = (profile: AccessProfile): boolean => profile.readsOutsideCwd || profile.vendorSettings === 'personal';
-
-/** The first interactive profile with no warnings, else the first interactive one (its warnings are shown). */
+/**
+ * The first interactive profile with no warnings, else the first interactive one (its warnings are shown).
+ * Never full access: only the owner turns that on, after a confirmation.
+ */
 export function defaultProfile(info: ReadyInfo): AccessProfile | null {
-  const interactive = interactiveProfiles(info);
-  return interactive.find((profile) => !hasWarnings(profile)) ?? interactive[0] ?? null;
+  const interactive = interactiveProfiles(info).filter((profile) => profile.access !== 'full');
+  return interactive.find((profile) => profileWarnings(profile).length === 0) ?? interactive[0] ?? null;
 }
 
 /** `model` pinned with each option at its default. */

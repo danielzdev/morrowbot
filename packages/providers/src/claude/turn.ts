@@ -1,7 +1,7 @@
 import type { PluginRuntime, ProviderError, Steer, TurnContext, TurnEnd } from '@morrowbot/plugin-sdk';
 import { readAuth } from './auth.ts';
 import { effortOf, platformReason, type EffortLevel } from './info.ts';
-import { buildInvocation, steerFrame, type ClaudeAccess } from './invocation.ts';
+import { buildInvocation, steerFrame } from './invocation.ts';
 import { checkManagedPolicy, systemScope } from './policy.ts';
 import { failed } from './reader.ts';
 import { readVersion } from './version.ts';
@@ -16,7 +16,7 @@ export interface TurnSettings {
 }
 
 type Preflight =
-  | { readonly kind: 'ok'; readonly accountKey: string; readonly access: ClaudeAccess; readonly effort: EffortLevel | null }
+  | { readonly kind: 'ok'; readonly accountKey: string; readonly effort: EffortLevel | null }
   | { readonly kind: 'refused'; readonly end: TurnEnd };
 
 /** Runs one stateless turn, after checking the CLI version, managed policy, account and access. */
@@ -31,13 +31,13 @@ export async function runTurn(context: TurnContext, settings: TurnSettings): Pro
   const checked = await preflight(context, settings.runtime, settings.cliPath);
   if (checked.kind === 'refused') return checked.end;
   const { request, signal } = context;
-  const { accountKey, access, effort } = checked;
+  const { accountKey, effort } = checked;
   const seed = request.session.kind === 'new' ? request.session.seed : null;
-  const { args, frame, files } = buildInvocation({ ...request, access, seed, effort });
+  const { args, frame, files } = buildInvocation({ ...request, seed, effort });
   const reader = createTurnWire({
     home: settings.home,
     accountKey,
-    asks: access === 'workspace-write',
+    asks: request.access === 'workspace-write',
     ask: context.ask,
     emit: context.emit,
     onUsage: settings.onUsage,
@@ -112,17 +112,13 @@ async function preflight({ request, signal }: TurnContext, runtime: PluginRuntim
       return refuse({ kind: 'access-not-supported', reason: auth.reason });
   }
   if (auth.accountKey !== request.expectedAccountKey) return refuse({ kind: 'account-changed' });
-  const access = request.access;
-  if (access === 'full' || request.vendorSettings !== 'isolated') {
-    return refuse({
-      kind: 'access-not-supported',
-      reason: `provider-claude runs read-only or workspace-write turns with MorrowBot's own instructions, not ${access} with ${request.vendorSettings} settings.`,
-    });
+  if (request.vendorSettings !== 'isolated') {
+    return refuse({ kind: 'access-not-supported', reason: `provider-claude runs turns with MorrowBot's own instructions, not ${request.vendorSettings} settings.` });
   }
-  const held = platformReason(access, runtime.platform);
+  const held = platformReason(request.access, runtime.platform);
   if (held !== null) return refuse({ kind: 'access-not-supported', reason: held });
   const atLaunch = await checkManagedPolicy(systemScope(runtime));
   if (atLaunch.kind === 'withheld') return refuse({ kind: 'access-not-supported', reason: atLaunch.reason });
   if (signal.aborted) return refuse({ kind: 'other', message: 'cancelled' });
-  return { kind: 'ok', accountKey: auth.accountKey, access, effort: effort.kind === 'level' ? effort.level : null };
+  return { kind: 'ok', accountKey: auth.accountKey, effort: effort.kind === 'level' ? effort.level : null };
 }

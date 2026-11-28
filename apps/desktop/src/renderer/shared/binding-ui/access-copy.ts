@@ -3,7 +3,7 @@ import type { AccessLevel, AccessProfile, VendorSettings } from '@morrowbot/cont
 const LEVEL_NAME: Readonly<Record<AccessLevel, string>> = {
   'read-only': 'Read only',
   'workspace-write': 'Edit workspace',
-  full: 'Full access',
+  full: 'Full access (shell commands)',
 };
 
 /** A profile's segment name, from its fields only (spec §4.6), never from the provider's name. */
@@ -11,7 +11,7 @@ export function profileName(profile: { readonly access: AccessLevel; readonly ve
   return profile.vendorSettings === 'personal' ? `${LEVEL_NAME[profile.access]} · Personal setup` : LEVEL_NAME[profile.access];
 }
 
-/** The one-line description under the segment row. `AccessProfile` has no `shell` field yet, so no shell is claimed. */
+/** The one-line description under the segment row. */
 export function profileDescription(profile: AccessProfile, approvals: boolean): string {
   const parts: string[] = [];
   switch (profile.access) {
@@ -23,17 +23,24 @@ export function profileDescription(profile: AccessProfile, approvals: boolean): 
       if (approvals) parts.push('Asks before protected files.');
       break;
     case 'full':
-      parts.push('Runs without a sandbox.');
+      parts.push('Runs terminal commands and edits files without asking, with no sandbox.');
       break;
   }
   if (profile.vendorSettings === 'personal') parts.push('Also loads your personal CLI instructions.');
   return parts.join(' ');
 }
 
+/** What full access lets an agent do, shown before it is turned on. */
+export const FULL_ACCESS_WARNING = 'This agent can run terminal commands on your computer and read/write files outside its workspace.';
+
 /** What the user must accept before using a profile; shown in the warning strip and the confirm. */
 export function profileWarnings(profile: AccessProfile): readonly string[] {
   return [
-    ...(profile.readsOutsideCwd ? ['Can read your files outside the workspace.'] : []),
+    ...(profile.access === 'full'
+      ? [FULL_ACCESS_WARNING]
+      : profile.readsOutsideCwd
+        ? ['Can read your files outside the workspace.']
+        : []),
     ...(profile.vendorSettings === 'personal' ? ['Also loads your personal CLI instructions.'] : []),
   ];
 }

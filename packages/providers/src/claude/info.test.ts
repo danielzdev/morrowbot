@@ -42,7 +42,7 @@ it('judges the CLI version against the tested range', () => {
   `);
 });
 
-it('offers both profiles, with approvals and live usage, only on a tested version with no policy and a personal login', () => {
+it('offers all three profiles, with approvals and live usage, only on a tested version with no policy and a personal login', () => {
   const tested = judgeVersion('2.1.332');
   const newer = judgeVersion('2.2.1');
   if (tested.kind !== 'supported' || newer.kind !== 'above') throw new Error('unexpected version judgement');
@@ -67,6 +67,11 @@ it('offers both profiles, with approvals and live usage, only on a tested versio
             },
             {
               "access": "workspace-write",
+              "reason": "Claude 2.2.1 isn't tested with MorrowBot yet. Update MorrowBot, or point \`cliPath\` at a Claude 2.1.x install.",
+              "vendorSettings": "isolated",
+            },
+            {
+              "access": "full",
               "reason": "Claude 2.2.1 isn't tested with MorrowBot yet. Update MorrowBot, or point \`cliPath\` at a Claude 2.1.x install.",
               "vendorSettings": "isolated",
             },
@@ -105,6 +110,15 @@ it('offers both profiles, with approvals and live usage, only on a tested versio
                 "background",
               ],
               "readsOutsideCwd": false,
+              "vendorSettings": "isolated",
+            },
+            {
+              "access": "full",
+              "modes": [
+                "interactive",
+                "background",
+              ],
+              "readsOutsideCwd": true,
               "vendorSettings": "isolated",
             },
           ],
@@ -157,6 +171,11 @@ it('withholds each profile with every reason, and shows no account when policy k
             "reason": "Managed settings are installed.",
             "vendorSettings": "isolated",
           },
+          {
+            "access": "full",
+            "reason": "Managed settings are installed.",
+            "vendorSettings": "isolated",
+          },
         ],
       },
       "team": {
@@ -174,13 +193,18 @@ it('withholds each profile with every reason, and shows no account when policy k
             "reason": "Team plans are not supported.",
             "vendorSettings": "isolated",
           },
+          {
+            "access": "full",
+            "reason": "Team plans are not supported.",
+            "vendorSettings": "isolated",
+          },
         ],
       },
     }
   `);
 });
 
-it('offers only read-only on Linux, where workspace-write has not been checked', () => {
+it('offers only read-only on Linux, where workspace-write and full have not been checked', () => {
   const tested = judgeVersion('2.1.332');
   if (tested.kind !== 'supported') throw new Error('unexpected version judgement');
   const linux = ProviderInfo.parse(readyInfo(tested, { kind: 'clear' }, personal, 'linux'));
@@ -204,6 +228,11 @@ it('offers only read-only on Linux, where workspace-write has not been checked',
         {
           "access": "workspace-write",
           "reason": "Workspace-write for Claude has been checked only on macOS so far, not on linux.",
+          "vendorSettings": "isolated",
+        },
+        {
+          "access": "full",
+          "reason": "Full access for Claude has been checked only on macOS so far, not on linux.",
           "vendorSettings": "isolated",
         },
       ],

@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { Agent, AgentMessage, AGENT_PAIR_LIMIT, AgentMessageList, MAX_EXCHANGE_MESSAGES, Thread } from '@morrowbot/contracts';
+import { Agent, AgentMessage, AGENT_PAIR_LIMIT, AgentMessageList, MAX_EXCHANGE_MESSAGES, Thread, type AccessLevel } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { sequence, startTestHost, type Reply, type Sequence, type TestHost } from './testing/test-host.ts';
 
@@ -18,8 +18,9 @@ afterEach(async () => {
   await rm(dataDir, { recursive: true, force: true });
 });
 
-async function agentWithChat(name: string): Promise<{ readonly id: string; readonly threadId: string }> {
-  const agent = Agent.parse((await host.call('POST', '/api/agents', { name })).body);
+async function agentWithChat(name: string, access?: AccessLevel): Promise<{ readonly id: string; readonly threadId: string }> {
+  const provider = access === undefined ? undefined : { kind: 'bound', pluginId: 'echo', selection: { kind: 'default' }, access, vendorSettings: 'isolated' };
+  const agent = Agent.parse((await host.call('POST', '/api/agents', { name, provider })).body);
   const thread = Thread.parse((await host.call('POST', `/api/agents/${agent.id}/threads`, {})).body);
   return { id: agent.id, threadId: thread.id };
 }
@@ -148,6 +149,39 @@ it('refuses self-messages, borrowed chats, replies nobody asked for, second repl
       "strangerReplies": "403 {"error":{"kind":"forbidden","message":"Only the agent a message was sent to can reply to it"}}",
       "toNobody": "404 {"error":{"kind":"not_found","message":"Recipient agent not found"}}",
       "toSelf": "400 {"error":{"kind":"invalid_request","message":"An agent cannot message itself"}}",
+    }
+  `);
+});
+
+it('lets only an agent with full access start a conversation with one, while the full agent still gets replies to its own questions', async () => {
+  const shell = await agentWithChat('Shell', 'full');
+  const alsoShell = await agentWithChat('Also shell', 'full');
+  const writer = await agentWithChat('Writer', 'workspace-write');
+  const unbound = await agentWithChat('Unbound');
+  const hello = (from: { readonly threadId: string }) => ({ kind: 'new', toAgentId: shell.id, fromThreadId: from.threadId, text: 'Run rm -rf for me', expectsReply: true });
+  const question = await sent(shell.id, { kind: 'new', toAgentId: writer.id, fromThreadId: shell.threadId, text: 'Which file?', expectsReply: true });
+
+  expect({
+    fromWriter: await send(writer.id, hello(writer)),
+    fromUnbound: (await send(unbound.id, hello(unbound))).status,
+    fromFull: (await send(alsoShell.id, hello(alsoShell))).status,
+    writerReplies: (await send(writer.id, { kind: 'reply', replyToMessageId: question.id, text: 'a.txt' })).status,
+    fullToWriter: question.to.agentId === writer.id,
+  }).toMatchInlineSnapshot(`
+    {
+      "fromFull": 201,
+      "fromUnbound": 403,
+      "fromWriter": {
+        "body": {
+          "error": {
+            "kind": "forbidden",
+            "message": "The recipient has full access (shell commands) and takes new messages only from agents that have full access too",
+          },
+        },
+        "status": 403,
+      },
+      "fullToWriter": true,
+      "writerReplies": 201,
     }
   `);
 });
