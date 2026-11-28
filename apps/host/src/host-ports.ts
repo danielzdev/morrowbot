@@ -5,6 +5,7 @@ import type { createChatService, ProviderPlugins } from './features/chat/index.t
 import type { MemoryService } from './features/memories/index.ts';
 import type { PluginHost } from './features/plugins/index.ts';
 import type { Storage } from './features/storage/index.ts';
+import type { SubagentService } from './features/subagents/index.ts';
 
 type ChatOptions = Parameters<typeof createChatService>[0];
 
@@ -25,12 +26,16 @@ export function agentInbox(storage: Storage, agentMessages: AgentMessageService)
   };
 }
 
-/** What the agent tools act on: every agent, the agent-messages service and the memories service. */
+/**
+ * What the agent tools act on: every agent, the agent-messages, memories and sub-agents services. The sub-agents
+ * service is read when a tool is called: it is made after the chat service, which needs the tools first.
+ */
 export function agentToolPorts(
   storage: Storage,
   agents: ToolPorts['agents'],
   agentMessages: AgentMessageService,
   memories: MemoryService,
+  subagents: () => SubagentService,
 ): ToolPorts {
   return {
     agents,
@@ -42,6 +47,12 @@ export function agentToolPorts(
       },
     },
     memories,
+    subagents: {
+      isSubagent: (threadId) => storage.subagents.get(threadId) !== undefined,
+      spawn: (grant, input) => subagents().spawn(grant, input),
+      wait: (grant, runIds, timeoutMs) => subagents().wait(grant, runIds, timeoutMs),
+      list: (grant) => subagents().list(grant),
+    },
   };
 }
 
@@ -58,6 +69,7 @@ export function chatStore(storage: Storage): ChatOptions['store'] {
     generations: storage.generations,
     sessions: storage.sessions,
     usage: storage.usage,
+    subagents: storage.subagents,
     heldThreads: () => storage.childGroups.heldThreads(),
     transaction: (work) => storage.transaction(work),
   };

@@ -6,8 +6,12 @@ import { answerMcp } from './mcp.ts';
 import { memoryTools } from './memory-tools.ts';
 import { messageTools } from './message-tools.ts';
 import type { ToolPorts } from './ports.ts';
+import { subagentTools } from './subagent-tools.ts';
+import type { Tool } from './tool.ts';
 
 export const MCP_PATH = '/mcp';
+/** The tools a sub-agent's turn gets: it only reads, and starts no sub-agents of its own. */
+const SUBAGENT_TOOLS: ReadonlySet<string> = new Set(['search_memories']);
 /** A `send_message` text is at most 100 000 characters, which JSON-escaped stays well under this. */
 const MAX_BODY_BYTES = 1024 * 1024;
 
@@ -36,7 +40,9 @@ type Answer = { readonly status: number; readonly body: object | null; readonly 
  */
 export async function startToolServer(options: ToolServerOptions): Promise<ToolServer> {
   const grants = createToolGrants();
-  const tools = [...messageTools(options.ports), ...memoryTools(options.ports)];
+  const tools: readonly Tool[] = [...messageTools(options.ports), ...memoryTools(options.ports), ...subagentTools(options.ports)];
+  const forSubagents = tools.filter(({ name }) => SUBAGENT_TOOLS.has(name));
+  const toolsFor = (grant: ToolGrant): readonly Tool[] => (options.ports.subagents.isSubagent(grant.threadId) ? forSubagents : tools);
   let authority = '';
   const handle = async (request: IncomingMessage): Promise<Answer> => {
     if (request.headers.host !== authority || request.headers.origin !== undefined) return { status: 403, body: { error: 'Forbidden' } };
@@ -50,7 +56,7 @@ export async function startToolServer(options: ToolServerOptions): Promise<ToolS
       case 'rejected':
         return body.answer;
       case 'read': {
-        const answer = answerMcp(body.value, grant, tools, options.version);
+        const answer = await answerMcp(body.value, grant, toolsFor(grant), options.version);
         return answer.kind === 'accepted' ? { status: 202, body: null } : { status: 200, body: answer.body };
       }
     }

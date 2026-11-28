@@ -26,6 +26,7 @@ import { builtinProviders } from './features/providers/index.ts';
 import { findSkills, skillList } from './features/skills/index.ts';
 import { createRoutineService, type RoutineClock } from './features/routines/index.ts';
 import { lockDataDir, openStorage } from './features/storage/index.ts';
+import { createSubagentService } from './features/subagents/index.ts';
 import { cliProbe, createT3WatchService, type T3Probe, type T3WatchClock } from './features/t3-watch/index.ts';
 import { agentInbox, agentToolPorts, chatStore, providerPlugins } from './host-ports.ts';
 import { routineSink } from './t3-routine-sink.ts';
@@ -151,7 +152,11 @@ export async function startHost(options: HostOptions): Promise<Host> {
       newId,
       now,
     });
-    const tools = await startToolServer({ ports: agentToolPorts(storage, agents, agentMessages, memories), version: options.version, report });
+    const tools = await startToolServer({
+      ports: agentToolPorts(storage, agents, agentMessages, memories, () => subagents),
+      version: options.version,
+      report,
+    });
     undo.push(() => tools.stop());
     const chat = createChatService({
       store: chatStore(storage),
@@ -166,6 +171,35 @@ export async function startHost(options: HostOptions): Promise<Host> {
       report,
     });
     undo.push(() => chat.close());
+    const subagents = createSubagentService({
+      chat: {
+        parentTurn: (generationId) => chat.parentTurn(generationId),
+        start: (threadId, text) => chat.startSubagent(threadId, text),
+        run: (threadId) => chat.subagent(threadId),
+        runs: (parentThreadId) => chat.subagents(parentThreadId),
+        subscribe: (listener) => chat.subscribe(listener),
+      },
+      records: {
+        insert: (thread, record) => {
+          storage.transaction(() => {
+            storage.subagents.insert(thread, record);
+          });
+        },
+        isSubagent: (threadId) => storage.subagents.get(threadId) !== undefined,
+        deleteThread: (threadId) => {
+          storage.threads.delete(threadId);
+        },
+      },
+      providers: {
+        ids: () => plugins.list().flatMap(({ manifest }) => (manifest.kind === 'provider' ? [manifest.id] : [])),
+        info: async (pluginId) => {
+          const result = await plugins.info(pluginId, false);
+          return result.kind === 'ok' ? result.info : undefined;
+        },
+      },
+      newId,
+      now,
+    });
     const stopReading = agentMessages.subscribe((message) => {
       chat.readAgentMessages(message.to.threadId);
     });

@@ -1,6 +1,7 @@
 import { realpath } from 'node:fs/promises';
 import type { Attachment, ProviderInfo, TurnChunk, TurnEnd, TurnRequest, TurnSession, UsageWindow } from '@morrowbot/contracts';
 import { profileAllowed } from './admission-rules.ts';
+import { bindingOf } from './children.ts';
 import type { TurnSink } from './ports.ts';
 import { buildTurnInput, type TurnInput } from './prompt.ts';
 import { steerDelivered, steerRefused } from './queue.ts';
@@ -33,7 +34,7 @@ export async function dispatch(core: ChatCore, turn: Turn): Promise<void> {
   const unchanged =
     agent !== undefined &&
     read.cwd === turn.cwd &&
-    JSON.stringify(agent.provider) === turn.bindingJson &&
+    JSON.stringify(bindingOf(core, agent, turn.threadId)) === turn.bindingJson &&
     agent.workspace.dir === turn.workspaceDir &&
     revision.configRevision === turn.configRevision &&
     revision.worker === turn.worker &&
@@ -98,6 +99,7 @@ export async function dispatch(core: ChatCore, turn: Turn): Promise<void> {
   turn.dispatched = true;
   turn.state = 'running';
   core.events.publish({ kind: 'generation.status', threadId: turn.threadId, generationId: turn.generationId, state: 'running', queueNote: null, detail: null });
+  core.subagentChanged(turn);
   if (plugins.startTurn(turn.pluginId, turn.worker, request, sinkFor(core, turn)) === 'binding-changed') {
     settle(core, turn, { ...localSettlement({ kind: 'failed', error: { kind: 'binding-changed' } }), sessionTouched: false });
   }

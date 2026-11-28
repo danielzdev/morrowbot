@@ -10,7 +10,7 @@ const BASE: ThreadState = {
   messages: [],
   activeTurn: null,
   queue: [],
-  blockedGroups: [],
+  blockedGroups: [], subagents: [],
   cursor: { hostEpoch: 'e1', seq: 0 },
 };
 const COPY = { provider: 'Claude', safe: (text: string) => text };

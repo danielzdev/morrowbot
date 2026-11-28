@@ -9,14 +9,14 @@ export interface Tool {
   readonly name: string;
   readonly description: string;
   readonly inputSchema: z.core.JSONSchema.BaseSchema;
-  call(grant: ToolGrant, args: unknown): ToolResult;
+  call(grant: ToolGrant, args: unknown): ToolResult | Promise<ToolResult>;
 }
 
 export function tool<S extends z.ZodType>(definition: {
   readonly name: string;
   readonly description: string;
   readonly input: S;
-  readonly run: (grant: ToolGrant, input: z.output<S>) => ToolResult;
+  readonly run: (grant: ToolGrant, input: z.output<S>) => ToolResult | Promise<ToolResult>;
 }): Tool {
   const inputSchema = z.toJSONSchema(definition.input, { io: 'input' });
   delete inputSchema.$schema;

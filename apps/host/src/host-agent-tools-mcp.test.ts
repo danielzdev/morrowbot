@@ -65,7 +65,7 @@ it('speaks MCP on loopback only to the running turn’s token', async () => {
                 "listChanged": false,
               },
             },
-            "instructions": "MorrowBot tools: message your teammate agents and keep your own memories. They act only as you, and only during this turn.",
+            "instructions": "MorrowBot tools: message your teammate agents, keep your own memories and start sub-agents. They act only as you, and only during this turn.",
             "protocolVersion": "2025-06-18",
             "serverInfo": {
               "name": "morrowbot",
@@ -214,6 +214,93 @@ it('speaks MCP on loopback only to the running turn’s token', async () => {
                   "type": "object",
                 },
                 "name": "forget_memory",
+              },
+              {
+                "description": "Starts a sub-agent: one background turn, in your workspace, that works on a prompt and replies, on your provider and model or on another one from list_subagents (for example a second opinion from a different model). It has at most your access and cannot start sub-agents itself. Up to 4 run at once, 12 per turn. Returns its runId at once; start several to work in parallel, then collect their replies with wait_subagents. Any still running when your turn ends are stopped.",
+                "inputSchema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "access": {
+                      "description": "At most your own access. Left out: yours.",
+                      "enum": [
+                        "read-only",
+                        "workspace-write",
+                        "full",
+                      ],
+                      "type": "string",
+                    },
+                    "effort": {
+                      "description": "A reasoning effort the model lists, such as "low" or "high". Left out: the model's (or yours).",
+                      "minLength": 1,
+                      "type": "string",
+                    },
+                    "model": {
+                      "description": "A model id of that provider from list_subagents. Left out: yours on your provider, its default on another.",
+                      "minLength": 1,
+                      "type": "string",
+                    },
+                    "prompt": {
+                      "description": "Everything the sub-agent needs: it sees only this, not your chat.",
+                      "maxLength": 100000,
+                      "minLength": 1,
+                      "type": "string",
+                    },
+                    "provider": {
+                      "description": "A provider id from list_subagents. Left out: yours.",
+                      "minLength": 1,
+                      "type": "string",
+                    },
+                    "role": {
+                      "description": "A short name for the job, shown to the user, such as "Reviewer" or "Test runner".",
+                      "maxLength": 80,
+                      "minLength": 1,
+                      "type": "string",
+                    },
+                  },
+                  "required": [
+                    "role",
+                    "prompt",
+                  ],
+                  "type": "object",
+                },
+                "name": "spawn_subagent",
+              },
+              {
+                "description": "Waits until your sub-agents finish and returns their replies. Names runIds, or every sub-agent this turn started. Returns after timeoutSeconds even if some still run (timedOut: true): call it again to keep waiting.",
+                "inputSchema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "runIds": {
+                      "description": "Which sub-agents. Left out: all of this turn’s.",
+                      "items": {
+                        "maxLength": 128,
+                        "minLength": 1,
+                        "type": "string",
+                      },
+                      "maxItems": 12,
+                      "minItems": 1,
+                      "type": "array",
+                    },
+                    "timeoutSeconds": {
+                      "default": 45,
+                      "description": "The longest this call waits.",
+                      "maximum": 600,
+                      "minimum": 1,
+                      "type": "integer",
+                    },
+                  },
+                  "type": "object",
+                },
+                "name": "wait_subagents",
+              },
+              {
+                "description": "Lists the sub-agents of this chat with their status, your own provider and access, and the providers and models you can start sub-agents on.",
+                "inputSchema": {
+                  "additionalProperties": false,
+                  "properties": {},
+                  "type": "object",
+                },
+                "name": "list_subagents",
               },
             ],
           },

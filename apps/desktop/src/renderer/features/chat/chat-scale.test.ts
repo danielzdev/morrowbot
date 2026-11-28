@@ -18,7 +18,7 @@ function chatOf(count: number): ThreadView {
       ? { kind: 'user', id: `m${String(index)}`, threadId: 't', text: `Question ${String(index)}`, createdAt: AT, attachments: [] }
       : { kind: 'assistant', id: `m${String(index)}`, threadId: 't', text: REPLY.replaceAll('%n', String(index)), createdAt: AT, outcome: { kind: 'completed', finishReason: 'stop' } },
   );
-  return viewOf({ thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT }, messages, activeTurn: null, queue: [], blockedGroups: [], cursor: { hostEpoch: 'e', seq: 0 } });
+  return viewOf({ thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT }, messages, activeTurn: null, queue: [], blockedGroups: [], subagents: [], cursor: { hostEpoch: 'e', seq: 0 } });
 }
 
 const CTX: TimelineContext = {

@@ -16,7 +16,7 @@ const STATE: ThreadState = {
     pendingApprovals: [{ approvalId: 'p', summary: 'Write .git/x', choices: [{ id: 'allow', label: 'Allow' }] }],
   },
   queue: [],
-  blockedGroups: [],
+  blockedGroups: [], subagents: [],
   cursor: { hostEpoch: 'e1', seq: 4 },
 };
 

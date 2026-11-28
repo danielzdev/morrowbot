@@ -18,7 +18,7 @@ const CallParams = z.looseObject({ name: z.string(), arguments: z.unknown().opti
 export type McpAnswer = { readonly kind: 'respond'; readonly body: object } | { readonly kind: 'accepted' };
 
 /** Answers one MCP message for a turn's grant: `initialize`, `ping`, `tools/list` and `tools/call`. */
-export function answerMcp(message: unknown, grant: ToolGrant, tools: readonly Tool[], version: string): McpAnswer {
+export async function answerMcp(message: unknown, grant: ToolGrant, tools: readonly Tool[], version: string): Promise<McpAnswer> {
   const parsed = ClientRequest.safeParse(message);
   if (!parsed.success) return ClientOther.safeParse(message).success ? { kind: 'accepted' } : error(null, -32600, 'Invalid Request: send one JSON-RPC 2.0 message');
   const { id, method, params } = parsed.data;
@@ -30,7 +30,8 @@ export function answerMcp(message: unknown, grant: ToolGrant, tools: readonly To
         protocolVersion,
         capabilities: { tools: { listChanged: false } },
         serverInfo: { name: HOST_TOOLS_SERVER, title: 'MorrowBot', version },
-        instructions: 'MorrowBot tools: message your teammate agents and keep your own memories. They act only as you, and only during this turn.',
+        instructions:
+          'MorrowBot tools: message your teammate agents, keep your own memories and start sub-agents. They act only as you, and only during this turn.',
       });
     }
     case 'ping':
@@ -44,12 +45,12 @@ export function answerMcp(message: unknown, grant: ToolGrant, tools: readonly To
   }
 }
 
-function callTool(id: RequestId, params: unknown, grant: ToolGrant, tools: readonly Tool[]): McpAnswer {
+async function callTool(id: RequestId, params: unknown, grant: ToolGrant, tools: readonly Tool[]): Promise<McpAnswer> {
   const call = CallParams.safeParse(params);
   if (!call.success) return error(id, -32602, 'Invalid params: name the tool to call');
   const found = tools.find(({ name }) => name === call.data.name);
   if (found === undefined) return error(id, -32602, `Unknown tool: ${call.data.name}`);
-  const outcome = found.call(grant, call.data.arguments);
+  const outcome = await found.call(grant, call.data.arguments);
   switch (outcome.kind) {
     case 'done':
       return result(id, { content: [{ type: 'text', text: JSON.stringify(outcome.value) }], structuredContent: outcome.value, isError: false });

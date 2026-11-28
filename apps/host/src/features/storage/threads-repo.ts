@@ -20,8 +20,9 @@ export interface ThreadRepository {
   touch(id: string, at: string): void;
   delete(id: string): boolean;
   get(id: string): Thread | undefined;
+  /** The agent's chats, oldest first; a sub-agent's chat is not one of them. */
   listByAgent(agentId: string): Thread[];
-  /** Every agent's threads, most recently changed first. */
+  /** Every agent's chats (no sub-agent's), most recently changed first. */
   listAll(): Thread[];
 }
 
@@ -34,8 +35,8 @@ export function threadRepository(db: DatabaseSync): ThreadRepository {
   const touch = db.prepare('UPDATE threads SET updated_at = ? WHERE id = ?');
   const remove = db.prepare('DELETE FROM threads WHERE id = ?');
   const get = db.prepare('SELECT * FROM threads WHERE id = ?');
-  const listByAgent = db.prepare('SELECT * FROM threads WHERE agent_id = ? ORDER BY created_at, rowid');
-  const listAll = db.prepare('SELECT * FROM threads ORDER BY updated_at DESC, rowid DESC');
+  const listByAgent = db.prepare('SELECT * FROM threads WHERE agent_id = ? AND parent_thread_id IS NULL ORDER BY created_at, rowid');
+  const listAll = db.prepare('SELECT * FROM threads WHERE parent_thread_id IS NULL ORDER BY updated_at DESC, rowid DESC');
   return {
     insert: (thread) => {
       insert.run({ ...thread });

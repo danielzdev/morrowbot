@@ -1,6 +1,7 @@
 import { realpath } from 'node:fs/promises';
 import type { AgentMessage, Message, ProviderUnavailableReason, SessionChoice, SessionChoiceReason, TurnMode, UserMessage } from '@morrowbot/contracts';
 import { decideBackgroundSession, decideSession, profileAllowed, type SessionDecision } from './admission-rules.ts';
+import { bindingOf } from './children.ts';
 import { instructionsHash } from './seed.ts';
 import { laneKey, laneOf, pump, type BoundProvider, type ChatCore, type Turn, type TurnSource } from './turn.ts';
 
@@ -22,7 +23,9 @@ export type AdmitInput =
   | { readonly kind: 'continue'; readonly failedMessageId: string }
   /** A queued message, delivered as the user message with its own id; `prompt` is what the provider reads. */
   | { readonly kind: 'queued'; readonly id: string; readonly text: string; readonly prompt: string }
-  | { readonly kind: 'agent-message'; readonly message: AgentMessage; readonly prompt: string };
+  | { readonly kind: 'agent-message'; readonly message: AgentMessage; readonly prompt: string }
+  /** A sub-agent's one prompt, run in its own chat while the turn that started it runs. */
+  | { readonly kind: 'subagent'; readonly text: string };
 
 type Ready = {
   readonly binding: BoundProvider;
@@ -39,7 +42,7 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
   const { store, plugins, agents } = core.options;
   const receipt = input.kind === 'continue' ? store.generations.continuation(threadId, input.failedMessageId) : undefined;
   if (receipt !== undefined) return { kind: 'started', generationId: receipt, userMessage: null };
-  const first = check(core, threadId);
+  const first = check(core, threadId, input);
   if (first.kind !== 'ready') return first;
   const { binding } = first.ready;
   const pluginId = binding.pluginId;
@@ -53,7 +56,7 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
       ? { kind: 'provider_unavailable', reason: 'daemon-blocked' }
       : { kind: 'no_provider', reason: `Provider plugin ${pluginId} is not available: ${info.reason}` };
   }
-  const mode: TurnMode = input.kind === 'send' ? input.mode : 'interactive';
+  const mode = modeOf(input);
   const refused = profileAllowed(info.info, binding, mode);
   if (refused !== undefined) return { kind: 'no_provider', reason: refused };
   if (info.info.kind !== 'ready' && info.info.kind !== 'ready-models-later') return { kind: 'no_provider', reason: 'not ready' };
@@ -95,7 +98,7 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
   // Everything below is synchronous: nothing can change between the re-check and the write.
   const late = input.kind === 'continue' ? store.generations.continuation(threadId, input.failedMessageId) : undefined;
   if (late !== undefined) return { kind: 'started', generationId: late, userMessage: null };
-  const second = check(core, threadId);
+  const second = check(core, threadId, input);
   if (second.kind !== 'ready') return second;
   const now = plugins.revision(pluginId);
   if (
@@ -108,6 +111,7 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
     return { kind: 'binding_changed' };
   }
   if (core.rechecking.has(pluginId)) return { kind: 'provider_unavailable', reason: 'rechecking' };
+  if (second.parent !== null && !parentRunning(core, second.parent)) return { kind: 'not_continuable', reason: 'The turn that started this sub-agent has ended.' };
   const messages = store.messages.listByThread(threadId);
   const source = sourceOf(core, messages, input);
   if (source.kind === 'refused') return { kind: 'not_continuable', reason: source.reason };
@@ -169,6 +173,7 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
     maxSeedBytes: capabilities.maxSeedBytes,
     plan,
     source: turnSource,
+    parent: second.parent,
     history,
     state: 'queued',
     dispatched: false,
@@ -194,37 +199,64 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
       core.events.publish({ kind: 'generation.background-started', threadId, generationId, agentMessageId: turnSource.message.id, state: 'queued' });
       break;
   }
+  core.subagentChanged(turn);
   const lane = laneOf(core, turn);
   lane.queue.push(turn);
   pump(core, lane);
   return { kind: 'started', generationId, userMessage };
 }
 
+type Parent = Turn['parent'];
+
 type Checked =
-  | { readonly kind: 'ready'; readonly thread: { readonly id: string; readonly agentId: string }; readonly ready: Ready }
+  | { readonly kind: 'ready'; readonly thread: { readonly id: string; readonly agentId: string }; readonly ready: Ready; readonly parent: Parent }
   | Extract<AdmitResult, { kind: 'thread_not_found' | 'busy' | 'no_provider' }>;
 
-/** The thread exists, nothing is deleting it, it is idle and not held by a process group, and its agent is bound. */
-function check(core: ChatCore, threadId: string): Checked {
+/** `background` for a routine's send and a sub-agent: neither can wait on the user's approval. */
+function modeOf(input: AdmitInput): TurnMode {
+  switch (input.kind) {
+    case 'send':
+      return input.mode;
+    case 'subagent':
+      return 'background';
+    case 'continue':
+    case 'queued':
+    case 'agent-message':
+      return 'interactive';
+  }
+}
+
+/** The turn that started a sub-agent is still running and not being stopped. */
+function parentRunning(core: ChatCore, parent: NonNullable<Parent>): boolean {
+  const turn = core.active.get(parent.threadId);
+  return turn?.generationId === parent.generationId && turn.state !== 'settled' && !turn.stopRequested;
+}
+
+/**
+ * The thread exists, nothing is deleting it, it is idle and not held by a process group, and it has a binding.
+ * A sub-agent's chat takes only its one sub-agent prompt, and no other chat takes one.
+ */
+function check(core: ChatCore, threadId: string, input: AdmitInput): Checked {
   const { store, agents, plugins } = core.options;
   if (core.closed || core.deletingThreads.has(threadId)) return { kind: 'thread_not_found' };
   const thread = store.threads.get(threadId);
   if (thread === undefined || core.deletingAgents.has(thread.agentId)) return { kind: 'thread_not_found' };
+  const record = store.subagents.get(threadId);
+  if ((record !== undefined) !== (input.kind === 'subagent')) return { kind: 'thread_not_found' };
+  if (record !== undefined && core.deletingThreads.has(record.parentThreadId)) return { kind: 'thread_not_found' };
   if (core.active.has(threadId) || store.heldThreads().has(threadId)) return { kind: 'busy' };
   const agent = agents.get(thread.agentId);
   if (agent === undefined) return { kind: 'thread_not_found' };
-  switch (agent.provider.kind) {
+  const binding = bindingOf(core, agent, threadId);
+  const parent = record === undefined ? null : { threadId: record.parentThreadId, generationId: record.parentGenerationId };
+  switch (binding.kind) {
     case 'unbound':
       return { kind: 'no_provider', reason: 'This agent has no provider. Choose a provider and model first.' };
     case 'bound':
-      if (!plugins.isProvider(agent.provider.pluginId)) {
-        return { kind: 'no_provider', reason: `Provider plugin ${agent.provider.pluginId} is not available.` };
+      if (!plugins.isProvider(binding.pluginId)) {
+        return { kind: 'no_provider', reason: `Provider plugin ${binding.pluginId} is not available.` };
       }
-      return {
-        kind: 'ready',
-        thread,
-        ready: { binding: agent.provider, bindingJson: JSON.stringify(agent.provider), workspaceDir: agent.workspace.dir },
-      };
+      return { kind: 'ready', thread, parent, ready: { binding, bindingJson: JSON.stringify(binding), workspaceDir: agent.workspace.dir } };
   }
 }
 
@@ -257,6 +289,8 @@ function sourceOf(core: ChatCore, messages: readonly Message[], input: AdmitInpu
   switch (input.kind) {
     case 'send':
       return { kind: 'new', text: input.text, attachmentIds: input.attachmentIds };
+    case 'subagent':
+      return { kind: 'new', text: input.text, attachmentIds: [] };
     case 'queued':
       return input;
     case 'agent-message':
