@@ -5,6 +5,7 @@ import { agentMessageRepository, type AgentMessageRepository } from './agent-mes
 import { agentRepository, type AgentRepository } from './agents-repo.ts';
 import { attachmentRepository, type AttachmentRepository } from './attachments-repo.ts';
 import { childGroupRepository, type ChildGroupRepository } from './child-groups-repo.ts';
+import { connectorRepository, type ConnectorRepository } from './connectors-repo.ts';
 import { deviceRepository, type DeviceRepository } from './devices-repo.ts';
 import { folderRepository, type FolderRepository } from './folders-repo.ts';
 import { generationRepository, type GenerationRepository } from './generations-repo.ts';
@@ -48,6 +49,7 @@ export interface Storage {
   readonly t3Watches: T3WatchRepository;
   readonly t3Outbox: T3OutboxRepository;
   readonly t3Batches: T3BatchRepository;
+  readonly connectors: ConnectorRepository;
   /** Runs `work` in one write transaction (`BEGIN IMMEDIATE`), rolled back if it throws. Not reentrant. */
   transaction<T>(work: () => T): T;
   close(): void;
@@ -85,6 +87,7 @@ export function openStorage(file: string, now: () => string): Storage {
       t3Watches: t3WatchRepository(db),
       t3Outbox: t3OutboxRepository(db),
       t3Batches: t3BatchRepository(db),
+      connectors: connectorRepository(db),
       transaction: (work) => {
         db.exec('BEGIN IMMEDIATE');
         try {

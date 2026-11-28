@@ -1,12 +1,12 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { AgentInstructionsView, ApiError, ProviderUnavailableReason, SessionChoiceReason } from '@morrowbot/contracts';
+import type { AgentInstructionsView, ApiError, ConnectorScope, ProviderUnavailableReason, SessionChoiceReason } from '@morrowbot/contracts';
 import type { z } from 'zod';
 
 export type Reply =
   | { readonly kind: 'json'; readonly status: number; readonly body: unknown }
   | { readonly kind: 'empty'; readonly status: number };
 
-type ErrorKind = Exclude<ApiError['error']['kind'], 'provider-unavailable' | 'binding-changed' | 'session-choice-required' | 'instructions-conflict'>;
+type ErrorKind = Exclude<ApiError['error']['kind'], 'provider-unavailable' | 'binding-changed' | 'session-choice-required' | 'instructions-conflict' | 'scope-conflict'>;
 
 const STATUS: Record<ErrorKind, number> = {
   invalid_request: 400,
@@ -66,6 +66,12 @@ export function instructionsConflict(reason: 'occupied' | 'replace-unavailable',
     'replace-unavailable': "Editing AGENTS.md in place isn't available yet. Nothing was changed.",
   };
   const body: ApiError = { error: { kind: 'instructions-conflict', reason, current, message: messages[reason] } };
+  return json(409, body);
+}
+
+/** A connector's scope changed since the caller read it; nothing was written (409). */
+export function scopeConflict(current: ConnectorScope): Reply {
+  const body: ApiError = { error: { kind: 'scope-conflict', current, message: 'Changed elsewhere.' } };
   return json(409, body);
 }
 

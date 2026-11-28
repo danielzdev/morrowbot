@@ -1,4 +1,9 @@
 import type {
+  Connector,
+  ConnectorScope,
+  CreateConnectorRequest,
+  SetConnectorScopeRequest,
+  UpdateConnectorAccountRequest,
   Agent,
   Attachment,
   AttachmentContent,
@@ -276,7 +281,37 @@ export interface ApiT3Watches {
   ack(ack: T3WatchAck): { readonly kind: 'acked' | 'already_acked' | 'unknown_batch' };
 }
 
+export type ApiConnectorSave =
+  | { readonly kind: 'saved'; readonly connector: Connector }
+  | { readonly kind: 'not-found' }
+  | { readonly kind: 'label-taken' }
+  | { readonly kind: 'invalid'; readonly reason: string };
+
+/** Connectors: custom MCP servers and Composio accounts, each with its own scope record. */
+export interface ApiConnectors {
+  readonly safeMode: boolean;
+  list(): Connector[];
+  create(request: CreateConnectorRequest): ApiConnectorSave;
+  updateAccount(id: string, request: UpdateConnectorAccountRequest): ApiConnectorSave;
+  setEnabled(id: string, enabled: boolean): Connector | undefined;
+  setScope(
+    id: string,
+    request: SetConnectorScopeRequest,
+  ):
+    | { readonly kind: 'saved'; readonly connector: Connector }
+    | { readonly kind: 'not-found' }
+    | { readonly kind: 'conflict'; readonly current: ConnectorScope }
+    | { readonly kind: 'invalid'; readonly reason: string };
+  connect(id: string): Connector | undefined;
+  disconnect(id: string): Connector | undefined;
+  remove(id: string): Promise<boolean>;
+  get(id: string): Connector | undefined;
+  /** Settles once the connector's latest connect or disconnect has. */
+  settled(id: string): Promise<void>;
+}
+
 export interface ApiServices {
+  readonly connectors: ApiConnectors;
   readonly agents: ApiAgents;
   readonly attachments: ApiAttachments;
   readonly memories: ApiMemories;
