@@ -40,7 +40,8 @@ it('strips unknown fields from newer host event frames and skips unknown event k
           text: 'ready',
           createdAt: NOW,
           outcome: { kind: 'completed', finishReason: 'stop', latencyMs: 12 },
-          attachments: [{ id: 'att-1', name: 'out.png' }],
+          attachments: [{ kind: 'image', id: 'att-1', name: 'out.png', mimeType: 'image/png', size: 256, previewWidth: 640 }],
+          citations: ['doc-1'],
         },
         toolSteps: [{ toolUseId: 'u1', name: 'Read' }],
       }),
@@ -63,8 +64,10 @@ it('strips unknown fields from newer host event frames and skips unknown event k
   const frames: EventServerFrame[] = [];
   const errors: string[] = [];
   let onDone: (() => void) | undefined;
-  const delivered = new Promise<void>((resolve) => {
+  let onFail: ((error: Error) => void) | undefined;
+  const delivered = new Promise<void>((resolve, reject) => {
     onDone = resolve;
+    onFail = reject;
   });
   const stream = openEventStream(
     { url: `http://127.0.0.1:${String(address.port)}`, token: 't'.repeat(43) },
@@ -74,7 +77,9 @@ it('strips unknown fields from newer host event frames and skips unknown event k
         if (frames.length === 2) onDone?.();
       },
       report: (error) => {
-        errors.push(error instanceof Error ? error.message : String(error));
+        const message = error instanceof Error ? error.message : String(error);
+        errors.push(message);
+        if (errors.length > 2) onFail?.(new Error(`Unexpected event stream error: ${message}`));
       },
     },
   );
@@ -102,6 +107,7 @@ it('strips unknown fields from newer host event frames and skips unknown event k
           text: 'ready',
           createdAt: NOW,
           outcome: { kind: 'completed', finishReason: 'stop' },
+          attachments: [{ kind: 'image', id: 'att-1', name: 'out.png', mimeType: 'image/png', size: 256 }],
         },
       },
       {
