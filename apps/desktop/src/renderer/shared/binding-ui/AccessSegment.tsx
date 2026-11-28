@@ -6,7 +6,16 @@ import { accessKey, sameAccess, type AccessKey, type AccessState } from './bindi
 
 const STEP: Readonly<Record<string, number>> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
 
-const iconOf = (profile: AccessKey): IconName => (profile.access === 'read-only' ? 'eye' : 'pencil');
+function iconOf(profile: AccessKey): IconName {
+  switch (profile.access) {
+    case 'read-only':
+      return 'eye';
+    case 'workspace-write':
+      return 'pencil';
+    case 'full':
+      return 'terminal';
+  }
+}
 
 /**
  * One segment per interactive profile the provider offers, built from the profile's fields (spec

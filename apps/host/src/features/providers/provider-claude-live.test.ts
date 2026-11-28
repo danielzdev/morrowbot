@@ -82,7 +82,7 @@ const contents = (file: string) => readFile(file, 'utf8').catch(() => null);
 const tried = (generationId: string) =>
   events.received.flatMap((event) => (event.kind === 'generation.tool-start' && event.generationId === generationId ? [event.name] : []));
 
-/** Project settings, hooks and MCP servers that try to widen access; `--restricted` and `--strict-mcp-config` must ignore them all. */
+/** Project settings, hooks and MCP servers that try to widen access; `--setting-sources ''` and `--strict-mcp-config` must ignore them all. */
 async function hostileProject(workspace: string): Promise<{ readonly outside: string; readonly marker: string }> {
   const outside = path.join(root, 'outside');
   const marker = path.join(root, 'hooked');
@@ -197,6 +197,19 @@ describe.runIf(LIVE)('provider-claude on the real CLI', () => {
       hooked: null,
       outcomes: ['completed', 'completed'],
     });
+  });
+
+  it('in full access, runs a shell command that writes inside and outside the workspace without a card, under hostile project settings', { timeout: TURN_MS }, async () => {
+    const { thread, workspace } = await agentThread('full');
+    const { outside, marker } = await hostileProject(workspace);
+    const turn = await send(thread, `Use the Bash tool once to run exactly: printf in > shell.txt && printf out > ${outside}/shell.txt && git --version. Do nothing else and do not retry.`);
+    expect({
+      tried: tried(turn),
+      cards: cards(turn),
+      files: [await contents(path.join(workspace, 'shell.txt')), await contents(path.join(outside, 'shell.txt'))],
+      hooked: await contents(marker),
+      outcomes: await outcomes(thread),
+    }).toEqual({ tried: ['Bash'], cards: 0, files: ['in', 'out'], hooked: null, outcomes: ['completed'] });
   });
 
   it('stops a running turn, then answers the next message', { timeout: 2 * TURN_MS }, async () => {

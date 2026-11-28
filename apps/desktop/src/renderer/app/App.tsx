@@ -303,6 +303,7 @@ export function App({ bridge, server, role }: AppProps) {
           usage={<UsagePane models={models} />}
           pairing={models.api}
           members={{ ...models.api, copy: (text) => bridge.copyText(text) }}
+          vault={models.api}
           server={server}
           chooseServer={async (request) => answerProblem(await bridge.chooseServer(request))}
           hidden={hiddenSections(server.kind, role)}

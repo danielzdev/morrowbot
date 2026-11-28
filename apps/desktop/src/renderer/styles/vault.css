@@ -1,0 +1,32 @@
+/* Settings › Vault: the item form, its masked fields, and the search over saved items. */
+.vault-form .pair-info {
+  gap: var(--s-3);
+}
+.vault-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--s-3);
+}
+.secret-field {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+}
+.secret-field input {
+  flex: 1;
+  min-width: 0;
+}
+.vault-search {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+  color: var(--text-3);
+}
+.vault-search input {
+  flex: 1;
+}
+.vault-actions {
+  display: flex;
+  gap: var(--s-2);
+}

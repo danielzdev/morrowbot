@@ -21,6 +21,8 @@ import { ServerSection } from './ServerSection.tsx';
 import { INDEX, isSection, ROWS, searchSettings, SECTIONS, targetOf, visibleNav, type SettingEntry, type SettingsLink, type SettingsSection } from './settings-index.ts';
 import { SettingRow } from './SettingRow.tsx';
 import { SettingsSearchField, SettingsSearchResults } from './SettingsNav.tsx';
+import type { VaultPort } from './vault.ts';
+import { VaultSection } from './VaultSection.tsx';
 
 const FLASH_MS = 1_000;
 /** A row's tab stop: for a segmented control, the checked segment. */
@@ -34,7 +36,7 @@ export interface SettingsModalProps {
   readonly chatPrefs: ChatPrefsModel;
   readonly info: AppInfo | null;
   readonly updates: UpdatesModel;
-  readonly bridge: Pick<MorrowbotBridge, 'loginItem' | 'setOpenAtLogin' | 'revealPath'>;
+  readonly bridge: Pick<MorrowbotBridge, 'loginItem' | 'setOpenAtLogin' | 'revealPath' | 'resetPlan' | 'runReset'>;
   /** Settings › Providers, from `features/providers` (wired in by `app/`): opened at `initial`, naming its selection for the breadcrumb. */
   readonly providers: (slot: { readonly initial: string | null; readonly onTrail: (name: string | null) => void }) => ComponentChildren;
   /** Settings › Usage, composed by the app from the usage feature. */
@@ -43,6 +45,8 @@ export interface SettingsModalProps {
   readonly pairing: PairingPort;
   /** The host's member calls, for Settings › Members. */
   readonly members: MembersPort;
+  /** The host's vault calls, for Settings › Vault. */
+  readonly vault: VaultPort;
   /** Which server this app uses, for Settings › Server. */
   readonly server: Exclude<ServerMode, { kind: 'choosing' }>;
   /** Switches the server; answers a problem to show, or null once MorrowBot reopens. */
@@ -117,6 +121,8 @@ export function SettingsModal(props: SettingsModalProps) {
             {props.providers({ initial: start.section === 'providers' ? start.item : null, onTrail })}
           </>
         );
+      case 'vault':
+        return <VaultSection port={props.vault} />;
       case 'usage':
         return props.usage;
       case 'server':
@@ -133,6 +139,7 @@ export function SettingsModal(props: SettingsModalProps) {
             onRevealData={() => void props.bridge.revealPath({ kind: 'data-dir' })}
             onCheckForUpdates={props.updates.check}
             onRestartToUpdate={props.updates.restart}
+            reset={props.bridge}
           />
         );
     }

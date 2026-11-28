@@ -275,6 +275,7 @@ it('hides T3 watch tools from agents shared with scoped members and refuses dire
         "search_memories",
         "remember",
         "forget_memory",
+        "list_vault_items",
       ],
     }
   `);

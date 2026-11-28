@@ -88,7 +88,7 @@ it('speaks MCP on loopback only to the running turn’s token', async () => {
                 "listChanged": false,
               },
             },
-            "instructions": "MorrowBot tools: message your teammate agents, keep your own memories, manage your own routines and T3 Code watches, and use the connectors the user gave you (named <connector>__<tool>). They act only as you, and only during this turn.",
+            "instructions": "MorrowBot tools: message your teammate agents, keep your own memories, see the names of the user's vault items, manage your own routines and T3 Code watches, and use the connectors the user gave you (named <connector>__<tool>). They act only as you, and only during this turn.",
             "protocolVersion": "2025-06-18",
             "serverInfo": {
               "name": "morrowbot",
@@ -163,6 +163,13 @@ it('speaks MCP on loopback only to the running turn’s token', async () => {
             "required": [
               "memoryId",
             ],
+          },
+          {
+            "additionalProperties": false,
+            "description": "Lists the user's vault: saved website logins, API keys and HTTP header secrets, by id, kind, name and site. Passwords, keys, header values and two-step codes are never shown to you.",
+            "name": "list_vault_items",
+            "properties": [],
+            "required": [],
           },
           {
             "additionalProperties": false,

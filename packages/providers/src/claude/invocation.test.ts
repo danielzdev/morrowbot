@@ -143,6 +143,35 @@ it('lets workspace-write edit with the file tools only, asking the host interact
   `);
 });
 
+it('lets full run Bash and the file tools anywhere without --restricted or asking, in both modes, with auto-memory off', () => {
+  const flags = (mode: 'interactive' | 'background') =>
+    buildInvocation({ access: 'full', mode, selection: { kind: 'default' }, system: null, seed: null, prompt: 'hi', images: [], hostTools: { kind: 'none' }, effort: null }).args.slice(13);
+  expect({ interactive: flags('interactive'), background: flags('background') }).toMatchInlineSnapshot(`
+    {
+      "background": [
+        "--tools",
+        "Read,Glob,Grep,Edit,Write,Bash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--permission-prompts",
+        "none",
+        "--settings",
+        "{"autoMemoryEnabled":false}",
+      ],
+      "interactive": [
+        "--tools",
+        "Read,Glob,Grep,Edit,Write,Bash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--permission-prompts",
+        "none",
+        "--settings",
+        "{"autoMemoryEnabled":false}",
+      ],
+    }
+  `);
+});
+
 it("gives MorrowBot's tools as a --mcp-config file after the system prompt's, allowed without asking", () => {
   const invocation = buildInvocation({
     access: 'read-only',

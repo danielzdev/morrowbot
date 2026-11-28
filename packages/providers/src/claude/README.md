@@ -16,13 +16,13 @@ on stdin, and turns the JSON lines into turn chunks: text, status lines, tool ca
 starting and ending, approval cards and plan usage. Stdin stays open for approval
 answers and closes after the reply. Stopping a reply stops the CLI.
 
-**Access.** Two profiles, both with MorrowBot's own instructions (the agent's
+**Access.** Three profiles, all with MorrowBot's own instructions (the agent's
 `AGENTS.md`, passed as the system prompt). Your own `CLAUDE.md`, skills, plugins,
-hooks, MCP servers and settings files are not loaded, and there is no shell.
+hooks, MCP servers and settings files are not loaded. Only full access has a shell.
 `--safe-mode` is not used: on 2.1.332 it also drops `--mcp-config` servers, so
-`--restricted`, `--strict-mcp-config`, `--setting-sources ''` and
-`--disable-slash-commands` turn the same things off (the live tests check it under
-hostile project settings).
+`--strict-mcp-config`, `--setting-sources ''` and `--disable-slash-commands` (with
+`--restricted` in read-only and workspace-write) turn the same things off (the live
+tests check it under hostile project settings).
 
 **MorrowBot's tools.** Each turn gets the host's MCP server for that turn
 (`--mcp-config`, read from a file descriptor so its token stays out of the process
@@ -34,12 +34,22 @@ the turn's agent and stop working when the turn ends.
 |---|---|
 | read-only | `--restricted --tools Read,Glob,Grep --permission-mode dontAsk --permission-prompts none` |
 | workspace-write | `--restricted --tools Read,Glob,Grep,Edit,Write --permission-mode acceptEdits`, then `--permission-prompts host --permission-prompt-tool stdio` (interactive) or `--permission-prompts none` (background) |
+| full | `--tools Read,Glob,Grep,Edit,Write,Bash --permission-mode bypassPermissions --permission-prompts none --settings '{"autoMemoryEnabled":false}'` (both modes) |
 
 `--restricted` keeps the file tools inside the workspace folder: a read or write
 outside it is refused without asking. Workspace-write edits files in the folder
 without asking, but a protected path such as `.git/` shows an approval card
 (Allow or Deny). A background turn never asks and denies instead; an unanswered card
-is denied after 30 minutes. `--permission-prompt-tool stdio` is not in `claude --help`,
+is denied after 30 minutes.
+
+Full access runs terminal commands (`git`, `gh`, build scripts) and reads and writes
+files anywhere your user can, without asking, in chats and in background turns alike.
+It has no `--restricted`, which refuses `bypassPermissions`; `--setting-sources ''`
+still keeps your settings files and `CLAUDE.md` out, and `--settings` turns off Claude
+Code's own auto-memory (the agent's memories are MorrowBot's). No agent starts on it:
+only the owner can turn it on, in Agent Settings › Brain, after a confirmation. Server
+members cannot set it or chat with such an agent, and an agent without full access
+cannot start a conversation with one. `--permission-prompt-tool stdio` is not in `claude --help`,
 but Claude Code 2.1.332 sends its `can_use_tool` requests on stdout only with it.
 
 **Stateless.** Claude Code does not keep the conversation; every turn sends the

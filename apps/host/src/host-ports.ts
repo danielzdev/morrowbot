@@ -28,12 +28,13 @@ export function agentInbox(storage: Storage, agentMessages: AgentMessageService)
   };
 }
 
-/** What the agent tools act on: agents, agent-messages, memories, routines, T3 watches, connectors and enabled tool plugins. */
+/** What the agent tools act on: agents, agent-messages, memories, the vault's names, routines, T3 watches, connectors and enabled tool plugins. */
 export function agentToolPorts(options: {
   readonly storage: Storage;
   readonly agents: ToolPorts['agents'];
   readonly agentMessages: AgentMessageService;
   readonly memories: MemoryService;
+  readonly vault: ToolPorts['vault'];
   readonly connectors: ConnectorService;
   readonly plugins: PluginHost;
   readonly routines: RoutineService;
@@ -42,7 +43,8 @@ export function agentToolPorts(options: {
   readonly defaultT3RoutineId: string | null;
   readonly isPluginAllowedForAgent?: (agentId: string, pluginId: string) => boolean;
 }): ToolPorts {
-  const { storage, agents, agentMessages, memories, connectors, plugins, routines, t3Watches, t3Clock, defaultT3RoutineId, isPluginAllowedForAgent } = options;
+  const { storage, agents, agentMessages, memories, vault, connectors, plugins, routines, t3Watches, t3Clock, defaultT3RoutineId, isPluginAllowedForAgent } =
+    options;
   const sharedWithMembers = (agentId: string): boolean => storage.members.allowlistsOf(agentId).length > 0;
   return {
     agents,
@@ -54,6 +56,7 @@ export function agentToolPorts(options: {
       },
     },
     memories,
+    vault,
     routines: routineToolPort(storage, routines, sharedWithMembers),
     t3Watches: t3WatchToolPort(storage, t3Watches, t3Clock, defaultT3RoutineId, sharedWithMembers),
     connectors: { tools: (agentId) => connectors.toolsFor(agentId), call: (agentId, name, args, signal) => connectors.call(agentId, name, args, signal) },

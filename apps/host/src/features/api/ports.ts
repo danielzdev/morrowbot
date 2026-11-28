@@ -58,6 +58,9 @@ import type {
   UsageResponse,
   UserMessage,
   Wait,
+  CreateVaultItemRequest,
+  UpdateVaultItemRequest,
+  VaultItem,
 } from '@morrowbot/contracts';
 
 export interface ApiAgents {
@@ -281,6 +284,16 @@ export interface ApiT3Watches {
   ack(ack: T3WatchAck): { readonly kind: 'acked' | 'already_acked' | 'unknown_batch' };
 }
 
+export type ApiVaultSave = { readonly kind: 'saved'; readonly item: VaultItem } | { readonly kind: 'not-found' } | { readonly kind: 'invalid'; readonly reason: string };
+
+/** The owner's saved logins, API keys and header secrets: names in and out, secret values only in. */
+export interface ApiVault {
+  list(): VaultItem[];
+  create(request: CreateVaultItemRequest): Promise<ApiVaultSave>;
+  update(id: string, request: UpdateVaultItemRequest): Promise<ApiVaultSave>;
+  delete(id: string): Promise<boolean>;
+}
+
 export type ApiConnectorSave =
   | { readonly kind: 'saved'; readonly connector: Connector }
   | { readonly kind: 'not-found' }
@@ -325,4 +338,5 @@ export interface ApiServices {
   readonly agentMessages: ApiAgentMessages;
   readonly routines: ApiRoutines;
   readonly t3Watches: ApiT3Watches;
+  readonly vault: ApiVault;
 }

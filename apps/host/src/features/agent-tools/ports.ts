@@ -13,6 +13,7 @@ import type {
   T3WatchEvent,
   UpdateMemoryRequest,
   UpdateRoutineRequest,
+  VaultItem,
 } from '@morrowbot/contracts';
 
 export type SendAnswer = { readonly kind: 'sent'; readonly message: AgentMessage } | { readonly kind: 'refused'; readonly reason: string };
@@ -134,7 +135,7 @@ export interface T3WatchToolsPort {
   ack(agentId: string, ack: T3WatchAck): T3AckResult;
 }
 
-/** What the tools act on (the agents, agent-messages, memories, routines, t3-watch, connectors and plugins features provide it). */
+/** What the tools act on (the agents, agent-messages, memories, vault, routines, t3-watch, connectors and plugins features provide it). */
 export interface ToolPorts {
   readonly agents: { list(): readonly Agent[] };
   readonly messages: {
@@ -149,6 +150,8 @@ export interface ToolPorts {
     update(agentId: string, id: string, request: UpdateMemoryRequest): Memory | undefined;
     delete(agentId: string, id: string): boolean;
   };
+  /** The vault's item names. Secret values never reach the tools. */
+  readonly vault: { list(): readonly VaultItem[] };
   /** The agent's connector tools; each list and each call checks that connector's scope and status again. */
   readonly connectors: {
     tools(agentId: string): readonly ConnectorTool[];

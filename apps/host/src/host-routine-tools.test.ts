@@ -323,6 +323,7 @@ it('hides routine tools from agents shared with scoped members and refuses direc
         "search_memories",
         "remember",
         "forget_memory",
+        "list_vault_items",
       ],
     }
   `);
