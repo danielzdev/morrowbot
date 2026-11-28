@@ -39,6 +39,7 @@ it('lists every chat newest first, and sums the tokens each turn reported (H5, H
             {
               "agentId": "id-2",
               "createdAt": "2026-01-01T00:00:03.000Z",
+              "createdSeq": 2,
               "id": "id-4",
               "title": "Reading list",
               "updatedAt": "2026-01-01T00:00:12.000Z",
@@ -46,6 +47,7 @@ it('lists every chat newest first, and sums the tokens each turn reported (H5, H
             {
               "agentId": "id-1",
               "createdAt": "2026-01-01T00:00:02.000Z",
+              "createdSeq": 1,
               "id": "id-3",
               "title": "Groceries",
               "updatedAt": "2026-01-01T00:00:09.000Z",

@@ -37,7 +37,7 @@ Settled product, visual, security, and workflow decisions for MorrowBot so any c
 
 ## Storage & Migrations
 - SQLite migrations live in `apps/host/src/features/storage/migration-<N>.ts` and are registered in `schema.ts`.
-- Latest merged migration on `main`: **`migration-17.ts`** (`13` = Connectors, `14` = Sub-agents, `15` = Message reactions, `16` = Tool steps, `17` = Reply attachments). New schema changes start at `migration-18.ts` (always check `ls apps/host/src/features/storage/migration-*.ts` first).
+- Latest merged migration on `main`: **`migration-18.ts`** (`13` = Connectors, `14` = Sub-agents, `15` = Message reactions, `16` = Tool steps, `17` = Agent-message read outcomes & unread lookup index, `18` = Reply attachments). New schema changes start at `migration-19.ts` (always check `ls apps/host/src/features/storage/migration-*.ts` first).
 
 ## Engineering, CI & Review Workflow
 - **CI (`.github/workflows/ci.yml`):** Uses affected-workspace detection (`.github/scripts/ci-changes.mjs`) to run `lint`, `typecheck-build`, and only affected workspace test jobs in parallel on PRs, failing open on root config changes and `push` to `main`, behind a single required `check` gate job. Local full verification stays `npm run check`.

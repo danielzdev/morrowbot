@@ -111,7 +111,12 @@ runPlugin((runtime) =>
         await runTools(calls, /^Message (\S+) from the agent/m.exec(prompt)?.[1], true);
         return end({ kind: 'completed', finishReason: 'stop' }, current);
       }
-      const command = reaction ? (/ on-reaction (\S+)$/m.exec(prompt)?.[1] ?? prompt) : prompt;
+      const background = prompt.startsWith('You are reading a message from another agent in the background:');
+      const command = reaction
+        ? (/ on-reaction (\S+)$/m.exec(prompt)?.[1] ?? prompt)
+        : background
+          ? (/^on-background (\S+)$/m.exec(prompt)?.[1] ?? prompt)
+          : prompt;
       if (prompt.split('\n')[0] === 'nothing-new') return end({ kind: 'completed', finishReason: 'stop' }, current, { finalText: QUIET_MARKER });
       if (command === 'huge-final') return end({ kind: 'completed', finishReason: 'stop' }, current, { finalText: '01234567890123456789ab😀cd' });
       if (command === 'flood-bytes') {

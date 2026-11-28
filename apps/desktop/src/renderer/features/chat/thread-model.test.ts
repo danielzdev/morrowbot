@@ -1,6 +1,7 @@
-import type { Message, ThreadState } from '@morrowbot/contracts';
+import type { AgentMessage, Message, ThreadState } from '@morrowbot/contracts';
 import { expect, it } from 'vitest';
 import { nextActivity, type ChatActivity } from './activity.ts';
+import { readNote } from './agent-exchange.ts';
 import { applyEvent, pendingApprovals, viewOf, type ThreadEvent, type ThreadView } from './thread-model.ts';
 
 const AT = '2026-01-01T00:00:00.000Z';
@@ -107,13 +108,8 @@ it('keeps a background turn out of the messages, notes how it ended early, and n
         "r",
       ],
       "quietEnds": {
-        "m1": {
-          "finishReason": "stop",
-          "kind": "completed",
-        },
-        "m2": {
-          "kind": "cancelled",
-        },
+        "m1": "completed",
+        "m2": "cancelled",
       },
       "seen": [
         "generation.background-started: queued, agent-message """,
@@ -153,6 +149,51 @@ it('ends a chat turn the agent left quiet without a new message, and does not re
       "activeTurn": null,
       "messages": [],
       "quietEnds": {},
+    }
+  `);
+});
+
+it('restores saved background read outcomes on cold load and resync for incoming agent messages only', () => {
+  const unread: AgentMessage = {
+    id: 'm-in',
+    from: { agentId: 'peer', threadId: 't-peer' },
+    to: { agentId: 'a', threadId: 't' },
+    text: 'Check logs',
+    expectsReply: false,
+    replyToMessageId: null,
+    depth: 0,
+    createdAt: AT,
+  };
+  const incoming: AgentMessage = { ...unread, readOutcome: 'failed' };
+  const outgoing: AgentMessage = {
+    id: 'm-out',
+    from: { agentId: 'a', threadId: 't' },
+    to: { agentId: 'peer', threadId: 't-peer' },
+    text: 'Heads up',
+    expectsReply: false,
+    replyToMessageId: null,
+    depth: 0,
+    createdAt: AT,
+    readOutcome: 'cancelled',
+  };
+  const cold = viewOf({ ...STATE, activeTurn: null }, null, [incoming, outgoing]);
+  const resynced = viewOf({ ...STATE, activeTurn: null }, viewOf({ ...STATE, activeTurn: null }, null, [unread]), [
+    { ...unread, readOutcome: 'interrupted' },
+    outgoing,
+  ]);
+  expect({
+    coldKeys: Object.keys(cold.quietEnds),
+    coldIncomingNote: readNote(cold.quietEnds['m-in']),
+    coldOutgoingNote: readNote(cold.quietEnds['m-out']),
+    resyncedNote: readNote(resynced.quietEnds['m-in']),
+  }).toMatchInlineSnapshot(`
+    {
+      "coldIncomingNote": "Failed while reading",
+      "coldKeys": [
+        "m-in",
+      ],
+      "coldOutgoingNote": null,
+      "resyncedNote": "Interrupted while reading",
     }
   `);
 });

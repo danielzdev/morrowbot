@@ -1,7 +1,7 @@
 import { access, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { Agent, AgentInstructionsView, StartedSend, Thread } from '@morrowbot/contracts';
+import { Agent, AgentInstructionsView, AgentMessage, mainThread, StartedSend, Thread, ThreadList } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { ECHO, hidePid } from './testing/chat-fixture.ts';
 import { PLUGIN_FIXTURES, sequence, startTestHost, type TestHost } from './testing/test-host.ts';
@@ -131,6 +131,7 @@ it('keeps agents, threads, messages and AGENTS.md across a host restart', async 
           {
             "agentId": "id-1",
             "createdAt": "2026-01-01T00:00:01.000Z",
+            "createdSeq": 1,
             "id": "id-2",
             "title": "New chat",
             "updatedAt": "2026-01-01T00:00:04.000Z",
@@ -263,6 +264,7 @@ it('creates, updates and deletes agents and threads', async () => {
         "body": {
           "agentId": "id-2",
           "createdAt": "2026-01-01T00:00:02.000Z",
+          "createdSeq": 1,
           "id": "id-3",
           "title": "New",
           "updatedAt": "2026-01-01T00:00:04.000Z",
@@ -281,4 +283,56 @@ it('creates, updates and deletes agents and threads', async () => {
     }
   `);
   await access(shared);
+});
+
+it('keeps the first-created chat as main when two chats share a creation millisecond and the second has a smaller id', async () => {
+  const fixedNow = () => '2026-01-01T00:00:00.000Z';
+  const ids = ['agent-receiver', 'z-first', 'a-second', 'agent-sender', 'sender-chat', 'msg-1'];
+  let index = 0;
+  host = await startTestHost({
+    dataDir,
+    sequence: {
+      newId: () => ids[index++] ?? `extra-${String(index)}`,
+      now: fixedNow,
+    },
+  });
+  const receiver = Agent.parse((await host.call('POST', '/api/agents', { name: 'Receiver' })).body);
+  const first = Thread.parse((await host.call('POST', `/api/agents/${receiver.id}/threads`, { title: 'First' })).body);
+  const second = Thread.parse((await host.call('POST', `/api/agents/${receiver.id}/threads`, { title: 'Second' })).body);
+  const sender = Agent.parse((await host.call('POST', '/api/agents', { name: 'Sender' })).body);
+  const senderThread = Thread.parse((await host.call('POST', `/api/agents/${sender.id}/threads`, { title: 'Main' })).body);
+
+  const listed = ThreadList.parse((await host.call('GET', `/api/agents/${receiver.id}/threads`)).body).threads;
+  const sent = await host.call('POST', `/api/agents/${sender.id}/messages`, {
+    kind: 'new',
+    toAgentId: receiver.id,
+    fromThreadId: senderThread.id,
+    text: 'Hello main chat',
+  });
+
+  expect({
+    createdIds: [first.id, second.id],
+    createdSeqs: listed.map(({ id, createdSeq }) => ({ id, createdSeq })),
+    mainFromReversed: mainThread([...listed].reverse())?.id,
+    routedToThread: sent.status === 201 ? AgentMessage.parse(sent.body).to.threadId : sent.status,
+  }).toMatchInlineSnapshot(`
+    {
+      "createdIds": [
+        "z-first",
+        "a-second",
+      ],
+      "createdSeqs": [
+        {
+          "createdSeq": 1,
+          "id": "z-first",
+        },
+        {
+          "createdSeq": 2,
+          "id": "a-second",
+        },
+      ],
+      "mainFromReversed": "z-first",
+      "routedToThread": "z-first",
+    }
+  `);
 });

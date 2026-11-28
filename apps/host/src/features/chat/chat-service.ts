@@ -217,8 +217,7 @@ export function createChatService(options: ChatServiceOptions): ChatService {
     createThread: (agentId, request) => {
       if (agents.get(agentId) === undefined) return undefined;
       const at = options.now();
-      const thread: Thread = { id: options.newId(), agentId, title: request.title, createdAt: at, updatedAt: at };
-      store.threads.insert(thread);
+      const thread = store.threads.insert({ id: options.newId(), agentId, title: request.title, createdAt: at, updatedAt: at });
       summaries.check(thread.id);
       return thread;
     },
@@ -368,6 +367,7 @@ function recover(options: ChatServiceOptions): void {
         store.generations.settle(generation.id, null);
         store.toolSteps.close(generation.id, null);
         store.replyAttachments.close(generation.id, null);
+        store.agentMessages.setReadOutcome(generation.inputMessageId, 'interrupted');
       });
       continue;
     }

@@ -213,6 +213,7 @@ export function chatStore(storage: Storage): ChatOptions['store'] {
     generations: storage.generations,
     sessions: storage.sessions,
     usage: storage.usage,
+    agentMessages: storage.agentMessages,
     subagents: storage.subagents,
     heldThreads: () => storage.childGroups.heldThreads(),
     transaction: (work) => storage.transaction(work),

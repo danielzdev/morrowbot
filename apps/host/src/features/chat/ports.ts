@@ -1,6 +1,7 @@
 import type {
   Agent,
   AgentMessage,
+  AgentMessageReadOutcome,
   Attachment,
   AttachmentContent,
   BlockedGroup,
@@ -68,7 +69,7 @@ export interface SubagentRecord {
 /** The storage the chat feature needs (the storage feature provides it). */
 export interface ChatStore {
   readonly threads: {
-    insert(thread: Thread): void;
+    insert(thread: Omit<Thread, 'createdSeq'>): Thread;
     update(thread: Thread): void;
     touch(id: string, at: string): void;
     delete(id: string): boolean;
@@ -173,6 +174,9 @@ export interface ChatStore {
   };
   readonly attachments: {
     pending(threadId: string, ids: readonly string[]): Attachment[] | undefined;
+  };
+  readonly agentMessages: {
+    setReadOutcome(id: string, outcome: AgentMessageReadOutcome): void;
   };
   readonly subagents: {
     get(threadId: string): SubagentRecord | undefined;
