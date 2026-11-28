@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { ChildGroupScope } from '@morrowbot/contracts';
 import { FIRST_FILE_FD, GuardMessage, type OwnerMessage } from './command-protocol.ts';
+import type { Fence } from './fence.ts';
 import type { GroupLink } from './host-link.ts';
 
 const GUARD_PATH = fileURLToPath(new URL('./command-guard.ts', import.meta.url));
@@ -90,13 +91,16 @@ interface Running {
   readonly abandon: () => void;
 }
 
-/** `env` is what every guard and its command run with; `link` registers each group with the host before the command starts. */
-export function createCommandRunner(link: GroupLink, env: Readonly<Record<string, string | undefined>>): CommandRunner {
+/**
+ * `env` is what every guard and its command run with; `link` registers each group with the host before the command
+ * starts; every command runs behind `fence`.
+ */
+export function createCommandRunner(link: GroupLink, env: Readonly<Record<string, string | undefined>>, fence: Fence): CommandRunner {
   const running = new Set<Running>();
   let abandoned = false;
   const open = (command: string, options: CommandOptions): OpenCommand => {
     if (abandoned) return closedCommand({ kind: 'failed', message: 'The plugin has stopped' });
-    return openCommand(command, options, { link, env, running });
+    return openCommand(command, options, { link, env, fence, running });
   };
   return {
     open,
@@ -123,6 +127,7 @@ export function createCommandRunner(link: GroupLink, env: Readonly<Record<string
 interface Owner {
   readonly link: GroupLink;
   readonly env: Readonly<Record<string, string | undefined>>;
+  readonly fence: Fence;
   readonly running: Set<Running>;
 }
 
@@ -229,7 +234,7 @@ function openCommand(command: string, options: CommandOptions, owner: Owner): Op
     owner.link
       .register(message.pgid, message.leaderStart, options.scope, terminate)
       .then(() => {
-        if (!killed) tell({ kind: 'spawn', env: { ...options.env } });
+        if (!killed) tell({ kind: 'spawn', env: { ...options.env }, fence: owner.fence });
       })
       .catch((error: unknown) => {
         console.error(`MorrowBot plugin: could not register a command's process group: ${describe(error)}`);
