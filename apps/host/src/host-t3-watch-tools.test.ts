@@ -282,7 +282,6 @@ it('hides T3 watch tools from agents shared with scoped members and refuses dire
         "react_to_message",
         "stay_quiet",
         "propose_card",
-        "search_marketplace",
       ],
     }
   `);

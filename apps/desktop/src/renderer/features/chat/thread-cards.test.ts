@@ -76,6 +76,28 @@ it('puts a turn’s staged cards on its reply, keeps the newest copy of each, an
   `);
 });
 
+it('links only the cards staged before a steer to its segment, even when the snapshot already holds a later one', () => {
+  const LATER = '2026-01-01T00:00:05.000Z';
+  const segment: AssistantMessage = { ...REPLY, id: 'seg', createdAt: '2026-01-01T00:00:02.000Z', outcome: { kind: 'steered' } };
+  const snapshot = viewOf(running, null, [], [card('before', 'g', 0), { ...card('after', 'g', 0), createdAt: LATER }]);
+  const steered = apply(snapshot, [
+    { kind: 'generation.steered', generationId: 'g', segment, userMessage: { kind: 'user', id: 'u2', threadId: 't', text: 'also this', createdAt: segment.createdAt, attachments: [] } },
+  ]);
+  const finished = apply(steered, [{ kind: 'generation.finished', generationId: 'g', message: { ...REPLY, id: 'm2', createdAt: LATER } }]);
+  expect({ steered: where(steered), finished: where(finished) }).toMatchInlineSnapshot(`
+    {
+      "finished": [
+        "before r0 seg -",
+        "after r0 m2 -",
+      ],
+      "steered": [
+        "before r0 seg -",
+        "after r0 staged -",
+      ],
+    }
+  `);
+});
+
 const CTX: CardContext = {
   peers: { name: () => 'Helper', color: () => '#6b7280', avatar: () => null },
   owner: true,

@@ -1,16 +1,20 @@
 import { z } from 'zod';
 
-/** The text-direction marks, embeddings, overrides and isolates. */
-const DIRECTION_MARKS = new Set([0x200e, 0x200f, 0x202a, 0x202b, 0x202c, 0x202d, 0x202e, 0x2066, 0x2067, 0x2068, 0x2069]);
+/** Text-direction marks, embeddings, overrides and isolates; invisible spaces and line breaks; the byte-order mark. */
+const HIDDEN = new Set([
+  0x061c, 0x200b, 0x200e, 0x200f, 0x2028, 0x2029, 0x202a, 0x202b, 0x202c, 0x202d, 0x202e, 0x2060, 0x2066, 0x2067, 0x2068, 0x2069, 0xfeff,
+]);
 
 /**
- * Whether `text` holds a control character other than tab and newline, or a text-direction character: text that could
- * reorder or hide what the user reads (a right-to-left override can make "exe.txt" read as "txt.exe").
+ * Whether `text` holds a control character other than tab and newline, a text-direction or invisible character, or
+ * a tag character: text that could reorder or hide what the user reads (a right-to-left override can make "exe.txt"
+ * read as "txt.exe"). Zero-width joiners stay, since emoji sequences and some scripts need them.
  */
 function hidesText(text: string): boolean {
   for (const character of text) {
     const code = character.codePointAt(0) ?? 0;
-    if ((code < 0x20 && code !== 0x09 && code !== 0x0a) || code === 0x7f || DIRECTION_MARKS.has(code)) return true;
+    const control = (code < 0x20 && code !== 0x09 && code !== 0x0a) || (code >= 0x7f && code <= 0x9f);
+    if (control || HIDDEN.has(code) || (code >= 0xe0000 && code <= 0xe007f)) return true;
   }
   return false;
 }
@@ -22,7 +26,7 @@ function cardText(max: number) {
     .trim()
     .min(1)
     .max(max)
-    .refine((text) => !hidesText(text), { error: 'Remove control and text-direction characters' });
+    .refine((text) => !hidesText(text), { error: 'Remove control, invisible and text-direction characters' });
 }
 
 export const UiTone = z.enum(['neutral', 'info', 'success', 'warning']);

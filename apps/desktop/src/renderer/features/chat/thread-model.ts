@@ -18,7 +18,7 @@ import type {
 } from '@morrowbot/contracts';
 import { replaceReactions } from './reactions.ts';
 import { fromSaved, withSaved } from './saved-tools.ts';
-import { settleCards, withCard } from './thread-cards.ts';
+import { settleCards, settleSteered, withCard } from './thread-cards.ts';
 
 /**
  * A tool call seen live or saved by the host. Times are ms; only differences between them are shown. `unfinished`:
@@ -314,7 +314,7 @@ function change(view: ThreadView, event: ThreadEvent, now: number): ThreadView |
       return {
         ...view,
         messages: [...view.messages, segment, userMessage],
-        cards: settleCards(view.cards, active.generationId, segment.id),
+        cards: settleSteered(view.cards, active.generationId, segment),
         activeTurn: { ...active, text: '', steps: [], detail: null, startedAt: now },
         finished: { ...view.finished, [segment.id]: record },
       };

@@ -55,7 +55,6 @@ it('stages an agent’s cards live, keeps them with its reply, and acts only on 
   const { chat } = kit;
   const { agent, thread } = await kit.named('Helper');
   const other = await kit.named('Other');
-  const guest = await kit.join('Guest', { kind: 'scoped', agents: [{ agentId: agent.id, canEdit: false, workspace: 'read-only', interAgentAllowlist: [] }] });
   await chat.host.call('PUT', '/api/plugins/faulty/enabled', { enabled: false });
   await chat.send(
     thread,
@@ -66,6 +65,7 @@ it('stages an agent’s cards live, keeps them with its reply, and acts only on 
       tool('propose_card', { card: { kind: 'setting', settingId: 'agent-emoji-replies' } }),
     ].join('\n'),
   );
+  const guest = await kit.join('Guest', { kind: 'scoped', agents: [{ agentId: agent.id, canEdit: false, workspace: 'read-only', interAgentAllowlist: [] }] });
   const saved = await cards(thread);
   const [meeting, plugin, setting] = saved;
   const liveEvents = chat.events.received.flatMap((event) =>
@@ -106,15 +106,15 @@ it('stages an agent’s cards live, keeps them with its reply, and acts only on 
     {
       "afterwards": {
         "cards": [
-          "custom r1 on id-11: answer mon",
-          "plugin r1 on id-11: Faulty [shell] installed",
-          "setting r1 on id-11: agent-emoji-replies off",
+          "custom r1 on id-10: answer mon",
+          "plugin r1 on id-10: Faulty [shell] installed",
+          "setting r1 on id-10: agent-emoji-replies off",
         ],
         "emojiReplies": "off",
         "faultyEnabled": true,
       },
       "clicks": {
-        "choose": "200 custom r1 on id-11: answer mon",
+        "choose": "200 custom r1 on id-10: answer mon",
         "unknownChoice": "400 {"error":{"kind":"invalid_request","message":"This card has no such choice."}}",
         "wrongKind": "400 {"error":{"kind":"invalid_request","message":"This card takes a choice."}}",
       },
@@ -129,22 +129,49 @@ it('stages an agent’s cards live, keeps them with its reply, and acts only on 
         "fromAnotherChat": "404 {"error":{"kind":"not_found","message":"Card not found"}}",
         "guestInstall": "403 {"error":{"kind":"forbidden","message":"Only the server owner can use this card."}}",
         "guestToggle": "403 {"error":{"kind":"forbidden","message":"Only the server owner can use this card."}}",
-        "install": "200 plugin r1 on id-11: Faulty [shell] installed",
+        "install": "200 plugin r1 on id-10: Faulty [shell] installed",
         "installAgain": "409 {"error":{"kind":"conflict","message":"This plugin is installed already."}}",
-        "toggleOff": "200 setting r1 on id-11: agent-emoji-replies off",
+        "toggleOff": "200 setting r1 on id-10: agent-emoji-replies off",
         "unknownCard": "404 {"error":{"kind":"not_found","message":"Card not found"}}",
       },
       "liveEvents": [
         "custom r0 staged: answer none",
         "plugin r0 staged: Faulty [shell] offered",
         "setting r0 staged: agent-emoji-replies on",
-        "finished id-11",
+        "finished id-10",
       ],
       "saved": [
-        "custom r0 on id-11: answer none",
-        "plugin r0 on id-11: Faulty [shell] offered",
-        "setting r0 on id-11: agent-emoji-replies on",
+        "custom r0 on id-10: answer none",
+        "plugin r0 on id-10: Faulty [shell] offered",
+        "setting r0 on id-10: agent-emoji-replies on",
       ],
+    }
+  `);
+});
+
+it('offers no plugins or settings from an agent shared with members, and still takes its own cards', async () => {
+  const { chat } = kit;
+  const { agent, thread } = await kit.named('Helper');
+  await kit.join('Guest', { kind: 'scoped', agents: [{ agentId: agent.id, canEdit: false, workspace: 'read-only', interAgentAllowlist: [] }] });
+  await chat.send(
+    thread,
+    [
+      tool('search_marketplace', {}),
+      tool('propose_card', { card: { kind: 'plugin', pluginId: 'faulty' } }),
+      tool('propose_card', { card: { kind: 'setting', settingId: 'agent-emoji-replies' } }),
+      tool('propose_card', { card: MEETING }),
+    ].join('\n'),
+  );
+  const [, reply] = (await chat.history(thread)).map(hidePid);
+  expect({ reply, cards: (await cards(thread)).map(line) }).toMatchInlineSnapshot(`
+    {
+      "cards": [
+        "custom r0 on id-7: answer none",
+      ],
+      "reply": "assistant(completed): search_marketplace: error Plugin and setting cards are not available to agents shared with other people.
+    propose_card: error Plugin and setting cards are not available to agents shared with other people.
+    propose_card: error Plugin and setting cards are not available to agents shared with other people.
+    propose_card: {"cardId":"id-6","note":"The card shows in the desktop chat now and stays with your reply. Say in a line what it offers or asks: the phone app shows only your text."}",
     }
   `);
 });
@@ -190,16 +217,16 @@ it('refuses a card that is not plain blocks, a plugin or setting it does not kno
       → at card.ui.blocks[0].kind
     propose_card: error ✖ Unrecognized key: "style"
       → at card.ui.blocks[0]
-    propose_card: error ✖ Remove control and text-direction characters
+    propose_card: error ✖ Remove control, invisible and text-direction characters
       → at card.ui.blocks[0].text
     propose_card: error ✖ Use at most one choices block
       → at card.ui
     propose_card: error No plugin "nowhere" is in the Marketplace. Call search_marketplace to see which are.
     propose_card: error ✖ Invalid input: expected "agent-emoji-replies"
       → at card.settingId
-    propose_card: {"cardId":"id-5","note":"The card shows in the chat now and stays with your reply. Do not repeat it in your text."}
-    propose_card: {"cardId":"id-6","note":"The card shows in the chat now and stays with your reply. Do not repeat it in your text."}
-    propose_card: {"cardId":"id-7","note":"The card shows in the chat now and stays with your reply. Do not repeat it in your text."}
+    propose_card: {"cardId":"id-5","note":"The card shows in the desktop chat now and stays with your reply. Say in a line what it offers or asks: the phone app shows only your text."}
+    propose_card: {"cardId":"id-6","note":"The card shows in the desktop chat now and stays with your reply. Say in a line what it offers or asks: the phone app shows only your text."}
+    propose_card: {"cardId":"id-7","note":"The card shows in the desktop chat now and stays with your reply. Say in a line what it offers or asks: the phone app shows only your text."}
     propose_card: error A reply holds at most 3 cards.",
       ],
       "status": 202,

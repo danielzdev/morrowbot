@@ -143,7 +143,7 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
   /** Agent messages announced while a load is in flight, so none falls between its fetch and live delivery. */
   let heard: AgentMessage[] = [];
 
-  /** The chat's `/state`, its agent messages and its cards: all three, or the first failure. */
+  /** The chat's `/state`, its agent messages and its cards (none from a host older than cards): all three, or the first failure. */
   async function snapshot(): Promise<
     ApiResult<{ readonly state: ThreadState; readonly agentMessages: readonly AgentMessage[]; readonly cards: readonly ThreadCard[] }>
   > {
@@ -152,8 +152,8 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
     const exchanged = await api.agentMessages(state.value.thread.agentId, threadId);
     if (exchanged.kind === 'failed') return exchanged;
     const cards = await api.threadCards(threadId);
-    if (cards.kind === 'failed') return cards;
-    return { kind: 'ok', value: { state: state.value, agentMessages: exchanged.value.messages, cards: cards.value.cards } };
+    if (cards.kind === 'failed' && cards.status !== 404) return cards;
+    return { kind: 'ok', value: { state: state.value, agentMessages: exchanged.value.messages, cards: cards.kind === 'ok' ? cards.value.cards : [] } };
   }
 
   async function load(): Promise<void> {

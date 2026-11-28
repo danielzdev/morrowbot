@@ -13,7 +13,18 @@ export function withCard(cards: readonly ThreadCard[], card: ThreadCard): readon
  * none (the host does the same in one transaction with the reply).
  */
 export function settleCards(cards: readonly ThreadCard[], generationId: string, messageId: string | null): readonly ThreadCard[] {
-  const open = (card: ThreadCard): boolean => card.generationId === generationId && card.messageId === null;
+  return settle(cards, (card) => card.generationId === generationId && card.messageId === null, messageId);
+}
+
+/**
+ * The cards a steered turn had staged when the host saved its `segment`. A card staged after the steer stays with
+ * the turn: a snapshot read during a steer can already hold it while the `steered` event is still to replay.
+ */
+export function settleSteered(cards: readonly ThreadCard[], generationId: string, segment: { readonly id: string; readonly createdAt: string }): readonly ThreadCard[] {
+  return settle(cards, (card) => card.generationId === generationId && card.messageId === null && card.createdAt <= segment.createdAt, segment.id);
+}
+
+function settle(cards: readonly ThreadCard[], open: (card: ThreadCard) => boolean, messageId: string | null): readonly ThreadCard[] {
   if (!cards.some(open)) return cards;
   return messageId === null ? cards.filter((card) => !open(card)) : cards.map((card) => (open(card) ? { ...card, messageId } : card));
 }

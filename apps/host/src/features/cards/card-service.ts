@@ -3,6 +3,7 @@ import {
   type CardAction,
   type CardBody,
   type CardProposal,
+  type PluginCardInfo,
   type PluginKind,
   type PluginPermission,
   type ThreadCard,
@@ -70,9 +71,21 @@ export interface CardService {
 
 const OWNER_ONLY = 'Only the server owner can use this card.';
 
+/** Whether the plugin in the folder now is the one the card showed: same version, kind and permissions. */
+function sameAsShown({ manifest }: MarketplacePlugin, shown: PluginCardInfo): boolean {
+  return (
+    manifest.version === shown.version &&
+    manifest.kind === shown.kind &&
+    manifest.permissions.length === shown.permissions.length &&
+    manifest.permissions.every((permission) => shown.permissions.includes(permission))
+  );
+}
+
 export function createCardService(options: CardServiceOptions): CardService {
   const { store, chat, plugins, settings } = options;
   const findPlugin = (id: string): MarketplacePlugin | undefined => plugins.list().find(({ manifest }) => manifest.id === id);
+  /** Cards with a click in progress: a second click waits for none and changes nothing. */
+  const busy = new Set<string>();
 
   async function bodyOf(grant: CardGrant, proposal: CardProposal): Promise<CardBody | string> {
     switch (proposal.kind) {
@@ -92,14 +105,17 @@ export function createCardService(options: CardServiceOptions): CardService {
     }
   }
 
-  /** Saves `body` as the card's next revision and tells the chat's windows. */
-  function change(card: ThreadCard, body: CardBody): ThreadCard {
-    const latest = store.get(card.id) ?? card;
+  /** Saves `body` as the card's next revision and tells the chat's windows; undefined when the chat was deleted meanwhile. */
+  function change(card: ThreadCard, body: CardBody): ThreadCard | undefined {
+    const latest = store.get(card.id);
+    if (latest === undefined) return undefined;
     const next: ThreadCard = { ...latest, revision: latest.revision + 1, body };
     store.update(next);
     chat.publishCard(next);
     return next;
   }
+
+  const ended = (card: ThreadCard | undefined): ActAnswer => (card === undefined ? { kind: 'not_found' } : { kind: 'done', card });
 
   async function actOn(card: ThreadCard, action: CardAction, clicker: Clicker, send: SendChoice): Promise<ActAnswer> {
     const { body } = card;
@@ -110,25 +126,32 @@ export function createCardService(options: CardServiceOptions): CardService {
         if (choice === undefined) return { kind: 'invalid', reason: 'This card has no such choice.' };
         if (body.answer !== null) return { kind: 'conflict', reason: 'This card was answered already.' };
         const answered = change(card, { ...body, answer: choice.id });
-        if (await send(choice.label)) return { kind: 'done', card: answered };
-        change(answered, body);
-        return { kind: 'not_sent' };
+        if (answered === undefined) return { kind: 'not_found' };
+        let sent = false;
+        try {
+          sent = await send(choice.label);
+        } finally {
+          if (!sent) change(answered, body);
+        }
+        return sent ? { kind: 'done', card: answered } : { kind: 'not_sent' };
       }
       case 'plugin': {
         if (action.kind !== 'install' && action.kind !== 'cancel') return { kind: 'invalid', reason: 'This card takes Install or Cancel.' };
         if (!clicker.owner) return { kind: 'forbidden', reason: OWNER_ONLY };
         if (body.state !== 'offered') return { kind: 'conflict', reason: body.state === 'installed' ? 'This plugin is installed already.' : 'This card was cancelled.' };
-        if (action.kind === 'cancel') return { kind: 'done', card: change(card, { ...body, state: 'cancelled' }) };
-        if (findPlugin(body.pluginId) === undefined) return { kind: 'conflict', reason: 'This plugin is no longer in the plugins folder.' };
+        if (action.kind === 'cancel') return ended(change(card, { ...body, state: 'cancelled' }));
+        const found = findPlugin(body.pluginId);
+        if (found === undefined) return { kind: 'conflict', reason: 'This plugin is no longer in the plugins folder.' };
+        if (!sameAsShown(found, body.plugin)) return { kind: 'conflict', reason: 'This plugin changed since the card was shown. Ask the agent for a new card.' };
         await plugins.setEnabled(body.pluginId, true);
-        return { kind: 'done', card: change(card, { ...body, state: 'installed' }) };
+        return ended(change(card, { ...body, state: 'installed' }));
       }
       case 'setting': {
         if (action.kind !== 'set') return { kind: 'invalid', reason: 'This card takes on or off.' };
         if (!clicker.owner) return { kind: 'forbidden', reason: OWNER_ONLY };
         const read = writeSafeSetting(body.settingId, card.agentId, action.on, settings);
         if (read.kind === 'unavailable') return { kind: 'conflict', reason: read.reason };
-        return { kind: 'done', card: change(card, { ...body, on: read.on }) };
+        return ended(change(card, { ...body, on: read.on }));
       }
     }
   }
@@ -141,7 +164,7 @@ export function createCardService(options: CardServiceOptions): CardService {
       if (staged.kind === 'refused') return staged;
       return {
         kind: 'done',
-        value: { cardId: staged.card.id, note: 'The card shows in the chat now and stays with your reply. Do not repeat it in your text.' },
+        value: { cardId: staged.card.id, note: 'The card shows in the desktop chat now and stays with your reply. Say in a line what it offers or asks: the phone app shows only your text.' },
       };
     },
     searchMarketplace: async (query) => {
@@ -175,7 +198,13 @@ export function createCardService(options: CardServiceOptions): CardService {
       const card = store.get(cardId);
       if (card?.threadId !== threadId) return { kind: 'not_found' };
       if (card.messageId === null) return { kind: 'conflict', reason: 'This card works once the reply is done.' };
-      return actOn(card, action, clicker, send);
+      if (busy.has(cardId)) return { kind: 'conflict', reason: 'This card is still working on the last click.' };
+      busy.add(cardId);
+      try {
+        return await actOn(card, action, clicker, send);
+      } finally {
+        busy.delete(cardId);
+      }
     },
   };
 }

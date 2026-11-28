@@ -35,6 +35,7 @@ export function cardRoutes({ cards, chat }: ApiServices): Route[] {
             case 'queued':
               return true;
             case 'files_wait':
+              notSent = failure('conflict', 'The choice can be sent once this reply ends.');
               return false;
             case 'thread_not_found':
             case 'busy':

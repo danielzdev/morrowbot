@@ -179,6 +179,8 @@ export interface ToolPorts {
   readonly cards: {
     propose(grant: ToolGrant, proposal: CardProposal): Promise<ReplyAnswer>;
     searchMarketplace(query: string): Promise<ReplyAnswer>;
+    /** Agents shared with members offer no plugins or settings: those belong to the owner. */
+    sharedWithMembers(agentId: string): boolean;
   };
   /** The vault's item names. Secret values never reach the tools. */
   readonly vault: { list(): readonly VaultItem[] };

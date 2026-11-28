@@ -36,7 +36,7 @@ export function agentToolPorts(options: {
   readonly agentMessages: AgentMessageService;
   readonly memories: MemoryService;
   readonly replies: ToolPorts['replies'];
-  readonly cards: ToolPorts['cards'];
+  readonly cards: Omit<ToolPorts['cards'], 'sharedWithMembers'>;
   readonly vault: ToolPorts['vault'];
   readonly subagents: SubagentService;
   readonly connectors: ConnectorService;
@@ -61,7 +61,7 @@ export function agentToolPorts(options: {
     },
     memories,
     replies,
-    cards,
+    cards: { propose: (grant, proposal) => cards.propose(grant, proposal), searchMarketplace: (query) => cards.searchMarketplace(query), sharedWithMembers },
     vault,
     routines: routineToolPort(storage, routines, sharedWithMembers),
     t3Watches: t3WatchToolPort(storage, t3Watches, t3Clock, defaultT3RoutineId, sharedWithMembers),
