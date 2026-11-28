@@ -12,6 +12,7 @@ import { Icon } from '../../shared/ui/Icon.tsx';
 import { MenuButton } from '../../shared/ui/Menu.tsx';
 import { isTextField } from '../../shared/ui/SettingsShell.tsx';
 import { useStore } from '../../shared/use-store.ts';
+import type { AgentExtensionsPort } from './agent-extensions.ts';
 import { MarketplaceTab, type CatalogFilter } from './MarketplaceTab.tsx';
 import { pluginItems, PluginsTab } from './PluginsTab.tsx';
 import { isListedPlugin } from './plugin-health.ts';
@@ -34,13 +35,18 @@ export interface ConnectorsSlot {
   readonly onBrowse: () => void;
 }
 
+/** Where a jump lands: the Connectors tab (then `arrive`), or a plugin's page in Plugins. */
+export type ExtensionsJumpTo = { readonly kind: 'connectors'; readonly arrive: () => void } | { readonly kind: 'plugin'; readonly pluginId: string };
+
 export interface ExtensionsViewProps {
   readonly model: PluginsModel;
   readonly info: AppInfo | null;
+  /** Per-agent toggle port for tool plugins on the Plugins tab. */
+  readonly agentExtensions?: AgentExtensionsPort;
   /** The Connectors tab, which the connectors feature draws, and how many connectors match the search. */
   readonly connectors: { readonly count: (query: string) => number | null; readonly tab: (slot: ConnectorsSlot) => ComponentChildren };
-  /** Another screen sent the user to Connectors: each new `id` shows that tab, then calls `arrive`, after the dirty check. */
-  readonly jump: { readonly id: number; readonly arrive: () => void } | null;
+  /** Another screen sent the user here: each new `id` shows that place, after the dirty check. */
+  readonly jump: { readonly id: number; readonly to: ExtensionsJumpTo } | null;
   readonly bridge: Pick<MorrowbotBridge, 'revealPath' | 'relaunch'>;
   /** "Configure in Providers →" for a plugin that adds a community provider. */
   readonly onOpenProvider: (providerId: string) => void;
@@ -111,9 +117,18 @@ export function ExtensionsView(props: ExtensionsViewProps) {
     if (to === null) return;
     guarded.current(() => {
       setQuery('');
-      setSavedTab('connectors');
-      writePref(TAB_KEY, 'connectors');
-      to.arrive();
+      const { to: place } = to;
+      switch (place.kind) {
+        case 'connectors':
+          setSavedTab('connectors');
+          writePref(TAB_KEY, 'connectors');
+          place.arrive();
+          return;
+        case 'plugin':
+          setSavedTab('plugins');
+          writePref(TAB_KEY, 'plugins');
+          setSelectedKey(`plugin:${place.pluginId}`);
+      }
     });
   }, [jumpId]);
 
@@ -121,7 +136,7 @@ export function ExtensionsView(props: ExtensionsViewProps) {
   if (loaded.kind === 'failed') {
     return (
       <div class="banner error page-pad" role="alert">
-        <span>MorrowBot couldn't read its plugin folders. {redact(loaded.message, info)}</span>
+        <span>Ori Kami couldn't read its plugin folders. {redact(loaded.message, info)}</span>
         <button type="button" class="btn secondary" onClick={() => void model.load()}>
           Try again
         </button>
@@ -217,6 +232,7 @@ export function ExtensionsView(props: ExtensionsViewProps) {
             selected={selected}
             searching={searching}
             pluginsDir={displayPath(list.pluginsDir, info)}
+            {...(props.agentExtensions === undefined ? {} : { agentExtensions: props.agentExtensions })}
             redact={safe}
             onSelect={(key) => { guarded.current(() => { setSelectedKey(key); }); }}
             onRescan={rescan}

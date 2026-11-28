@@ -1,6 +1,6 @@
 import { PluginEntry, type PluginOrigin, type PluginProblem, type PluginStatus } from '@morrowbot/contracts';
 import { expect, it } from 'vitest';
-import { healthOf, pluginAlert, problemHealth } from './plugin-health.ts';
+import { healthOf, extensionsAlert, problemHealth } from './plugin-health.ts';
 
 const entry = (id: string, status: PluginStatus, source: PluginOrigin = 'user', kind: 'tool' | 'provider' = 'tool'): PluginEntry =>
   PluginEntry.parse({
@@ -52,24 +52,39 @@ it('gives every plugin status its own pill, and a folder that could not load its
       "problems": [
         "invalid-manifest → error | Invalid manifest | no manifest.json | broken",
         "duplicate → warning | Duplicate | Another built-in plugin already uses the id “echo”, so this one was skipped. | echo",
-        "unreadable → error | Couldn't read folder | permission denied | MorrowBot couldn't read its plugin folders.",
+        "unreadable → error | Couldn't read folder | permission denied | Ori Kami couldn't read its plugin folders.",
       ],
     }
   `);
 });
 
-it('shows the Extensions dot for plugins that need attention or safe mode, never for built-in providers', () => {
+it('shows the Extensions dot for plugins or connectors that need attention, or safe mode, never for built-in providers', () => {
   const running = entry('a', { kind: 'running' });
   const crashedProvider = entry('provider-claude', { kind: 'crashed', reason: { kind: 'exit', code: 1, signal: null } }, 'built-in', 'provider');
   expect({
-    fine: pluginAlert(list([running, entry('b', { kind: 'disabled' }), entry('c', { kind: 'stopped' }), crashedProvider])),
-    warn: pluginAlert(list([running, entry('b', { kind: 'unhealthy', detail: 'slow' })], [{ kind: 'invalid-manifest', source: 'user', folder: 'x', problem: 'bad' }])),
-    danger: pluginAlert(list([entry('b', { kind: 'unhealthy', detail: 'slow' }), entry('c', { kind: 'crashed', reason: { kind: 'exit', code: 1, signal: null } }), entry('d', { kind: 'quarantined', detail: 'pgid' })])),
-    duplicateOnly: pluginAlert(list([running], [{ kind: 'duplicate', source: 'user', folder: 'a', id: 'a', takenBy: 'built-in' }])),
-    safeMode: pluginAlert(list([entry('b', { kind: 'safe-mode' })], [], true)),
-    safeModeNoPlugins: pluginAlert(list([], [], true)),
+    fine: extensionsAlert(list([running, entry('b', { kind: 'disabled' }), entry('c', { kind: 'stopped' }), crashedProvider])),
+    warn: extensionsAlert(list([running, entry('b', { kind: 'unhealthy', detail: 'slow' })], [{ kind: 'invalid-manifest', source: 'user', folder: 'x', problem: 'bad' }])),
+    danger: extensionsAlert(list([entry('b', { kind: 'unhealthy', detail: 'slow' }), entry('c', { kind: 'crashed', reason: { kind: 'exit', code: 1, signal: null } }), entry('d', { kind: 'quarantined', detail: 'pgid' })])),
+    duplicateOnly: extensionsAlert(list([running], [{ kind: 'duplicate', source: 'user', folder: 'a', id: 'a', takenBy: 'built-in' }])),
+    safeMode: extensionsAlert(list([entry('b', { kind: 'safe-mode' })], [], true)),
+    safeModeNoPlugins: extensionsAlert(list([], [], true)),
+    connectorsOnly: extensionsAlert(list([running]), [{ tone: 'warn', text: '2 connectors need attention' }]),
+    connectorCrashed: extensionsAlert(list([entry('b', { kind: 'unhealthy', detail: 'slow' })]), [{ tone: 'danger', text: '1 connector needs attention' }]),
+    connectorsInSafeMode: extensionsAlert(list([], [], true), [{ tone: 'warn', text: '1 connector needs attention' }]),
   }).toMatchInlineSnapshot(`
     {
+      "connectorCrashed": {
+        "label": "Extensions: 1 not responding, 1 connector needs attention",
+        "tone": "danger",
+      },
+      "connectorsInSafeMode": {
+        "label": "Extensions: off in safe mode",
+        "tone": "warn",
+      },
+      "connectorsOnly": {
+        "label": "Extensions: 2 connectors need attention",
+        "tone": "warn",
+      },
       "danger": {
         "label": "Extensions: 1 not responding, 1 crashed, 1 quarantined",
         "tone": "danger",

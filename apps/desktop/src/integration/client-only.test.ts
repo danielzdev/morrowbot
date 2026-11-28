@@ -10,14 +10,14 @@ import { pickServer } from '../main/join-server.ts';
 import { readServerChoice, serverPlanOf, writeServerChoice } from '../main/server-choice.ts';
 import { openServerConnection } from '../main/server-connection.ts';
 
-const RENDERER_URL = 'file:///Applications/MorrowBot.app/Contents/Resources/app/dist/renderer/index.html';
+const RENDERER_URL = 'file:///Applications/Ori Kami.app/Contents/Resources/app/dist/renderer/index.html';
 const PAGE: IpcSender = { kind: 'frame', url: RENDERER_URL, isMainFrame: true };
 
 let kit: MemberKit;
 let desktopDir: string;
 beforeEach(async () => {
   kit = await startMemberKit();
-  desktopDir = await mkdtemp(path.join(tmpdir(), 'morrowbot-client-only-'));
+  desktopDir = await mkdtemp(path.join(tmpdir(), 'orikami-client-only-'));
 });
 afterEach(async () => {
   await kit.close();
@@ -122,8 +122,8 @@ it("joins the owner's own server with a pairing code typed beside its address, a
   const code = PairingCodeResponse.parse((await kit.chat.host.call('POST', '/api/pairing/codes', { url: kit.chat.host.url })).body).code;
   await kit.named('Mine');
   const picked = await pickServer({ kind: 'join', link: '', url: kit.chat.host.url, code: `${code.slice(0, 3)} ${code.slice(3)}` }, 'darwin');
-  const upgraded = await mkdtemp(path.join(tmpdir(), 'morrowbot-upgraded-'));
-  await writeFile(path.join(upgraded, 'morrowbot.sqlite'), '');
+  const upgraded = await mkdtemp(path.join(tmpdir(), 'orikami-upgraded-'));
+  await writeFile(path.join(upgraded, 'orikami.sqlite'), '');
   const local = localStarts();
   const localRun = openServerConnection(serverPlanOf(readServerChoice(upgraded), upgraded), { startLocal: local.startLocal, connectRemote: () => undefined });
   await rm(upgraded, { recursive: true, force: true });
@@ -143,7 +143,7 @@ it("joins the owner's own server with a pairing code typed beside its address, a
       },
       "badLink": {
         "kind": "failed",
-        "message": "Paste a morrowbot://join link",
+        "message": "Paste an orikami://join link",
       },
       "localHostsStarted": [
         "local host",

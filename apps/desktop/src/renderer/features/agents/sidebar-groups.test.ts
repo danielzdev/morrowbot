@@ -17,6 +17,8 @@ function facts(name: string, change: Partial<AgentFacts> = {}, agentChange: Part
     provider: BOUND,
     folderId: null,
     emojiReplies: 'allowed',
+    disabledExtensions: [],
+    revision: 0,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...agentChange,

@@ -54,13 +54,13 @@ it('words every outcome and ProviderError kind, with at most one action', () => 
       "failed/not-installed": "error | Claude's CLI is not installed. | [Open Providers]",
       "failed/other": "error | Claude exited: see ~/logs for <email> | [Continue]",
       "failed/outdated": "error | Claude's CLI is outdated. | [Open Providers]",
-      "failed/output-limit": "warning | The reply hit MorrowBot's output size limit and was cut off.",
+      "failed/output-limit": "warning | The reply hit Ori Kami's output size limit and was cut off.",
       "failed/rate-limited": "warning | Claude's 5-hour limit is reached | resets 2026-11-27T11:10:00.000Z | [Continue]",
       "failed/route-changed": "warning | The provider's endpoint changed. | [Start a new seeded session]",
       "failed/session-lost": "error | Claude lost its saved session. | [Continue]",
       "failed/signed-out": "error | Claude is signed out. | [Open Providers]",
       "failed/transient": "warning | Claude had a temporary problem. | [Continue]",
-      "interrupted": "warning | Interrupted: MorrowBot stopped before this reply finished. | [Continue]",
+      "interrupted": "warning | Interrupted: Ori Kami stopped before this reply finished. | [Continue]",
     }
   `);
 });

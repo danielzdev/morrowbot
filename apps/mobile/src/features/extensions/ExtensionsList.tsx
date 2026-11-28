@@ -11,7 +11,7 @@ import { Badge, ItemMark } from './parts.tsx';
 const EMPTY: Readonly<Record<ExtensionsSegment, string>> = {
   plugins: 'No plugins installed yet.',
   connectors: 'Connect an account so your agents can use it, like your calendar or a to-do app. No connectors are set up yet.',
-  marketplace: 'The MorrowBot catalog is not available in this version yet. To add a plugin, put its folder in the host’s plugins folder.',
+  marketplace: 'The Ori Kami catalog is not available in this version yet. To add a plugin, put its folder in the host’s plugins folder.',
 };
 
 function SegmentBar() {
@@ -117,7 +117,7 @@ export function ExtensionsList(props: SidebarProps) {
         <Text style={[typography.ui, { color: colors.text3 }]}>{query.trim() === '' ? EMPTY[segment] : 'No matches.'}</Text>
       ) : null}
       {segment === 'plugins' && rows.length > 0 ? (
-        <Text style={[typography.small, { color: colors.text3 }]}>A plugin turned off is off for every agent.</Text>
+        <Text style={[typography.small, { color: colors.text3 }]}>Turn off a plugin for every agent here, or open one to toggle per agent.</Text>
       ) : null}
     </ScrollView>
   );

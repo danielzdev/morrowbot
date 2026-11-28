@@ -248,7 +248,7 @@ it('starts nothing in safe mode and refuses every connector call', async () => {
     serverStarted: existsSync(log),
   }).toMatchInlineSnapshot(`
     {
-      "call": "MorrowBot is in safe mode, so connectors are off.",
+      "call": "Ori Kami is in safe mode, so connectors are off.",
       "serverStarted": false,
       "status": {
         "kind": "off_safe_mode",
@@ -279,7 +279,7 @@ it('refuses a label already in use by another connector, compared by its tool-na
   `);
 });
 
-it('gives no connectors to an agent shared with a member, and hides secret values a server echoes in an error', async () => {
+it('on an agent shared with a member, gives connectors only to turns the owner started, and hides secret values a server echoes in an error', async () => {
   kit = await startConnectorKit({ agentIds: ['agent-a', 'agent-shared'] });
   await kit.add({ label: 'Notes', setup: stdioSetup('work', path.join(kit.dir, 'log')), scope: { mode: 'all', agentIds: [] } });
   kit.storage.members.insert(
@@ -287,19 +287,27 @@ it('gives no connectors to an agent shared with a member, and hides secret value
     'code-hash',
     '2099-01-01T00:00:00.000Z',
   );
-  const shared = kit.turn('agent-shared');
+  const sharedByOwner = kit.turn('agent-shared', 'owner');
+  const sharedByMember = kit.turn('agent-shared', 'member');
+  const sharedByAgent = kit.turn('agent-shared', 'agent');
   const a = kit.turn('agent-a');
   expect({
-    sharedTools: connectorToolNames(await shared.list()),
-    sharedCall: said(await shared.call('notes__echo', { text: 'hi' })),
-    ownTools: connectorToolNames(await a.list()).length,
+    sharedOwnerTools: connectorToolNames(await sharedByOwner.list()).length,
+    sharedMemberTools: connectorToolNames(await sharedByMember.list()),
+    sharedMemberCall: said(await sharedByMember.call('notes__echo', { text: 'hi' })),
+    sharedAgentTools: connectorToolNames(await sharedByAgent.list()),
+    unsharedAgentTools: connectorToolNames(await kit.turn('agent-a', 'agent').list()).length,
+    unsharedMemberTools: connectorToolNames(await kit.turn('agent-a', 'member').list()),
     leak: said(await a.call('notes__echo', { text: 'leak' })),
   }).toMatchInlineSnapshot(`
     {
       "leak": "Notes: The server answered with error -32000: Rejected token [hidden]",
-      "ownTools": 4,
-      "sharedCall": "Connectors are not given to agents shared with other people.",
-      "sharedTools": [],
+      "sharedAgentTools": [],
+      "sharedMemberCall": "This agent is shared, so connectors are given only to turns the owner starts.",
+      "sharedMemberTools": [],
+      "sharedOwnerTools": 4,
+      "unsharedAgentTools": 4,
+      "unsharedMemberTools": [],
     }
   `);
 });

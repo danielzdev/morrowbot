@@ -17,6 +17,8 @@ import { MIGRATION_16 } from './migration-16.ts';
 import { MIGRATION_17 } from './migration-17.ts';
 import { MIGRATION_18 } from './migration-18.ts';
 import { MIGRATION_19 } from './migration-19.ts';
+import { MIGRATION_20 } from './migration-20.ts';
+import { MIGRATION_21 } from './migration-21.ts';
 
 export const MIGRATIONS: readonly string[] = [
   `
@@ -77,6 +79,8 @@ export const MIGRATIONS: readonly string[] = [
   MIGRATION_17,
   MIGRATION_18,
   MIGRATION_19,
+  MIGRATION_20,
+  MIGRATION_21,
 ];
 
 export function migrate(db: DatabaseSync): void {

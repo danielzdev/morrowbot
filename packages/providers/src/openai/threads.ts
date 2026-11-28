@@ -55,7 +55,7 @@ export async function openThread(daemon: CodexDaemon, request: OpenRequest): Pro
       return refused(
         loaded !== undefined && loaded.routeKey !== routeKey
           ? { kind: 'route-changed' }
-          : { kind: 'access-not-supported', reason: 'Codex kept an earlier copy of this chat loaded, so MorrowBot cannot apply its access settings. Try again shortly.' },
+          : { kind: 'access-not-supported', reason: 'Codex kept an earlier copy of this chat loaded, so Ori Kami cannot apply its access settings. Try again shortly.' },
       );
   }
   const resumed = await daemon.call('thread/resume', { threadId: ref, ...overrides, excludeTurns: true }, ThreadOpened, OPEN_MS);

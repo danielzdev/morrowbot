@@ -75,7 +75,7 @@ export function startUpdater({ env, appPath, onStatus, report }: UpdaterOptions)
 
   /** Points electron-updater at the feed, reading the Keychain token afresh so a token added later is used. */
   const useFeed = async (): Promise<boolean> => {
-    const keychainToken = env.MORROWBOT_RELEASES_TOKEN === undefined ? await readKeychainToken() : null;
+    const keychainToken = env.ORIKAMI_RELEASES_TOKEN === undefined ? await readKeychainToken() : null;
     const feed = feedOf({ env, builtRepo: await builtRepo, keychainToken });
     switch (feed.kind) {
       case 'invalid':

@@ -1,6 +1,7 @@
 import type { Agent, Thread } from '@morrowbot/contracts';
 import type { ComponentChildren } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
+import { sourceTag, statusPill } from '../features/connectors/index.ts';
 import { CommandPalette, type PaletteItem } from '../features/palette/index.ts';
 import { DESTINATIONS, type SettingsLink } from '../features/settings/index.ts';
 import { PLATFORM, shortcutLabel, type ShortcutId } from '../shared/keys.ts';
@@ -16,6 +17,8 @@ export interface PaletteActions {
   readonly changeBinding: (() => void) | null;
   readonly openSettings: (link: SettingsLink) => void;
   readonly openExtensions: () => void;
+  /** Opens Extensions › Connectors at one connector; null for a scoped member, who has no Extensions. */
+  readonly openConnector: ((id: string) => void) | null;
   readonly toggleSidebar: () => void;
   /** Null when no chat is on screen. */
   readonly toggleInspector: (() => void) | null;
@@ -46,6 +49,7 @@ export function Palette(props: {
   const state = useStore(models.agents.state);
   const cards = useStore(models.providers.cards);
   const activity = useStore(models.chats.activity);
+  const connectorList = useStore(models.connectors.list);
   const [chats, setChats] = useState<ChatList>({ kind: 'loading' });
   useEffect(() => {
     let current = true;
@@ -56,6 +60,12 @@ export function Palette(props: {
       current = false;
     };
   }, [models]);
+  const { openConnector } = actions;
+  const ownsConnectors = openConnector !== null;
+  useEffect(() => {
+    if (ownsConnectors) void models.connectors.load();
+  }, [models, ownsConnectors]);
+  const connectors = ownsConnectors && connectorList.kind === 'loaded' ? connectorList.value.connectors : [];
 
   const agents = state.agents.kind === 'loaded' ? state.agents.value : [];
   const agentById = new Map(agents.map((each) => [each.id, each]));
@@ -103,6 +113,15 @@ export function Palette(props: {
       if (owner === undefined) return [];
       return [{ id: `chat:${thread.id}`, group: 'chats', label: thread.title, detail: owner.name, hint: '', leading: icon('chat'), run: () => { actions.openAgent(owner.id, thread.id); } }];
     }),
+    ...connectors.map((each): PaletteItem => ({
+      id: `connector:${each.id}`,
+      group: 'connectors',
+      label: each.label,
+      detail: `${statusPill(each.status).label} · ${sourceTag(each.setup)}`,
+      hint: '',
+      leading: icon('plugins'),
+      run: () => { openConnector?.(each.id); },
+    })),
     ...DESTINATIONS.map((place): PaletteItem => ({
       id: `setting:${place.link}`,
       group: 'settings',

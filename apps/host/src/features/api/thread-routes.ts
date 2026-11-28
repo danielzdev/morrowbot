@@ -13,7 +13,7 @@ import {
   UpdateThreadRequest,
 } from '@morrowbot/contracts';
 import { refusal } from './admit-reply.ts';
-import { sees } from './access.ts';
+import { initiatorOf, sees } from './access.ts';
 import type { ApiQueueAnswer, ApiServices } from './ports.ts';
 import { failure, json, noContent, notFound, type Reply } from './reply.ts';
 import { parseBody, type Route } from './route.ts';
@@ -140,7 +140,7 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
         const request = await parseBody(context, SendMessageRequest);
         if (request.kind === 'rejected') return request.reply;
         const { text, attachmentIds, sessionChoice } = request.value;
-        const result = await chat.send(context.params.get('id'), text, attachmentIds, sessionChoice);
+        const result = await chat.send(context.params.get('id'), text, attachmentIds, sessionChoice, initiatorOf(context.viewer));
         if (result.kind === 'queued') {
           const body: SendMessageResponse = { kind: 'queued', queued: result.queued };
           return json(202, body);
@@ -158,7 +158,7 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
       handle: async (context) => {
         const request = await parseBody(context, SetReactionRequest);
         if (request.kind === 'rejected') return request.reply;
-        const result = chat.setReaction(context.params.get('id'), request.value);
+        const result = chat.setReaction(context.params.get('id'), request.value, initiatorOf(context.viewer));
         switch (result.kind) {
           case 'set': {
             const body: SetReactionResponse = { reactions: result.reactions };
@@ -181,7 +181,7 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
       method: 'POST',
       path: '/api/threads/:id/queue/:queuedId/steer',
       access: { kind: 'thread', need: 'chat' },
-      handle: ({ params }) => queueReply(chat.steerQueued(params.get('id'), params.get('queuedId')), noContent),
+      handle: ({ params, viewer }) => queueReply(chat.steerQueued(params.get('id'), params.get('queuedId'), initiatorOf(viewer)), noContent),
     },
     {
       method: 'POST',
@@ -191,7 +191,7 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
         const request = await parseBody(context, ContinueRequest);
         if (request.kind === 'rejected') return request.reply;
         const { failedMessageId, sessionChoice } = request.value;
-        const result = await chat.continueTurn(context.params.get('id'), failedMessageId, sessionChoice);
+        const result = await chat.continueTurn(context.params.get('id'), failedMessageId, sessionChoice, initiatorOf(context.viewer));
         if (result.kind !== 'started') return refusal(result);
         const body: ContinueResponse = { generationId: result.generationId };
         return json(202, body);
@@ -222,7 +222,7 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
         const id = params.get('id');
         if (chat.getThread(id) === undefined) return notFound('Thread');
         const stopped = await chat.stop(id);
-        if (stopped.kind === 'not_stored') return failure('internal', 'The reply could not be saved. Restart MorrowBot to finish this turn.');
+        if (stopped.kind === 'not_stored') return failure('internal', 'The reply could not be saved. Restart Ori Kami to finish this turn.');
         return json(200, stopped);
       },
     },

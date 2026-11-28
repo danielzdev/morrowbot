@@ -48,6 +48,8 @@ export function ChatPane(props: {
   readonly ownerEngines: boolean;
   /** True only for the server's owner, who may grant full access (shell commands). */
   readonly allowFull: boolean;
+  /** Extensions, at a plugin a chat card offers; null for a member. */
+  readonly onOpenPlugin: ((pluginId: string) => void) | null;
 }) {
   const { models, agent } = props;
   const display = useMemo(() => chatDisplay(props.info, agent.workspace.dir), [props.info, agent.workspace.dir]);
@@ -162,6 +164,9 @@ export function ChatPane(props: {
             engine={engine}
             avatar={chatAvatar}
             activity={activity[session.threadId]?.activity ?? 'idle'}
+            owner={props.ownerEngines}
+            onOpenPlugin={props.onOpenPlugin}
+            onAgentChanged={(agentId) => void refetchAgent(models, agentId)}
             hero={
               <>
                 <BotAvatar avatar={agent.avatar} motion={motion} size={64} reducedMotion={props.reducedMotion} />
@@ -209,4 +214,11 @@ export function ChatPane(props: {
     )}
     </div>
   );
+}
+
+/** Fetches one agent again, such as after a chat card changed one of its settings. */
+async function refetchAgent(models: Models, agentId: string): Promise<void> {
+  const result = await models.api.listAgents();
+  const agent = result.kind === 'ok' ? result.value.agents.find(({ id }) => id === agentId) : undefined;
+  if (agent !== undefined) models.agents.adoptAgent(agent);
 }

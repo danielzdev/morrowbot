@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { AgentInstructionsView, ApiError, ConnectorScope, ProviderUnavailableReason, SessionChoiceReason } from '@morrowbot/contracts';
+import type { Agent, AgentInstructionsView, ApiError, ConnectorScope, ProviderUnavailableReason, SessionChoiceReason } from '@morrowbot/contracts';
 import type { z } from 'zod';
 import { sendFile, type FileReply } from './file-reply.ts';
 
@@ -8,7 +8,10 @@ export type Reply =
   | { readonly kind: 'empty'; readonly status: number; readonly headers?: Readonly<Record<string, string>> }
   | FileReply;
 
-type ErrorKind = Exclude<ApiError['error']['kind'], 'provider-unavailable' | 'binding-changed' | 'session-choice-required' | 'instructions-conflict' | 'scope-conflict'>;
+type ErrorKind = Exclude<
+  ApiError['error']['kind'],
+  'provider-unavailable' | 'binding-changed' | 'session-choice-required' | 'instructions-conflict' | 'scope-conflict' | 'agent-conflict'
+>;
 
 const STATUS: Record<ErrorKind, number> = {
   invalid_request: 400,
@@ -64,7 +67,7 @@ export function sessionChoiceRequired(reason: SessionChoiceReason): Reply {
 /** `AGENTS.md` was left as it is: it exists already, or replacing it is not available yet (409). */
 export function instructionsConflict(reason: 'occupied' | 'replace-unavailable', current: AgentInstructionsView): Reply {
   const messages: Record<typeof reason, string> = {
-    occupied: 'This folder already has an AGENTS.md, so MorrowBot kept it and wrote nothing.',
+    occupied: 'This folder already has an AGENTS.md, so Ori Kami kept it and wrote nothing.',
     'replace-unavailable': "Editing AGENTS.md in place isn't available yet. Nothing was changed.",
   };
   const body: ApiError = { error: { kind: 'instructions-conflict', reason, current, message: messages[reason] } };
@@ -74,6 +77,12 @@ export function instructionsConflict(reason: 'occupied' | 'replace-unavailable',
 /** A connector's scope changed since the caller read it; nothing was written (409). */
 export function scopeConflict(current: ConnectorScope): Reply {
   const body: ApiError = { error: { kind: 'scope-conflict', current, message: 'Changed elsewhere.' } };
+  return json(409, body);
+}
+
+/** An agent record changed since the caller read it; nothing was written (409). */
+export function agentConflict(current: Agent): Reply {
+  const body: ApiError = { error: { kind: 'agent-conflict', current, message: 'Changed elsewhere.' } };
   return json(409, body);
 }
 

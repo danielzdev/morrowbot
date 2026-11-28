@@ -55,7 +55,7 @@ it('builds distinct policies, sandbox policies, and keys for read-only vs full a
     readOnlyTurnSandbox: { type: 'readOnly', networkAccess: false },
     fullTurnSandbox: { type: 'dangerFullAccess' },
     readOnlyLocksShell: true,
-    fullConfigKeys: ['mcp_servers.morrowbot'],
+    fullConfigKeys: ['mcp_servers.orikami'],
     distinctKeys: true,
   });
 });

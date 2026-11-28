@@ -78,7 +78,7 @@ it('lists a built-in provider first and skips a plugin folder that reuses its id
 });
 
 it('adds a plugin folder found by Rescan, and Restart starts a fresh worker', async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'morrowbot-rescan-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'orikami-rescan-'));
   try {
     const h = await bootHost({ pluginsDir: dir, records: {} });
     const before = h.host.list().map(({ manifest }) => manifest.id);
@@ -362,7 +362,7 @@ it('disables provider plugins on Windows with a message, and still runs tool plu
       "statuses": {
         "echo": {
           "kind": "unsupported",
-          "reason": "Provider plugins need macOS or Linux in this version of MorrowBot.",
+          "reason": "Provider plugins need macOS or Linux in this version of Ori Kami.",
         },
         "faulty": {
           "kind": "running",

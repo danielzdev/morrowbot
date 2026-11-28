@@ -24,7 +24,7 @@ export function SkillsSection(props: {
     <div class="settings-section skills-section">
       <p class="binding-note">
         A skill is a folder with a SKILL.md whose frontmatter has a name and a description. Put this agent's skills in its workspace under
-        .morrowbot/skills, and skills for every agent in the MorrowBot data folder's skills folder.
+        .orikami/skills, and skills for every agent in the Ori Kami data folder's skills folder.
       </p>
       <div class="row">
         <button type="button" class="btn secondary" onClick={() => { props.onReveal('agent'); }}>Open agent skills folder</button>

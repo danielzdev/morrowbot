@@ -42,6 +42,8 @@ export function Pages(props: {
   readonly onToggleInspector: () => void;
   /** First run: New Agent, prefilled or as an unbound draft. */
   readonly onFirstAgent: (brain: NewAgentBrain) => void;
+  /** Extensions, at a plugin a chat card offers; null for a member, who has no Extensions. */
+  readonly onOpenPlugin: ((pluginId: string) => void) | null;
 }) {
   const { models, bridge, agent, chrome, info, page } = props;
   const state = useStore(models.agents.state);
@@ -84,11 +86,12 @@ export function Pages(props: {
             onToggleInspector={props.onToggleInspector}
             ownerEngines={props.onNewAgent !== null}
             allowFull={props.allowFull}
+            onOpenPlugin={props.onOpenPlugin}
           />
         );
       }
       return (
-        <PageFrame title="MorrowBot" chrome={chrome}>
+        <PageFrame title="Ori Kami" chrome={chrome}>
           {state.agents.kind === 'loaded' && state.agents.value.length === 0 && props.onNewAgent === null ? (
             <div class="chat empty">
               <p>No agents are shared with you on this server right now. Ask its owner to share one.</p>
@@ -97,7 +100,7 @@ export function Pages(props: {
             <FirstRun models={models} bridge={bridge} info={info} onFirstAgent={props.onFirstAgent} />
           ) : (
             <div class="chat empty">
-              <p>{state.agents.kind === 'loading' ? 'Loading…' : state.agents.kind === 'failed' ? "MorrowBot couldn't load your agents." : 'Choose an agent to start chatting.'}</p>
+              <p>{state.agents.kind === 'loading' ? 'Loading…' : state.agents.kind === 'failed' ? "Ori Kami couldn't load your agents." : 'Choose an agent to start chatting.'}</p>
               {state.agents.kind === 'loaded' && props.onNewAgent !== null && <button class="btn primary" onClick={props.onNewAgent}>New agent</button>}
             </div>
           )}

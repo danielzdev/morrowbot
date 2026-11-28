@@ -15,6 +15,7 @@ import { MessageReaction } from './reactions.ts';
 import { ThreadChanged } from './thread-activity.ts';
 import { Thread } from './threads.ts';
 import { MessageToolSteps, ToolStep } from './tool-steps.ts';
+import { ThreadCard } from './thread-cards.ts';
 
 export const ProviderUnavailableReason = z.enum(['route-info-timeout', 'route-info-failed', 'daemon-blocked', 'rechecking']);
 export type ProviderUnavailableReason = z.infer<typeof ProviderUnavailableReason>;
@@ -43,6 +44,8 @@ export const ApiError = z.strictObject({
     }),
     /** A connector's scope changed since it was read; nothing was written. `current` is the newer scope. */
     z.strictObject({ kind: z.literal('scope-conflict'), current: ConnectorScope, message: z.string() }),
+    /** An agent record changed since it was read; nothing was written. `current` is the newer agent. */
+    z.strictObject({ kind: z.literal('agent-conflict'), current: Agent, message: z.string() }),
   ]),
 });
 export type ApiError = z.infer<typeof ApiError>;
@@ -173,7 +176,7 @@ export const ThreadState = z.strictObject({
 });
 export type ThreadState = z.infer<typeof ThreadState>;
 
-/** `built-in`: ships inside MorrowBot (a built-in provider, or the app's own plugins folder). `user`: the user's plugins folder. */
+/** `built-in`: ships inside Ori Kami (a built-in provider, or the app's own plugins folder). `user`: the user's plugins folder. */
 export const PluginOrigin = z.enum(['built-in', 'user']);
 export type PluginOrigin = z.infer<typeof PluginOrigin>;
 
@@ -293,6 +296,8 @@ export const ChatEvent = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('generation.background-finished'), ...ThreadEvent, outcome: TurnOutcome }),
   /** A message's reactions changed: `reactions` is its whole list now, oldest first. */
   z.strictObject({ kind: z.literal('reactions.changed'), threadId: EntityId, cursor: Cursor, messageId: EntityId, reactions: z.array(MessageReaction) }),
+  /** A card was put in the chat, or changed: `card` is its whole newest copy (see `ThreadCard.revision`). */
+  z.strictObject({ kind: z.literal('card.changed'), threadId: EntityId, cursor: Cursor, card: ThreadCard }),
   /** A sub-agent of this chat's turn `generationId` started, began running or ended. */
   z.strictObject({ kind: z.literal('subagent.changed'), ...ThreadEvent, run: SubagentRun }),
   /** Global (not part of any thread's cursor): refetch `/api/plugins/:id/usage`. */

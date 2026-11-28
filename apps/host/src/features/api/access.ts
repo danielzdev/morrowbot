@@ -1,5 +1,5 @@
 import type { Agent, AgentGrant, Member } from '@morrowbot/contracts';
-import type { ApiServices } from './ports.ts';
+import type { ApiInitiator, ApiServices } from './ports.ts';
 import { failure, notFound, type Reply } from './reply.ts';
 import type { Params } from './route.ts';
 
@@ -34,6 +34,11 @@ export type Viewer =
 
 export function sees(viewer: Viewer, agentId: string): boolean {
   return viewer.kind === 'owner' || viewer.grants.has(agentId);
+}
+
+/** Who a turn the viewer starts answers: the owner's turns may use the agent's connectors, a scoped member's never. */
+export function initiatorOf(viewer: Viewer): ApiInitiator {
+  return viewer.kind === 'owner' ? 'owner' : 'member';
 }
 
 export type Admission = { readonly kind: 'admitted'; readonly viewer: Viewer } | { readonly kind: 'denied'; readonly reply: Reply };
@@ -113,7 +118,7 @@ async function grantAdmits(
 
 /**
  * Why a scoped member's turn may not start on this agent now: its engine setting must stay inside the grant's
- * confinement, use MorrowBot's own isolated CLI settings (never the owner's personal setup and its connectors),
+ * confinement, use Ori Kami's own isolated CLI settings (never the owner's personal setup and its connectors),
  * and be proven not to read files outside the agent's folder. Checked on every turn, so an owner changing the
  * agent later cannot widen what a member reaches.
  */

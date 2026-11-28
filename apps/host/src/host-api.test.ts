@@ -9,7 +9,7 @@ import { PLUGIN_FIXTURES, sequence, startTestHost, type TestHost } from './testi
 let dataDir: string;
 let host: TestHost | undefined;
 beforeEach(async () => {
-  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'morrowbot-api-')));
+  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-api-')));
 });
 afterEach(async () => {
   await host?.close();
@@ -65,6 +65,7 @@ it('keeps agents, threads, messages and AGENTS.md across a host restart', async 
             },
             "createdAt": "2026-01-01T00:00:00.000Z",
             "description": "",
+            "disabledExtensions": [],
             "emojiReplies": "allowed",
             "folderId": null,
             "id": "id-1",
@@ -78,6 +79,7 @@ it('keeps agents, threads, messages and AGENTS.md across a host restart', async 
               },
               "vendorSettings": "isolated",
             },
+            "revision": 0,
             "updatedAt": "2026-01-01T00:00:00.000Z",
             "workspace": {
               "dir": "<data>/workspaces/id-1",
@@ -180,6 +182,7 @@ it('creates, updates and deletes agents and threads', async () => {
               },
               "createdAt": "2026-01-01T00:00:00.000Z",
               "description": "Own folder",
+              "disabledExtensions": [],
               "emojiReplies": "allowed",
               "folderId": null,
               "id": "id-1",
@@ -195,6 +198,7 @@ it('creates, updates and deletes agents and threads', async () => {
                 },
                 "vendorSettings": "isolated",
               },
+              "revision": 1,
               "updatedAt": "2026-01-01T00:00:03.000Z",
               "workspace": {
                 "dir": "<data>/workspaces/id-1",
@@ -238,6 +242,7 @@ it('creates, updates and deletes agents and threads', async () => {
           },
           "createdAt": "2026-01-01T00:00:00.000Z",
           "description": "Own folder",
+          "disabledExtensions": [],
           "emojiReplies": "allowed",
           "folderId": null,
           "id": "id-1",
@@ -253,6 +258,7 @@ it('creates, updates and deletes agents and threads', async () => {
             },
             "vendorSettings": "isolated",
           },
+          "revision": 1,
           "updatedAt": "2026-01-01T00:00:03.000Z",
           "workspace": {
             "dir": "<data>/workspaces/id-1",

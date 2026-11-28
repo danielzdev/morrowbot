@@ -1,6 +1,9 @@
-import { View } from 'react-native';
+import { useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { Split } from 'react-native-screens';
-import { DETAIL_MIN_WIDTH, type WorkspaceLayout } from '../../lib/layout.ts';
+import { MorrowLayoutMetricsView } from '../../../modules/morrow-native-controls/index.ts';
+import { deriveSplitDetailInsets, DETAIL_MIN_WIDTH, type WorkspaceLayout } from '../../lib/layout.ts';
+import { parseNativeLayoutMetrics, type NativeLayoutMetrics } from '../../lib/reserved-regions.ts';
 import { useTheme } from '../../lib/useTheme.ts';
 import type { DetailRegistry, DetailRoute, TabSlot, WorkspaceNavigation } from '../../lib/workspace.ts';
 import { DetailPane, type DetailLeading } from './DetailPane.tsx';
@@ -23,8 +26,10 @@ export function SplitTab(props: {
   readonly onToggleExpanded: () => void;
 }) {
   const theme = useTheme();
+  const [detailMetrics, setDetailMetrics] = useState<NativeLayoutMetrics | null>(null);
   const { Sidebar, onSearch } = props.tab;
   const { layout, navigation } = props;
+  const detailInsets = deriveSplitDetailInsets(layout, props.insets, props.expanded, detailMetrics);
   const leading: DetailLeading = layout.canExpandDetail
     ? { kind: 'expand', expanded: props.expanded, onToggle: props.onToggleExpanded }
     : { kind: 'none' };
@@ -56,20 +61,29 @@ export function SplitTab(props: {
         </View>
       </Split.Column>
       <Split.Column disableStackIntegration>
-        <View
-          style={{
-            flex: 1,
-            paddingTop: props.insets.top,
-            paddingLeft: props.expanded ? props.insets.left : layout.gap,
-            paddingRight: props.insets.right,
-            backgroundColor: theme.colors.surface0,
-          }}
-        >
-          {props.route ? (
-            <DetailPane route={props.route} details={props.details} navigation={navigation} leading={leading} />
-          ) : (
-            <EmptyDetail />
-          )}
+        <View style={{ flex: 1, backgroundColor: theme.colors.surface0 }}>
+          <MorrowLayoutMetricsView
+            pointerEvents="none"
+            style={StyleSheet.absoluteFill}
+            onMetricsChange={(event) => {
+              const next = parseNativeLayoutMetrics(event.nativeEvent);
+              if (next) setDetailMetrics(next);
+            }}
+          />
+          <View
+            style={{
+              flex: 1,
+              paddingTop: detailInsets.top,
+              paddingLeft: detailInsets.left,
+              paddingRight: detailInsets.right,
+            }}
+          >
+            {props.route ? (
+              <DetailPane route={props.route} details={props.details} navigation={navigation} leading={leading} />
+            ) : (
+              <EmptyDetail />
+            )}
+          </View>
         </View>
       </Split.Column>
     </Split.Host>

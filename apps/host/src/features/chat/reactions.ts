@@ -6,6 +6,7 @@ import {
   type SetReactionRequest,
 } from '@morrowbot/contracts';
 import type { AdmitResult } from './admission.ts';
+import type { TurnInitiator } from './initiator.ts';
 import type { ChatCore, Turn } from './turn.ts';
 
 export type SetReactionAnswer =
@@ -17,6 +18,7 @@ export type SetReactionAnswer =
 export interface ReactionNote {
   readonly messageId: string;
   readonly emoji: string;
+  readonly by: TurnInitiator;
 }
 
 /** Who a tool call acts as: a running turn of `agentId` in `threadId`. */
@@ -32,7 +34,7 @@ export type ReplyToolAnswer = { readonly kind: 'done'; readonly value: object } 
 const MAX_QUOTE = 4_000;
 
 /** Puts the user's `emoji` on, or takes it off, one of the agent's replies; a new one is noted for the agent. */
-export function setUserReaction(core: ChatCore, threadId: string, request: SetReactionRequest): SetReactionAnswer {
+export function setUserReaction(core: ChatCore, threadId: string, request: SetReactionRequest, by: TurnInitiator): SetReactionAnswer {
   const { store } = core.options;
   if (core.closed || core.deletingThreads.has(threadId)) return { kind: 'not_found' };
   const message = store.messages.get(request.messageId);
@@ -46,7 +48,7 @@ export function setUserReaction(core: ChatCore, threadId: string, request: SetRe
   if (!changed) return { kind: 'set', reactions };
   publish(core, threadId, message.id, reactions);
   const others = (core.reactionNotes.get(threadId) ?? []).filter((note) => note.messageId !== message.id || note.emoji !== emoji);
-  core.reactionNotes.set(threadId, request.reacted ? [...others, { messageId: message.id, emoji }] : others);
+  core.reactionNotes.set(threadId, request.reacted ? [...others, { messageId: message.id, emoji, by }] : others);
   if (request.reacted) core.readNext(threadId);
   return { kind: 'set', reactions };
 }
@@ -160,7 +162,8 @@ export function dropNote(core: ChatCore, threadId: string, note: ReactionNote): 
   else core.reactionNotes.set(threadId, rest);
 }
 
-function runningTurn(core: ChatCore, grant: TurnGrant): Turn | undefined {
+/** The turn `grant` stands for, while it runs. */
+export function runningTurn(core: ChatCore, grant: TurnGrant): Turn | undefined {
   const turn = core.active.get(grant.threadId);
   if (turn?.generationId !== grant.turnId || turn.agentId !== grant.agentId || turn.state === 'settled') return undefined;
   return turn;

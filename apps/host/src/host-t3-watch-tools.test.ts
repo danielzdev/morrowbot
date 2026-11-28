@@ -42,7 +42,7 @@ let clock: TickingClock;
 let t3: FakeT3;
 let chat: ChatFixture;
 beforeEach(async () => {
-  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'morrowbot-t3-watch-tools-')));
+  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-t3-watch-tools-')));
   clock = new TickingClock();
   t3 = new FakeT3(clock);
   chat = await startChatFixture({ dataDir, sequence: sequence(), t3Watch: { probe: t3, clock } });
@@ -282,6 +282,7 @@ it('hides T3 watch tools from agents shared with scoped members and refuses dire
         "react_to_message",
         "stay_quiet",
         "attach_files",
+        "propose_card",
       ],
     }
   `);

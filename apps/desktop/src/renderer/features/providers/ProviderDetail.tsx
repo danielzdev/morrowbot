@@ -51,7 +51,7 @@ export function ProviderDetail(props: { readonly card: ProviderCard; readonly in
         <div class="detail-title">
           <h2>{manifest.name}</h2>
           <div class="muted">
-            {entry.source === 'user' ? 'Community provider' : 'Built into MorrowBot'}
+            {entry.source === 'user' ? 'Community provider' : 'Built into Ori Kami'}
             {version !== null && <span class="mono"> · {redact(version)}</span>}
           </div>
         </div>

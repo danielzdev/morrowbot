@@ -10,7 +10,7 @@ import { sequence } from './testing/test-host.ts';
 let dataDir: string;
 let chat: ChatFixture;
 beforeEach(async () => {
-  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'morrowbot-agent-tools-')));
+  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-agent-tools-')));
   chat = await startChatFixture({ dataDir, sequence: sequence() });
 });
 afterEach(async () => {
@@ -24,7 +24,7 @@ async function agentWithChat(name: string): Promise<{ readonly agent: Agent; rea
   return { agent, thread: await chat.thread(agent) };
 }
 
-/** One echo turn line that calls a MorrowBot tool. */
+/** One echo turn line that calls an Ori Kami tool. */
 const call = (name: string, args: object): string => `host-tool ${name} ${JSON.stringify(args)}`;
 
 /** The reply's lines, one per tool call. */

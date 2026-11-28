@@ -15,6 +15,7 @@ import type {
   MessageToolSteps,
   ProviderInfo,
   Thread,
+  ThreadCard,
   TurnChunk,
   TurnEnd,
   TurnOutcome,
@@ -103,6 +104,12 @@ export interface ChatStore {
     listOpen(generationId: string): ToolStep[];
     close(generationId: string, messageId: string | null): void;
     listByThread(threadId: string): MessageToolSteps[];
+  };
+  /** Cards agents put in the chat (see the storage feature's cards repository). */
+  readonly cards: {
+    insert(card: ThreadCard): void;
+    countOpen(generationId: string): number;
+    close(generationId: string, messageId: string | null): void;
   };
   /** Files each turn's agent attached with `attach_files`, kept with the turn until its reply is saved. */
   readonly replyAttachments: {
@@ -281,7 +288,7 @@ export interface TurnContext {
   readAttachment(attachment: Attachment): Promise<AttachmentContent>;
 }
 
-/** MorrowBot's own tools for one turn (the agent-tools feature provides them). */
+/** Ori Kami's own tools for one turn (the agent-tools feature provides them). */
 export interface TurnTools {
   /** Tools that act only as the turn's agent, in its chat, until `close` with the same turn id. */
   open(turn: { readonly turnId: string; readonly agentId: string; readonly threadId: string }): HostTools;

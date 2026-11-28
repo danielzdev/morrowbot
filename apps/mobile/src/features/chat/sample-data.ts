@@ -1,58 +1,15 @@
 import type { Agent, Message, PluginEntry, ProviderInfo, Thread, ThreadState } from '@morrowbot/contracts';
+import { sampleCatalog } from '../../lib/sample-catalog.ts';
 
 /** Made-up records for `sampleChatHost`: generic names only, never a real person, device or path. */
 
-const DAY = '2026-11-20T09:00:00.000Z';
+const SAMPLE_NOW = Date.parse('2026-11-27T12:00:00.000Z');
 const LATER = '2026-11-27T08:30:00.000Z';
 
-export const SAMPLE_AGENTS: readonly Agent[] = [
-  {
-    id: 'errand-bot',
-    name: 'Errand Bot',
-    description: 'Plans trips and weekend errands.',
-    workspace: { kind: 'dedicated', dir: '/srv/morrowbot/agents/errands' },
-    avatar: { kind: 'bot', shape: 'lightbulb', color: '#7c5cff', finish: 'matte' },
-    provider: {
-      kind: 'bound',
-      pluginId: 'claude',
-      selection: { kind: 'model', id: 'opus', choices: { effort: 'medium' } },
-      access: 'workspace-write',
-      vendorSettings: 'isolated',
-    },
-    folderId: null,
-    emojiReplies: 'allowed',
-    createdAt: DAY,
-    updatedAt: LATER,
-  },
-  {
-    id: 'reading-buddy',
-    name: 'Reading Buddy',
-    description: 'Keeps book notes and summaries.',
-    workspace: { kind: 'dedicated', dir: '/srv/morrowbot/agents/reading' },
-    avatar: { kind: 'bot', shape: 'sprout', color: '#22a06b', finish: 'flat' },
-    provider: { kind: 'bound', pluginId: 'openai', selection: { kind: 'default' }, access: 'read-only', vendorSettings: 'isolated' },
-    folderId: null,
-    emojiReplies: 'allowed',
-    createdAt: DAY,
-    updatedAt: LATER,
-  },
-];
+const catalog = sampleCatalog(SAMPLE_NOW);
 
-const thread = (id: string, agentId: string, title: string, createdAt: string): Thread => ({
-  id,
-  agentId,
-  title,
-  createdAt,
-  updatedAt: LATER,
-  archivedAt: null,
-});
-
-export const SAMPLE_THREADS: readonly Thread[] = [
-  thread('errand-main', 'errand-bot', 'Main', DAY),
-  thread('weekend-errands', 'errand-bot', 'Plan the weekend errands', '2026-11-25T10:00:00.000Z'),
-  thread('errand-budget', 'errand-bot', 'Budget', '2026-11-26T10:00:00.000Z'),
-  thread('reading-main', 'reading-buddy', 'Main', DAY),
-];
+export const SAMPLE_AGENTS: readonly Agent[] = catalog.agents;
+export const SAMPLE_THREADS: readonly Thread[] = catalog.threads.map(({ thread }) => thread);
 
 const user = (id: string, threadId: string, text: string): Message => ({
   kind: 'user',
@@ -61,6 +18,16 @@ const user = (id: string, threadId: string, text: string): Message => ({
   text,
   createdAt: LATER,
   attachments: [],
+});
+
+const assistant = (id: string, threadId: string, text: string, outcome: Extract<Message, { kind: 'assistant' }>['outcome'] = { kind: 'completed', finishReason: 'stop' }): Message => ({
+  kind: 'assistant',
+  attachments: [],
+  id,
+  threadId,
+  text,
+  createdAt: LATER,
+  outcome,
 });
 
 const PLAN = [
@@ -81,33 +48,47 @@ const PLAN = [
   '```',
 ].join('\n');
 
+const LENTIL_DINNER = [
+  'Here is a quick 30-minute **spiced red lentil soup** for a weeknight:',
+  '',
+  '- Sauté diced onion, carrot, garlic, and a spoonful of cumin in olive oil.',
+  '- Stir in 1 cup rinsed red lentils, 4 cups broth, and a squeeze of lemon.',
+  '- Simmer 20 minutes until tender, then finish with parsley and toasted bread.',
+].join('\n');
+
 export const SAMPLE_MESSAGES: Readonly<Record<string, readonly Message[]>> = {
   'errand-main': [
     user('m1', 'errand-main', 'Can you draft a 3-day plan for Lisbon?'),
-    {
-      kind: 'assistant',
-      attachments: [],
-      id: 'm2',
-      threadId: 'errand-main',
-      text: PLAN,
-      createdAt: LATER,
-      outcome: { kind: 'completed', finishReason: 'stop' },
-    },
+    assistant('m2', 'errand-main', PLAN),
     user('m3', 'errand-main', 'Looks great. Save it to `notes/lisbon.md`.'),
   ],
-  'weekend-errands': [user('m4', 'weekend-errands', 'What should I get done this weekend?')],
-  'errand-budget': [],
+  'weekend-errands': [
+    user('m4', 'weekend-errands', 'What order should I run errands on Saturday?'),
+    assistant('m4b', 'weekend-errands', 'Pharmacy first, then the hardware store before it closes at 6.'),
+  ],
   'reading-main': [
-    user('m5', 'reading-main', 'Summarise chapter 3 of my book notes.'),
-    {
-      kind: 'assistant',
-      attachments: [],
-      id: 'm6',
-      threadId: 'reading-main',
-      text: 'Chapter 3 follows',
-      createdAt: LATER,
-      outcome: { kind: 'interrupted' },
-    },
+    user('m5', 'reading-main', 'Any short novels to put on my list next?'),
+    assistant('m6', 'reading-main', 'Here are three short novels you might like next.\n\n1. **Piranesi**\n2. **The Memory Police**\n3. **Small Things Like These**'),
+  ],
+  'book-club': [
+    user('m7', 'book-club', 'Give me three discussion prompts for chapter 4.'),
+    assistant('m8', 'book-club', '- What changes once the narrator leaves the island?\n- Which minor character notices the shift first?\n- Would the ending feel different from another viewpoint?'),
+  ],
+  'recipe-main': [
+    user('m9', 'recipe-main', 'Something with lentils, please'),
+    assistant('m10', 'recipe-main', LENTIL_DINNER),
+  ],
+  'garden-main': [
+    user('m11', 'garden-main', 'When should I repot the basil on the balcony?'),
+    assistant('m12', 'garden-main', 'Once roots peek through the drainage holes', { kind: 'interrupted' }),
+  ],
+  'trip-main': [
+    user('m13', 'trip-main', 'What about a train from Porto?'),
+    assistant('m14', 'trip-main', 'The Alfa Pendular from Porto-Campanhã to Lisbon Santa Apolónia takes about 2 hours 50 minutes and runs hourly.'),
+  ],
+  lisbon: [
+    user('m15', 'lisbon', 'Draft a relaxed spring itinerary for Lisbon.'),
+    assistant('m16', 'lisbon', PLAN),
   ],
 };
 
@@ -175,7 +156,7 @@ const plugin = (
   source: 'built-in' | 'user',
   status: PluginEntry['status'],
 ): PluginEntry => ({
-  manifest: { protocolVersion: 1, id, name, version: '1.0.0', kind, main: 'index.js', permissions: [], envPreset: 'none', settingsSchema: {} },
+  manifest: { protocolVersion: 1, id, name, description: '', version: '1.0.0', kind, main: 'index.js', permissions: [], envPreset: 'none', settingsSchema: {} },
   source,
   status,
   enabled: status.kind !== 'disabled',

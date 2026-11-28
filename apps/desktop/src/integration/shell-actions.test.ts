@@ -6,7 +6,7 @@ import { startChatFixture, type ChatFixture } from '../../../host/src/testing/ch
 import type { IpcSender } from '../main/ipc-proxy.ts';
 import { loginItemOf, openExternalUrl, parseExternalUrl, parseOpenAtLogin, parseRelaunch, parseRevealTarget, resolveReveal } from '../main/shell-actions.ts';
 
-const RENDERER_URL = 'file:///Applications/MorrowBot.app/Contents/Resources/app/dist/renderer/index.html';
+const RENDERER_URL = 'file:///Applications/Ori Kami.app/Contents/Resources/app/dist/renderer/index.html';
 const PAGE: IpcSender = { kind: 'frame', url: RENDERER_URL, isMainFrame: true };
 const page = (input: unknown) => ({ sender: PAGE, rendererUrl: RENDERER_URL, input });
 const outcome = (run: () => unknown): unknown => {
@@ -75,8 +75,8 @@ it('falls back to macOS open when Electron openExternal fails, and reports struc
   }).toEqual({
     electronOk: { kind: 'opened' },
     macFallbackOk: { kind: 'opened' },
-    macBothFailed: { kind: 'failed', reason: "MorrowBot couldn't open your browser (No browser installed)." },
-    linuxFailed: { kind: 'failed', reason: "MorrowBot couldn't open your browser (xdg-open missing)." },
+    macBothFailed: { kind: 'failed', reason: "Ori Kami couldn't open your browser (No browser installed)." },
+    linuxFailed: { kind: 'failed', reason: "Ori Kami couldn't open your browser (xdg-open missing)." },
     macFallbackUrls: ['https://opencode.ai'],
   });
 });
@@ -84,8 +84,8 @@ it('falls back to macOS open when Electron openExternal fails, and reports struc
 it('reveals folders by opaque id only, resolving an agent workspace from the host', async () => {
   const agent = await chat.agent();
   const host = { url: chat.host.url, token: chat.host.host.token };
-  const pluginsDir = path.join(await mkdtemp(path.join(tmpdir(), 'morrowbot-reveal-')), 'plugins');
-  const context = { dataDir: '/data/morrowbot', pluginsDir, host, rendererUrl: RENDERER_URL };
+  const pluginsDir = path.join(await mkdtemp(path.join(tmpdir(), 'orikami-reveal-')), 'plugins');
+  const context = { dataDir: '/data/orikami', pluginsDir, host, rendererUrl: RENDERER_URL };
   const pathRefused = outcome(() => parseRevealTarget(page({ kind: 'path', path: '/etc' })));
   const resolved = await resolveReveal(parseRevealTarget(page({ kind: 'agent-workspace', agentId: agent.id })), context);
   const missing = await resolveReveal({ kind: 'agent-workspace', agentId: 'no-such-agent' }, context).catch((error: unknown) => (error instanceof Error ? error.message : ''));
@@ -100,11 +100,11 @@ it('reveals folders by opaque id only, resolving an agent workspace from the hos
     copyEscape: outcome(() => parseRevealTarget(page({ ...copy, revealId: '../../../etc/passwd' }))),
   }).toEqual({
     pathRefused: 'refused: Malformed reveal request',
-    dataDir: '/data/morrowbot',
+    dataDir: '/data/orikami',
     pluginsDirCreated: true,
     workspaceMatches: true,
     missing: 'No such agent to reveal',
-    copy: `/data/morrowbot/instructions-drafts/${agent.id}/2026-01-01T00-00-01.000Z-1.md`,
+    copy: `/data/orikami/instructions-drafts/${agent.id}/2026-01-01T00-00-01.000Z-1.md`,
     copyEscape: 'refused: Malformed reveal request',
   });
 });

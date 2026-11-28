@@ -18,7 +18,7 @@ const CallParams = z.looseObject({ name: z.string(), arguments: z.unknown().opti
 /** What to answer one POSTed message with: a JSON-RPC response, or nothing (HTTP 202) for a notification. */
 export type McpAnswer = { readonly kind: 'respond'; readonly body: object } | { readonly kind: 'accepted' };
 
-/** What one turn's MCP message can reach: MorrowBot's own and plugin tools, the agent's connector tools, and the turn's end. */
+/** What one turn's MCP message can reach: Ori Kami's own and plugin tools, the agent's connector tools, and the turn's end. */
 export interface McpScope {
   readonly grant: ToolGrant;
   readonly tools: readonly Tool[];
@@ -40,9 +40,9 @@ export async function answerMcp(message: unknown, scope: McpScope, version: stri
       return result(id, {
         protocolVersion,
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: HOST_TOOLS_SERVER, title: 'MorrowBot', version },
+        serverInfo: { name: HOST_TOOLS_SERVER, title: 'Ori Kami', version },
         instructions:
-          "MorrowBot tools: message your teammate agents, keep your own memories, see the names of the user's vault items, answer the user with an emoji reaction or no message instead of filler text, manage your own routines and T3 Code watches, start sub-agents, and use the connectors the user gave you (named <connector>__<tool>). They act only as you, and only during this turn.",
+          "Ori Kami tools: message your teammate agents, keep your own memories, see the names of the user's vault items, answer the user with an emoji reaction or no message instead of filler text, manage your own routines and T3 Code watches, start sub-agents, and use the connectors the user gave you (named <connector>__<tool>). They act only as you, and only during this turn.",
       });
     }
     case 'ping':
@@ -53,7 +53,7 @@ export async function answerMcp(message: unknown, scope: McpScope, version: stri
           ...tools
             .filter(({ visible }) => visible === undefined || visible(grant.agentId))
             .map(({ name, description, inputSchema }) => ({ name, description, inputSchema })),
-          ...scope.connectors.tools(grant.agentId),
+          ...scope.connectors.tools(grant),
         ],
       });
     case 'tools/call':
@@ -82,7 +82,7 @@ async function callTool(id: RequestId, params: unknown, scope: McpScope): Promis
 /** A connector tool: a name of the form `<label key>__<tool>`, checked and called by the connectors feature. */
 async function callConnector(id: RequestId, name: string, args: unknown, scope: McpScope): Promise<McpAnswer> {
   if (!name.includes('__')) return error(id, -32602, `Unknown tool: ${name}`);
-  const outcome = await scope.connectors.call(scope.grant.agentId, name, args, scope.signal);
+  const outcome = await scope.connectors.call(scope.grant, name, args, scope.signal);
   switch (outcome.kind) {
     case 'result':
       return result(id, {

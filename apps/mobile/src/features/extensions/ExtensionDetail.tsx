@@ -1,9 +1,9 @@
 import type { PluginEntry } from '@morrowbot/contracts';
-import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { radii, spacing, typography } from '../../lib/theme.ts';
 import { useTheme } from '../../lib/useTheme.ts';
 import type { DetailProps, DetailRoute } from '../../lib/workspace.ts';
-import { useExtensions } from './extensions-context.tsx';
+import { agentRowKey, useExtensions } from './extensions-context.tsx';
 import { badgeOf } from './extensions-model.ts';
 import { Badge, ItemMark } from './parts.tsx';
 
@@ -36,10 +36,10 @@ function Fact(props: { readonly label: string; readonly value: string }) {
   );
 }
 
-/** One plugin: its status, what it may touch, and the app-wide on/off switch. */
+/** One plugin: its status, app-wide switch, per-agent switches, and metadata. */
 export function ExtensionBody(props: DetailProps<'extension'>) {
   const { colors } = useTheme();
-  const { saving, setEnabled } = useExtensions();
+  const { agents, saving, savingAgents, agentProblems, setEnabled, setAgentEnabled, reloadAgentRow } = useExtensions();
   const entry = useEntry(props.route.extensionId);
   if (entry === undefined) {
     return <Text style={[typography.ui, styles.missing, { color: colors.text3 }]}>This extension is not on the host any more.</Text>;
@@ -69,6 +69,63 @@ export function ExtensionBody(props: DetailProps<'extension'>) {
         <Fact label="Source" value={entry.source === 'built-in' ? 'Built in' : 'Your plugins folder'} />
         <Fact label="Permissions" value={manifest.permissions.length === 0 ? 'None' : manifest.permissions.join(', ')} />
       </View>
+      {manifest.kind === 'tool' ? (
+        <View style={styles.section}>
+          <Text style={[typography.meta, styles.sectionTitle, { color: colors.text3 }]}>AGENTS</Text>
+          <View style={[styles.group, { backgroundColor: colors.surface2, borderColor: colors.hairline }]}>
+            {agents.length === 0 ? (
+              <View style={[styles.fact, { borderColor: colors.hairline }]}>
+                <Text style={[typography.ui, { color: colors.text3 }]}>No agents yet.</Text>
+              </View>
+            ) : (
+              agents.map((agent) => {
+                const problem = agentProblems[agentRowKey(manifest.id, agent.id)];
+                const conflicted = problem?.kind === 'conflict';
+                const checked = entry.enabled && !agent.disabledExtensions.includes(manifest.id);
+                return (
+                  <View key={agent.id} style={[styles.agentRow, { borderColor: colors.hairline }]}>
+                    <View style={styles.agentLine}>
+                      <View style={[styles.dot, { backgroundColor: agent.avatar.color }]} />
+                      <Text numberOfLines={1} style={[typography.body, styles.grow, { color: entry.enabled ? colors.text1 : colors.text3 }]}>
+                        {agent.name}
+                      </Text>
+                      <Switch
+                        accessibilityLabel={`${manifest.name} for ${agent.name}`}
+                        value={checked}
+                        disabled={!entry.enabled || savingAgents.includes(agent.id) || conflicted}
+                        trackColor={{ true: colors.accent }}
+                        onValueChange={(enabled) => {
+                          setAgentEnabled(agent, manifest.id, enabled);
+                        }}
+                      />
+                    </View>
+                    {problem?.kind === 'conflict' ? (
+                      <View style={styles.conflictBar}>
+                        <Text style={[typography.small, styles.grow, { color: colors.warn }]}>Changed elsewhere.</Text>
+                        <Pressable
+                          accessibilityRole="button"
+                          onPress={() => {
+                            reloadAgentRow(manifest.id, agent.id);
+                          }}
+                          style={[styles.reloadBtn, { backgroundColor: colors.accentSoft }]}
+                        >
+                          <Text style={[typography.small, styles.reloadText, { color: colors.accent }]}>Reload row</Text>
+                        </Pressable>
+                      </View>
+                    ) : null}
+                    {problem?.kind === 'refused' ? <Text style={[typography.small, { color: colors.danger }]}>{problem.message}</Text> : null}
+                  </View>
+                );
+              })
+            )}
+          </View>
+          {entry.enabled ? null : (
+            <Text style={[typography.small, styles.sectionTitle, { color: colors.text3 }]}>
+              Turn on for all agents above for agents to use this extension.
+            </Text>
+          )}
+        </View>
+      ) : null}
       <Text style={[typography.small, { color: colors.text3 }]}>Change a plugin’s settings on your computer.</Text>
     </ScrollView>
   );
@@ -81,4 +138,13 @@ const styles = StyleSheet.create({
   group: { borderRadius: radii.lg, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   fact: { flexDirection: 'row', alignItems: 'center', minHeight: 48, paddingHorizontal: spacing[4], gap: spacing[3], borderBottomWidth: StyleSheet.hairlineWidth },
   value: { flex: 1, textAlign: 'right' },
+  section: { gap: spacing[2] },
+  sectionTitle: { paddingHorizontal: spacing[2] },
+  agentRow: { paddingHorizontal: spacing[4], paddingVertical: spacing[3], gap: spacing[2], borderBottomWidth: StyleSheet.hairlineWidth },
+  agentLine: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
+  dot: { width: 10, height: 10, borderRadius: 5 },
+  grow: { flex: 1 },
+  conflictBar: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
+  reloadBtn: { minHeight: 32, paddingHorizontal: spacing[3], borderRadius: radii.pill, justifyContent: 'center' },
+  reloadText: { fontWeight: '600' },
 });

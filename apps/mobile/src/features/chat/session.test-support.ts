@@ -78,6 +78,9 @@ export function scripted(states: ThreadState[], overrides: Partial<ChatHost> = {
     instructions: unused,
     plugins: unused,
     setPluginEnabled: unused,
+    adoptAgent: unused,
+    onAgentChanged: unused,
+    onAgentDeleted: unused,
     onPluginChanged: unused,
     watch: (_threadId, watcher) => {
       watching = watcher;

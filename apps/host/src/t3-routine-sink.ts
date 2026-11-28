@@ -4,7 +4,7 @@ import type { SinkAnswer, T3DeliverySink } from './features/t3-watch/index.ts';
 
 /**
  * Delivers T3 watch batches to a background routine of the owning agent (either the watch's bound routine
- * or `defaultRoutineId` from `MORROWBOT_T3_ROUTINE_ID`). Each batch runs in that routine's own chat, never
+ * or `defaultRoutineId` from `ORIKAMI_T3_ROUTINE_ID`). Each batch runs in that routine's own chat, never
  * the user's; it holds while the routine or any turn of its agent runs.
  */
 export function routineSink(

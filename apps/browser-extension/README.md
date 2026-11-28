@@ -1,6 +1,6 @@
-# MorrowBot browser extension
+# Ori Kami browser extension
 
-Lets MorrowBot agents use your real browser: list, open, switch and close tabs; navigate; read the
+Lets Ori Kami agents use your real browser: list, open, switch and close tabs; navigate; read the
 page as an accessibility tree with element refs; click, type, fill forms, pick options, hover,
 scroll, drag, upload files, answer dialogs and take screenshots. For logins, 2FA, payments and
 CAPTCHAs the agent hands the tab to you with a banner and waits until you press **I'm done**.
@@ -24,32 +24,32 @@ npm run build -w apps/browser-extension   # writes apps/browser-extension/dist/
 2. Turn on **Developer mode**.
 3. Press **Load unpacked** and pick `apps/browser-extension/dist`.
 4. For file uploads, open the extension's **Details** and turn on **Allow access to file URLs**, and
-   choose an **upload folder** in MorrowBot's Browser plugin settings. Agents can upload only files
+   choose an **upload folder** in Ori Kami's Browser plugin settings. Agents can upload only files
    inside it; uploads are off until you choose one.
 
 After a rebuild, press the reload button on the extension's card.
 
-## Pair it with MorrowBot
+## Pair it with Ori Kami
 
-1. Click the MorrowBot icon in the toolbar. It shows a **pairing token**; press **Copy**.
-2. In MorrowBot, open **Extensions › Browser** and paste it into **Pairing token**.
+1. Click the Ori Kami icon in the toolbar. It shows a **pairing token**; press **Copy**.
+2. In Ori Kami, open **Extensions › Browser** and paste it into **Pairing token**.
 3. The extension popup says **Connected**.
 4. To pair another browser too, paste the same token into that browser's popup and press **Save token**.
 
 ![The extension popup, connected](docs/popup.png)
 
 The port (47821 by default) must match in both places. **Make a new token** in the popup cuts off
-the old one: paste the new token into MorrowBot again.
+the old one: paste the new token into Ori Kami again.
 
 ## How it works
 
-The MorrowBot **Browser** plugin (`plugins/browser`) listens on `127.0.0.1` only. The extension
+The Ori Kami **Browser** plugin (`plugins/browser`) listens on `127.0.0.1` only. The extension
 connects to it over a WebSocket and must offer the pairing token; the plugin also refuses any
 request whose `Origin` is not a browser extension, so web pages cannot reach it. The protocol is
 in `packages/contracts/src/browser-bridge.ts` and `browser-commands.ts`.
 
 The extension controls pages with `chrome.debugger` (the DevTools protocol), so the browser shows
-a "MorrowBot started debugging this browser" bar while it works. New tabs open in the background
+an "Ori Kami started debugging this browser" bar while it works. New tabs open in the background
 and the agent never raises a window, except when it hands you a tab for a takeover.
 
 Secrets: values of password, one-time-code and card fields are never read into snapshots. A vault

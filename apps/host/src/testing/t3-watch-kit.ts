@@ -196,7 +196,7 @@ const since = (iso: string): string => `+${String((Date.parse(iso) - START) / 10
 const ordinal = (runId: string | null): string | null => (runId === null ? null : `#${runId.split(':').at(-1) ?? '?'}`);
 
 export async function startKit(options: { readonly projects?: readonly string[]; readonly delivery?: boolean } = {}): Promise<Kit> {
-  const root = await mkdtemp(path.join(tmpdir(), 'morrowbot-t3-watch-'));
+  const root = await mkdtemp(path.join(tmpdir(), 'orikami-t3-watch-'));
   const dir = path.join(root, 't3-watch');
   const clock = new FakeClock();
   const t3 = new FakeT3(clock);
@@ -205,7 +205,7 @@ export async function startKit(options: { readonly projects?: readonly string[];
   const sink = options.delivery === true ? new FakeSink() : null;
   let id = 0;
   const open = (): { storage: Storage; service: T3WatchService } => {
-    const storage = openStorage(path.join(root, 'morrowbot.sqlite'), () => new Date(clock.now()).toISOString());
+    const storage = openStorage(path.join(root, 'orikami.sqlite'), () => new Date(clock.now()).toISOString());
     const service = createT3WatchService({
       store: { watches: storage.t3Watches, outbox: storage.t3Outbox, batches: storage.t3Batches, transaction: (work) => storage.transaction(work) },
       probe: t3,

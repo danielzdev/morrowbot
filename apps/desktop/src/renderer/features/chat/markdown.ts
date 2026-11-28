@@ -1,5 +1,5 @@
 /**
- * MorrowBot's own Markdown subset (spec §4.1): paragraphs, headings, lists, bold, italic, inline
+ * Ori Kami's own Markdown subset (spec §4.1): paragraphs, headings, lists, bold, italic, inline
  * code, fenced code and http(s) links. It parses to plain data; there is no HTML node, so raw HTML
  * in a reply is only ever text.
  */

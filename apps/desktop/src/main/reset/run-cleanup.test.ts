@@ -23,31 +23,31 @@ async function confirmed(context: CleanupJob['context'], keychain = fakeKeychain
   return { choice: choice === 'reset' ? { kind: 'reset', relaunch: { command: process.execPath, args: [], cwd: '/' } } : { kind: 'full-uninstall' }, context, approved: plan.steps, waitPids: [4242] };
 }
 
-it('removes exactly the confirmed MorrowBot files and Keychain items, and leaves workspaces, links, their targets and unknown files', async () => {
-  await fake.file('.morrowbot/morrowbot.sqlite');
-  await fake.file('.morrowbot/attachments/a.png');
-  await fake.file('.morrowbot/workspaces/agent-1/todo.md');
-  await fake.file('.morrowbot/mine.txt');
+it('removes exactly the confirmed Ori Kami files and Keychain items, and leaves workspaces, links, their targets and unknown files', async () => {
+  await fake.file('.orikami/orikami.sqlite');
+  await fake.file('.orikami/attachments/a.png');
+  await fake.file('.orikami/workspaces/agent-1/todo.md');
+  await fake.file('.orikami/mine.txt');
   await fake.file('my-skills/skill.md');
-  await fake.link('.morrowbot/skills', `${fake.home}/my-skills`);
-  await fake.file('.morrowbot/plugin-data/echo/link-target-outside.txt');
-  await fake.link('.morrowbot/plugin-data/echo/outside', `${fake.home}/Documents`);
+  await fake.link('.orikami/skills', `${fake.home}/my-skills`);
+  await fake.file('.orikami/plugin-data/echo/link-target-outside.txt');
+  await fake.link('.orikami/plugin-data/echo/outside', `${fake.home}/Documents`);
   await fake.file('Documents/report.txt');
-  await fake.file('Library/Application Support/MorrowBot/Cookies');
+  await fake.file('Library/Application Support/Ori Kami/Cookies');
   await fake.file('Library/Application Support/Other/keep.db');
   const keychain = fakeKeychain([RELEASE_TOKEN, SAFE_STORAGE, { service: SAFE_STORAGE.service, account: 'someone-else' }, { service: 'Other Safe Storage', account: 'Other' }]);
-  const job = await confirmed(fake.context('installed', '.morrowbot'), keychain);
+  const job = await confirmed(fake.context('installed', '.orikami'), keychain);
   const report = await runCleanup(job, exited(keychain));
   expect({ report: fake.short(report), left: await fake.tree(), keychain: [...keychain.items] }).toMatchInlineSnapshot(`
     {
       "keychain": [
-        "MorrowBot Safe Storage / someone-else",
+        "Ori Kami Safe Storage / someone-else",
         "Other Safe Storage / Other",
       ],
       "left": [
-        ".morrowbot/mine.txt",
-        ".morrowbot/skills (link)",
-        ".morrowbot/workspaces/agent-1/todo.md",
+        ".orikami/mine.txt",
+        ".orikami/skills (link)",
+        ".orikami/workspaces/agent-1/todo.md",
         "Documents/report.txt",
         "Library/Application Support/Other/keep.db",
         "my-skills/skill.md",
@@ -56,29 +56,29 @@ it('removes exactly the confirmed MorrowBot files and Keychain items, and leaves
         "done": [
           {
             "kind": "delete",
-            "path": "~/.morrowbot/morrowbot.sqlite",
+            "path": "~/.orikami/orikami.sqlite",
           },
           {
             "kind": "delete",
-            "path": "~/.morrowbot/attachments",
+            "path": "~/.orikami/attachments",
           },
           {
             "kind": "delete",
-            "path": "~/.morrowbot/plugin-data",
+            "path": "~/.orikami/plugin-data",
           },
           {
             "kind": "delete",
-            "path": "~/Library/Application Support/MorrowBot",
+            "path": "~/Library/Application Support/Ori Kami",
           },
           {
-            "account": "MorrowBot Key",
+            "account": "Ori Kami",
             "kind": "keychain",
-            "service": "MorrowBot Safe Storage",
+            "service": "Ori Kami Safe Storage",
           },
           {
             "account": "releases",
             "kind": "keychain",
-            "service": "com.legendarykoi.morrowbot.releases",
+            "service": "com.legendarykoi.orikami.releases",
           },
         ],
         "failed": [],
@@ -90,28 +90,28 @@ it('removes exactly the confirmed MorrowBot files and Keychain items, and leaves
 });
 
 it('skips a confirmed path that became a link since, any Trash step, and any step the fresh plan does not hold', async () => {
-  await fake.file('.morrowbot-dev/attachments/a.png');
-  await fake.file('.morrowbot-dev/plugins/p/index.js');
+  await fake.file('.orikami-dev/attachments/a.png');
+  await fake.file('.orikami-dev/plugins/p/index.js');
   await fake.file('precious/keep.txt');
-  const job = await confirmed(fake.context('isolated', '.morrowbot-dev'));
-  await rm(`${fake.home}/.morrowbot-dev/plugins`, { recursive: true });
-  await fake.link('.morrowbot-dev/plugins', `${fake.home}/precious`);
+  const job = await confirmed(fake.context('isolated', '.orikami-dev'));
+  await rm(`${fake.home}/.orikami-dev/plugins`, { recursive: true });
+  await fake.link('.orikami-dev/plugins', `${fake.home}/precious`);
   const forged: CleanupJob = {
     ...job,
-    approved: [...job.approved, { kind: 'trash', path: '/Applications/MorrowBot.app' }, { kind: 'delete', path: `${fake.home}/precious` }, { kind: 'delete', path: fake.home }],
+    approved: [...job.approved, { kind: 'trash', path: '/Applications/Ori Kami.app' }, { kind: 'delete', path: `${fake.home}/precious` }, { kind: 'delete', path: fake.home }],
   };
   const report = await runCleanup(forged, exited());
   expect({ report: fake.short(report), left: await fake.tree() }).toMatchInlineSnapshot(`
     {
       "left": [
-        ".morrowbot-dev/plugins (link)",
+        ".orikami-dev/plugins (link)",
         "precious/keep.txt",
       ],
       "report": {
         "done": [
           {
             "kind": "delete",
-            "path": "~/.morrowbot-dev/attachments",
+            "path": "~/.orikami-dev/attachments",
           },
         ],
         "failed": [],
@@ -119,11 +119,11 @@ it('skips a confirmed path that became a link since, any Trash step, and any ste
         "skipped": [
           {
             "kind": "delete",
-            "path": "~/.morrowbot-dev/plugins",
+            "path": "~/.orikami-dev/plugins",
           },
           {
             "kind": "trash",
-            "path": "/Applications/MorrowBot.app",
+            "path": "/Applications/Ori Kami.app",
           },
           {
             "kind": "delete",
@@ -139,19 +139,19 @@ it('skips a confirmed path that became a link since, any Trash step, and any ste
   `);
 });
 
-it('touches nothing while MorrowBot is still running, or when the job aims at the installed data from a development run', async () => {
-  await fake.file('.morrowbot/morrowbot.sqlite');
-  const job = await confirmed(fake.context('installed', '.morrowbot'));
+it('touches nothing while Ori Kami is still running, or when the job aims at the installed data from a development run', async () => {
+  await fake.file('.orikami/orikami.sqlite');
+  const job = await confirmed(fake.context('installed', '.orikami'));
   const stillRunning = await runCleanup(job, { ...exited(), isAlive: (pid) => pid === 4242 });
-  const devAtInstalled = await runCleanup({ ...job, context: fake.context('isolated', '.morrowbot') }, exited());
+  const devAtInstalled = await runCleanup({ ...job, context: fake.context('isolated', '.orikami') }, exited());
   expect({ stillRunning, devAtInstalled, left: await fake.tree() }).toMatchInlineSnapshot(`
     {
       "devAtInstalled": {
         "kind": "refused",
-        "reason": "A development run never resets the installed app's ~/.morrowbot.",
+        "reason": "A development run never resets the installed app's ~/.orikami.",
       },
       "left": [
-        ".morrowbot/morrowbot.sqlite",
+        ".orikami/orikami.sqlite",
       ],
       "stillRunning": {
         "kind": "timed-out",
@@ -164,11 +164,11 @@ it('touches nothing while MorrowBot is still running, or when the job aims at th
 });
 
 it('checks each path on disk again just before deleting it, and reports a Keychain item it could not delete', async () => {
-  await fake.file('.morrowbot/attachments/a.png');
-  await fake.file('.morrowbot/plugins/p/index.js');
+  await fake.file('.orikami/attachments/a.png');
+  await fake.file('.orikami/plugins/p/index.js');
   await fake.file('precious/keep.txt');
   const locked = fakeKeychain([RELEASE_TOKEN], [RELEASE_TOKEN]);
-  const job = await confirmed(fake.context('installed', '.morrowbot'), locked);
+  const job = await confirmed(fake.context('installed', '.orikami'), locked);
   let armed = true;
   const swapping = {
     ...locked,
@@ -176,8 +176,8 @@ it('checks each path on disk again just before deleting it, and reports a Keycha
     has: async (item: typeof RELEASE_TOKEN) => {
       if (armed) {
         armed = false;
-        await rm(`${fake.home}/.morrowbot/plugins`, { recursive: true });
-        await fake.link('.morrowbot/plugins', `${fake.home}/precious`);
+        await rm(`${fake.home}/.orikami/plugins`, { recursive: true });
+        await fake.link('.orikami/plugins', `${fake.home}/precious`);
       }
       return locked.has(item);
     },
@@ -186,23 +186,23 @@ it('checks each path on disk again just before deleting it, and reports a Keycha
   expect({ report: fake.short(report), left: await fake.tree() }).toMatchInlineSnapshot(`
     {
       "left": [
-        ".morrowbot/plugins (link)",
+        ".orikami/plugins (link)",
         "precious/keep.txt",
       ],
       "report": {
         "done": [
           {
             "kind": "delete",
-            "path": "~/.morrowbot/attachments",
+            "path": "~/.orikami/attachments",
           },
         ],
         "failed": [
           {
-            "error": "The Keychain refused to delete com.legendarykoi.morrowbot.releases.",
+            "error": "The Keychain refused to delete com.legendarykoi.orikami.releases.",
             "step": {
               "account": "releases",
               "kind": "keychain",
-              "service": "com.legendarykoi.morrowbot.releases",
+              "service": "com.legendarykoi.orikami.releases",
             },
           },
         ],
@@ -210,7 +210,7 @@ it('checks each path on disk again just before deleting it, and reports a Keycha
         "skipped": [
           {
             "kind": "delete",
-            "path": "~/.morrowbot/plugins",
+            "path": "~/.orikami/plugins",
           },
         ],
       },
@@ -219,45 +219,45 @@ it('checks each path on disk again just before deleting it, and reports a Keycha
 });
 
 it("keeps Electron's Safe Storage key when its profile folder could not be deleted, and never deletes a path it cannot check", async () => {
-  await fake.file('.morrowbot/attachments/a.png');
-  await fake.file('Library/Application Support/MorrowBot/Cookies');
+  await fake.file('.orikami/attachments/a.png');
+  await fake.file('Library/Application Support/Ori Kami/Cookies');
   const keychain = fakeKeychain([SAFE_STORAGE]);
-  const job = await confirmed(fake.context('installed', '.morrowbot'), keychain);
-  const profile = `${fake.home}/Library/Application Support/MorrowBot`;
+  const job = await confirmed(fake.context('installed', '.orikami'), keychain);
+  const profile = `${fake.home}/Library/Application Support/Ori Kami`;
   await chmod(profile, 0o500);
   const report = await runCleanup(job, exited(keychain));
   await chmod(profile, 0o700);
-  await chmod(`${fake.home}/.morrowbot`, 0o000);
-  const unreadable = await deleteRefusalNow(job.context, `${fake.home}/.morrowbot/attachments`);
-  await chmod(`${fake.home}/.morrowbot`, 0o700);
+  await chmod(`${fake.home}/.orikami`, 0o000);
+  const unreadable = await deleteRefusalNow(job.context, `${fake.home}/.orikami/attachments`);
+  await chmod(`${fake.home}/.orikami`, 0o700);
   const summary = report.kind === 'done' ? { done: report.done, skipped: report.skipped, failed: report.failed.map(({ step }) => step) } : report;
   expect(fake.short({ summary, keychain: [...keychain.items], unreadable })).toMatchInlineSnapshot(`
     {
       "keychain": [
-        "MorrowBot Safe Storage / MorrowBot Key",
+        "Ori Kami Safe Storage / Ori Kami",
       ],
       "summary": {
         "done": [
           {
             "kind": "delete",
-            "path": "~/.morrowbot/attachments",
+            "path": "~/.orikami/attachments",
           },
         ],
         "failed": [
           {
             "kind": "delete",
-            "path": "~/Library/Application Support/MorrowBot",
+            "path": "~/Library/Application Support/Ori Kami",
           },
         ],
         "skipped": [
           {
-            "account": "MorrowBot Key",
+            "account": "Ori Kami",
             "kind": "keychain",
-            "service": "MorrowBot Safe Storage",
+            "service": "Ori Kami Safe Storage",
           },
         ],
       },
-      "unreadable": "MorrowBot could not check it, so it stays.",
+      "unreadable": "Ori Kami could not check it, so it stays.",
     }
   `);
 });

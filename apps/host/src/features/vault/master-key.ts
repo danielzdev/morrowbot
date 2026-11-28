@@ -6,7 +6,7 @@ import { SecretStoreError } from './secret-store.ts';
 export const MASTER_KEY_BYTES = 32;
 
 /** The OS keystore entry (Keychain service, Secret Service attribute) holding the master key. */
-export const VAULT_KEY_SERVICE = 'com.legendarykoi.morrowbot.vault';
+export const VAULT_KEY_SERVICE = 'com.legendarykoi.orikami.vault';
 export const VAULT_KEY_ACCOUNT = 'master-key';
 
 /** Where the one master key that unlocks `vault-secrets.json` is kept. */

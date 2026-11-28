@@ -60,7 +60,7 @@ export function pickBrowser(bridge: Bridge, browserId: string | undefined): Brow
 }
 
 export const noBrowserText =
-  'No browser is connected. Ask the person to install the MorrowBot browser extension and paste its pairing token into the Browser plugin settings.';
+  'No browser is connected. Ask the person to install the Ori Kami browser extension and paste its pairing token into the Browser plugin settings.';
 
 function names(links: readonly BrowserLink[]): string {
   return links.length === 0 ? 'none' : links.map((link) => link.browserId).join(', ');

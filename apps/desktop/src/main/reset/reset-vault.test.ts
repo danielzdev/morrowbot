@@ -13,9 +13,9 @@ afterEach(async () => {
 
 /** The installed app's reset plan: its vault steps, and what it keeps of the vault. */
 async function vaultPlan(): Promise<unknown> {
-  await fake.file('Applications/MorrowBot.app/Contents/Info.plist', INFO_PLIST('com.legendarykoi.morrowbot'));
-  const execPath = `${fake.home}/Applications/MorrowBot.app/Contents/MacOS/MorrowBot`;
-  const [reset] = await resetOptionsOf(fake.context('installed', '.morrowbot', []), { packaged: true, execPath, updatePending: false }, fakeKeychain([VAULT_KEY]));
+  await fake.file('Applications/Ori Kami.app/Contents/Info.plist', INFO_PLIST('com.legendarykoi.orikami'));
+  const execPath = `${fake.home}/Applications/Ori Kami.app/Contents/MacOS/Ori Kami`;
+  const [reset] = await resetOptionsOf(fake.context('installed', '.orikami', []), { packaged: true, execPath, updatePending: false }, fakeKeychain([VAULT_KEY]));
   if (reset?.kind !== 'available') return reset;
   const isVault = (text: string): boolean => text.includes('vault');
   return fake.short({
@@ -25,21 +25,21 @@ async function vaultPlan(): Promise<unknown> {
 }
 
 it("deletes the vault's files and its Keychain master key with the rest of the data", async () => {
-  for (const name of ['vault.json', 'vault-secrets.json', 'vault.key']) await fake.file(`.morrowbot/${name}`);
+  for (const name of ['vault.json', 'vault-secrets.json', 'vault.key']) await fake.file(`.orikami/${name}`);
   expect(await vaultPlan()).toEqual({
-    steps: ['~/.morrowbot/vault.json', '~/.morrowbot/vault-secrets.json', '~/.morrowbot/vault.key', 'Keychain: com.legendarykoi.morrowbot.vault / master-key'],
+    steps: ['~/.orikami/vault.json', '~/.orikami/vault-secrets.json', '~/.orikami/vault.key', 'Keychain: com.legendarykoi.orikami.vault / master-key'],
     kept: [],
   });
 });
 
 it('keeps the master key while the sealed secrets it unlocks stay', async () => {
   await fake.file('elsewhere/vault-secrets.json');
-  await fake.link('.morrowbot/vault-secrets.json', `${fake.home}/elsewhere/vault-secrets.json`);
+  await fake.link('.orikami/vault-secrets.json', `${fake.home}/elsewhere/vault-secrets.json`);
   expect(await vaultPlan()).toEqual({
     steps: [],
     kept: [
-      { path: '~/.morrowbot/vault-secrets.json', reason: 'A symbolic link. MorrowBot does not follow it.' },
-      { path: 'Keychain: com.legendarykoi.morrowbot.vault (account master-key)', reason: 'It unlocks the vault secrets that stay.' },
+      { path: '~/.orikami/vault-secrets.json', reason: 'A symbolic link. Ori Kami does not follow it.' },
+      { path: 'Keychain: com.legendarykoi.orikami.vault (account master-key)', reason: 'It unlocks the vault secrets that stay.' },
     ],
   });
 });

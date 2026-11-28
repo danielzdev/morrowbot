@@ -14,7 +14,7 @@ export type ResetStage =
   | { readonly kind: 'confirm'; readonly plan: ResetPlan; readonly option: Available; readonly understood: boolean }
   | { readonly kind: 'running'; readonly option: Available };
 
-const TITLE = 'Reset or Uninstall MorrowBot';
+const TITLE = 'Reset or Uninstall Ori Kami';
 
 /** A path as this dialog shows it: exact, with the home folder written `~`. */
 const shownPath = (path: string, info: AppInfo | null): string => (info === null ? path : homeRelative(path, info.homeDir));
@@ -65,7 +65,7 @@ function Confirm(props: { readonly option: Available; readonly info: AppInfo | n
         <PathList heading="Moved to the Trash" items={trash} info={props.info} />
         <PathList heading="Deleted for good" items={deleted} info={props.info} tone="danger" />
         <PathList heading="Removed from the login Keychain" items={keychain} info={props.info} tone="danger" />
-        {props.option.steps.length === 0 && <p class="dialog-body">Nothing to delete. MorrowBot just restarts.</p>}
+        {props.option.steps.length === 0 && <p class="dialog-body">Nothing to delete. Ori Kami just restarts.</p>}
         {props.option.kept.length > 0 && (
           <section class="reset-group">
             <h3 class="reset-heading">Kept</h3>
@@ -104,7 +104,7 @@ export function ResetDialogView(props: {
   );
   switch (stage.kind) {
     case 'loading':
-      return <p class="dialog-body" role="status">Checking what MorrowBot has on this Mac…</p>;
+      return <p class="dialog-body" role="status">Checking what Ori Kami has on this Mac…</p>;
     case 'failed':
       return (
         <>
@@ -144,7 +144,7 @@ export function ResetDialogView(props: {
         </>
       );
     case 'running':
-      return <p class="dialog-body" role="status">Stopping MorrowBot to {CHOICE_COPY[stage.option.choice].title.toLowerCase()}…</p>;
+      return <p class="dialog-body" role="status">Stopping Ori Kami to {CHOICE_COPY[stage.option.choice].title.toLowerCase()}…</p>;
   }
 }
 
@@ -154,7 +154,7 @@ export function ResetDialog(props: { readonly bridge: ResetBridge; readonly info
   const load = (): void => {
     setStage({ kind: 'loading' });
     void loadResetPlan(props.bridge).then((plan) => {
-      setStage(plan === null ? { kind: 'failed', reason: 'MorrowBot could not check its files. Nothing was changed.' } : { kind: 'choose', plan, choice: null });
+      setStage(plan === null ? { kind: 'failed', reason: 'Ori Kami could not check its files. Nothing was changed.' } : { kind: 'choose', plan, choice: null });
     });
   };
   useEffect(load, [props.bridge]);

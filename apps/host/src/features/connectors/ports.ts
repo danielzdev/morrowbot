@@ -38,6 +38,15 @@ export interface ConnectorStore {
   delete(id: string): boolean;
 }
 
+/**
+ * The turn asking for connector tools: its agent, and who started it. A scoped member's turn never gets
+ * connectors (even once the member is removed); on an agent shared with a member, another agent's turn gets none either.
+ */
+export interface TurnOf {
+  readonly agentId: string;
+  readonly startedBy: 'owner' | 'member' | 'agent';
+}
+
 /** A connector tool as an agent's `tools/list` shows it. */
 export interface AgentConnectorTool {
   readonly name: string;

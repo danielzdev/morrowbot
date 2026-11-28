@@ -78,7 +78,7 @@ const row = (section: SettingsSection, id: string, label: string, description: s
 
 /** The rows of every section except Keyboard, in the order they render. */
 export const ROWS = {
-  openAtLogin: row('general', 'open-at-login', 'Open at login', 'Start MorrowBot when you log in to this computer.'),
+  openAtLogin: row('general', 'open-at-login', 'Open at login', 'Start Ori Kami when you log in to this computer.'),
   theme: row('appearance', 'theme', 'Theme', 'Follow the system, or always use light or dark.'),
   messageColor: row(
     'appearance',
@@ -90,7 +90,7 @@ export const ROWS = {
   chatWidth: row('appearance', 'chat-width', 'Chat width', 'How wide the chat column gets: Normal is 720px, Wide is 920px.'),
   reduceMotion: row('appearance', 'reduce-motion', 'Reduce motion', "On stills avatars and slide-ins. Your system's reduce-motion setting always applies."),
   sendWith: row('chat', 'send-with', 'Send with', 'Which key sends your message. Shift+Enter always starts a new line.'),
-  notifications: row('chat', 'notifications', 'Notifications', 'While MorrowBot is in the background, a system notification says when an agent needs approval or finishes.'),
+  notifications: row('chat', 'notifications', 'Notifications', 'While Ori Kami is in the background, a system notification says when an agent needs approval or finishes.'),
   emojiReplies: row(
     'chat',
     'emoji-replies',
@@ -103,13 +103,13 @@ export const ROWS = {
   server: row('server', 'server', 'Server', 'Where your agents run: on this computer, or on a server you joined. Joining starts no server here.'),
   invite: row('members', 'invite', 'Invite someone', 'Make a one-time link for a co-owner, or for someone who may use only the agents you choose.'),
   members: row('members', 'members', 'Members', 'People who can reach this server. Revoking one signs them out at once.'),
-  pairPhone: row('devices', 'pair-phone', 'Pair a phone', 'Show a one-time code and QR code that a phone scans to connect to MorrowBot.'),
+  pairPhone: row('devices', 'pair-phone', 'Pair a phone', 'Show a one-time code and QR code that a phone scans to connect to Ori Kami.'),
   pairedDevices: row('devices', 'paired-devices', 'Paired devices', 'Phones and computers that can connect. Unpairing one signs it out at once.'),
-  version: row('about', 'version', 'MorrowBot', 'Apache License 2.0 · Published by Legendary Koi'),
+  version: row('about', 'version', 'Ori Kami', 'Apache License 2.0 · Published by Legendary Koi'),
   updates: row('about', 'updates', 'Updates', 'Downloads new versions in the background and installs them when you restart.'),
-  dataFolder: row('about', 'data-folder', 'Data folder', 'Where MorrowBot keeps your agents and chats.'),
-  licences: row('about', 'licences', 'Third-party licences', 'Open-source components that ship inside MorrowBot.'),
-  reset: row('about', 'reset', 'Reset or uninstall', 'Start fresh, or remove MorrowBot from this Mac. You review every file it removes first.'),
+  dataFolder: row('about', 'data-folder', 'Data folder', 'Where Ori Kami keeps your agents and chats.'),
+  licences: row('about', 'licences', 'Third-party licences', 'Open-source components that ship inside Ori Kami.'),
+  reset: row('about', 'reset', 'Reset or uninstall', 'Start fresh, or remove Ori Kami from this Mac. You review every file it removes first.'),
 };
 
 /** Keys that work in one place rather than everywhere. */

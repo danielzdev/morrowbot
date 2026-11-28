@@ -16,7 +16,7 @@ import { createProvidersModel } from '../renderer/features/providers/index.ts';
 import { createApi } from '../renderer/shared/api.ts';
 import { openTestWindow } from './test-window.ts';
 
-const RENDERER_URL = 'file:///Applications/MorrowBot.app/Contents/Resources/app/dist/renderer/index.html';
+const RENDERER_URL = 'file:///Applications/Ori Kami.app/Contents/Resources/app/dist/renderer/index.html';
 const PAGE: IpcSender = { kind: 'frame', url: RENDERER_URL, isMainFrame: true };
 const outcome = (run: () => unknown): unknown => {
   try {

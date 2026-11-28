@@ -27,7 +27,7 @@ afterEach(async () => {
 });
 
 it('fills a vault login into its own site only, and never shows the agent a password or code', async () => {
-  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'morrowbot-vault-browser-')));
+  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-vault-browser-')));
   const host = await startChatFixture({ dataDir, builtinPluginsDir: REPO_PLUGINS_DIR, sequence: sequence() });
   chat = host;
   const port = await freePort();
@@ -197,7 +197,7 @@ it('fills a vault login into its own site only, and never shows the agent a pass
 });
 
 it('refuses vault secrets to a plugin the user installed, even one whose manifest asks for the secrets permission', async () => {
-  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'morrowbot-vault-peek-')));
+  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-vault-peek-')));
   const pluginsDir = path.join(dataDir, 'user-plugins');
   await writeToolPlugin(
     pluginsDir,
@@ -233,7 +233,7 @@ runPlugin(() => defineToolPlugin({
         "result": {
           "content": [
             {
-              "text": "{"kind":"refused","reason":"Only plugins that ship with MorrowBot and ask for the secrets permission may use the Secrets Vault."}",
+              "text": "{"kind":"refused","reason":"Only plugins that ship with Ori Kami and ask for the secrets permission may use the Secrets Vault."}",
               "type": "text",
             },
           ],

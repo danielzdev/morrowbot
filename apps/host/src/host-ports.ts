@@ -1,9 +1,9 @@
 import { SendAgentMessageRequest } from '@morrowbot/contracts';
 import type { AgentMessageService, SendRefusal } from './features/agent-messages/index.ts';
-import type { RoutineToolsPort, T3WatchToolsPort, ToolPorts } from './features/agent-tools/index.ts';
+import type { RoutineToolsPort, T3WatchToolsPort, ToolGrant, ToolPorts } from './features/agent-tools/index.ts';
 import type { ReplyAttachments } from './features/attachments/index.ts';
-import type { ChatService, createChatService, ProviderPlugins } from './features/chat/index.ts';
-import type { ConnectorService } from './features/connectors/index.ts';
+import type { ChatService, createChatService, ProviderPlugins, TurnInitiator } from './features/chat/index.ts';
+import type { ConnectorService, TurnOf } from './features/connectors/index.ts';
 import type { MemoryService } from './features/memories/index.ts';
 import type { PluginHost } from './features/plugins/index.ts';
 import type { RoutineService } from './features/routines/index.ts';
@@ -37,7 +37,10 @@ export function agentToolPorts(options: {
   readonly agentMessages: AgentMessageService;
   readonly memories: MemoryService;
   readonly replies: ToolPorts['replies'];
+  /** Who started the running turn a grant belongs to (the chat feature knows); undefined once it has ended. */
+  readonly startedBy: (grant: ToolGrant) => TurnInitiator | undefined;
   readonly replyFiles: ReplyAttachments;
+  readonly cards: Omit<ToolPorts['cards'], 'sharedWithMembers'>;
   readonly vault: ToolPorts['vault'];
   readonly subagents: SubagentService;
   readonly connectors: ConnectorService;
@@ -48,8 +51,9 @@ export function agentToolPorts(options: {
   readonly defaultT3RoutineId: string | null;
   readonly isPluginAllowedForAgent?: (agentId: string, pluginId: string) => boolean;
 }): ToolPorts {
-  const { storage, agents, agentMessages, memories, replies, replyFiles, vault, subagents, connectors, plugins, routines, t3Watches, t3Clock, defaultT3RoutineId, isPluginAllowedForAgent } =
+  const { storage, agents, agentMessages, memories, replies, replyFiles, cards, vault, subagents, connectors, plugins, routines, t3Watches, t3Clock, defaultT3RoutineId, isPluginAllowedForAgent } =
     options;
+  const turnOf = (grant: ToolGrant): TurnOf => ({ agentId: grant.agentId, startedBy: options.startedBy(grant) ?? 'member' });
   const sharedWithMembers = (agentId: string): boolean => storage.members.allowlistsOf(agentId).length > 0;
   return {
     agents,
@@ -62,6 +66,7 @@ export function agentToolPorts(options: {
     },
     memories,
     replies,
+    cards: { propose: (grant, proposal) => cards.propose(grant, proposal), searchMarketplace: (query) => cards.searchMarketplace(query), sharedWithMembers },
     replyAttachments: {
       attach: (grant, paths, signal) =>
         replyFiles.attach({ generationId: grant.turnId, agentId: grant.agentId, threadId: grant.threadId, signal, refusal: () => replies.attachRefusal(grant) }, paths),
@@ -75,7 +80,10 @@ export function agentToolPorts(options: {
       wait: (grant, runIds, timeoutMs) => subagents.wait(grant, runIds, timeoutMs),
       list: (grant) => subagents.list(grant),
     },
-    connectors: { tools: (agentId) => connectors.toolsFor(agentId), call: (agentId, name, args, signal) => connectors.call(agentId, name, args, signal) },
+    connectors: {
+      tools: (grant) => connectors.toolsFor(turnOf(grant)),
+      call: (grant, name, args, signal) => connectors.call(turnOf(grant), name, args, signal),
+    },
     pluginTools: {
       list: () => plugins.listPluginTools(),
       ...(isPluginAllowedForAgent === undefined ? {} : { isAllowedForAgent: isPluginAllowedForAgent }),
@@ -208,6 +216,7 @@ export function chatStore(storage: Storage): ChatOptions['store'] {
     toolSteps: storage.toolSteps,
     replyAttachments: storage.replyAttachments,
     reactions: storage.reactions,
+    cards: storage.cards,
     settings: storage.chatSettings,
     queued: storage.queued,
     generations: storage.generations,

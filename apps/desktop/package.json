@@ -1,6 +1,6 @@
 {
   "name": "@morrowbot/desktop",
-  "productName": "MorrowBot",
+  "productName": "Ori Kami",
   "description": "A personal AI agent app with crash-isolated plugins.",
   "version": "0.1.0",
   "private": true,

@@ -5,7 +5,7 @@ import { expect, it } from 'vitest';
 import { readSafeMode, writeSafeMode } from './launch-prefs.ts';
 
 it('remembers the safe-mode choice for the next launch, and reads a missing or broken file as off', () => {
-  const dir = mkdtempSync(path.join(tmpdir(), 'morrowbot-launch-'));
+  const dir = mkdtempSync(path.join(tmpdir(), 'orikami-launch-'));
   try {
     const missing = readSafeMode(dir);
     writeSafeMode(dir, true);

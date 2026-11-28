@@ -42,12 +42,12 @@ export function homeRelative(path: string, homeDir: string): string {
 const isWithin = (path: string, root: string): boolean => root !== '' && (path === root || (path.startsWith(root) && SEPARATOR.test(path.charAt(root.length))));
 
 /**
- * A path as the UI may show it (spec §9.1): under home, MorrowBot's own folders and the agent's
+ * A path as the UI may show it (spec §9.1): under home, Ori Kami's own folders and the agent's
  * workspace in full as `~/…`; any other path as its last two segments. Then `redact` applies.
  */
 export function displayPath(path: string, info: AppInfo, workspaceDir: string | null = null): string {
   const shown = homeRelative(path, info.homeDir);
-  const own = shown.startsWith('~') && [info.dataDir, `${info.homeDir}/.morrowbot`, workspaceDir ?? ''].some((root) => isWithin(path, root));
+  const own = shown.startsWith('~') && [info.dataDir, `${info.homeDir}/.orikami`, workspaceDir ?? ''].some((root) => isWithin(path, root));
   if (own) return redact(shown, info);
   const segments = shown.split(SEPARATOR).filter((segment) => segment !== '' && segment !== '~');
   return redact(segments.length <= 2 ? shown : `…/${segments.slice(-2).join('/')}`, info);

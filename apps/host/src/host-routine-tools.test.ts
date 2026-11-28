@@ -20,7 +20,7 @@ function fixedClock(at: string): RoutineClock {
 let dataDir: string;
 let chat: ChatFixture;
 beforeEach(async () => {
-  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'morrowbot-routine-tools-')));
+  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-routine-tools-')));
   chat = await startChatFixture({ dataDir, sequence: sequence(), routineClock: fixedClock('2026-03-02T09:00:00.000Z') });
 });
 afterEach(async () => {
@@ -330,6 +330,7 @@ it('hides routine tools from agents shared with scoped members and refuses direc
         "react_to_message",
         "stay_quiet",
         "attach_files",
+        "propose_card",
       ],
     }
   `);

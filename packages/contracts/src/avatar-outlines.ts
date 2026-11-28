@@ -11,7 +11,7 @@ export interface AvatarOutline {
 
 const shape = (id: AvatarShape, name: string, path: string, eyes: AvatarOutline['eyes']): AvatarOutline => ({ version: 1, id, name, body: { path }, eyes });
 
-/** MorrowBot's own silhouettes beside open-bot-avatar's starter examples: outlines wind clockwise, corners rounded. */
+/** Ori Kami's own silhouettes beside open-bot-avatar's starter examples: outlines wind clockwise, corners rounded. */
 export const CUSTOM_AVATAR_OUTLINES: readonly AvatarOutline[] = [
   shape(
     'star',

@@ -1,6 +1,7 @@
 import type { PluginEntry, PluginList, PluginOrigin, PluginProblem } from '@morrowbot/contracts';
 import { ItemMark } from '../../shared/ui/ItemMark.tsx';
 import { ListDetail, ListRow, Pill } from '../../shared/ui/ListDetail.tsx';
+import type { AgentExtensionsPort } from './agent-extensions.ts';
 import { PluginDetail, ProblemDetail, sourceLabel, type PluginActions } from './PluginDetail.tsx';
 import { healthOf, isListedPlugin, problemHealth } from './plugin-health.ts';
 import type { PluginActivity } from './plugins-model.ts';
@@ -49,6 +50,7 @@ export interface PluginsTabProps {
   readonly selected: PluginItem | undefined;
   readonly searching: boolean;
   readonly pluginsDir: string;
+  readonly agentExtensions?: AgentExtensionsPort;
   readonly redact: (text: string) => string;
   readonly onSelect: (key: string) => void;
   readonly onRescan: () => void;
@@ -103,6 +105,7 @@ export function PluginsTab(props: PluginsTabProps) {
             safeMode={props.list.safeMode}
             work={props.activity.busy[selected.entry.manifest.id]}
             problem={props.activity.problems[selected.entry.manifest.id]}
+            {...(props.agentExtensions === undefined ? {} : { agentExtensions: props.agentExtensions })}
             redact={redact}
             actions={props.actionsFor(selected.entry)}
           />

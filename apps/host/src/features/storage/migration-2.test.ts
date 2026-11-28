@@ -12,7 +12,7 @@ const AVATAR = JSON.stringify({ kind: 'initials', color: '#112233' });
 
 let dir: string;
 beforeEach(async () => {
-  dir = await mkdtemp(path.join(tmpdir(), 'morrowbot-migration-'));
+  dir = await mkdtemp(path.join(tmpdir(), 'orikami-migration-'));
 });
 afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
@@ -177,5 +177,5 @@ it('refuses a database newer than this host', () => {
   const db = new DatabaseSync(file);
   db.exec(`PRAGMA user_version = ${String(MIGRATIONS.length + 1)}`);
   db.close();
-  expect(() => openStorage(file, () => AT)).toThrowErrorMatchingInlineSnapshot(`[Error: Database schema version 20 is newer than this host supports]`);
+  expect(() => openStorage(file, () => AT)).toThrowErrorMatchingInlineSnapshot(`[Error: Database schema version 22 is newer than this host supports]`);
 });

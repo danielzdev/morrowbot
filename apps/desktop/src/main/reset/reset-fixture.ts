@@ -30,7 +30,7 @@ async function walk(dir: string): Promise<string[]> {
 }
 
 export async function fakeHome(): Promise<FakeHome> {
-  const home = await realpath(await mkdtemp(path.join(tmpdir(), 'morrowbot-reset-')));
+  const home = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-reset-')));
   const at = (relative: string): string => path.join(home, relative);
   return {
     home,

@@ -1,4 +1,5 @@
 import type { Agent, AssistantMessage, BoundProvider, ProviderBinding, SubagentRun, SubagentStatus } from '@morrowbot/contracts';
+import type { AdmitResult } from './admission.ts';
 import type { SubagentRecord } from './ports.ts';
 import { laneOf, localSettlement, queueNote, settle, type ChatCore, type StoredReply, type Turn } from './turn.ts';
 
@@ -97,4 +98,27 @@ export function publishSubagent(core: ChatCore, turn: Turn): void {
   const record = core.options.store.subagents.get(turn.threadId);
   if (record === undefined) return;
   core.events.publish({ kind: 'subagent.changed', threadId: turn.parent.threadId, generationId: turn.parent.generationId, run: subagentView(core, record) });
+}
+
+/** Why a sub-agent's turn did not start, in words for the turn that asked. */
+export function subagentRefusal(result: AdmitResult): string {
+  switch (result.kind) {
+    case 'started':
+      return 'The sub-agent chat is gone.';
+    case 'thread_not_found':
+      return 'The chat or its agent is gone.';
+    case 'busy':
+      return 'The sub-agent is already running.';
+    case 'no_provider':
+    case 'not_continuable':
+      return result.reason;
+    case 'provider_unavailable':
+      return `The provider is not available right now (${result.reason}).`;
+    case 'binding_changed':
+      return 'The provider changed while the sub-agent was starting. Try again.';
+    case 'session_choice_required':
+      return `The provider session needs a choice (${result.reason}).`;
+    case 'attachments_missing':
+      return 'A sub-agent takes no files.';
+  }
 }

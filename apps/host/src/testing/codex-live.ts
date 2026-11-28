@@ -2,8 +2,8 @@ import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { z } from 'zod';
 
-/** The Codex CLI the live fixtures run: `MORROWBOT_CODEX_PATH`, else `codex` on PATH. */
-export const CODEX_PATH = process.env.MORROWBOT_CODEX_PATH ?? 'codex';
+/** The Codex CLI the live fixtures run: `ORIKAMI_CODEX_PATH`, else `codex` on PATH. */
+export const CODEX_PATH = process.env.ORIKAMI_CODEX_PATH ?? 'codex';
 
 const Reply = z.looseObject({ id: z.number(), result: z.unknown().optional(), error: z.looseObject({ message: z.string() }).optional() });
 const Note = z.looseObject({ method: z.string(), params: z.unknown().optional() });
@@ -46,7 +46,7 @@ export async function rawCodex(env: Readonly<Record<string, string>> = {}): Prom
       pending.set(id, { resolve, reject });
       write({ jsonrpc: '2.0', id, method, params });
     });
-  await call('initialize', { clientInfo: { name: 'morrowbot-live', title: null, version: '0.0.0' }, capabilities: { experimentalApi: true } });
+  await call('initialize', { clientInfo: { name: 'orikami-live', title: null, version: '0.0.0' }, capabilities: { experimentalApi: true } });
   write({ jsonrpc: '2.0', method: 'initialized' });
   return {
     call,

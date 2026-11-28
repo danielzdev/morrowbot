@@ -23,6 +23,8 @@ function agent(id: string, name: string, folderId: string | null, bound = true):
       : { kind: 'unbound' },
     folderId,
     emojiReplies: 'allowed',
+    disabledExtensions: [],
+    revision: 0,
     createdAt: TIME,
     updatedAt: TIME,
   };

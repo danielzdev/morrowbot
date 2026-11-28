@@ -32,7 +32,7 @@ const LIVE_SHOW = {
 let dir: string;
 let bin: string;
 beforeAll(async () => {
-  dir = await mkdtemp(path.join(tmpdir(), 'morrowbot-t3-cli-'));
+  dir = await mkdtemp(path.join(tmpdir(), 'orikami-t3-cli-'));
   bin = path.join(dir, 't3');
   await writeFile(path.join(dir, 'show.json'), JSON.stringify(LIVE_SHOW));
   await writeFile(path.join(dir, 'failed.json'), JSON.stringify({ thread: { ...LIVE_SHOW.thread, status: 'failed', activeRunId: null, pendingBackgroundTasks: [] }, messages: [], error: 'Provider exited with code 1' }));

@@ -11,11 +11,11 @@ import { startTestHost, type EventClient, type TestHost } from '../../testing/te
 
 /**
  * The provider-opencode checks, run through the host and the built-in provider on a real opencode
- * 2.4.x (`MORROWBOT_OPENCODE_PATH` or `opencode` on PATH) with its free models, which need no
- * sign-in. They reach the network, so they run only with `MORROWBOT_LIVE_OPENCODE=1`.
+ * 2.4.x (`ORIKAMI_OPENCODE_PATH` or `opencode` on PATH) with its free models, which need no
+ * sign-in. They reach the network, so they run only with `ORIKAMI_LIVE_OPENCODE=1`.
  */
-const LIVE = process.env.MORROWBOT_LIVE_OPENCODE === '1';
-const OPENCODE_PATH = process.env.MORROWBOT_OPENCODE_PATH ?? 'opencode';
+const LIVE = process.env.ORIKAMI_LIVE_OPENCODE === '1';
+const OPENCODE_PATH = process.env.ORIKAMI_OPENCODE_PATH ?? 'opencode';
 const TURN_MS = 600_000;
 
 let root = '';
@@ -26,7 +26,7 @@ let closed = false;
 beforeEach(async () => {
   if (!LIVE) return;
   closed = false;
-  root = await realpath(await mkdtemp(path.join(tmpdir(), 'morrowbot-live-opencode-')));
+  root = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-live-opencode-')));
   host = await startTestHost({ dataDir: path.join(root, 'data') });
   events = await host.events();
   const configured = await host.call('PUT', '/api/plugins/provider-opencode/config', { config: { cliPath: OPENCODE_PATH } });

@@ -25,7 +25,7 @@ export const NOTIFY_COPY: Readonly<Record<AgentNotify, { readonly label: string;
   all: {
     label: 'All',
     menu: 'All notifications',
-    detail: 'A system notification when it replies or needs approval while MorrowBot is in the background, and a dot for new replies.',
+    detail: 'A system notification when it replies or needs approval while Ori Kami is in the background, and a dot for new replies.',
   },
   quiet: { label: 'Quiet', menu: 'Quiet: dot only', detail: 'No system notifications. New replies still get a dot in the sidebar.' },
   muted: { label: 'Muted', menu: 'Muted', detail: 'No system notifications and no dot for new replies. Approvals and problems still show.' },

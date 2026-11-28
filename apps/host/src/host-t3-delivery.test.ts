@@ -34,7 +34,7 @@ let dataDir: string;
 let ids: Sequence;
 let fixture: ChatFixture | undefined;
 beforeEach(async () => {
-  dataDir = await mkdtemp(path.join(tmpdir(), 'morrowbot-t3-delivery-'));
+  dataDir = await mkdtemp(path.join(tmpdir(), 'orikami-t3-delivery-'));
   ids = sequence();
 });
 afterEach(async () => {

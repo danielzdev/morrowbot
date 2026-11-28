@@ -12,9 +12,9 @@ import { runCleanup } from './run-cleanup.ts';
  * The post-exit cleanup helper. Electron main starts it detached under Electron-as-Node and sends the job over
  * IPC. It checks the job against its own platform, home and binary, says `ready`, and acts only after main
  * sends `commit`, which it confirms with `committed`; if main disconnects first, it does nothing. Then it waits
- * for main to exit, runs the job, logs what it did to the temp folder, and after a reset opens MorrowBot again.
+ * for main to exit, runs the job, logs what it did to the temp folder, and after a reset opens Ori Kami again.
  */
-const LOG = path.join(tmpdir(), 'morrowbot-reset.log');
+const LOG = path.join(tmpdir(), 'orikami-reset.log');
 const Commit = z.strictObject({ kind: z.literal('commit') });
 
 const log = (entry: unknown): Promise<void> => appendFile(LOG, `${new Date().toISOString()} ${JSON.stringify(entry)}\n`).catch(() => undefined);
@@ -59,7 +59,7 @@ const send = (message: unknown): Promise<void> =>
     else process.send(message, undefined, undefined, () => { resolve(); });
   });
 
-if (process.send === undefined) await stop(2, { kind: 'refused', reason: 'Not started by MorrowBot.' });
+if (process.send === undefined) await stop(2, { kind: 'refused', reason: 'Not started by Ori Kami.' });
 const job = parseJobMessage(await next());
 if (job === null) await stop(2, { kind: 'bad-job' });
 else {

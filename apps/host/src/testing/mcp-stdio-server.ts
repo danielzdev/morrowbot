@@ -40,7 +40,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       break;
     }
     case 'env': {
-      const seen = ['FIXTURE_ACCOUNT', 'PATH', 'MORROWBOT_HOST_ONLY'].map((name) => `${name}=${process.env[name] === undefined ? 'absent' : 'set'}`);
+      const seen = ['FIXTURE_ACCOUNT', 'PATH', 'ORIKAMI_HOST_ONLY'].map((name) => `${name}=${process.env[name] === undefined ? 'absent' : 'set'}`);
       send({ jsonrpc: '2.0', id: step.id, result: { content: [{ type: 'text', text: seen.join(' ') }] } });
       break;
     }

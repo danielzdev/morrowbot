@@ -204,7 +204,7 @@ describe('helper replies', () => {
             "accessibility",
             "screen-recording",
           ],
-          "text": "Computer Use needs the Accessibility and Screen Recording permissions, which macOS has not granted. Ask the person to turn on MorrowBot under System Settings › Privacy & Security › Accessibility and Screen Recording, or call check_permissions with prompt: true to show the macOS request. Nothing was done.",
+          "text": "Computer Use needs the Accessibility and Screen Recording permissions, which macOS has not granted. Ask the person to turn on Ori Kami under System Settings › Privacy & Security › Accessibility and Screen Recording, or call check_permissions with prompt: true to show the macOS request. Nothing was done.",
         },
         "refused",
       ]

@@ -7,6 +7,7 @@ export const manifest = {
   protocolVersion: 1,
   id: 'provider-opencode',
   name: 'OpenCode (free models)',
+  description: 'Runs OpenCode with its free models.',
   version: '0.1.0',
   kind: 'provider',
   main: 'src/opencode/index.ts',

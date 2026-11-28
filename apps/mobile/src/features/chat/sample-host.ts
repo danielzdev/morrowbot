@@ -30,11 +30,16 @@ const sleep = (ms: number): Promise<void> =>
     setTimeout(resolve, ms);
   });
 
+/** Sample host extends `ChatHost` with thread-creation notifications so the offline directory stays in sync. */
+export interface SampleChatHost extends ChatHost {
+  onThreadCreated(listener: (thread: Thread) => void): () => void;
+}
+
 /**
  * An in-memory host with made-up agents, so the chat can be tried before a host is paired: replies
  * stream word by word, run a tool, and ask for approval before writing anything.
  */
-export function createSampleChatHost(now: () => string = () => new Date().toISOString()): ChatHost {
+export function createSampleChatHost(now: () => string = () => new Date().toISOString()): SampleChatHost {
   let agents: Agent[] = [...SAMPLE_AGENTS];
   let threads: Thread[] = [...SAMPLE_THREADS];
   let plugins: PluginEntry[] = [...SAMPLE_PLUGINS];
@@ -44,7 +49,13 @@ export function createSampleChatHost(now: () => string = () => new Date().toISOS
   for (const [threadId, turn] of Object.entries(SAMPLE_ACTIVE)) if (turn !== null) active.set(threadId, copy(turn));
   const seqs = new Map<string, number>();
   const watchers = new Map<string, Set<ThreadWatcher>>();
+  const agentListeners = new Set<(agent: Agent) => void>();
+  const agentDeletedListeners = new Set<(agentId: string) => void>();
+  const threadCreatedListeners = new Set<(thread: Thread) => void>();
   const pluginListeners = new Set<(entry: PluginEntry) => void>();
+  const emitAgent = (agent: Agent): void => {
+    for (const listener of [...agentListeners]) listener(agent);
+  };
   const answers = new Map<string, (choiceId: string | null) => void>();
   const uploads = new Map<string, Attachment>();
   const queues = new Map<string, QueuedMessage[]>();
@@ -199,8 +210,10 @@ export function createSampleChatHost(now: () => string = () => new Date().toISOS
     agents: () => ok({ agents, folders: [], lastMessages: [] }),
     threads: (agentId) => ok({ threads: threads.filter((each) => each.agentId === agentId) }),
     createThread: (agentId) => {
+      if (!agents.some(({ id }) => id === agentId)) return missing('Agent');
       const created: Thread = { id: nextId('thread'), agentId, title: 'New chat', createdAt: now(), updatedAt: now(), archivedAt: null };
       threads = [...threads, created];
+      for (const listener of [...threadCreatedListeners]) listener(created);
       return ok(created);
     },
     uploadAttachment: (_threadId, request) => {
@@ -269,6 +282,13 @@ export function createSampleChatHost(now: () => string = () => new Date().toISOS
     updateAgent: (agentId, request) => {
       const agent = agents.find(({ id }) => id === agentId);
       if (agent === undefined) return missing('Agent');
+      if (request.revision !== undefined && request.revision !== agent.revision) {
+        return Promise.resolve({
+          kind: 'failed',
+          status: 409,
+          error: { kind: 'agent-conflict', current: agent, message: 'Changed elsewhere.' },
+        });
+      }
       const updated: Agent = {
         ...agent,
         name: request.name ?? agent.name,
@@ -276,22 +296,31 @@ export function createSampleChatHost(now: () => string = () => new Date().toISOS
         avatar: request.avatar ?? agent.avatar,
         provider: request.provider ?? agent.provider,
         folderId: request.folderId === undefined ? agent.folderId : request.folderId,
+        emojiReplies: request.emojiReplies ?? agent.emojiReplies,
+        disabledExtensions: request.disabledExtensions ?? agent.disabledExtensions,
+        revision: agent.revision + 1,
         updatedAt: now(),
       };
       agents = agents.map((each) => (each.id === agentId ? updated : each));
+      emitAgent(updated);
       return ok(updated);
     },
     deleteAgent: (agentId) => {
       agents = agents.filter(({ id }) => id !== agentId);
       threads = threads.filter((each) => each.agentId !== agentId);
+      for (const listener of [...agentDeletedListeners]) listener(agentId);
       return ok(null);
+    },
+    adoptAgent: (agent) => {
+      agents = agents.map((each) => (each.id === agent.id && agent.revision >= each.revision ? agent : each));
+      emitAgent(agent);
     },
     instructions: (agentId) => {
       const agent = agents.find(({ id }) => id === agentId);
       if (agent === undefined) return missing('Agent');
       return ok({ content: `# ${agent.name}\n\nKeep answers short. Ask before writing files.`, revision: 'r1', canReplace: false });
     },
-    plugins: () => ok({ plugins, safeMode: false, pluginsDir: '/srv/morrowbot/plugins', problems: [] }),
+    plugins: () => ok({ plugins, safeMode: false, pluginsDir: '/srv/orikami/plugins', problems: [] }),
     setPluginEnabled: (pluginId, enabled) => {
       const entry = plugins.find(({ manifest }) => manifest.id === pluginId);
       if (entry === undefined) return missing('Plugin');
@@ -299,6 +328,24 @@ export function createSampleChatHost(now: () => string = () => new Date().toISOS
       plugins = plugins.map((each) => (each.manifest.id === pluginId ? updated : each));
       for (const listener of [...pluginListeners]) listener(updated);
       return ok(updated);
+    },
+    onAgentChanged: (listener) => {
+      agentListeners.add(listener);
+      return () => {
+        agentListeners.delete(listener);
+      };
+    },
+    onAgentDeleted: (listener) => {
+      agentDeletedListeners.add(listener);
+      return () => {
+        agentDeletedListeners.delete(listener);
+      };
+    },
+    onThreadCreated: (listener) => {
+      threadCreatedListeners.add(listener);
+      return () => {
+        threadCreatedListeners.delete(listener);
+      };
     },
     onPluginChanged: (listener) => {
       pluginListeners.add(listener);

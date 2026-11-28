@@ -3,6 +3,7 @@ import type {
   Agent,
   AgentMessage,
   BoundProvider,
+  CardProposal,
   CreateMemoryRequest,
   CreateRoutineRequest,
   Memory,
@@ -187,6 +188,13 @@ export interface ToolPorts {
   readonly replyAttachments: {
     attach(grant: ToolGrant, paths: readonly string[], signal: AbortSignal): Promise<AttachAnswer>;
   };
+  /** Cards in the turn's chat, and the Marketplace they can offer from (the cards feature provides them). */
+  readonly cards: {
+    propose(grant: ToolGrant, proposal: CardProposal): Promise<ReplyAnswer>;
+    searchMarketplace(query: string): Promise<ReplyAnswer>;
+    /** Agents shared with members offer no plugins or settings: those belong to the owner. */
+    sharedWithMembers(agentId: string): boolean;
+  };
   /** The vault's item names. Secret values never reach the tools. */
   readonly vault: { list(): readonly VaultItem[] };
   /** Each call acts as the grant's turn, with every guardrail of the sub-agents feature. */
@@ -197,10 +205,10 @@ export interface ToolPorts {
     wait(grant: ToolGrant, runIds: readonly string[] | undefined, timeoutMs: number): Promise<{ readonly kind: 'waited'; readonly runs: SubagentRun[]; readonly timedOut: boolean } | Refused>;
     list(grant: ToolGrant): Promise<{ readonly kind: 'listed'; readonly you: BoundProvider; readonly runs: SubagentRun[]; readonly providers: object[] } | Refused>;
   };
-  /** The agent's connector tools; each list and each call checks that connector's scope and status again. */
+  /** The turn's connector tools; each list and each call checks who started the turn and that connector's scope and status again. */
   readonly connectors: {
-    tools(agentId: string): readonly ConnectorTool[];
-    call(agentId: string, name: string, args: unknown, signal: AbortSignal): Promise<ConnectorCall>;
+    tools(grant: ToolGrant): readonly ConnectorTool[];
+    call(grant: ToolGrant, name: string, args: unknown, signal: AbortSignal): Promise<ConnectorCall>;
   };
   /** Optional routines bridge (absent in focused tests without routines). */
   readonly routines?: RoutineToolsPort;

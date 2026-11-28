@@ -62,7 +62,7 @@ read_clone() { /usr/bin/perl -e 'exit(syscall(462, -2, $ARGV[0], -2, $ARGV[1], 0
 try() { name=$1; shift; if "$@" >/dev/null 2>&1; then echo "$name: ok"; else echo "$name: denied"; fi; }
 try 'read vault-secrets.json' cat "$F/vault-secrets.json"
 try 'read vault.key' cat "$F/vault.key"
-try 'read morrowbot.sqlite' cat "$F/morrowbot.sqlite"
+try 'read orikami.sqlite' cat "$F/orikami.sqlite"
 try 'read server.json' cat "$F/server.json"
 try 'read it in other letter case' cat "$F/VAULT-SECRETS.JSON"
 try 'copy it' cp "$F/vault-secrets.json" "$R/copy"
@@ -86,17 +86,17 @@ try 'sudo' /usr/bin/sudo -n true
 `;
 
 const PROBE_PLIST =
-  '<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>CFBundleExecutable</key><string>probe</string><key>CFBundleIdentifier</key><string>com.legendarykoi.morrowbot.fence-probe</string></dict></plist>';
+  '<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>CFBundleExecutable</key><string>probe</string><key>CFBundleIdentifier</key><string>com.legendarykoi.orikami.fence-probe</string></dict></plist>';
 
 describe.runIf(process.platform === 'darwin')('a fenced command on this Mac', () => {
   let root = '';
   let folder = '';
   beforeEach(async () => {
-    root = await realpath(await mkdtemp(path.join(tmpdir(), 'morrowbot-fence-')));
+    root = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-fence-')));
     folder = path.join(root, 'data "dir"');
     await mkdir(path.join(folder, 'workspaces'), { recursive: true });
     await mkdir(path.join(root, 'plugins'));
-    for (const name of ['vault-secrets.json', 'vault.key', 'morrowbot.sqlite', 'server.json', 'notes.txt']) await writeFile(path.join(folder, name), `${name} contents\n`);
+    for (const name of ['vault-secrets.json', 'vault.key', 'orikami.sqlite', 'server.json', 'notes.txt']) await writeFile(path.join(folder, name), `${name} contents\n`);
     await writeFile(path.join(root, 'not-executable'), '#!/bin/sh\nexit 0\n', { mode: 0o644 });
     const app = path.join(root, 'Probe.app', 'Contents');
     await mkdir(path.join(app, 'MacOS'), { recursive: true });
@@ -108,7 +108,7 @@ describe.runIf(process.platform === 'darwin')('a fenced command on this Mac', ()
   });
 
   const fence = () =>
-    dataFolderFence('darwin', { data: folder, hidden: ['vault', 'morrowbot.sqlite', 'server.json'], writable: [path.join(folder, 'workspaces')], readOnly: [path.join(root, 'plugins')] });
+    dataFolderFence('darwin', { data: folder, hidden: ['vault', 'orikami.sqlite', 'server.json'], writable: [path.join(folder, 'workspaces')], readOnly: [path.join(root, 'plugins')] });
 
   const options = (args: readonly string[], lines: string[]): RunCommandOptions => ({
     args,
@@ -130,7 +130,7 @@ describe.runIf(process.platform === 'darwin')('a fenced command on this Mac', ()
       lines: [
         'read vault-secrets.json: denied',
         'read vault.key: denied',
-        'read morrowbot.sqlite: denied',
+        'read orikami.sqlite: denied',
         'read server.json: denied',
         'read it in other letter case: denied',
         'copy it: denied',

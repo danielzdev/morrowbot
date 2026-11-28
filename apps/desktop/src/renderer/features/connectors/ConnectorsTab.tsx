@@ -1,11 +1,12 @@
 import type { Agent, Connector } from '@morrowbot/contracts';
+import { Fragment } from 'preact';
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import { ItemMark } from '../../shared/ui/ItemMark.tsx';
 import { ListDetail, ListRow, Pill } from '../../shared/ui/ListDetail.tsx';
 import { Segmented } from '../../shared/ui/Segmented.tsx';
 import { useStore } from '../../shared/use-store.ts';
 import { AddConnectorForm } from './AddConnectorForm.tsx';
-import { EMPTY_LINE, FILTERS_FROM, matching, scopeChip, sourceTag, statusPill, type ConnectorFilter } from './connector-copy.ts';
+import { attentionGroups, EMPTY_LINE, FILTERS_FROM, matching, scopeChip, sourceTag, statusPill, type ConnectorFilter } from './connector-copy.ts';
 import { ConnectorDetail } from './ConnectorDetail.tsx';
 import type { ConnectorsModel } from './connectors-model.ts';
 import type { AgentAvatarSlot } from './ScopePicker.tsx';
@@ -70,9 +71,12 @@ export function ConnectorsTab(props: ConnectorsTabProps) {
   const connectors = list.kind === 'loaded' ? list.value.connectors : [];
   const filterable = connectors.length >= FILTERS_FROM;
   const shown = matching(connectors, props.query, filterable ? filter : 'all');
+  const groups = filterable && filter !== 'all' ? [{ title: null, connectors: shown }] : attentionGroups(shown);
+  const ordered = groups.flatMap((group) => group.connectors);
+  const firstId = ordered[0]?.id;
   const { pane } = place;
   const chosen = pane.kind === 'connector' ? connectors.find(({ id }) => id === pane.id) : undefined;
-  const selected = pane.kind === 'adding' ? undefined : (chosen ?? shown[0]);
+  const selected = pane.kind === 'adding' ? undefined : (chosen ?? ordered[0]);
   const selectedId = selected?.id;
   useEffect(() => {
     if (dirty && selectedId !== undefined) model.pin(selectedId);
@@ -82,7 +86,7 @@ export function ConnectorsTab(props: ConnectorsTabProps) {
   if (list.kind === 'failed') {
     return (
       <div class="banner error" role="alert">
-        <span>MorrowBot couldn't load your connectors. {props.redact(list.message)}</span>
+        <span>Ori Kami couldn't load your connectors. {props.redact(list.message)}</span>
         <button type="button" class="btn secondary" onClick={() => void model.load()}>Try again</button>
       </div>
     );
@@ -121,17 +125,22 @@ export function ConnectorsTab(props: ConnectorsTabProps) {
       }
       list={
         <>
-          {shown.map((connector, index) => (
-            <ConnectorRow
-              key={connector.id}
-              connector={connector}
-              selected={connector.id === selectedId}
-              tabStop={connector.id === selectedId || (index === 0 && !shown.some(({ id }) => id === selectedId))}
-              onSelect={() => {
-                if (connector.id === selectedId) return;
-                guard(() => { model.open({ kind: 'connector', id: connector.id }); });
-              }}
-            />
+          {groups.map((group) => (
+            <Fragment key={group.title ?? 'untitled'}>
+              {group.title !== null && <div class="kicker list-group">{group.title}</div>}
+              {group.connectors.map((connector) => (
+                <ConnectorRow
+                  key={connector.id}
+                  connector={connector}
+                  selected={connector.id === selectedId}
+                  tabStop={connector.id === selectedId || (connector.id === firstId && !shown.some(({ id }) => id === selectedId))}
+                  onSelect={() => {
+                    if (connector.id === selectedId) return;
+                    guard(() => { model.open({ kind: 'connector', id: connector.id }); });
+                  }}
+                />
+              ))}
+            </Fragment>
           ))}
           {shown.length === 0 && connectors.length > 0 && <p class="list-empty muted">No matches.</p>}
         </>

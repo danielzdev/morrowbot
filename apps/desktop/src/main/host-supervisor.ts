@@ -104,7 +104,7 @@ export function superviseHost(host: HostLaunch, events: HostSupervisorEvents): H
     target = undefined;
     if (stopping) return;
     if (restarted) {
-      events.fatal('The MorrowBot host stopped unexpectedly again.');
+      events.fatal('The Ori Kami host stopped unexpectedly again.');
       return;
     }
     restarted = true;

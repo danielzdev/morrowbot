@@ -1,7 +1,7 @@
 import { ConnectorLabel, connectorLabelKey, MAX_CONNECTOR_LABEL, type Agent, type Connector, type ConnectorScope, type ConnectorSetupView, type ConnectorStatus } from '@morrowbot/contracts';
 
 export const EMPTY_LINE = 'Connect an account so your agents can use it, like your calendar or a to-do app.';
-export const NO_ROUTE_LINE = "MorrowBot can't use this connector safely right now.";
+export const NO_ROUTE_LINE = "Ori Kami can't use this connector safely right now.";
 export const REVIEW_LINE = 'Access is paused until you save a supported scope.';
 export const CONFLICT_LINE = 'Changed elsewhere.';
 export const FILTERS_FROM = 8;
@@ -56,6 +56,29 @@ export function needsAttention(status: ConnectorStatus): boolean {
     case 'connected':
       return false;
   }
+}
+
+/** The Extensions row's words for connectors that need the user (spec IA §2), or null when none do. */
+export function connectorNote(connectors: readonly Connector[]): { readonly tone: 'warn' | 'danger'; readonly text: string } | null {
+  const troubled = connectors.filter(({ status }) => needsAttention(status));
+  const count = troubled.length;
+  if (count === 0) return null;
+  const tone = troubled.some(({ status }) => status.kind === 'crashed') ? 'danger' : 'warn';
+  return { tone, text: `${String(count)} ${count === 1 ? 'connector needs' : 'connectors need'} attention` };
+}
+
+export interface ConnectorGroup {
+  /** Null for the one untitled group of a list where nothing needs the user. */
+  readonly title: 'Needs attention' | 'All' | null;
+  readonly connectors: readonly Connector[];
+}
+
+/** The list's groups (spec IA §3): connectors that need the user first, then all the others, each in the host's order. */
+export function attentionGroups(connectors: readonly Connector[]): readonly ConnectorGroup[] {
+  const troubled = connectors.filter(({ status }) => needsAttention(status));
+  if (troubled.length === 0) return [{ title: null, connectors }];
+  const rest = connectors.filter(({ status }) => !needsAttention(status));
+  return rest.length === 0 ? [{ title: 'Needs attention', connectors: troubled }] : [{ title: 'Needs attention', connectors: troubled }, { title: 'All', connectors: rest }];
 }
 
 export function sourceTag(setup: ConnectorSetupView): 'MCP' | 'via Composio' {

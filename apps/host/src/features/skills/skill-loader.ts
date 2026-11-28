@@ -7,7 +7,7 @@ import { parseFrontmatter } from './frontmatter.ts';
 export const SKILL_FILE = 'SKILL.md';
 
 /** Where an agent's own skills live inside its workspace. */
-export const AGENT_SKILLS_DIR = path.join('.morrowbot', 'skills');
+export const AGENT_SKILLS_DIR = path.join('.orikami', 'skills');
 
 /** Only this much of a `SKILL.md` is read: the frontmatter is at the top. */
 const HEAD_BYTES = 16 * 1024;

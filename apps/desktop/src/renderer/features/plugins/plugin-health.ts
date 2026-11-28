@@ -49,13 +49,13 @@ export function problemHealth(problem: PluginProblem): Health & { readonly title
         title: problem.folder,
       };
     case 'unreadable':
-      return { ...pill('error', "Couldn't read folder", problem.problem), title: "MorrowBot couldn't read its plugin folders." };
+      return { ...pill('error', "Couldn't read folder", problem.problem), title: "Ori Kami couldn't read its plugin folders." };
   }
 }
 
 /**
  * Whether Extensions › Plugins lists this entry: every plugin except the providers built into
- * MorrowBot, which live in Settings › Providers. Community providers show in both.
+ * Ori Kami, which live in Settings › Providers. Community providers show in both.
  */
 export function isListedPlugin(entry: PluginEntry): boolean {
   return !(entry.source === 'built-in' && entry.manifest.kind === 'provider');
@@ -75,16 +75,27 @@ const PROBLEM_ALERTS: Partial<Readonly<Record<PluginProblem['kind'], { readonly 
 
 export const SAFE_MODE_LINE = 'Safe mode: extensions are off.';
 
-/** The Extensions row's dot and its spoken words (spec IA §2), or null when every extension is fine. */
-export function pluginAlert(list: Pick<PluginList, 'plugins' | 'safeMode' | 'problems'>): { readonly tone: 'warn' | 'danger'; readonly label: string } | null {
+/** A finished phrase another part of Extensions adds to the row's words, such as "2 connectors need attention". */
+export interface ExtensionsNote {
+  readonly tone: 'warn' | 'danger';
+  readonly text: string;
+}
+
+/** The Extensions row's dot and its spoken words (spec IA §2), or null when every plugin is fine and `others` has no note. */
+export function extensionsAlert(
+  list: Pick<PluginList, 'plugins' | 'safeMode' | 'problems'>,
+  others: readonly (ExtensionsNote | null)[] = [],
+): { readonly tone: 'warn' | 'danger'; readonly label: string } | null {
   if (list.safeMode) return { tone: 'warn', label: 'Extensions: off in safe mode' };
   const alerts = [
     ...list.plugins.filter(isListedPlugin).flatMap((entry) => ALERTS[entry.status.kind] ?? []),
     ...list.problems.flatMap((problem) => PROBLEM_ALERTS[problem.kind] ?? []),
   ];
-  if (alerts.length === 0) return null;
+  const notes = others.filter((note) => note !== null);
   const counts = new Map<string, number>();
   for (const alert of alerts) counts.set(alert.words, (counts.get(alert.words) ?? 0) + 1);
-  const tone = alerts.some((alert) => alert.tone === 'danger') ? 'danger' : 'warn';
-  return { tone, label: `Extensions: ${[...counts].map(([words, count]) => `${String(count)} ${words}`).join(', ')}` };
+  const parts = [...[...counts].map(([words, count]) => `${String(count)} ${words}`), ...notes.map(({ text }) => text)];
+  if (parts.length === 0) return null;
+  const tone = [...alerts, ...notes].some((alert) => alert.tone === 'danger') ? 'danger' : 'warn';
+  return { tone, label: `Extensions: ${parts.join(', ')}` };
 }

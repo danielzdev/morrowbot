@@ -9,8 +9,8 @@ const AT = '2026-01-01T00:00:00.000Z';
 let dir: string;
 let storage: Storage;
 beforeEach(async () => {
-  dir = await mkdtemp(path.join(tmpdir(), 'morrowbot-last-messages-'));
-  storage = openStorage(path.join(dir, 'morrowbot.sqlite'), () => AT);
+  dir = await mkdtemp(path.join(tmpdir(), 'orikami-last-messages-'));
+  storage = openStorage(path.join(dir, 'orikami.sqlite'), () => AT);
   for (const id of ['gardener', 'owl', 'fox']) {
     storage.agents.insert({
       id,
@@ -20,7 +20,9 @@ beforeEach(async () => {
       avatar: { kind: 'bot', shape: 'sprout', color: '#22aa55', finish: 'matte' },
       provider: { kind: 'unbound' },
       folderId: null,
-    emojiReplies: 'allowed',
+      emojiReplies: 'allowed',
+      disabledExtensions: [],
+      revision: 0,
       createdAt: AT,
       updatedAt: AT,
     });

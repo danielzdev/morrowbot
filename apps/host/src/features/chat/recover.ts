@@ -15,6 +15,7 @@ export function recover(options: ChatServiceOptions): void {
         store.generations.settle(generation.id, null);
         store.toolSteps.close(generation.id, null);
         store.replyAttachments.close(generation.id, null);
+        store.cards.close(generation.id, null);
         store.agentMessages.setReadOutcome(generation.inputMessageId, 'interrupted');
       });
       continue;
@@ -35,6 +36,7 @@ export function recover(options: ChatServiceOptions): void {
       store.generations.settle(generation.id, message.id);
       store.toolSteps.close(generation.id, message.id);
       store.replyAttachments.close(generation.id, message.id);
+      store.cards.close(generation.id, message.id);
     });
   }
 }

@@ -4,7 +4,7 @@ import { BUILD_MODE } from './config.ts';
 import { createModelCatalog } from './models.ts';
 import { outcomeOf, usageOf } from './turn.ts';
 
-/** Recorded from opencode 2.4.1 under MorrowBot's read-only config in a folder `/work/ws`; paths and ids redacted. */
+/** Recorded from opencode 2.4.1 under Ori Kami's read-only config in a folder `/work/ws`; paths and ids redacted. */
 async function fixture(name: string): Promise<string> {
   const text = await readOptionalFile(decodeURIComponent(new URL(`./fixtures/2.4.1/${name}`, import.meta.url).pathname), { maxBytes: 1_000_000 });
   if (text === null) throw new Error(`missing fixture ${name}`);

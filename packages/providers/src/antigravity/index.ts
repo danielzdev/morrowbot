@@ -7,6 +7,7 @@ export const manifest = {
   protocolVersion: 1,
   id: 'provider-antigravity',
   name: 'Google Antigravity (subscription)',
+  description: 'Runs Google Antigravity on your own Google account.',
   version: '0.1.0',
   kind: 'provider',
   main: 'src/antigravity/index.ts',

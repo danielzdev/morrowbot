@@ -172,7 +172,7 @@ it('lets full run Bash and the file tools anywhere without --restricted or askin
   `);
 });
 
-it("gives MorrowBot's tools as a --mcp-config file after the system prompt's, allowed without asking", () => {
+it("gives Ori Kami's tools as a --mcp-config file after the system prompt's, allowed without asking", () => {
   const invocation = buildInvocation({
     access: 'read-only',
     mode: 'background',
@@ -194,13 +194,13 @@ it("gives MorrowBot's tools as a --mcp-config file after the system prompt's, al
         "--mcp-config",
         "/dev/fd/5",
         "--allowedTools",
-        "mcp__morrowbot",
+        "mcp__orikami",
       ],
       "files": [
         "Be brief.",
         {
           "mcpServers": {
-            "morrowbot": {
+            "orikami": {
               "headers": {
                 "Authorization": "Bearer ttttttttttttttttttttttttttttttttttttttttttt",
               },
