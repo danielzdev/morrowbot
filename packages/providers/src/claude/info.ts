@@ -4,13 +4,15 @@ import type { Policy } from './policy.ts';
 import type { Version } from './version.ts';
 
 /**
- * The profiles the 2.1.332 fixtures have proven: both isolated, both confined to the workspace by
- * `--restricted`, neither with a shell. Workspace-write asks before protected paths such as `.git/`,
- * and its fixtures have run on macOS only.
+ * The profiles the 2.1.332 fixtures have proven, all isolated. Read-only and workspace-write are
+ * confined to the workspace by `--restricted`, with no shell; workspace-write asks before protected
+ * paths such as `.git/`. Full has the shell and reaches the whole computer without asking. Only the
+ * owner may choose it; nothing picks it by default. Workspace-write and full have run on macOS only.
  */
 const PROFILES: readonly AccessProfile[] = [
   { access: 'read-only', vendorSettings: 'isolated', modes: ['interactive', 'background'], readsOutsideCwd: false },
   { access: 'workspace-write', vendorSettings: 'isolated', modes: ['interactive', 'background'], readsOutsideCwd: false },
+  { access: 'full', vendorSettings: 'isolated', modes: ['interactive', 'background'], readsOutsideCwd: true },
 ];
 
 /** The `--effort` levels of Claude Code 2.1.332, lowest first. */
@@ -83,8 +85,15 @@ export function effortOf(selection: ModelSelection): EffortChoice {
 
 /** Why `access` is held back on `platform` whatever else holds, or null. */
 export function platformReason(access: AccessProfile['access'], platform: string): string | null {
-  if (access !== 'workspace-write' || platform === 'darwin') return null;
-  return `Workspace-write for Claude has been checked only on macOS so far, not on ${platform}.`;
+  if (platform === 'darwin') return null;
+  switch (access) {
+    case 'read-only':
+      return null;
+    case 'workspace-write':
+      return `Workspace-write for Claude has been checked only on macOS so far, not on ${platform}.`;
+    case 'full':
+      return `Full access for Claude has been checked only on macOS so far, not on ${platform}.`;
+  }
 }
 
 type Runnable = Extract<Version, { kind: 'supported' | 'above' }>;

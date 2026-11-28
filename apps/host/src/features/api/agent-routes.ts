@@ -3,6 +3,7 @@ import {
   CreateAgentRequest,
   InstructionsCopyRequest,
   type InstructionsCopyReply,
+  type ProviderBinding,
   PutInstructionsRequest,
   type PutInstructionsReply,
   UpdateAgentRequest,
@@ -10,7 +11,14 @@ import {
 import { sees } from './access.ts';
 import type { ApiServices } from './ports.ts';
 import { failure, instructionsConflict, json, noContent, notFound } from './reply.ts';
-import { parseBody, type Route } from './route.ts';
+import { parseBody, type Route, type RouteContext } from './route.ts';
+
+const FULL_OWNER_ONLY = 'Only the owner of this computer may give an agent full access (shell commands)';
+
+/** Whether a server member, co-owners too, asks for full access: it runs commands on the owner's computer. */
+function fullByMember(context: RouteContext, provider: ProviderBinding | undefined): boolean {
+  return context.whoAmI.kind === 'member' && provider?.kind === 'bound' && provider.access === 'full';
+}
 
 export function agentRoutes({ agents, folders, chat }: ApiServices): Route[] {
   return [
@@ -37,6 +45,7 @@ export function agentRoutes({ agents, folders, chat }: ApiServices): Route[] {
       handle: async (context) => {
         const request = await parseBody(context, CreateAgentRequest);
         if (request.kind === 'rejected') return request.reply;
+        if (fullByMember(context, request.value.provider)) return failure('forbidden', FULL_OWNER_ONLY);
         const created = await agents.create(request.value);
         switch (created.kind) {
           case 'created':
@@ -69,6 +78,7 @@ export function agentRoutes({ agents, folders, chat }: ApiServices): Route[] {
         if (context.viewer.kind === 'scoped' && (request.value.provider !== undefined || request.value.folderId !== undefined)) {
           return failure('forbidden', "Only the server owner may change an agent's engine or folder");
         }
+        if (fullByMember(context, request.value.provider)) return failure('forbidden', FULL_OWNER_ONLY);
         const updated = agents.update(context.params.get('id'), request.value);
         switch (updated.kind) {
           case 'updated':

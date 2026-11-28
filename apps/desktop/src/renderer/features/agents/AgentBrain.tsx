@@ -1,17 +1,18 @@
 import type { Agent, ProviderBinding } from '@morrowbot/contracts';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { changeCheck, needsConfirm } from '../../shared/binding-ui/binding-state.ts';
+import { changeCheck, confirmLabel, needsConfirm } from '../../shared/binding-ui/binding-state.ts';
 import { readyInfo, type ProviderChoice } from '../../shared/binding-ui/selection.ts';
 import { Icon } from '../../shared/ui/Icon.tsx';
 import { SectionActions } from './AgentGeneral.tsx';
 import type { AgentsModel } from './agents-model.ts';
 import { BrainFields } from './BrainFields.tsx';
 
-/** What the provider can do, in one line each, from its capabilities. */
-function Capabilities(props: { readonly choice: ProviderChoice | undefined }) {
+/** What the provider can do, in one line each, from its capabilities. Full access never asks. */
+function Capabilities(props: { readonly choice: ProviderChoice | undefined; readonly binding: ProviderBinding }) {
   const info = readyInfo(props.choice?.info);
   if (info === null) return null;
-  const { approvals, sessions } = info.capabilities;
+  const { sessions } = info.capabilities;
+  const approvals = info.capabilities.approvals && !(props.binding.kind === 'bound' && props.binding.access === 'full');
   return (
     <ul class="capability-summary">
       <li>{approvals ? 'Asks you before protected changes.' : 'Never asks for approval: it only does what its access allows.'}</li>
@@ -74,7 +75,7 @@ export function AgentBrain(props: {
         }}
       />
       {binding.kind === 'unbound' && <p class="binding-note">{`Choose a provider for ${agent.name}.`}</p>}
-      <Capabilities choice={choice} />
+      <Capabilities choice={choice} binding={binding} />
       {confirming ? (
         <div class="confirm-strip" role="alert">
           {switched && (
@@ -84,7 +85,7 @@ export function AgentBrain(props: {
             <p key={warning} class="binding-note warn"><Icon name="warning" /> {warning}</p>
           ))}
           <div class="row">
-            <button type="button" class="btn primary" data-autofocus onClick={save}>{switched ? 'Switch' : 'Use it'}</button>
+            <button type="button" class="btn primary" data-autofocus onClick={save}>{confirmLabel(check, agent.provider, binding)}</button>
             <button type="button" class="btn secondary" onClick={() => { setConfirming(false); }}>Cancel</button>
           </div>
         </div>

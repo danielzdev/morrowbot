@@ -22,6 +22,8 @@ import { ServerSection } from './ServerSection.tsx';
 import { INDEX, isSection, ROWS, searchSettings, SECTIONS, targetOf, visibleNav, type SettingEntry, type SettingsLink, type SettingsSection } from './settings-index.ts';
 import { SettingRow } from './SettingRow.tsx';
 import { SettingsSearchField, SettingsSearchResults } from './SettingsNav.tsx';
+import type { VaultPort } from './vault.ts';
+import { VaultSection } from './VaultSection.tsx';
 
 const FLASH_MS = 1_000;
 /** A row's tab stop: for a segmented control, the checked segment. */
@@ -46,6 +48,8 @@ export interface SettingsModalProps {
   readonly pairing: PairingPort;
   /** The host's member calls, for Settings › Members. */
   readonly members: MembersPort;
+  /** The host's vault calls, for Settings › Vault. */
+  readonly vault: VaultPort;
   /** Which server this app uses, for Settings › Server. */
   readonly server: Exclude<ServerMode, { kind: 'choosing' }>;
   /** Switches the server; answers a problem to show, or null once MorrowBot reopens. */
@@ -120,6 +124,8 @@ export function SettingsModal(props: SettingsModalProps) {
             {props.providers({ initial: start.section === 'providers' ? start.item : null, onTrail })}
           </>
         );
+      case 'vault':
+        return <VaultSection port={props.vault} />;
       case 'usage':
         return props.usage;
       case 'server':

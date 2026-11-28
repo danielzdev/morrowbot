@@ -14,6 +14,8 @@ npm start -w apps/desktop               # builds the window, then starts Electro
 
 A dev run keeps its data in `~/.morrowbot-dev` (`MORROWBOT_DATA_DIR` moves it); only the installed `MorrowBot.app` uses `~/.morrowbot`. The Claude, Codex, Antigravity and OpenCode providers are built in; other plugins load from the data folder's `plugins` folder (`MORROWBOT_PLUGINS_DIR`).
 
+Vault secrets are sealed in the data folder's `vault-secrets.json` under one master key kept in the OS keystore. Deleting the folder removes the secrets; the key itself stays behind as one `com.legendarykoi.morrowbot.vault` / `master-key` entry in Keychain Access on macOS (shared by every data folder), or in the Secret Service on Linux (one per data folder), which you can delete there.
+
 ## Build MorrowBot.app
 
 ```sh

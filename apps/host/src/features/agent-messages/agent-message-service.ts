@@ -3,6 +3,7 @@ import {
   AGENT_PAIR_WINDOW_MS,
   mainThread,
   MAX_EXCHANGE_MESSAGES,
+  type AccessLevel,
   type AgentEndpoint,
   type AgentMessage,
   type SendAgentMessageRequest,
@@ -22,6 +23,8 @@ export interface AgentMessageServiceOptions {
   readonly agentExists: (id: string) => boolean;
   /** Whether `fromAgentId` may start messaging `toAgentId` (an agent shared with members is held to their allowlists). */
   readonly mayMessage: (fromAgentId: string, toAgentId: string) => boolean;
+  /** The access an agent's turns run with, or null while it has no provider. */
+  readonly accessOf: (agentId: string) => AccessLevel | null;
   readonly threads: {
     get(id: string): Thread | undefined;
     listByAgent(agentId: string): Thread[];
@@ -66,6 +69,9 @@ export function createAgentMessageService(options: AgentMessageServiceOptions): 
         if (!options.agentExists(request.toAgentId)) return { kind: 'not-found', what: 'Recipient agent' };
         if (!options.mayMessage(senderId, request.toAgentId)) {
           return { kind: 'forbidden', reason: 'This agent is shared with server members and may message only the agents its share allows' };
+        }
+        if (options.accessOf(request.toAgentId) === 'full' && options.accessOf(senderId) !== 'full') {
+          return { kind: 'forbidden', reason: 'The recipient has full access (shell commands) and takes new messages only from agents that have full access too' };
         }
         const inbox = mainThread(threads.listByAgent(request.toAgentId));
         if (inbox === null) return { kind: 'conflict', reason: 'The recipient has no chat to receive messages yet' };

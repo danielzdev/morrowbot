@@ -4,7 +4,7 @@ import type { KeptPath, ResetOption, ResetStep } from '../../renderer/bridge.ts'
 import { APP_ID } from '../app-identity.ts';
 import type { Keychain } from './keychain.ts';
 import { sharesWorkspace, workspaceIdsOf } from './workspace-identity.ts';
-import { bundleIdIn, bundleOf, comparable, dataDirRefusal, deleteCandidatesOf, ELECTRON_PROFILE, isWithin, RELEASE_TOKEN, refusalOf, SAFE_STORAGE, WORKSPACE_REFUSAL, WORKSPACES_ENTRY, workspacesOf, type KeychainItem, type PathFacts, type ResetContext } from './reset-paths.ts';
+import { bundleIdIn, bundleOf, comparable, dataDirRefusal, deleteCandidatesOf, ELECTRON_PROFILE, isWithin, RELEASE_TOKEN, refusalOf, SAFE_STORAGE, VAULT_KEY, VAULT_SECRETS, WORKSPACE_REFUSAL, WORKSPACES_ENTRY, workspacesOf, type KeychainItem, type PathFacts, type ResetContext } from './reset-paths.ts';
 
 /** Where this process runs from, for finding the app bundle. */
 export interface BundleInput {
@@ -101,8 +101,14 @@ export async function dataPlanOf(context: ResetContext, choice: DataChoice, keyc
   if (context.profile.kind === 'installed') {
     const electronProfile = path.join(context.homeDir, ELECTRON_PROFILE);
     const profileKept = kept.some((each) => each.path === electronProfile);
+    const secrets = comparable(path.join(context.profile.dataDir, VAULT_SECRETS));
+    const secretsKept = kept.some((each) => comparable(each.path) === secrets);
     try {
       if (!profileKept && (await keychain.has(SAFE_STORAGE))) steps.push(keychainStep(SAFE_STORAGE));
+      if (await keychain.has(VAULT_KEY)) {
+        if (secretsKept) kept.push({ path: `Keychain: ${VAULT_KEY.service} (account ${VAULT_KEY.account})`, reason: 'It unlocks the vault secrets that stay.' });
+        else steps.push(keychainStep(VAULT_KEY));
+      }
       if (await keychain.has(RELEASE_TOKEN)) {
         if (choice === 'full-uninstall') steps.push(keychainStep(RELEASE_TOKEN));
         else kept.push({ path: `Keychain: ${RELEASE_TOKEN.service} (account ${RELEASE_TOKEN.account})`, reason: 'Needed for app updates while MorrowBot stays installed.' });

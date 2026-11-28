@@ -65,7 +65,7 @@ it('speaks MCP on loopback only to the running turn’s token', async () => {
                 "listChanged": false,
               },
             },
-            "instructions": "MorrowBot tools: message your teammate agents, keep your own memories, answer the user with an emoji reaction or no message instead of filler text, and use the connectors the user gave you (named <connector>__<tool>). They act only as you, and only during this turn.",
+            "instructions": "MorrowBot tools: message your teammate agents, keep your own memories, see the names of the user's vault items, answer the user with an emoji reaction or no message instead of filler text, and use the connectors the user gave you (named <connector>__<tool>). They act only as you, and only during this turn.",
             "protocolVersion": "2025-06-18",
             "serverInfo": {
               "name": "morrowbot",
@@ -214,6 +214,15 @@ it('speaks MCP on loopback only to the running turn’s token', async () => {
                   "type": "object",
                 },
                 "name": "forget_memory",
+              },
+              {
+                "description": "Lists the user's vault: saved website logins, API keys and HTTP header secrets, by id, kind, name and site. Passwords, keys, header values and two-step codes are never shown to you.",
+                "inputSchema": {
+                  "additionalProperties": false,
+                  "properties": {},
+                  "type": "object",
+                },
+                "name": "list_vault_items",
               },
               {
                 "description": "Reacts with one emoji (such as 👍, ❤️ or 🎉) to the user’s message you are answering; the user sees it under their message. Use it for a short acknowledgement or go-ahead ("sounds good", "thanks"). Then carry on with the work, or end with stay_quiet when the reaction says it all.",

@@ -24,6 +24,7 @@ import { skillRoutes } from './skill-routes.ts';
 import { t3WatchRoutes } from './t3-watch-routes.ts';
 import { threadRoutes } from './thread-routes.ts';
 import { usageRoutes } from './usage-routes.ts';
+import { vaultRoutes } from './vault-routes.ts';
 
 export const EVENTS_PATH = '/api/events';
 /** How long an unpaired device's or revoked member's socket gets to finish the close handshake before it is cut. */
@@ -88,6 +89,7 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
     ...routineRoutes(options.services),
     ...t3WatchRoutes(options.services),
     ...settingsRoutes(options.services),
+    ...vaultRoutes(options.services),
     ...pairingRoutes({
       pairing: options.services.pairing,
       hostName: options.hostName,

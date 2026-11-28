@@ -7,6 +7,7 @@ import type {
   PluginToolResult,
   SendAgentMessageRequest,
   UpdateMemoryRequest,
+  VaultItem,
 } from '@morrowbot/contracts';
 
 import type { ToolGrant } from './grants.ts';
@@ -65,7 +66,7 @@ export type ConnectorCall =
     }
   | { readonly kind: 'refused'; readonly reason: string };
 
-/** What the tools act on (the agents, agent-messages, memories, chat, connectors and plugins features provide it). */
+/** What the tools act on (the agents, agent-messages, memories, chat, vault, connectors and plugins features provide it). */
 export interface ToolPorts {
   readonly agents: { list(): readonly Agent[] };
   readonly messages: {
@@ -85,6 +86,8 @@ export interface ToolPorts {
     react(grant: ToolGrant, emoji: string): ReplyAnswer;
     stayQuiet(grant: ToolGrant): ReplyAnswer;
   };
+  /** The vault's item names. Secret values never reach the tools. */
+  readonly vault: { list(): readonly VaultItem[] };
   /** The agent's connector tools; each list and each call checks that connector's scope and status again. */
   readonly connectors: {
     tools(agentId: string): readonly ConnectorTool[];
