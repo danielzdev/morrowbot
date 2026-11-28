@@ -1,7 +1,7 @@
 import type { Agent } from '@morrowbot/contracts';
 import type { MorrowbotBridge } from '../bridge.ts';
-import { AgentSettingsDialog, NewAgentDialog, type AgentSection, type AvatarEditor } from '../features/agents/index.ts';
-import { AvatarPicker, freshAvatar } from '../features/avatar/index.ts';
+import { AgentSettingsDialog, type AgentSection, type AvatarEditor } from '../features/agents/index.ts';
+import { AvatarPicker } from '../features/avatar/index.ts';
 import { AgentExtensionsSection, type ConnectorTarget } from '../features/connectors/index.ts';
 import { AgentPluginsSection } from '../features/plugins/index.ts';
 import { RoutinesSection } from '../features/routines/index.ts';
@@ -9,12 +9,10 @@ import { displayPath, redact, type AppInfo } from '../shared/privacy.ts';
 import { useStore } from '../shared/use-store.ts';
 import { providerChoicesOf } from './derive.ts';
 import type { Models } from './models.ts';
-
-/** How New Agent's Brain starts: on the first eligible provider (§5.1), or unbound ("Skip for now", §7). */
-export type NewAgentBrain = 'prefill' | 'unbound';
+import { NewAgent } from './NewAgent.tsx';
 
 export type AgentDialog =
-  | { readonly kind: 'new-agent'; readonly brain: NewAgentBrain }
+  | { readonly kind: 'new-agent' }
   | { readonly kind: 'agent-settings'; readonly agentId: string; readonly section: AgentSection };
 
 const NO_INFO: AppInfo = { appVersion: '', homeDir: '', userName: '', dataDir: '' };
@@ -54,22 +52,18 @@ export function AgentDialogs(props: {
   switch (dialog.kind) {
     case 'new-agent':
       return (
-        <NewAgentDialog
-          model={models.agents}
+        <NewAgent
+          layout={{ kind: 'dialog', onClose: close }}
+          models={models}
           bridge={bridge}
-          choices={choices}
-          prefill={dialog.brain === 'prefill'}
+          info={props.info}
+          reducedMotion={props.reducedMotion}
           allowFull={props.allowFull}
-          avatarEditor={avatarEditor}
-          newAvatar={freshAvatar}
-          pathLabel={(path) => displayPath(path, info)}
-          redact={safe}
           onOpenProviders={providers}
           onCreated={(agent) => {
             close();
             props.onCreated(agent);
           }}
-          onClose={close}
         />
       );
     case 'agent-settings': {

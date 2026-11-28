@@ -1,4 +1,4 @@
-import type { RefObject } from 'preact';
+import type { ComponentChildren, RefObject } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { EngineRow } from '../../shared/engine-setup.ts';
 import type { Loadable } from '../../shared/store.ts';
@@ -9,19 +9,24 @@ export interface WelcomeProps {
   readonly actions: EngineActions;
   /** The engine New Agent will start on (the §5.1 prefill rule), or null when none qualifies. */
   readonly firstEngine: string | null;
-  /** New Agent, prefilled. */
-  readonly onCreate: () => void;
-  /** New Agent as an unbound draft. */
-  readonly onSkip: () => void;
+  /** The last step's New Agent form, under `step.head`; Back and its engine links return to the engines. */
+  readonly agentStep: (step: AgentStep) => ComponentChildren;
   /** Opens the setup guide in the browser; resolves to an error message, or null when opened. */
   readonly onOpenGuide: () => Promise<string | null>;
+}
+
+export interface AgentStep {
+  readonly head: ComponentChildren;
+  readonly back: () => void;
+  readonly createLabel: string;
 }
 
 type Step = 'engines' | 'agent';
 
 /**
  * First launch, no agents yet (spec §7): one decision per screen. Step 1 shows the engines and what each needs;
- * step 2 opens New Agent. Only the person moves between steps; nothing advances by itself.
+ * step 2 is New Agent itself, and setup ends only once it creates the first agent. Only the person moves
+ * between steps; nothing advances by itself.
  */
 export function Welcome(props: WelcomeProps) {
   const [step, setStep] = useState<Step>('engines');
@@ -47,37 +52,26 @@ export function Welcome(props: WelcomeProps) {
       );
     case 'agent':
       return (
-        <div class="welcome">
-          <header class="welcome-hero">
-            <p class="welcome-progress">Step 2 of 2</p>
-            <h2 class="welcome-title" ref={title} tabIndex={-1}>
-              Meet your first agent
-            </h2>
-            <p class="welcome-lede">
-              {props.firstEngine === null
-                ? 'Your agent can start without a default engine. You can choose one later.'
-                : `Give it a name and a look. It starts on ${props.firstEngine}; you can change that any time.`}
-            </p>
-          </header>
-          <div class="welcome-nav">
-            <button
-              type="button"
-              class="btn ghost"
-              onClick={() => {
-                setStep('engines');
-              }}
-            >
-              Back
-            </button>
-            <div class="welcome-actions">
-              <button type="button" class="btn ghost" onClick={props.onSkip}>
-                Create without a default engine
-              </button>
-              <button type="button" class="btn primary" onClick={props.onCreate}>
-                Create your first agent
-              </button>
-            </div>
-          </div>
+        <div class="welcome wide">
+          {props.agentStep({
+            head: (
+              <header class="welcome-hero">
+                <p class="welcome-progress">Last step</p>
+                <h2 class="welcome-title" ref={title} tabIndex={-1}>
+                  Create your first agent
+                </h2>
+                <p class="welcome-lede">
+                  {props.firstEngine === null
+                    ? 'Agents are who you chat with. Give this one a name and a look, then pick its engine below.'
+                    : `Agents are who you chat with. Give this one a name and a look. It starts on ${props.firstEngine}; you can change anything later.`}
+                </p>
+              </header>
+            ),
+            back: () => {
+              setStep('engines');
+            },
+            createLabel: 'Create and start chatting',
+          })}
         </div>
       );
   }

@@ -14,6 +14,7 @@ Settled product, visual, security, and workflow decisions for Ori Bot so any con
 
 ## First-Run Onboarding
 - **One calm decision per screen:** Server choice (**Start my own server** vs **Join a server**) → Engine setup → First agent creation. Never auto-advance between steps.
+- **First agent is required (#230):** While an owner or co-owner has no agents, setup fills the whole window (no sidebar, Settings or ⇧⌘N). Its last step is the New Agent form itself (`NewAgentForm`, page layout), with no skip; setup ends once that agent is created and any full-access notice is closed, then its chat opens.
 - **Join a server:** Hidden behind a secondary button on screen 1; defaults to invite-link paste with a toggle to manual server address + code.
 - **Built-in engine rows:** Show one calm indicator and at most one action (**Install** or **Sign in**). Do **not** show `How to install` links on built-in engines and do **not** show `Update` buttons during first-run onboarding (`Update` lives only in **Settings › Providers**).
 

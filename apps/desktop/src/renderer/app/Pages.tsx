@@ -4,10 +4,8 @@ import type { AgentSection } from '../features/agents/index.ts';
 import type { SettingsLink } from '../features/settings/index.ts';
 import type { AppInfo } from '../shared/privacy.ts';
 import { useStore } from '../shared/use-store.ts';
-import type { NewAgentBrain } from './AgentDialogs.tsx';
 import { ChatPane, type Chrome } from './ChatPane.tsx';
 import { ExtensionsPage, type ExtensionsJump } from './ExtensionsPage.tsx';
-import { FirstRun } from './FirstRun.tsx';
 import type { Models } from './models.ts';
 import { PageFrame } from './PageFrame.tsx';
 
@@ -40,8 +38,6 @@ export function Pages(props: {
   readonly onOpenSettings: (link: SettingsLink) => void;
   readonly inspectorOpen: boolean;
   readonly onToggleInspector: () => void;
-  /** First run: New Agent, prefilled or as an unbound draft. */
-  readonly onFirstAgent: (brain: NewAgentBrain) => void;
   /** Extensions, at a plugin a chat card offers; null for a member, who has no Extensions. */
   readonly onOpenPlugin: ((pluginId: string) => void) | null;
 }) {
@@ -96,8 +92,6 @@ export function Pages(props: {
             <div class="chat empty">
               <p>No agents are shared with you on this server right now. Ask its owner to share one.</p>
             </div>
-          ) : state.agents.kind === 'loaded' && state.agents.value.length === 0 ? (
-            <FirstRun models={models} bridge={bridge} info={info} onFirstAgent={props.onFirstAgent} />
           ) : (
             <div class="chat empty">
               <p>{state.agents.kind === 'loading' ? 'Loading…' : state.agents.kind === 'failed' ? "Ori Bot couldn't load your agents." : 'Choose an agent to start chatting.'}</p>

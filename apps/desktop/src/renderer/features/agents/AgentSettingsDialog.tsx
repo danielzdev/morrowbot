@@ -18,7 +18,7 @@ import { DangerZone, WorkspaceSection } from './DangerZone.tsx';
 import { InstructionsEditor } from './InstructionsEditor.tsx';
 import { MemoriesSection } from './MemoriesSection.tsx';
 import { SkillsSection } from './SkillsSection.tsx';
-import type { AvatarEditor } from './NewAgentDialog.tsx';
+import type { AvatarEditor } from './NewAgentForm.tsx';
 
 export type AgentSection = 'general' | 'brain' | 'permissions' | 'extensions' | 'instructions' | 'skills' | 'memories' | 'routines' | 'replies' | 'notifications' | 'workspace' | 'danger';
 
