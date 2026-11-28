@@ -65,7 +65,7 @@ it('speaks MCP on loopback only to the running turn’s token', async () => {
                 "listChanged": false,
               },
             },
-            "instructions": "MorrowBot tools: message your teammate agents, keep your own memories and start sub-agents. They act only as you, and only during this turn.",
+            "instructions": "MorrowBot tools: message your teammate agents, keep your own memories, start sub-agents, and use the connectors the user gave you (named <connector>__<tool>). They act only as you, and only during this turn.",
             "protocolVersion": "2025-06-18",
             "serverInfo": {
               "name": "morrowbot",

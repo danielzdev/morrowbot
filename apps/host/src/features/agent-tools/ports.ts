@@ -25,7 +25,24 @@ export interface SpawnInput {
   readonly access: AccessLevel | undefined;
 }
 
-/** What the tools act on (the agents, agent-messages, memories and sub-agents features provide it). */
+/** A connector tool as `tools/list` shows it, named `<connector label key>__<tool>`. */
+export interface ConnectorTool {
+  readonly name: string;
+  readonly description: string;
+  readonly inputSchema: Readonly<Record<string, unknown>>;
+}
+
+/** A connector tool call's outcome: the connector server's result as it is, or why nothing was called. */
+export type ConnectorCall =
+  | {
+      readonly kind: 'result';
+      readonly content: readonly Readonly<Record<string, unknown>>[];
+      readonly structuredContent: Readonly<Record<string, unknown>> | null;
+      readonly isError: boolean;
+    }
+  | { readonly kind: 'refused'; readonly reason: string };
+
+/** What the tools act on (the agents, agent-messages, memories, sub-agents and connectors features provide it). */
 export interface ToolPorts {
   readonly agents: { list(): readonly Agent[] };
   readonly messages: {
@@ -47,5 +64,10 @@ export interface ToolPorts {
     spawn(grant: ToolGrant, input: SpawnInput): Promise<{ readonly kind: 'started'; readonly run: SubagentRun } | Refused>;
     wait(grant: ToolGrant, runIds: readonly string[] | undefined, timeoutMs: number): Promise<{ readonly kind: 'waited'; readonly runs: SubagentRun[]; readonly timedOut: boolean } | Refused>;
     list(grant: ToolGrant): Promise<{ readonly kind: 'listed'; readonly you: BoundProvider; readonly runs: SubagentRun[]; readonly providers: object[] } | Refused>;
+  };
+  /** The agent's connector tools; each list and each call checks that connector's scope and status again. */
+  readonly connectors: {
+    tools(agentId: string): readonly ConnectorTool[];
+    call(agentId: string, name: string, args: unknown, signal: AbortSignal): Promise<ConnectorCall>;
   };
 }

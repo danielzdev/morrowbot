@@ -10,8 +10,12 @@ import { subagentTools } from './subagent-tools.ts';
 import type { Tool } from './tool.ts';
 
 export const MCP_PATH = '/mcp';
-/** The tools a sub-agent's turn gets: it only reads, and starts no sub-agents of its own. */
+/** The tools a sub-agent's turn gets: it only reads, starts no sub-agents of its own and uses no connectors. */
 const SUBAGENT_TOOLS: ReadonlySet<string> = new Set(['search_memories']);
+const NO_CONNECTORS: ToolPorts['connectors'] = {
+  tools: () => [],
+  call: () => Promise.resolve({ kind: 'refused', reason: 'A sub-agent cannot use connectors.' }),
+};
 /** A `send_message` text is at most 100 000 characters, which JSON-escaped stays well under this. */
 const MAX_BODY_BYTES = 1024 * 1024;
 
@@ -40,11 +44,12 @@ type Answer = { readonly status: number; readonly body: object | null; readonly 
  */
 export async function startToolServer(options: ToolServerOptions): Promise<ToolServer> {
   const grants = createToolGrants();
+  /** Each running turn's abort: closing the turn stops its connector calls. */
+  const turns = new Map<string, AbortController>();
   const tools: readonly Tool[] = [...messageTools(options.ports), ...memoryTools(options.ports), ...subagentTools(options.ports)];
   const forSubagents = tools.filter(({ name }) => SUBAGENT_TOOLS.has(name));
-  const toolsFor = (grant: ToolGrant): readonly Tool[] => (options.ports.subagents.isSubagent(grant.threadId) ? forSubagents : tools);
   let authority = '';
-  const handle = async (request: IncomingMessage): Promise<Answer> => {
+  const handle = async (request: IncomingMessage, response: ServerResponse): Promise<Answer> => {
     if (request.headers.host !== authority || request.headers.origin !== undefined) return { status: 403, body: { error: 'Forbidden' } };
     if (new URL(request.url ?? '/', 'http://local').pathname !== MCP_PATH) return { status: 404, body: { error: 'Not found' } };
     const token = /^Bearer (\S+)$/.exec(request.headers.authorization ?? '')?.[1];
@@ -56,13 +61,22 @@ export async function startToolServer(options: ToolServerOptions): Promise<ToolS
       case 'rejected':
         return body.answer;
       case 'read': {
-        const answer = await answerMcp(body.value, grant, toolsFor(grant), options.version);
+        const dropped = new AbortController();
+        response.once('close', () => {
+          if (!response.writableFinished) dropped.abort();
+        });
+        const turn = turns.get(grant.turnId)?.signal ?? AbortSignal.abort();
+        const signal = AbortSignal.any([turn, dropped.signal]);
+        const scope = options.ports.subagents.isSubagent(grant.threadId)
+          ? { grant, tools: forSubagents, connectors: NO_CONNECTORS, signal }
+          : { grant, tools, connectors: options.ports.connectors, signal };
+        const answer = await answerMcp(body.value, scope, options.version);
         return answer.kind === 'accepted' ? { status: 202, body: null } : { status: 200, body: answer.body };
       }
     }
   };
   const server = createServer((request, response) => {
-    handle(request).then(
+    handle(request, response).then(
       (answer) => {
         reply(response, answer);
       },
@@ -85,11 +99,19 @@ export async function startToolServer(options: ToolServerOptions): Promise<ToolS
   const url = `http://${authority}${MCP_PATH}`;
   return {
     url,
-    open: (grant) => ({ kind: 'mcp', url, token: grants.issue(grant) }),
+    open: (grant) => {
+      turns.get(grant.turnId)?.abort();
+      turns.set(grant.turnId, new AbortController());
+      return { kind: 'mcp', url, token: grants.issue(grant) };
+    },
     close: (turnId) => {
       grants.revoke(turnId);
+      turns.get(turnId)?.abort();
+      turns.delete(turnId);
     },
     stop: async () => {
+      for (const turn of turns.values()) turn.abort();
+      turns.clear();
       server.closeAllConnections();
       await new Promise<void>((resolve) => {
         server.close(() => {

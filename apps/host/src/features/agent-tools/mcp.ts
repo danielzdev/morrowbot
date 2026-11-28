@@ -1,6 +1,7 @@
 import { HOST_TOOLS_SERVER } from '@morrowbot/contracts';
 import { z } from 'zod';
 import type { ToolGrant } from './grants.ts';
+import type { ToolPorts } from './ports.ts';
 import type { Tool } from './tool.ts';
 
 /** MCP revisions this server answers in, newest first (https://modelcontextprotocol.io/specification). */
@@ -17,8 +18,18 @@ const CallParams = z.looseObject({ name: z.string(), arguments: z.unknown().opti
 /** What to answer one POSTed message with: a JSON-RPC response, or nothing (HTTP 202) for a notification. */
 export type McpAnswer = { readonly kind: 'respond'; readonly body: object } | { readonly kind: 'accepted' };
 
+/** What one turn's MCP message can reach: MorrowBot's own tools, the agent's connector tools, and the turn's end. */
+export interface McpScope {
+  readonly grant: ToolGrant;
+  readonly tools: readonly Tool[];
+  readonly connectors: ToolPorts['connectors'];
+  /** Aborts when the turn ends or the request is dropped. */
+  readonly signal: AbortSignal;
+}
+
 /** Answers one MCP message for a turn's grant: `initialize`, `ping`, `tools/list` and `tools/call`. */
-export async function answerMcp(message: unknown, grant: ToolGrant, tools: readonly Tool[], version: string): Promise<McpAnswer> {
+export async function answerMcp(message: unknown, scope: McpScope, version: string): Promise<McpAnswer> {
+  const { grant, tools } = scope;
   const parsed = ClientRequest.safeParse(message);
   if (!parsed.success) return ClientOther.safeParse(message).success ? { kind: 'accepted' } : error(null, -32600, 'Invalid Request: send one JSON-RPC 2.0 message');
   const { id, method, params } = parsed.data;
@@ -31,29 +42,47 @@ export async function answerMcp(message: unknown, grant: ToolGrant, tools: reado
         capabilities: { tools: { listChanged: false } },
         serverInfo: { name: HOST_TOOLS_SERVER, title: 'MorrowBot', version },
         instructions:
-          'MorrowBot tools: message your teammate agents, keep your own memories and start sub-agents. They act only as you, and only during this turn.',
+          'MorrowBot tools: message your teammate agents, keep your own memories, start sub-agents, and use the connectors the user gave you (named <connector>__<tool>). They act only as you, and only during this turn.',
       });
     }
     case 'ping':
       return result(id, {});
     case 'tools/list':
-      return result(id, { tools: tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })) });
+      return result(id, {
+        tools: [...tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })), ...scope.connectors.tools(grant.agentId)],
+      });
     case 'tools/call':
-      return callTool(id, params, grant, tools);
+      return callTool(id, params, scope);
     default:
       return error(id, -32601, `Method not found: ${method}`);
   }
 }
 
-async function callTool(id: RequestId, params: unknown, grant: ToolGrant, tools: readonly Tool[]): Promise<McpAnswer> {
+async function callTool(id: RequestId, params: unknown, scope: McpScope): Promise<McpAnswer> {
   const call = CallParams.safeParse(params);
   if (!call.success) return error(id, -32602, 'Invalid params: name the tool to call');
-  const found = tools.find(({ name }) => name === call.data.name);
-  if (found === undefined) return error(id, -32602, `Unknown tool: ${call.data.name}`);
-  const outcome = await found.call(grant, call.data.arguments);
+  const found = scope.tools.find(({ name }) => name === call.data.name);
+  if (found === undefined) return callConnector(id, call.data.name, call.data.arguments, scope);
+  const outcome = await found.call(scope.grant, call.data.arguments);
   switch (outcome.kind) {
     case 'done':
       return result(id, { content: [{ type: 'text', text: JSON.stringify(outcome.value) }], structuredContent: outcome.value, isError: false });
+    case 'refused':
+      return result(id, { content: [{ type: 'text', text: outcome.reason }], isError: true });
+  }
+}
+
+/** A connector tool: a name of the form `<label key>__<tool>`, checked and called by the connectors feature. */
+async function callConnector(id: RequestId, name: string, args: unknown, scope: McpScope): Promise<McpAnswer> {
+  if (!name.includes('__')) return error(id, -32602, `Unknown tool: ${name}`);
+  const outcome = await scope.connectors.call(scope.grant.agentId, name, args, scope.signal);
+  switch (outcome.kind) {
+    case 'result':
+      return result(id, {
+        content: outcome.content,
+        ...(outcome.structuredContent === null ? {} : { structuredContent: outcome.structuredContent }),
+        isError: outcome.isError,
+      });
     case 'refused':
       return result(id, { content: [{ type: 'text', text: outcome.reason }], isError: true });
   }

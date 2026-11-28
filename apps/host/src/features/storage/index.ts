@@ -22,3 +22,4 @@ export type { T3WatchRecord, T3WatchRepository } from './t3-watches-repo.ts';
 export type { FileCursor, T3OutboxEntry, T3OutboxRepository, T3OutboxSchedule } from './t3-outbox-repo.ts';
 export type { T3BatchRecord, T3BatchRepository } from './t3-batches-repo.ts';
 export type { SubagentRecord, SubagentRunRepository } from './subagent-runs-repo.ts';
+export type { ConnectorRecord, ConnectorRepository, NewConnector, ScopeWrite } from './connectors-repo.ts';

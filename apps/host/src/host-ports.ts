@@ -2,6 +2,7 @@ import { SendAgentMessageRequest } from '@morrowbot/contracts';
 import type { AgentMessageService, SendRefusal } from './features/agent-messages/index.ts';
 import type { ToolPorts } from './features/agent-tools/index.ts';
 import type { createChatService, ProviderPlugins } from './features/chat/index.ts';
+import type { ConnectorService } from './features/connectors/index.ts';
 import type { MemoryService } from './features/memories/index.ts';
 import type { PluginHost } from './features/plugins/index.ts';
 import type { Storage } from './features/storage/index.ts';
@@ -27,7 +28,7 @@ export function agentInbox(storage: Storage, agentMessages: AgentMessageService)
 }
 
 /**
- * What the agent tools act on: every agent, the agent-messages, memories and sub-agents services. The sub-agents
+ * What the agent tools act on: every agent, the agent-messages, memories, sub-agents and connectors services. The sub-agents
  * service is read when a tool is called: it is made after the chat service, which needs the tools first.
  */
 export function agentToolPorts(
@@ -36,6 +37,7 @@ export function agentToolPorts(
   agentMessages: AgentMessageService,
   memories: MemoryService,
   subagents: () => SubagentService,
+  connectors: ConnectorService,
 ): ToolPorts {
   return {
     agents,
@@ -53,6 +55,7 @@ export function agentToolPorts(
       wait: (grant, runIds, timeoutMs) => subagents().wait(grant, runIds, timeoutMs),
       list: (grant) => subagents().list(grant),
     },
+    connectors: { tools: (agentId) => connectors.toolsFor(agentId), call: (agentId, name, args, signal) => connectors.call(agentId, name, args, signal) },
   };
 }
 
