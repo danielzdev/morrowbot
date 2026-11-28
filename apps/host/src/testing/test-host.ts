@@ -81,6 +81,7 @@ export async function startTestHost(options: TestHostOptions): Promise<TestHost>
     ...(options.sequence ?? sequence()),
     report: (error) => errors.push(error),
     pluginPath: process.env.PATH ?? '/usr/bin:/bin',
+    vaultKeys: 'file',
     ...(options.timeouts === undefined ? {} : { timeouts: options.timeouts }),
     ...(options.probe === undefined ? {} : { probe: options.probe }),
     ...(options.clock === undefined ? {} : { clock: options.clock }),

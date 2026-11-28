@@ -42,7 +42,7 @@ export async function answerMcp(message: unknown, scope: McpScope, version: stri
         capabilities: { tools: { listChanged: false } },
         serverInfo: { name: HOST_TOOLS_SERVER, title: 'MorrowBot', version },
         instructions:
-          'MorrowBot tools: message your teammate agents, keep your own memories, and use the connectors the user gave you (named <connector>__<tool>). They act only as you, and only during this turn.',
+          "MorrowBot tools: message your teammate agents, keep your own memories, see the names of the user's vault items, and use the connectors the user gave you (named <connector>__<tool>). They act only as you, and only during this turn.",
       });
     }
     case 'ping':

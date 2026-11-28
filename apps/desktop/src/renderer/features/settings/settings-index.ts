@@ -3,7 +3,7 @@ import { sendKeyLabels, shortcutLabel, SHORTCUTS, type Platform, type ShortcutId
 import type { IconName } from '../../shared/ui/Icon.tsx';
 import type { SettingsNavGroup } from '../../shared/ui/SettingsShell.tsx';
 
-export type SettingsSection = 'general' | 'appearance' | 'chat' | 'keyboard' | 'providers' | 'usage' | 'server' | 'members' | 'devices' | 'about';
+export type SettingsSection = 'general' | 'appearance' | 'chat' | 'keyboard' | 'providers' | 'vault' | 'usage' | 'server' | 'members' | 'devices' | 'about';
 
 /** A place in Settings: a section, or a row inside it (`'appearance/theme'`). Sidebar, palette and banners all open these. */
 export type SettingsLink = SettingsSection | `${SettingsSection}/${string}`;
@@ -30,6 +30,7 @@ export const SECTIONS: Readonly<Record<SettingsSection, { readonly title: string
   chat: { title: 'Chat', icon: 'chat' },
   keyboard: { title: 'Keyboard', icon: 'keyboard' },
   providers: { title: 'Providers', icon: 'provider' },
+  vault: { title: 'Vault', icon: 'lock' },
   usage: { title: 'Usage', icon: 'gauge' },
   server: { title: 'Server', icon: 'server' },
   members: { title: 'Members', icon: 'people' },
@@ -41,7 +42,7 @@ const navItem = (id: SettingsSection) => ({ id, label: SECTIONS[id].title, icon:
 
 export const NAV: readonly SettingsNavGroup[] = [
   { label: 'App', items: [navItem('general'), navItem('appearance'), navItem('chat'), navItem('keyboard')] },
-  { label: 'Connections', items: [navItem('providers'), navItem('usage'), navItem('server'), navItem('members'), navItem('devices')] },
+  { label: 'Connections', items: [navItem('providers'), navItem('vault'), navItem('usage'), navItem('server'), navItem('members'), navItem('devices')] },
   { label: null, items: [navItem('about')] },
 ];
 
@@ -50,12 +51,12 @@ export type ServerRole = 'owner' | 'co-owner' | 'scoped';
 
 /**
  * Sections this app cannot use: devices and members are managed only on the server's own computer, and a scoped
- * member never sees the server's engines or usage.
+ * member never sees the server's engines, vault or usage.
  */
 export function hiddenSections(server: 'local' | 'remote', role: ServerRole): ReadonlySet<SettingsSection> {
   const hidden = new Set<SettingsSection>();
   if (server === 'remote') hidden.add('devices').add('members');
-  if (role === 'scoped') hidden.add('providers').add('usage');
+  if (role === 'scoped') hidden.add('providers').add('vault').add('usage');
   return hidden;
 }
 
@@ -81,6 +82,8 @@ export const ROWS = {
   sendWith: row('chat', 'send-with', 'Send with', 'Which key sends your message. Shift+Enter always starts a new line.'),
   notifications: row('chat', 'notifications', 'Notifications', 'While MorrowBot is in the background, a system notification says when an agent needs approval or finishes.'),
   providers: row('providers', 'providers', 'AI providers', 'Claude, Codex, Antigravity, OpenCode and community engines: set up, sign in, check status and change settings.'),
+  vault: row('vault', 'vault', 'Vault', 'Logins, API keys and header secrets your tools can use. Agents see item names only, never your secrets.'),
+  vaultItems: row('vault', 'vault-items', 'Saved items', 'Search by name, site or username. Saved secrets are never shown again, here or anywhere else.'),
   server: row('server', 'server', 'Server', 'Where your agents run: on this computer, or on a server you joined. Joining starts no server here.'),
   invite: row('members', 'invite', 'Invite someone', 'Make a one-time link for a co-owner, or for someone who may use only the agents you choose.'),
   members: row('members', 'members', 'Members', 'People who can reach this server. Revoking one signs them out at once.'),

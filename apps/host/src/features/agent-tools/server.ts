@@ -7,6 +7,7 @@ import { memoryTools } from './memory-tools.ts';
 import { messageTools } from './message-tools.ts';
 import { resolveTools } from './plugin-tools.ts';
 import type { ToolPorts } from './ports.ts';
+import { vaultTools } from './vault-tools.ts';
 
 export const MCP_PATH = '/mcp';
 /** A `send_message` text is at most 100 000 characters, which JSON-escaped stays well under this. */
@@ -38,7 +39,7 @@ type Answer = { readonly status: number; readonly body: object | null; readonly 
  */
 export async function startToolServer(options: ToolServerOptions): Promise<ToolServer> {
   const grants = createToolGrants();
-  const builtins = [...messageTools(options.ports), ...memoryTools(options.ports)];
+  const builtins = [...messageTools(options.ports), ...memoryTools(options.ports), ...vaultTools(options.ports)];
   const warn =
     options.warn ??
     ((message: string) => {

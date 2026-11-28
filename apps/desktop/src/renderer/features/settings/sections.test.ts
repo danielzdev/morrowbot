@@ -18,6 +18,8 @@ import type { PairingPort } from './pairing.ts';
 import { ServerSection } from './ServerSection.tsx';
 import { hiddenSections, INDEX, type SettingsLink, type SettingsSection } from './settings-index.ts';
 import { SettingsModal, type SettingsModalProps } from './SettingsModal.tsx';
+import type { VaultPort } from './vault.ts';
+import { VaultSection } from './VaultSection.tsx';
 
 const APPEARANCE: Appearance = { theme: 'system', reduceMotion: 'system', chatWidth: 'normal', reducedMotion: false };
 const PREFS: ChatPrefs = { sendWith: 'enter', notify: 'on' };
@@ -42,6 +44,12 @@ const MEMBERS: MembersPort = {
   listAgents: () => Promise.resolve({ kind: 'ok', value: { agents: [], folders: [], lastMessages: [] } }),
   copy: () => Promise.resolve(),
 };
+const VAULT: VaultPort = {
+  listVault: () => Promise.resolve({ kind: 'ok', value: { items: [] } }),
+  createVaultItem: () => Promise.resolve({ kind: 'failed', status: 400, error: { kind: 'invalid_request', message: 'No' } }),
+  updateVaultItem: () => Promise.resolve({ kind: 'failed', status: 400, error: { kind: 'invalid_request', message: 'No' } }),
+  deleteVaultItem: () => Promise.resolve({ kind: 'ok', value: null }),
+};
 const UPDATES: UpdatesModel = { status: new Store<UpdateStatus>({ kind: 'up-to-date' }), check: ignore, restart: ignore, close: ignore };
 const MODAL: SettingsModalProps = {
   link: 'general',
@@ -55,6 +63,7 @@ const MODAL: SettingsModalProps = {
   usage: h('p', { class: 'usage-stub' }, 'usage'),
   pairing: PAIRING,
   members: MEMBERS,
+  vault: VAULT,
   server: { kind: 'local' },
   chooseServer: () => Promise.resolve(null),
   hidden: new Set(),
@@ -74,6 +83,7 @@ const SECTIONS: Readonly<Record<SettingsSection, () => string>> = {
   chat: () => renderToString(h(ChatSection, { prefs: PREFS, onChange: ignore, platform: 'mac' })),
   keyboard: () => renderToString(h(KeyboardSection, { platform: 'mac', sendWith: 'enter' })),
   providers: () => renderToString(h(SettingsModal, { ...MODAL, link: 'providers' })),
+  vault: () => renderToString(h(VaultSection, { port: VAULT })),
   usage: () => '',
   server: () => renderToString(h(ServerSection, { server: { kind: 'local' }, onChoose: () => Promise.resolve(null) })),
   members: () => renderToString(h(MembersSection, { port: MEMBERS })),

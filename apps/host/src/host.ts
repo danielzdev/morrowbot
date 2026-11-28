@@ -28,6 +28,7 @@ import { findSkills, skillList } from './features/skills/index.ts';
 import { createRoutineService, type RoutineClock } from './features/routines/index.ts';
 import { lockDataDir, openStorage } from './features/storage/index.ts';
 import { cliProbe, createT3WatchService, type T3Probe, type T3WatchClock } from './features/t3-watch/index.ts';
+import { openVault, vaultBackend, type VaultKeyChoice } from './features/vault/index.ts';
 import { agentInbox, agentToolPorts, chatStore, providerPlugins } from './host-ports.ts';
 import { routineSink } from './t3-routine-sink.ts';
 
@@ -55,6 +56,8 @@ export interface HostOptions {
   readonly routineClock?: RoutineClock;
   /** What the T3 watcher reads T3 Code with, and its clock. Defaults to the `t3` CLI and the system clock. */
   readonly t3Watch?: { readonly probe: T3Probe; readonly clock: T3WatchClock };
+  /** Where the vault's master key lives: the OS keystore (the default), or a file in the data folder (tests). */
+  readonly vaultKeys?: VaultKeyChoice;
   /** Hook for per-agent tool plugin scoping (#36). Defaults to allowing all enabled tool plugins. */
   readonly isPluginAllowedForAgent?: (agentId: string, pluginId: string) => boolean;
 }
@@ -158,6 +161,15 @@ export async function startHost(options: HostOptions): Promise<Host> {
       newId,
       now,
     });
+    const backend = await vaultBackend(options.vaultKeys ?? 'system', process.platform, dataDir);
+    if (backend.headless !== null) console.warn(`MorrowBot host: the vault key is kept in the data folder because ${backend.headless}`);
+    const vault = await openVault({
+      file: path.join(dataDir, 'vault.json'),
+      secrets: backend.secrets,
+      newId,
+      now,
+      report,
+    });
     const connectors = createConnectorService({
       store: storage.connectors,
       runtime: createConnectorRuntime({ path: pluginPath, version: options.version }),
@@ -171,7 +183,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
     undo.push(() => connectors.close());
     connectors.start();
     const tools = await startToolServer({
-      ports: agentToolPorts(storage, agents, agentMessages, memories, connectors, plugins, options.isPluginAllowedForAgent),
+      ports: agentToolPorts(storage, agents, agentMessages, memories, vault, connectors, plugins, options.isPluginAllowedForAgent),
       version: options.version,
       report,
     });
@@ -283,6 +295,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
         agentMessages,
         routines,
         t3Watches,
+        vault,
       },
       fallback: healthListener(options.version),
       report,

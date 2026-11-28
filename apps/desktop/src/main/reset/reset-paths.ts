@@ -13,6 +13,9 @@ export interface ResetContext {
 }
 
 /** The entries MorrowBot itself writes in its data folder. Anything else there, `workspaces/` above all, stays. */
+/** The vault's sealed secrets, which `VAULT_KEY` unlocks. */
+export const VAULT_SECRETS = 'vault-secrets.json';
+
 export const DATA_ENTRIES: readonly string[] = [
   'morrowbot.sqlite',
   'morrowbot.sqlite-wal',
@@ -33,6 +36,10 @@ export const DATA_ENTRIES: readonly string[] = [
   'sign-in',
   'skills',
   't3-watch',
+  'vault.json',
+  VAULT_SECRETS,
+  'vault.key',
+  'vault.key.dpapi',
 ];
 
 /** An isolated run's own Electron profile, inside its data folder (see `profile.ts`). */
@@ -64,6 +71,9 @@ export interface KeychainItem {
 
 /** The release feed token RELEASING.md has testers add. Reset keeps it so updates keep working; only Full uninstall removes it. */
 export const RELEASE_TOKEN: KeychainItem = { service: `${APP_ID}.releases`, account: 'releases' };
+
+/** The vault's master key, which every data folder on this Mac shares; removed only with the installed app's `VAULT_SECRETS`. */
+export const VAULT_KEY: KeychainItem = { service: `${APP_ID}.vault`, account: 'master-key' };
 
 /** Electron's key for the files in `ELECTRON_PROFILE` (Chromium names the account `<app> Key`); removed only once they are gone. */
 export const SAFE_STORAGE: KeychainItem = { service: `${PRODUCT_NAME} Safe Storage`, account: `${PRODUCT_NAME} Key` };
