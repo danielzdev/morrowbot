@@ -170,7 +170,7 @@ it('streams a new session in Default mode, counts its tokens, closes it, and see
   await agy.events.finished(reply);
   const next = await agy.start(thread, 'again');
   await agy.events.finished(next);
-  const log = await agy.log();
+  const log = await agy.logged('session/close', 2);
   expect(
     redact({
       events: agy.turnEvents(reply).map((event) => without(event, ['cursor', 'generationId', 'threadId'])),

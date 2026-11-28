@@ -29,7 +29,8 @@ export function createTurnWire(options: WireOptions): TurnReader {
   const answer = async (control: ControlRequest): Promise<void> => {
     const choice =
       control.kind === 'can-use-tool' && options.asks ? await options.ask({ summary: control.summary, choices: APPROVAL_CHOICES }) : null;
-    options.write(controlResponse(control, choice));
+    const response = controlResponse(control, choice);
+    if (response !== null) options.write(response);
   };
   return createTurnReader(
     { home: options.home },

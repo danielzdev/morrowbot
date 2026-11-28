@@ -202,6 +202,7 @@ export function turnRequest(turnId: string, prompt: string, cwd: string): TurnRe
     system: null,
     prompt,
     images: [],
+    hostTools: { kind: 'none' },
   };
 }
 

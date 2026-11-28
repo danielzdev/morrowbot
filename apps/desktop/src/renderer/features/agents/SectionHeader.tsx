@@ -10,7 +10,8 @@ export interface SectionHeaderProps {
   readonly collapsed: boolean;
   readonly renaming: boolean;
   readonly onToggle: () => void;
-  readonly onNewFolder: () => void;
+  /** Null hides New folder. */
+  readonly onNewFolder: (() => void) | null;
   readonly onRename: () => void;
   readonly onRenamed: (name: string | null) => void;
   readonly onDelete: () => void;
@@ -43,7 +44,7 @@ export function SectionHeader(props: SectionHeaderProps) {
         <Icon name={props.collapsed ? 'chevron-right' : 'chevron-down'} />
       </button>
       <span class="spacer" />
-      {section.kind === 'agents' && <IconButton icon="folder-plus" label="New folder" onClick={props.onNewFolder} />}
+      {section.kind === 'agents' && props.onNewFolder !== null && <IconButton icon="folder-plus" label="New folder" onClick={props.onNewFolder} />}
       {section.kind === 'folder' && (
         <MenuButton
           icon="more"

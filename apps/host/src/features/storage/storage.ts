@@ -8,6 +8,7 @@ import { childGroupRepository, type ChildGroupRepository } from './child-groups-
 import { deviceRepository, type DeviceRepository } from './devices-repo.ts';
 import { folderRepository, type FolderRepository } from './folders-repo.ts';
 import { generationRepository, type GenerationRepository } from './generations-repo.ts';
+import { memberRepository, type MemberRepository } from './members-repo.ts';
 import { memoryRepository, type MemoryRepository } from './memories-repo.ts';
 import { messageRepository, type MessageRepository } from './messages-repo.ts';
 import { pluginSettingsRepository, type PluginSettingsRepository } from './plugins-repo.ts';
@@ -37,6 +38,7 @@ export interface Storage {
   readonly usage: UsageSnapshotRepository;
   readonly tokens: TokenTotalsRepository;
   readonly devices: DeviceRepository;
+  readonly members: MemberRepository;
   readonly attachments: AttachmentRepository;
   readonly memories: MemoryRepository;
   readonly agentMessages: AgentMessageRepository;
@@ -73,6 +75,7 @@ export function openStorage(file: string, now: () => string): Storage {
       usage: usageSnapshotRepository(db),
       tokens: tokenTotalsRepository(db, now),
       devices: deviceRepository(db),
+      members: memberRepository(db),
       attachments: attachmentRepository(db),
       memories: memoryRepository(db),
       agentMessages: agentMessageRepository(db),

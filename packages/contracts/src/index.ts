@@ -14,6 +14,7 @@ export type { OpenPluginChannel, PluginChannel, PluginChannelEvents } from './pl
 export { CrashReason, PluginStatus, PluginStatusEvent } from './plugin-runtime.ts';
 export * from './ids.ts';
 export * from './provider.ts';
+export * from './host-tools.ts';
 export * from './agents.ts';
 export * from './threads.ts';
 export * from './messages.ts';
@@ -32,3 +33,4 @@ export * from './t3-watches.ts';
 export * from './browser-commands.ts';
 export * from './browser-bridge.ts';
 export { lenient } from './lenient.ts';
+export * from './members.ts';

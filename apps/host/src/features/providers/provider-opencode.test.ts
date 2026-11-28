@@ -2,7 +2,6 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import type { AcpFixture } from '../../testing/acp-fixture.ts';
-import { until } from '../../testing/daemon-fixture.ts';
 import { FAKE_OPENCODE, OPENCODE, startOpenCodeFixture, turnMethods } from '../../testing/opencode-fixture.ts';
 
 let opencode: AcpFixture;
@@ -28,7 +27,7 @@ it('starts one opencode acp daemon with its own folders and read-only config, re
   const thread = await opencode.thread(agent);
   const generationId = await opencode.start(thread, 'hello');
   await opencode.events.finished(generationId);
-  await until(async () => (await opencode.log()).some((entry) => entry.method === 'session/close'));
+  await opencode.logged('session/close', 1);
   const second = await opencode.host.call('GET', '/api/plugins/provider-opencode/info');
   const [launch] = await opencode.launches();
   const config: unknown = JSON.parse(launch?.env?.OPENCODE_CONFIG_CONTENT ?? 'null');
@@ -122,6 +121,7 @@ it('starts one opencode acp daemon with its own folders and read-only config, re
               "glob": "allow",
               "grep": "allow",
               "list": "allow",
+              "morrowbot_*": "allow",
               "read": {
                 "*": "allow",
                 "*.env": "ask",
@@ -290,6 +290,54 @@ it('sets the picked model on each new session, and refuses a model opencode does
           "user: hello",
           "assistant(failed invalid-model): ",
         ],
+      ],
+    }
+  `);
+});
+
+it("opens each session with MorrowBot's MCP server for that turn and no other", async () => {
+  const thread = await opencode.thread(await opencode.agent());
+  await opencode.events.finished(await opencode.start(thread, 'hello'));
+  await opencode.events.finished(await opencode.start(thread, 'again'));
+  const opened = (await opencode.log()).flatMap((entry) => (entry.method === 'session/new' ? [entry.params] : []));
+  const tokens = new Set(JSON.stringify(opened).match(/Bearer [\w-]+/g));
+  const shown: unknown = JSON.parse(JSON.stringify(redact(opened)).replace(/Bearer [\w-]+/g, 'Bearer <token>').replace(/127\.0\.0\.1:\d+/g, '127.0.0.1:<port>'));
+  expect({ distinctTokens: tokens.size, opened: shown }).toMatchInlineSnapshot(`
+    {
+      "distinctTokens": 2,
+      "opened": [
+        {
+          "cwd": "$HOME/data/workspaces/id-1",
+          "mcpServers": [
+            {
+              "headers": [
+                {
+                  "name": "Authorization",
+                  "value": "Bearer <token>",
+                },
+              ],
+              "name": "morrowbot",
+              "type": "http",
+              "url": "http://127.0.0.1:<port>/mcp",
+            },
+          ],
+        },
+        {
+          "cwd": "$HOME/data/workspaces/id-1",
+          "mcpServers": [
+            {
+              "headers": [
+                {
+                  "name": "Authorization",
+                  "value": "Bearer <token>",
+                },
+              ],
+              "name": "morrowbot",
+              "type": "http",
+              "url": "http://127.0.0.1:<port>/mcp",
+            },
+          ],
+        },
       ],
     }
   `);

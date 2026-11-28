@@ -32,10 +32,11 @@ export interface SidebarProps {
   readonly onOpenAgent: (agentId: string, threadId: string | null) => void;
   readonly onNewChat: (agentId: string) => void;
   readonly onAgentSettings: (agentId: string) => void;
-  readonly onNewAgent: () => void;
+  /** Null for a scoped member, who may not create, file or delete agents: hides New agent, folders, Move and Delete. */
+  readonly onNewAgent: (() => void) | null;
   readonly onSettings: () => void;
-  readonly onUsage: () => void;
-  readonly onExtensions: () => void;
+  readonly onUsage: (() => void) | null;
+  readonly onExtensions: (() => void) | null;
   readonly onToggle: () => void;
   readonly alert: { readonly tone: 'warn' | 'danger'; readonly label: string } | null;
   /** Bumped by ⇧⌘F: focuses the search. */
@@ -80,11 +81,12 @@ export function Sidebar(props: SidebarProps) {
   }, [props.filterRequest]);
 
   const rowOf = (agentId: string): HTMLElement | null => view.list.current?.querySelector<HTMLElement>(`[data-agent="${agentId}"]`) ?? null;
+  const owner = props.onNewAgent !== null;
   const menuFor = (agent: Agent): readonly MenuItem[] => [
     { kind: 'action', id: 'new-chat', label: 'New chat', icon: 'plus', onSelect: () => { props.onNewChat(agent.id); } },
     { kind: 'action', id: 'settings', label: 'Agent settings', icon: 'settings', onSelect: () => { props.onAgentSettings(agent.id); } },
     ...(rail ? [] : [{ kind: 'action', id: 'rename', label: 'Rename', icon: 'pencil', onSelect: () => { setRenaming(agent.id); } } satisfies MenuItem]),
-    ...(rail && moveItems(agent, state.folders, () => undefined, null).length === 0
+    ...(!owner || (rail && moveItems(agent, state.folders, () => undefined, null).length === 0)
       ? []
       : [
           {
@@ -112,8 +114,9 @@ export function Sidebar(props: SidebarProps) {
         if (anchor !== null) setPopup({ kind: 'notify', agent, anchor, level: notifyOf(props.notify.state.get(), agent.id) });
       },
     },
-    { kind: 'separator', id: 'sep' },
-    { kind: 'action', id: 'delete', label: 'Delete…', icon: 'trash', danger: true, onSelect: () => { setDeleting(agent); } },
+    ...(owner
+      ? [{ kind: 'separator', id: 'sep' } satisfies MenuItem, { kind: 'action', id: 'delete', label: 'Delete…', icon: 'trash', danger: true, onSelect: () => { setDeleting(agent); } } satisfies MenuItem]
+      : []),
   ];
   const titleOf = (agentId: string, threadId: string): string => {
     const threads = state.threads[agentId];
@@ -154,7 +157,7 @@ export function Sidebar(props: SidebarProps) {
                   collapsed={item.collapsed}
                   renaming={folderId !== null && folders.renaming === folderId}
                   onToggle={() => { if (filter === '') folders.toggle(sectionKey(section)); }}
-                  onNewFolder={() => { folders.startDraft(null); }}
+                  onNewFolder={owner ? () => { folders.startDraft(null); } : null}
                   onRename={() => { folders.startRename(folderId); }}
                   onRenamed={(name) => { if (folderId !== null) folders.finishRename(folderId, name); }}
                   onDelete={() => { if (section.kind === 'folder') folders.askDelete(section.folder); }}

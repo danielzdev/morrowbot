@@ -1,4 +1,6 @@
+import type { WhoAmI } from '@morrowbot/contracts';
 import type { z } from 'zod';
+import type { Access, Viewer } from './access.ts';
 import { invalid, type Body, type Reply } from './reply.ts';
 
 /** A route's named path segments (`:id`); '' for a name the route does not have. */
@@ -11,6 +13,9 @@ export interface RouteContext {
   readonly query: URLSearchParams;
   /** The peer's IP address, which the pairing claim throttles by. */
   readonly source: string;
+  /** Whose view to answer for; a scoped member's routes were already checked against its grants. */
+  readonly viewer: Viewer;
+  readonly whoAmI: WhoAmI;
   readonly body: () => Promise<Body>;
 }
 
@@ -18,8 +23,8 @@ export interface Route {
   readonly method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   /** A path such as `/api/threads/:id/approvals/:approvalId`. */
   readonly path: string;
-  /** Who may call it: anyone (`public`), only the desktop's launch token (`host`), or by default any valid token. */
-  readonly access?: 'public' | 'host';
+  /** Who may call it; left out, only the owner. */
+  readonly access?: Access;
   /** The largest body it reads, when not the usual 2 MB. */
   readonly bodyBytes?: number;
   readonly handle: (context: RouteContext) => Promise<Reply> | Reply;

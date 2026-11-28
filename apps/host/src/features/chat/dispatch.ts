@@ -75,6 +75,7 @@ export async function dispatch(core: ChatCore, turn: Turn): Promise<void> {
     system: turn.binding.vendorSettings === 'isolated' ? instructions : null,
     prompt: input.prompt,
     images: input.images,
+    hostTools: core.options.tools.open({ turnId: turn.generationId, agentId: turn.agentId, threadId: turn.threadId }),
   };
   try {
     store.transaction(() => {

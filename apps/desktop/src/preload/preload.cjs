@@ -27,6 +27,8 @@ const CHANNELS = {
   checkForUpdates: 'morrowbot:check-for-updates',
   restartToUpdate: 'morrowbot:restart-to-update',
   signInTerminal: 'morrowbot:sign-in-terminal',
+  serverMode: 'morrowbot:server-mode',
+  chooseServer: 'morrowbot:choose-server',
 };
 
 /**
@@ -64,6 +66,8 @@ const bridge = {
   checkForUpdates: () => ipcRenderer.invoke(CHANNELS.checkForUpdates),
   restartToUpdate: () => ipcRenderer.invoke(CHANNELS.restartToUpdate),
   signInTerminal: (providerId) => ipcRenderer.invoke(CHANNELS.signInTerminal, { providerId }),
+  serverMode: () => ipcRenderer.invoke(CHANNELS.serverMode),
+  chooseServer: (request) => ipcRenderer.invoke(CHANNELS.chooseServer, request),
 };
 
 contextBridge.exposeInMainWorld('morrowbot', bridge);

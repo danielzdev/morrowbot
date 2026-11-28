@@ -1,14 +1,17 @@
 import { createServer, type IncomingMessage, type RequestListener, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { Duplex } from 'node:stream';
-import { EventClientFrame, type EventServerFrame } from '@morrowbot/contracts';
-import { WebSocketServer, type RawData, type WebSocket } from 'ws';
+import type { WhoAmI } from '@morrowbot/contracts';
+import { WebSocketServer, type WebSocket } from 'ws';
+import { authorize, viewerOf, type Caller } from './access.ts';
 import { agentMessageRoutes } from './agent-message-routes.ts';
 import { agentRoutes } from './agent-routes.ts';
 import { attachmentRoutes } from './attachment-routes.ts';
 import { folderRoutes } from './folder-routes.ts';
 import { memoryRoutes } from './memory-routes.ts';
-import { admit, authority, identify, isLoopback, isWildcard, screen, type Caller, type Listener } from './guard.ts';
+import { serveEvents } from './event-socket.ts';
+import { authority, identify, isLoopback, isWildcard, screen, type Listener } from './guard.ts';
+import { memberRoutes } from './member-routes.ts';
 import { pairingRoutes } from './pairing-routes.ts';
 import { pluginRoutes } from './plugin-routes.ts';
 import type { ApiServices } from './ports.ts';
@@ -21,8 +24,8 @@ import { threadRoutes } from './thread-routes.ts';
 import { usageRoutes } from './usage-routes.ts';
 
 export const EVENTS_PATH = '/api/events';
-/** How long an unpaired device's socket gets to finish the close handshake before it is cut. */
-const UNPAIRED_CLOSE_MS = 1000;
+/** How long an unpaired device's or revoked member's socket gets to finish the close handshake before it is cut. */
+const SIGNED_OUT_CLOSE_MS = 1000;
 /** A public route's body (the pairing claim) is tiny, so a stranger cannot make the host buffer much. */
 const PUBLIC_BODY_BYTES = 4096;
 
@@ -36,8 +39,8 @@ export interface ApiServerOptions {
   readonly address: Listener;
   readonly services: ApiServices;
   /**
-   * Requests carry `authorization: Bearer <token>`: this launch's token (kept only in memory) or a paired device's.
-   * Only the pairing claim is open without one.
+   * Requests carry `authorization: Bearer <token>`: this launch's token (kept only in memory), a paired device's
+   * or a member's. Only the pairing and invite claims are open without one.
    */
   readonly token: string;
   readonly hostName: string;
@@ -54,8 +57,21 @@ export interface ApiServer {
 
 /** Serves the HTTP + WebSocket API on the configured address (loopback by default). */
 export async function startApiServer(options: ApiServerOptions): Promise<ApiServer> {
-  const deviceSockets = new Map<string, Set<WebSocket>>();
+  const signedIn = new Map<string, Set<WebSocket>>();
   let listener: Listener = options.address;
+  const remoteUrl = (): string | undefined =>
+    isLoopback(listener.hostname) || isWildcard(listener.hostname) ? undefined : new URL(`http://${authority(listener)}`).origin;
+  const closeSockets = (key: string, reason: string): void => {
+    for (const ws of signedIn.get(key) ?? []) {
+      ws.close(1008, reason);
+      const cut = setTimeout(() => {
+        ws.terminate();
+      }, SIGNED_OUT_CLOSE_MS).unref();
+      ws.once('close', () => {
+        clearTimeout(cut);
+      });
+    }
+  };
   const routes = [
     ...agentRoutes(options.services),
     ...agentMessageRoutes(options.services),
@@ -72,18 +88,18 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
       pairing: options.services.pairing,
       hostName: options.hostName,
       hostVersion: options.hostVersion,
-      remoteUrl: () =>
-        isLoopback(listener.hostname) || isWildcard(listener.hostname) ? undefined : new URL(`http://${authority(listener)}`).origin,
+      remoteUrl,
       closeDeviceSockets: (deviceId) => {
-        for (const ws of deviceSockets.get(deviceId) ?? []) {
-          ws.close(1008, 'This device was unpaired');
-          const cut = setTimeout(() => {
-            ws.terminate();
-          }, UNPAIRED_CLOSE_MS).unref();
-          ws.once('close', () => {
-            clearTimeout(cut);
-          });
-        }
+        closeSockets(`device:${deviceId}`, 'This device was unpaired');
+      },
+    }),
+    ...memberRoutes({
+      members: options.services.members,
+      hostName: options.hostName,
+      hostVersion: options.hostVersion,
+      remoteUrl,
+      closeMemberSockets: (memberId) => {
+        closeSockets(`member:${memberId}`, 'Your access to this server was revoked');
       },
     }),
   ];
@@ -102,12 +118,11 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
     }
     const path = pathOf(request);
     if (!path.startsWith('/api/')) {
-      const denied = admit('token', caller);
-      if (denied === undefined) options.fallback(request, response);
-      else send(response, denied);
+      if (caller.kind === 'anonymous') send(response, failure('unauthorized', 'Missing or wrong token'));
+      else options.fallback(request, response);
       return;
     }
-    route(routes, path, request, caller).then(
+    route(routes, path, request, caller, options.services).then(
       (reply) => {
         send(response, reply);
       },
@@ -122,8 +137,10 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
     socket.on('error', ignoreSocketError);
     const screened = screen(request, listener);
     const caller: Caller | undefined = screened === undefined ? identifyOrReport(request, options) : { kind: 'anonymous' };
-    const rejection = screened ?? (caller === undefined ? failure('internal', 'Authentication failed') : admit('token', caller));
-    if (rejection !== undefined || caller === undefined || pathOf(request) !== EVENTS_PATH) {
+    const rejection =
+      screened ??
+      (caller === undefined ? failure('internal', 'Authentication failed') : caller.kind === 'anonymous' ? failure('unauthorized', 'Missing or wrong token') : undefined);
+    if (rejection !== undefined || caller === undefined || caller.kind === 'anonymous' || pathOf(request) !== EVENTS_PATH) {
       const status = rejection?.status === 401 ? '401 Unauthorized' : rejection?.status === 500 ? '500 Internal Server Error' : '403 Forbidden';
       socket.once('finish', () => {
         socket.destroy();
@@ -132,8 +149,9 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
       return;
     }
     sockets.handleUpgrade(request, socket, head, (ws) => {
-      if (caller.kind === 'device') track(deviceSockets, caller.deviceId, ws);
-      serveEvents(ws, options);
+      if (caller.kind === 'device') track(signedIn, `device:${caller.deviceId}`, ws);
+      if (caller.kind === 'member') track(signedIn, `member:${caller.member.memberId}`, ws);
+      serveEvents(ws, options.services, viewerOf(caller), options.report);
     });
   });
 
@@ -154,92 +172,22 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
 /** Who sent the request; undefined (after reporting) when the device lookup itself failed, such as a storage error. */
 function identifyOrReport(request: IncomingMessage, options: ApiServerOptions): Caller | undefined {
   try {
-    return identify(request, options.token, options.services.pairing);
+    return identify(request, options.token, options.services.pairing, options.services.members);
   } catch (error) {
     options.report(error);
     return undefined;
   }
 }
 
-/** Remembers a paired device's open socket, so unpairing the device can close it. */
-function track(deviceSockets: Map<string, Set<WebSocket>>, deviceId: string, ws: WebSocket): void {
-  const open = deviceSockets.get(deviceId) ?? new Set<WebSocket>();
-  deviceSockets.set(deviceId, open);
+/** Remembers a device's or member's open socket, so unpairing or revoking it can close it. */
+function track(signedIn: Map<string, Set<WebSocket>>, key: string, ws: WebSocket): void {
+  const open = signedIn.get(key) ?? new Set<WebSocket>();
+  signedIn.set(key, open);
   open.add(ws);
   ws.once('close', () => {
     open.delete(ws);
-    if (open.size === 0) deviceSockets.delete(deviceId);
+    if (open.size === 0) signedIn.delete(key);
   });
-}
-
-/**
- * One `/api/events` socket. Global events always go out; a thread's events only after `subscribe`.
- * A subscribe with a cursor first replays what was missed (or sends `resync`), in the same
- * synchronous step that starts live delivery, so nothing is missed or sent twice.
- */
-function serveEvents(ws: WebSocket, options: ApiServerOptions): void {
-  const { chat } = options.services;
-  const threads = new Set<string>();
-  const sendFrame = (frame: EventServerFrame): void => {
-    if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(frame));
-  };
-  const unsubscribe = chat.subscribe((event) => {
-    if (event.kind === 'usage.updated' || threads.has(event.threadId)) sendFrame(event);
-  });
-  const unsubscribeMessages = options.services.agentMessages.subscribe((message) => {
-    sendFrame({ kind: 'agent-message.posted', message });
-  });
-  ws.on('message', (data, isBinary) => {
-    if (ws.readyState !== ws.OPEN) return;
-    const frame = isBinary ? undefined : EventClientFrame.safeParse(parseJson(textOf(data)));
-    if (frame?.success !== true) {
-      ws.close(1008, 'Expected a subscribe or unsubscribe frame');
-      return;
-    }
-    const { threadId } = frame.data;
-    switch (frame.data.kind) {
-      case 'unsubscribe':
-        threads.delete(threadId);
-        return;
-      case 'subscribe': {
-        if (frame.data.since === null) {
-          threads.add(threadId);
-          return;
-        }
-        const replay = chat.replay(threadId, frame.data.since);
-        switch (replay.kind) {
-          case 'resync':
-            threads.delete(threadId);
-            sendFrame({ kind: 'resync', threadId });
-            return;
-          case 'events':
-            for (const event of replay.events) sendFrame(event);
-            threads.add(threadId);
-            return;
-        }
-      }
-    }
-  });
-  ws.on('close', () => {
-    unsubscribe();
-    unsubscribeMessages();
-  });
-  ws.on('error', options.report);
-}
-
-function textOf(data: RawData): string {
-  if (Array.isArray(data)) return Buffer.concat(data).toString('utf8');
-  if (data instanceof ArrayBuffer) return Buffer.from(data).toString('utf8');
-  return data.toString('utf8');
-}
-
-function parseJson(text: string): unknown {
-  try {
-    const value: unknown = JSON.parse(text);
-    return value;
-  } catch {
-    return undefined;
-  }
 }
 
 /** The request path, or '' when Node accepted a target that is not a valid URL. */
@@ -247,21 +195,30 @@ function pathOf(request: IncomingMessage): string {
   return URL.parse(request.url ?? '/', 'http://127.0.0.1')?.pathname ?? '';
 }
 
-/** Routes an `/api/` request. Without a valid token, only a public route is found; anything else is 401. */
-async function route(routes: readonly Route[], path: string, request: IncomingMessage, caller: Caller): Promise<Reply> {
+/**
+ * Routes an `/api/` request. Without a valid token, only a public route is found; anything else is 401. Every other
+ * route is authorized for the caller before its handler runs: left without an access, a route is the owner's only.
+ */
+async function route(routes: readonly Route[], path: string, request: IncomingMessage, caller: Caller, services: ApiServices): Promise<Reply> {
   const found = find(routes, path, request.method);
-  const access = found.kind === 'route' ? (found.route.access ?? 'token') : 'token';
-  if (access === 'public' && request.headers.origin !== undefined) return failure('forbidden', 'Browser pages may not claim a pairing code');
-  const denied = admit(access, caller);
-  if (denied !== undefined) return denied;
-  if (found.kind === 'reply') return found.reply;
+  if (found.kind === 'reply') return caller.kind === 'anonymous' ? failure('unauthorized', 'Missing or wrong token') : found.reply;
+  const access = found.route.access ?? { kind: 'owner' };
+  if (access.kind === 'public' && request.headers.origin !== undefined) return failure('forbidden', 'Browser pages may not claim a pairing code or invite');
+  const admission = await authorize(access, caller, found.params, services);
+  if (admission.kind === 'denied') return admission.reply;
   const query = URL.parse(request.url ?? '/', 'http://127.0.0.1')?.searchParams ?? new URLSearchParams();
   return found.route.handle({
     params: found.params,
     query,
     source: request.socket.remoteAddress ?? '',
-    body: () => readJson(request, access === 'public' ? PUBLIC_BODY_BYTES : found.route.bodyBytes),
+    viewer: admission.viewer,
+    whoAmI: whoAmIOf(caller),
+    body: () => readJson(request, access.kind === 'public' ? PUBLIC_BODY_BYTES : found.route.bodyBytes),
   });
+}
+
+function whoAmIOf(caller: Caller): WhoAmI {
+  return caller.kind === 'member' ? { kind: 'member', memberId: caller.member.memberId, name: caller.member.name, access: caller.member.access } : { kind: 'owner' };
 }
 
 type Found = { readonly kind: 'route'; readonly route: Route; readonly params: Params } | { readonly kind: 'reply'; readonly reply: Reply };

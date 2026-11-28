@@ -7,6 +7,7 @@ import {
   type PutInstructionsReply,
   UpdateAgentRequest,
 } from '@morrowbot/contracts';
+import { sees } from './access.ts';
 import type { ApiServices } from './ports.ts';
 import { failure, instructionsConflict, json, noContent, notFound } from './reply.ts';
 import { parseBody, type Route } from './route.ts';
@@ -16,8 +17,17 @@ export function agentRoutes({ agents, folders, chat }: ApiServices): Route[] {
     {
       method: 'GET',
       path: '/api/agents',
-      handle: () => {
-        const body: AgentList = { agents: agents.list(), folders: folders.list(), lastMessages: agents.lastMessages() };
+      access: { kind: 'signed-in' },
+      handle: ({ viewer }) => {
+        if (viewer.kind === 'owner') {
+          const body: AgentList = { agents: agents.list(), folders: folders.list(), lastMessages: agents.lastMessages() };
+          return json(200, body);
+        }
+        const body: AgentList = {
+          agents: agents.list().flatMap((agent) => (sees(viewer, agent.id) ? [{ ...agent, folderId: null }] : [])),
+          folders: [],
+          lastMessages: agents.lastMessages().filter(({ agentId }) => sees(viewer, agentId)),
+        };
         return json(200, body);
       },
     },
@@ -43,6 +53,7 @@ export function agentRoutes({ agents, folders, chat }: ApiServices): Route[] {
     {
       method: 'GET',
       path: '/api/agents/:id',
+      access: { kind: 'agent', need: 'view' },
       handle: ({ params }) => {
         const agent = agents.get(params.get('id'));
         return agent === undefined ? notFound('Agent') : json(200, agent);
@@ -51,9 +62,13 @@ export function agentRoutes({ agents, folders, chat }: ApiServices): Route[] {
     {
       method: 'PATCH',
       path: '/api/agents/:id',
+      access: { kind: 'agent', need: 'edit' },
       handle: async (context) => {
         const request = await parseBody(context, UpdateAgentRequest);
         if (request.kind === 'rejected') return request.reply;
+        if (context.viewer.kind === 'scoped' && (request.value.provider !== undefined || request.value.folderId !== undefined)) {
+          return failure('forbidden', "Only the server owner may change an agent's engine or folder");
+        }
         const updated = agents.update(context.params.get('id'), request.value);
         switch (updated.kind) {
           case 'updated':
@@ -73,6 +88,7 @@ export function agentRoutes({ agents, folders, chat }: ApiServices): Route[] {
     {
       method: 'GET',
       path: '/api/agents/:id/instructions',
+      access: { kind: 'agent', need: 'view' },
       handle: async ({ params }) => {
         const view = await agents.instructionsView(params.get('id'));
         return view === undefined ? notFound('Agent') : json(200, view);
@@ -81,6 +97,7 @@ export function agentRoutes({ agents, folders, chat }: ApiServices): Route[] {
     {
       method: 'PUT',
       path: '/api/agents/:id/instructions',
+      access: { kind: 'agent', need: 'edit' },
       handle: async (context) => {
         const request = await parseBody(context, PutInstructionsRequest);
         if (request.kind === 'rejected') return request.reply;
@@ -108,6 +125,7 @@ export function agentRoutes({ agents, folders, chat }: ApiServices): Route[] {
     {
       method: 'POST',
       path: '/api/agents/:id/instructions/copies',
+      access: { kind: 'agent', need: 'edit' },
       handle: async (context) => {
         const request = await parseBody(context, InstructionsCopyRequest);
         if (request.kind === 'rejected') return request.reply;

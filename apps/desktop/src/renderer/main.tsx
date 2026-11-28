@@ -1,5 +1,5 @@
 import { render } from 'preact';
-import { App } from './app/App.tsx';
+import { Root } from './app/Root.tsx';
 import type { MorrowbotBridge } from './bridge.ts';
 
 declare global {
@@ -9,4 +9,4 @@ declare global {
 }
 
 const root = document.getElementById('app');
-if (root !== null) render(<App bridge={window.morrowbot} />, root);
+if (root !== null) render(<Root bridge={window.morrowbot} />, root);

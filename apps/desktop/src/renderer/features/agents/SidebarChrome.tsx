@@ -5,14 +5,14 @@ import { IconButton, Tooltip } from '../../shared/ui/Tooltip.tsx';
 import type { SidebarMode } from './Sidebar.tsx';
 
 /** The sidebar's draggable top bar with the collapse button, or the rail's tool column. */
-export function SidebarTop(props: { readonly mode: SidebarMode; readonly onToggle: () => void; readonly onNewAgent: () => void }) {
+export function SidebarTop(props: { readonly mode: SidebarMode; readonly onToggle: () => void; readonly onNewAgent: (() => void) | null }) {
   if (props.mode === 'rail') {
     return (
       <>
         <div class="sidebar-top drag" />
         <div class="rail-tools">
           <IconButton icon="sidebar" label="Expand sidebar" shortcut="toggle-sidebar" side="right" onClick={props.onToggle} />
-          <IconButton icon="plus" label="New agent" shortcut="new-agent" side="right" onClick={props.onNewAgent} />
+          {props.onNewAgent !== null && <IconButton icon="plus" label="New agent" shortcut="new-agent" side="right" onClick={props.onNewAgent} />}
         </div>
       </>
     );
@@ -31,7 +31,8 @@ export function SidebarSearch(props: {
   readonly value: string;
   readonly onChange: (value: string) => void;
   readonly onDown: () => void;
-  readonly onNewAgent: () => void;
+  /** Null for a member who may not create agents. */
+  readonly onNewAgent: (() => void) | null;
 }) {
   return (
     <div class="sidebar-search">
@@ -59,7 +60,7 @@ export function SidebarSearch(props: {
           }}
         />
       </label>
-      <IconButton icon="plus" label="New agent" shortcut="new-agent" class="round-btn" onClick={props.onNewAgent} />
+      {props.onNewAgent !== null && <IconButton icon="plus" label="New agent" shortcut="new-agent" class="round-btn" onClick={props.onNewAgent} />}
     </div>
   );
 }
@@ -69,17 +70,20 @@ export function SidebarBottom(props: {
   readonly rail: boolean;
   readonly alert: { readonly tone: 'warn' | 'danger'; readonly label: string } | null;
   readonly onSettings: () => void;
-  readonly onUsage: () => void;
-  readonly onExtensions: () => void;
+  /** Null for a member who may not see the server's usage or plugins. */
+  readonly onUsage: (() => void) | null;
+  readonly onExtensions: (() => void) | null;
 }) {
   return (
     <>
-      <div class="sidebar-extensions">
-        <BottomButton rail={props.rail} icon="plugins" label={props.alert?.label ?? 'Extensions'} text="Extensions" shortcut="extensions" dot={props.alert?.tone ?? null} onClick={props.onExtensions} />
-      </div>
+      {props.onExtensions !== null && (
+        <div class="sidebar-extensions">
+          <BottomButton rail={props.rail} icon="plugins" label={props.alert?.label ?? 'Extensions'} text="Extensions" shortcut="extensions" dot={props.alert?.tone ?? null} onClick={props.onExtensions} />
+        </div>
+      )}
       <div class="sidebar-bottom">
         <BottomButton rail={props.rail} icon="settings" label="Settings" shortcut="settings" onClick={props.onSettings} />
-        <BottomButton rail={props.rail} icon="gauge" label="Usage" shortcut="usage" onClick={props.onUsage} />
+        {props.onUsage !== null && <BottomButton rail={props.rail} icon="gauge" label="Usage" shortcut="usage" onClick={props.onUsage} />}
       </div>
     </>
   );

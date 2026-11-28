@@ -3,7 +3,7 @@ import { sendKeyLabels, shortcutLabel, SHORTCUTS, type Platform, type ShortcutId
 import type { IconName } from '../../shared/ui/Icon.tsx';
 import type { SettingsNavGroup } from '../../shared/ui/SettingsShell.tsx';
 
-export type SettingsSection = 'general' | 'appearance' | 'chat' | 'keyboard' | 'providers' | 'usage' | 'devices' | 'about';
+export type SettingsSection = 'general' | 'appearance' | 'chat' | 'keyboard' | 'providers' | 'usage' | 'server' | 'members' | 'devices' | 'about';
 
 /** A place in Settings: a section, or a row inside it (`'appearance/theme'`). Sidebar, palette and banners all open these. */
 export type SettingsLink = SettingsSection | `${SettingsSection}/${string}`;
@@ -31,6 +31,8 @@ export const SECTIONS: Readonly<Record<SettingsSection, { readonly title: string
   keyboard: { title: 'Keyboard', icon: 'keyboard' },
   providers: { title: 'Providers', icon: 'provider' },
   usage: { title: 'Usage', icon: 'gauge' },
+  server: { title: 'Server', icon: 'server' },
+  members: { title: 'Members', icon: 'people' },
   devices: { title: 'Devices', icon: 'phone' },
   about: { title: 'About', icon: 'info' },
 };
@@ -39,9 +41,28 @@ const navItem = (id: SettingsSection) => ({ id, label: SECTIONS[id].title, icon:
 
 export const NAV: readonly SettingsNavGroup[] = [
   { label: 'App', items: [navItem('general'), navItem('appearance'), navItem('chat'), navItem('keyboard')] },
-  { label: 'Connections', items: [navItem('providers'), navItem('usage'), navItem('devices')] },
+  { label: 'Connections', items: [navItem('providers'), navItem('usage'), navItem('server'), navItem('members'), navItem('devices')] },
   { label: null, items: [navItem('about')] },
 ];
+
+/** Who this app is on its server: the owner's own app, a co-owner, or a member limited to chosen agents. */
+export type ServerRole = 'owner' | 'co-owner' | 'scoped';
+
+/**
+ * Sections this app cannot use: devices and members are managed only on the server's own computer, and a scoped
+ * member never sees the server's engines or usage.
+ */
+export function hiddenSections(server: 'local' | 'remote', role: ServerRole): ReadonlySet<SettingsSection> {
+  const hidden = new Set<SettingsSection>();
+  if (server === 'remote') hidden.add('devices').add('members');
+  if (role === 'scoped') hidden.add('providers').add('usage');
+  return hidden;
+}
+
+/** The nav without hidden sections, dropping a group left empty. */
+export function visibleNav(hidden: ReadonlySet<SettingsSection>): readonly SettingsNavGroup[] {
+  return NAV.map((group) => ({ ...group, items: group.items.filter(({ id }) => !isSection(id) || !hidden.has(id)) })).filter(({ items }) => items.length > 0);
+}
 
 const SECTION_ORDER: readonly SettingsSection[] = NAV.flatMap((group) => group.items.map(({ id }) => id)).filter(isSection);
 
@@ -60,6 +81,9 @@ export const ROWS = {
   sendWith: row('chat', 'send-with', 'Send with', 'Which key sends your message. Shift+Enter always starts a new line.'),
   notifications: row('chat', 'notifications', 'Notifications', 'While MorrowBot is in the background, a system notification says when an agent needs approval or finishes.'),
   providers: row('providers', 'providers', 'AI providers', 'Claude, Codex, Antigravity, OpenCode and community engines: set up, sign in, check status and change settings.'),
+  server: row('server', 'server', 'Server', 'Where your agents run: on this computer, or on a server you joined. Joining starts no server here.'),
+  invite: row('members', 'invite', 'Invite someone', 'Make a one-time link for a co-owner, or for someone who may use only the agents you choose.'),
+  members: row('members', 'members', 'Members', 'People who can reach this server. Revoking one signs them out at once.'),
   pairPhone: row('devices', 'pair-phone', 'Pair a phone', 'Show a one-time code and QR code that a phone scans to connect to MorrowBot.'),
   pairedDevices: row('devices', 'paired-devices', 'Paired devices', 'Phones and computers that can connect. Unpairing one signs it out at once.'),
   version: row('about', 'version', 'MorrowBot', 'Apache License 2.0 · Published by Legendary Koi'),

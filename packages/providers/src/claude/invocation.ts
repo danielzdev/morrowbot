@@ -1,4 +1,5 @@
-import { commandFilePath, type TurnMode, type TurnRequest } from '@morrowbot/plugin-sdk';
+import { HOST_TOOLS_SERVER } from '@morrowbot/contracts';
+import { commandFilePath, type HostTools, type TurnMode, type TurnRequest } from '@morrowbot/plugin-sdk';
 import type { EffortLevel } from './info.ts';
 
 /** The access levels Claude Code runs in v1. There is no `full` (unsandboxed shell) profile. */
@@ -8,7 +9,7 @@ export interface Invocation {
   readonly args: readonly string[];
   /** The one stream-json user frame of the turn, sent on stdin so the prompt never shows up in the process list. */
   readonly frame: string;
-  /** The system prompt, if any, read by the CLI as a file for the same reason. */
+  /** The system prompt and MorrowBot's MCP server config, if any, read by the CLI as files for the same reason. */
   readonly files: readonly string[];
 }
 
@@ -30,8 +31,13 @@ const BASE = [
   '--no-session-persistence',
 ] as const;
 
-/** MorrowBot owns the instructions: no CLAUDE.md, skills, plugins, hooks or MCP servers of the user's. */
-const ISOLATED = ['--safe-mode', '--strict-mcp-config'] as const;
+/**
+ * MorrowBot owns the instructions: no CLAUDE.md, skills, commands, plugins, hooks or MCP servers of the
+ * user's. `--restricted` (in every access profile) skips CLAUDE.md and the settings files that hold hooks
+ * and plugins; `--strict-mcp-config` every MCP server but MorrowBot's own; `--disable-slash-commands` the
+ * skills and commands. Not `--safe-mode`: it drops `--mcp-config` servers too (checked on 2.1.332).
+ */
+const ISOLATED = ['--strict-mcp-config', '--setting-sources', '', '--disable-slash-commands'] as const;
 
 /**
  * `--restricted` removes every tool that runs commands, ignores the user, project and local settings
@@ -67,9 +73,22 @@ function approvalFlags(mode: TurnMode): readonly string[] {
   }
 }
 
+/**
+ * MorrowBot's MCP server as a `--mcp-config` file, its tools allowed without asking (`mcp__morrowbot`
+ * names them all). The token stays out of the process list.
+ */
+function hostToolsConfig(tools: HostTools): string | null {
+  switch (tools.kind) {
+    case 'none':
+      return null;
+    case 'mcp':
+      return JSON.stringify({ mcpServers: { [HOST_TOOLS_SERVER]: { type: 'http', url: tools.url, headers: { Authorization: `Bearer ${tools.token}` } } } });
+  }
+}
+
 /** Builds the `claude` command line and stdin frame for one stateless turn. */
 export function buildInvocation(
-  request: Pick<TurnRequest, 'mode' | 'selection' | 'system' | 'prompt' | 'images'> & {
+  request: Pick<TurnRequest, 'mode' | 'selection' | 'system' | 'prompt' | 'images' | 'hostTools'> & {
     readonly access: ClaudeAccess;
     readonly seed: string | null;
     /** Checked against the model's offered efforts already (`effortOf`). */
@@ -77,6 +96,8 @@ export function buildInvocation(
   },
 ): Invocation {
   const { selection, system } = request;
+  const tools = hostToolsConfig(request.hostTools);
+  const files = [...(system === null ? [] : [system]), ...(tools === null ? [] : [tools])];
   return {
     args: [
       ...BASE,
@@ -85,9 +106,10 @@ export function buildInvocation(
       ...(selection.kind === 'model' ? ['--model', selection.id] : []),
       ...(request.effort === null ? [] : ['--effort', request.effort]),
       ...(system === null ? [] : ['--append-system-prompt-file', commandFilePath(0)]),
+      ...(tools === null ? [] : ['--mcp-config', commandFilePath(files.length - 1), '--allowedTools', `mcp__${HOST_TOOLS_SERVER}`]),
     ],
     frame: `${JSON.stringify({ type: 'user', message: { role: 'user', content: content(prompt(request.seed, request.prompt), request.images) } })}\n`,
-    files: system === null ? [] : [system],
+    files,
   };
 }
 
