@@ -8,6 +8,8 @@ export const POLL_MS = 10_000;
 /** `finished`, `idle_unverified` and `watch_missing (no_run)` each need two matching reads at least this far apart. */
 export const CONFIRM_MS = 20_000;
 export const DEFAULT_STALL_MS = 15 * 60_000;
+/** How often a watch is read after an `unverified` notice about it was acknowledged. */
+export const RECOVERY_POLL_MS = 60_000;
 /** One read adds at most this much awake time, so a sleeping computer never looks like a stalled thread. */
 const MAX_AWAKE_STEP_MS = 2 * POLL_MS;
 
@@ -35,6 +37,11 @@ export const WatchMemory = z.strictObject({
   notFoundReads: z.number().int().nonnegative(),
   /** The pending requests a `needs_you` went out for; cleared once nothing is pending. */
   requests: z.strictObject({ count: z.number().int().positive(), runId: z.string().nullable(), fingerprint: z.string() }).nullable(),
+  /**
+   * Set once an `unverified` notice about this watch was acknowledged: its next complete read queues a verified
+   * event, even for requests already reported. Cleared by any event, or by a read with nothing pending.
+   */
+  recovery: z.enum(['needs_you', 'finished']).nullable().default(null),
 });
 export type WatchMemory = z.infer<typeof WatchMemory>;
 
@@ -49,6 +56,7 @@ export function freshMemory(binding: Binding, stallAfterMs: number): WatchMemory
     candidate: null,
     notFoundReads: 0,
     requests: null,
+    recovery: null,
   };
 }
 
@@ -132,7 +140,7 @@ function observe(watch: MachineWatch, observation: Observation, at: number): Ste
   const pending = observation.pendingRequests;
   if (pending.kind === 'known' && pending.value > 0) {
     const known = before.requests;
-    if (watch.state === 'needs_you' && known?.count === pending.value && known.runId === observation.latestRunId) {
+    if (watch.state === 'needs_you' && before.recovery === null && known?.count === pending.value && known.runId === observation.latestRunId) {
       return { state: 'needs_you', reason: null, runId, memory: { ...memory, candidate: null, awakeNoProgressMs: 0 }, events: [] };
     }
     const requests = {
@@ -191,8 +199,15 @@ export function advance(watch: MachineWatch, result: ProbeResult, at: number): S
       return notFoundReads >= 2 ? end('watch_missing', watch.runId, 'not_found', next) : stay(watch, next);
     }
     case 'observation':
-      return observe(watch, result.observation, at);
+      return recovered(observe(watch, result.observation, at), result.observation);
   }
+}
+
+function recovered(step: Step, observation: Observation): Step {
+  const { recovery } = step.memory;
+  if (recovery === null) return step;
+  const resolved = recovery === 'needs_you' && observation.pendingRequests.kind === 'known' && observation.pendingRequests.value === 0;
+  return step.events.length > 0 || resolved ? { ...step, memory: { ...step.memory, recovery: null } } : step;
 }
 
 /** After T3 comes back, stall time starts again from the next read. */

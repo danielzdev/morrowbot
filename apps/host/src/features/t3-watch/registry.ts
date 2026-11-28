@@ -1,8 +1,8 @@
-import type { RegisterT3WatchRequest, T3EventKind, T3Watch, T3WatchState } from '@morrowbot/contracts';
+import type { RegisterT3WatchRequest, T3EventKind, T3Watch, T3WatchEvent, T3WatchState } from '@morrowbot/contracts';
 import { z } from 'zod';
 import type { Binding } from './identity.ts';
-import { advance, afterReconnect, DEFAULT_STALL_MS, freshMemory, WatchMemory, type Emitted, type OpenState } from './machine.ts';
-import { phaseOf, type ListedThread, type ProbeResult } from './observation.ts';
+import { advance, afterReconnect, DEFAULT_STALL_MS, freshMemory, POLL_MS, RECOVERY_POLL_MS, WatchMemory, type Emitted, type OpenState } from './machine.ts';
+import { phaseOf, type ListedThread, type Observation, type ProbeResult } from './observation.ts';
 import type { T3WatchRecord, T3WatchStore } from './ports.ts';
 
 const TERMINAL_EVENTS: ReadonlySet<T3EventKind> = new Set(['finished', 'failed', 'watch_missing', 'idle_unverified']);
@@ -55,8 +55,26 @@ export interface Registry {
   discover(thread: ListedThread, at: number): T3WatchRecord | undefined;
   /** Applies one read to an open watch and queues its events, in one transaction. False when the watch is not open. */
   apply(watchId: string, result: ProbeResult, at: number): boolean;
-  /** Settles the watches whose ending was acknowledged and takes those events off the queue, in one transaction. */
-  acknowledge(eventIds: readonly string[], at: number): void;
+  /** How long until the watch's next read (longer while it recovers from an `unverified` notice). */
+  pollMs(watchId: string): number;
+  /** An acknowledged event: off the queue, and its watch settled if the event ended it. The caller runs the transaction. */
+  settle(event: T3WatchEvent, at: number): void;
+  /**
+   * An event the orchestrator found gone (two `NotFound` reads): off the queue with its transition key freed, its
+   * watch unsettled and read again until the host sees `watch_missing` itself (or the same ending, if the thread is
+   * back). The caller runs the transaction.
+   */
+  gone(event: T3WatchEvent, at: number): void;
+  /**
+   * An acknowledged `unverified` notice: off the queue with its transition key freed, and its watch read again (every
+   * 60 s) until a complete read queues a verified event. The caller runs the transaction.
+   */
+  noticed(event: T3WatchEvent, at: number): void;
+  /**
+   * Checks a queued `finished` or `needs_you` against a fresh read. A superseded event is dropped (its key freed), and
+   * the read is applied to its watch, reopened if the event had ended it. The caller runs the transaction.
+   */
+  revalidate(event: Extract<T3WatchEvent, { scope: 'watch' }>, result: ProbeResult, at: number): 'holds' | 'superseded' | 'unverifiable';
   /** Queues a service event once per fingerprint. */
   queueService(kind: 't3_unreachable' | 't3_degraded', fingerprint: string, reason: string, at: number): void;
   /** Restarts every open watch's stall clock (T3 came back). */
@@ -79,6 +97,43 @@ export function createRegistry(store: T3WatchStore, newId: () => string): Regist
 
   const queue = (watch: T3WatchRecord, event: Emitted, at: number): void => {
     store.outbox.queue({ scope: 'watch', eventId: newId(), watchId: watch.watchId, threadId: watch.threadId, at: iso(at), ...event });
+  };
+
+  const applyNow = (watchId: string, result: ProbeResult, at: number): boolean => {
+    const watch = store.watches.get(watchId);
+    const state = watch === undefined ? undefined : openState(watch.state);
+    if (watch === undefined || state === undefined) return false;
+    const step = advance({ state, reason: watch.reason, runId: watch.runId, memory: StoredMemory.parse(watch.memory) }, result, at);
+    const updated: T3WatchRecord = {
+      ...watch,
+      state: step.state,
+      reason: step.reason,
+      runId: step.runId,
+      memory: JSON.stringify(step.memory),
+      updatedAt: iso(at),
+    };
+    store.watches.update(updated);
+    for (const event of step.events) queue(updated, event, at);
+    return true;
+  };
+
+  /**
+   * Puts a watch whose state is still the event's back to being read (an ended one becomes `running` again). A watch
+   * that moved on since, was superseded or has settled is left alone: its newer transition already counts.
+   */
+  const reopen = (event: T3WatchEvent, at: number, recovery: WatchMemory['recovery']): void => {
+    if (event.scope !== 'watch') return;
+    const watch = store.watches.get(event.watchId);
+    if (watch?.state !== event.kind || watch.settledAt !== null) return;
+    const memory = StoredMemory.parse(watch.memory);
+    const open = openState(watch.state) !== undefined;
+    store.watches.update({
+      ...watch,
+      state: open ? watch.state : 'running',
+      reason: open ? watch.reason : null,
+      memory: JSON.stringify({ ...memory, candidate: null, notFoundReads: 0, recovery: recovery ?? memory.recovery }),
+      updatedAt: iso(at),
+    });
   };
 
   return {
@@ -122,34 +177,35 @@ export function createRegistry(store: T3WatchStore, newId: () => string): Regist
       store.watches.insert(record);
       return record;
     },
-    apply: (watchId, result, at) =>
-      store.transaction(() => {
-        const watch = store.watches.get(watchId);
-        const state = watch === undefined ? undefined : openState(watch.state);
-        if (watch === undefined || state === undefined) return false;
-        const step = advance({ state, reason: watch.reason, runId: watch.runId, memory: StoredMemory.parse(watch.memory) }, result, at);
-        const updated: T3WatchRecord = {
-          ...watch,
-          state: step.state,
-          reason: step.reason,
-          runId: step.runId,
-          memory: JSON.stringify(step.memory),
-          updatedAt: iso(at),
-        };
-        store.watches.update(updated);
-        for (const event of step.events) queue(updated, event, at);
-        return true;
-      }),
-    acknowledge: (eventIds, at) => {
-      store.transaction(() => {
-        for (const eventId of eventIds) {
-          const event = store.outbox.get(eventId);
-          if (event === undefined || !store.outbox.acknowledge(eventId)) continue;
-          if (event.scope !== 'watch' || !TERMINAL_EVENTS.has(event.kind)) continue;
-          const watch = store.watches.get(event.watchId);
-          if (watch?.state === event.kind && watch.settledAt === null) store.watches.update({ ...watch, settledAt: iso(at), updatedAt: iso(at) });
-        }
-      });
+    apply: (watchId, result, at) => store.transaction(() => applyNow(watchId, result, at)),
+    pollMs: (watchId) => {
+      const watch = store.watches.get(watchId);
+      return watch !== undefined && StoredMemory.parse(watch.memory).recovery !== null ? RECOVERY_POLL_MS : POLL_MS;
+    },
+    settle: (event, at) => {
+      if (!store.outbox.acknowledge(event.eventId)) return;
+      if (event.scope !== 'watch' || !TERMINAL_EVENTS.has(event.kind)) return;
+      const watch = store.watches.get(event.watchId);
+      if (watch?.state === event.kind && watch.settledAt === null) store.watches.update({ ...watch, settledAt: iso(at), updatedAt: iso(at) });
+    },
+    gone: (event, at) => {
+      store.outbox.acknowledge(event.eventId);
+      store.outbox.release(event.eventId);
+      reopen(event, at, null);
+    },
+    noticed: (event, at) => {
+      store.outbox.acknowledge(event.eventId);
+      store.outbox.release(event.eventId);
+      if (event.kind === 'needs_you' || event.kind === 'finished') reopen(event, at, event.kind);
+    },
+    revalidate: (event, result, at) => {
+      if (result.kind !== 'observation' || !complete(event, result.observation)) return 'unverifiable';
+      const watch = store.watches.get(event.watchId);
+      if (watch !== undefined && holds(event, watch, StoredMemory.parse(watch.memory), result.observation)) return 'holds';
+      store.outbox.drop(event.eventId);
+      reopen(event, at, null);
+      applyNow(event.watchId, result, at);
+      return 'superseded';
     },
     queueService: (kind, fingerprint, reason, at) => {
       store.transaction(() => store.outbox.queue({ scope: 'service', eventId: newId(), kind, fingerprint, reason, at: iso(at) }));
@@ -163,4 +219,44 @@ export function createRegistry(store: T3WatchStore, newId: () => string): Regist
     },
     current: () => new Map(store.watches.currentAll().map((watch) => [watch.threadId, watch.watchId])),
   };
+}
+
+/** Whether a read reports every signal the event's check needs; a missing one is never guessed. */
+function complete(event: Extract<T3WatchEvent, { scope: 'watch' }>, observation: Observation): boolean {
+  return observation.pendingRequests.kind === 'known' && (event.kind !== 'finished' || observation.background.kind === 'known');
+}
+
+/** Whether a fresh read still shows what the event reported: the same pending requests, or the same clean finish. */
+function holds(event: Extract<T3WatchEvent, { scope: 'watch' }>, watch: T3WatchRecord, memory: WatchMemory, observation: Observation): boolean {
+  const pending = observation.pendingRequests;
+  switch (event.kind) {
+    case 'needs_you': {
+      const requests = memory.requests;
+      return (
+        watch.state === 'needs_you' &&
+        requests?.fingerprint === event.fingerprint &&
+        pending.kind === 'known' &&
+        pending.value === requests.count &&
+        observation.latestRunId === requests.runId
+      );
+    }
+    case 'finished': {
+      const background = observation.background;
+      return (
+        watch.state === 'finished' &&
+        observation.latestRunId === event.runId &&
+        phaseOf(observation.status) === 'completed' &&
+        pending.kind === 'known' &&
+        pending.value === 0 &&
+        background.kind === 'known' &&
+        background.value.taskIds.length === 0 &&
+        !background.value.blockedOnThreadWait
+      );
+    }
+    case 'failed':
+    case 'stalled':
+    case 'watch_missing':
+    case 'idle_unverified':
+      return true;
+  }
 }
