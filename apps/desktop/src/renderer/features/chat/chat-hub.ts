@@ -4,6 +4,7 @@ import type { Api } from '../../shared/api.ts';
 import { Store } from '../../shared/store.ts';
 import { COMPLETED_MS, nextActivity, type ChatActivity } from './activity.ts';
 import { memoryDrafts, type DraftStore } from './drafts.ts';
+import type { ThreadView } from './thread-model.ts';
 import { openThreadSession, type ThreadSession } from './thread-session.ts';
 
 /** What one chat of an agent is doing. */
@@ -58,6 +59,7 @@ export function createChatHub(options: ChatHubOptions): ChatHub {
   };
   const watch = (session: ThreadSession): void => {
     const { threadId } = session;
+    let previous: ThreadView | null = null;
     watching.set(
       threadId,
       session.screen.subscribe(({ view }) => {
@@ -65,6 +67,7 @@ export function createChatHub(options: ChatHubOptions): ChatHub {
           case 'loading':
             return;
           case 'failed':
+            previous = null;
             settle(threadId);
             setActivity(threadId, undefined);
             return;
@@ -72,7 +75,8 @@ export function createChatHub(options: ChatHubOptions): ChatHub {
             break;
         }
         const { agentId } = view.value.thread;
-        const next = nextActivity(activity.get()[threadId]?.activity, view.value);
+        const next = nextActivity(activity.get()[threadId]?.activity, view.value, previous);
+        previous = view.value;
         const last = view.value.messages.at(-1);
         const failed = view.value.activeTurn === null && last?.kind === 'assistant' && last.outcome.kind === 'failed';
         if (next !== 'completed') settle(threadId);

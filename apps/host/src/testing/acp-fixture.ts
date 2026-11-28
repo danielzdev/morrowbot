@@ -117,6 +117,8 @@ function describeStep(event: ChatEvent): string[] {
     case 'generation.steered':
     case 'generation.finished':
     case 'queue.changed':
+    case 'generation.background-started':
+    case 'generation.background-finished':
     case 'usage.updated':
       return [];
   }

@@ -67,6 +67,9 @@ export function steerQueued(core: ChatCore, threadId: string, id: string): Queue
     void deliver(core, threadId, item, 'next');
     return { kind: 'ok' };
   }
+  if (turn.source.kind === 'agent-message') {
+    return { kind: 'conflict', reason: 'The agent is reading a message from another agent. Yours goes next.' };
+  }
   switch (turn.state) {
     case 'queued':
     case 'dispatching':
@@ -186,6 +189,7 @@ async function deliver(core: ChatCore, threadId: string, item: QueuedMessage, ho
   }
   const waiting = queueOf(core, threadId).filter((entry) => entry.state.kind !== 'held');
   setState(core, threadId, waiting.map(({ id }) => id), { kind: 'held', reason: refusalReason(result) });
+  core.readNext(threadId);
 }
 
 function refusalReason(result: Exclude<AdmitResult, { kind: 'started' }>): string {

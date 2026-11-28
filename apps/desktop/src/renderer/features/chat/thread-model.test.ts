@@ -1,5 +1,6 @@
-import type { ThreadState } from '@morrowbot/contracts';
+import type { Message, ThreadState } from '@morrowbot/contracts';
 import { expect, it } from 'vitest';
+import { nextActivity, type ChatActivity } from './activity.ts';
 import { applyEvent, pendingApprovals, viewOf, type ThreadEvent, type ThreadView } from './thread-model.ts';
 
 const AT = '2026-01-01T00:00:00.000Z';
@@ -8,6 +9,7 @@ const STATE: ThreadState = {
   messages: [],
   activeTurn: {
     generationId: 'g',
+    trigger: { kind: 'chat' },
     state: 'running',
     queueNote: null,
     text: 'Hel',
@@ -72,6 +74,50 @@ it('asks for a resync when an event belongs to a turn the view does not know', (
   expect(applyEvent(viewOf({ ...STATE, activeTurn: null }), { kind: 'generation.delta', ...at(5), text: 'x' }, 0)).toMatchInlineSnapshot(`
     {
       "kind": "resync",
+    }
+  `);
+});
+
+it('keeps a background turn out of the messages, notes how it ended early, and never shows it as a completed reply', () => {
+  const reply: Message = { kind: 'assistant', id: 'r', threadId: 't', text: 'Earlier reply', outcome: { kind: 'completed', finishReason: 'stop' }, createdAt: AT };
+  let view = viewOf({ ...STATE, messages: [reply], activeTurn: null });
+  let activity: ChatActivity = 'idle';
+  const seen: string[] = [];
+  const events: ThreadEvent[] = [
+    { kind: 'generation.background-started', ...at(5), agentMessageId: 'm1', state: 'queued' },
+    { kind: 'generation.delta', ...at(6), text: 'Draft answer' },
+    { kind: 'generation.background-finished', ...at(7), outcome: { kind: 'completed', finishReason: 'stop' } },
+    { kind: 'generation.background-started', ...at(8), agentMessageId: 'm2', state: 'running' },
+    { kind: 'generation.background-finished', ...at(9), outcome: { kind: 'cancelled' } },
+  ];
+  for (const event of events) {
+    const applied = applyEvent(view, event, 0);
+    if (applied.kind !== 'applied') throw new Error(`${event.kind}: ${applied.kind}`);
+    activity = nextActivity(activity, applied.view, view);
+    view = applied.view;
+    seen.push(`${event.kind}: ${activity}, ${view.activeTurn === null ? 'idle' : `${view.activeTurn.trigger.kind} "${view.activeTurn.text}"`}`);
+  }
+  expect({ seen, messages: view.messages.map(({ id }) => id), quietEnds: view.quietEnds }).toMatchInlineSnapshot(`
+    {
+      "messages": [
+        "r",
+      ],
+      "quietEnds": {
+        "m1": {
+          "finishReason": "stop",
+          "kind": "completed",
+        },
+        "m2": {
+          "kind": "cancelled",
+        },
+      },
+      "seen": [
+        "generation.background-started: queued, agent-message """,
+        "generation.delta: queued, agent-message "Draft answer"",
+        "generation.background-finished: idle, idle",
+        "generation.background-started: thinking, agent-message """,
+        "generation.background-finished: idle, idle",
+      ],
     }
   `);
 });

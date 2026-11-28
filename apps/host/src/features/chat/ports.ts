@@ -1,5 +1,6 @@
 import type {
   Agent,
+  AgentMessage,
   Attachment,
   AttachmentContent,
   BlockedGroup,
@@ -81,10 +82,12 @@ export interface ChatStore {
     setAttemptedSessionRow(id: string, row: number): void;
     setInputMessage(id: string, messageId: string): void;
     flushPartial(id: string, text: string): void;
-    settle(id: string, resultMessageId: string): void;
+    settle(id: string, resultMessageId: string | null): void;
+    hasInput(messageId: string): boolean;
     unsettled(): readonly {
       readonly id: string;
       readonly threadId: string;
+      readonly inputMessageId: string;
       readonly partialText: string;
     }[];
     byResultMessage(messageId: string): { readonly id: string; readonly inputMessageId: string } | undefined;
@@ -127,6 +130,16 @@ export interface AgentDirectory {
   get(id: string): Agent | undefined;
   delete(id: string): boolean;
   readInstructions(id: string): Promise<string | undefined>;
+}
+
+export type ReplyAnswer = { readonly kind: 'sent' } | { readonly kind: 'refused'; readonly reason: string };
+
+/** Messages from other agents, each read once in a background turn (the agent-messages feature provides them). */
+export interface AgentInbox {
+  /** Messages no turn has read yet, oldest first: those to `threadId`, or to every chat when null. */
+  waiting(threadId: string | null): AgentMessage[];
+  /** Sends `text` from the chat `message` arrived in, as its recipient's reply. */
+  reply(message: AgentMessage, text: string): ReplyAnswer;
 }
 
 /** `superseded`: Recheck or a daemon exit moved the daemon revision while it was asked. */
@@ -201,6 +214,7 @@ export interface TurnContext {
 export interface ChatServiceOptions {
   readonly store: ChatStore;
   readonly agents: AgentDirectory;
+  readonly inbox: AgentInbox;
   readonly context: TurnContext;
   readonly plugins: ProviderPlugins;
   readonly newId: () => string;

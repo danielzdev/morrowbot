@@ -17,7 +17,7 @@ function state(pending: readonly PendingApproval[], seq: number, generationId: s
   return {
     thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT },
     messages: [],
-    activeTurn: generationId === null ? null : { generationId, state: 'running', queueNote: null, text: '', pendingApprovals: [...pending] },
+    activeTurn: generationId === null ? null : { generationId, trigger: { kind: 'chat' }, state: 'running', queueNote: null, text: '', pendingApprovals: [...pending] },
     queue: [],
     blockedGroups: [],
     cursor: { hostEpoch: 'e1', seq },

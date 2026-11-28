@@ -28,7 +28,7 @@ export function QueueList(props: { readonly session: ThreadSession; readonly vie
     if (item.state.kind === 'steering') return null;
     const acting = offline || screen.queueActing.includes(item.id);
     const now = turn === null ? 'Send now' : 'Steer now';
-    const nowDisabled = acting || steering || screen.busy === 'stopping' || (turn !== null && turn.state !== 'running');
+    const nowDisabled = acting || steering || screen.busy === 'stopping' || (turn !== null && (turn.state !== 'running' || turn.trigger.kind !== 'chat'));
     return (
       <div class="queued-actions">
         <button class={item.state.kind === 'queued' ? 'primary' : 'secondary'} disabled={nowDisabled} title={turn === null ? 'Send it as the next message' : `Interrupt ${props.agentName} with it now`} onClick={() => void session.steer(item.id)}>

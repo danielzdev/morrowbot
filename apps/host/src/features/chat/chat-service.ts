@@ -11,6 +11,7 @@ import type {
   ThreadState,
 } from '@morrowbot/contracts';
 import { admit, type AdmitResult } from './admission.ts';
+import { backgroundPrompt } from './background.ts';
 import { dispatch } from './dispatch.ts';
 import { EventLog, type Replay } from './event-log.ts';
 import type { ChatListener, ChatServiceOptions, RecheckAnswer } from './ports.ts';
@@ -61,6 +62,11 @@ export interface ChatService {
    */
   recheck(pluginId: string): Promise<RecheckResult>;
   usage(pluginId: string, refresh: boolean): Promise<UsageAnswer>;
+  /**
+   * Starts a background turn on the oldest message from another agent that no turn has read, in `threadId`
+   * (every chat when null) once that chat is idle. Each chat reads its next message whenever it goes idle.
+   */
+  readAgentMessages(threadId: string | null): void;
   /** The events a client missed since `since`, or `resync`. Synchronous with `subscribe`. */
   replay(threadId: string, since: Cursor): Replay;
   subscribe(listener: ChatListener): () => void;
@@ -84,9 +90,24 @@ export function createChatService(options: ChatServiceOptions): ChatService {
     dispatch: (turn) => dispatch(core, turn),
     afterTurn: (turn, outcome) => {
       afterTurn(core, turn, outcome);
+      readNext(turn.threadId);
+    },
+    readNext: (threadId) => {
+      readNext(threadId);
     },
     closed: false,
   };
+
+  /**
+   * Admits a background turn on the thread's oldest unread agent message; one that cannot start yet keeps
+   * waiting, as it does while the user's queued message is being sent.
+   */
+  function readNext(threadId: string): void {
+    const [message] = options.inbox.waiting(threadId);
+    if (message === undefined || core.closed || core.active.has(threadId) || core.draining.has(threadId)) return;
+    const sender = agents.get(message.from.agentId)?.name ?? 'another agent';
+    admit(core, threadId, { kind: 'agent-message', message, prompt: backgroundPrompt(message, sender) }, { kind: 'auto' }).catch(options.report);
+  }
   recover(options);
 
   /** Stops a turn the way its state allows. Resolves once cleanup is over (see `Turn.quiet`), with its reply. */
@@ -117,7 +138,14 @@ export function createChatService(options: ChatServiceOptions): ChatService {
     const turn = core.active.get(threadId);
     if (turn === undefined) return { kind: 'idle' };
     const reply = await stopTurn(turn);
-    return reply.kind === 'stored' ? { kind: 'stopped', message: reply.message } : { kind: 'not_stored' };
+    switch (reply.kind) {
+      case 'stored':
+        return { kind: 'stopped', message: reply.message };
+      case 'quiet':
+        return { kind: 'stopped-in-background' };
+      case 'not-stored':
+        return { kind: 'not_stored' };
+    }
   };
 
   /** Runs `remove` with no turn running, and none able to start, in the threads it removes. */
@@ -136,6 +164,7 @@ export function createChatService(options: ChatServiceOptions): ChatService {
     if (turn === undefined || turn.state === 'settled') return null;
     return {
       generationId: turn.generationId,
+      trigger: turn.source.kind === 'chat' ? { kind: 'chat' } : { kind: 'agent-message', agentMessageId: turn.source.message.id },
       state: turn.state === 'queued' ? 'queued' : 'running',
       queueNote: turn.state === 'queued' ? queueNote(laneOf(core, turn)) : null,
       text: turn.text,
@@ -214,6 +243,10 @@ export function createChatService(options: ChatServiceOptions): ChatService {
       }
     },
     usage: (pluginId, refresh) => readUsage(core, pluginId, refresh),
+    readAgentMessages: (threadId) => {
+      const threads = threadId === null ? new Set(options.inbox.waiting(null).map(({ to }) => to.threadId)) : [threadId];
+      for (const each of threads) readNext(each);
+    },
     replay: (threadId, since) => core.events.replay(threadId, since),
     subscribe: (listener) => core.events.subscribe(listener),
     close: async () => {
@@ -223,10 +256,17 @@ export function createChatService(options: ChatServiceOptions): ChatService {
   };
 }
 
-/** Turns a crash left unsettled end as interrupted, keeping the text saved so far. */
+/**
+ * Turns a crash left unsettled end as interrupted, keeping the text saved so far. A background turn (its input
+ * is not a chat message) ends quietly: the chat never showed it.
+ */
 function recover(options: ChatServiceOptions): void {
   const { store } = options;
   for (const generation of store.generations.unsettled()) {
+    if (store.messages.get(generation.inputMessageId) === undefined) {
+      store.generations.settle(generation.id, null);
+      continue;
+    }
     const at = options.now();
     const message: AssistantMessage = {
       kind: 'assistant',

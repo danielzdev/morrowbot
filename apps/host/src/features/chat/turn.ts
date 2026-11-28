@@ -1,4 +1,5 @@
 import type {
+  AgentMessage,
   AssistantMessage,
   GenerationOutcome,
   Message,
@@ -11,6 +12,7 @@ import type {
   UsageWindow,
   UserMessage,
 } from '@morrowbot/contracts';
+import { answersSender, splitAnswer } from './background.ts';
 import type { EventLog } from './event-log.ts';
 import type { ChatServiceOptions, SessionState } from './ports.ts';
 
@@ -27,6 +29,15 @@ export type SessionPlan =
   | { readonly kind: 'stateless' }
   | { readonly kind: 'fresh'; readonly seeded: boolean }
   | { readonly kind: 'resume'; readonly rowId: number; readonly ref: string; readonly priorState: SessionState };
+
+/**
+ * What a turn answers. `chat`: the user's message, answered in the chat. `agent-message`: another agent's
+ * message, read in the background with `prompt`; the chat shows nothing unless the agent tells the user.
+ */
+export type TurnSource =
+  /** `prompt` is what the provider reads: the message's text, or it with a steer note (see steer-prompt.ts). */
+  | { readonly kind: 'chat'; readonly message: UserMessage; readonly prompt: string }
+  | { readonly kind: 'agent-message'; readonly message: AgentMessage; readonly prompt: string };
 
 /** One admitted turn, from the admission transaction until its outcome is stored and its processes are gone. */
 export interface Turn {
@@ -49,10 +60,8 @@ export interface Turn {
   readonly daemonRevision: number;
   readonly maxSeedBytes: number | undefined;
   readonly plan: SessionPlan;
-  readonly sourceInput: UserMessage;
-  /** What the provider is sent: the source input's text, or it with a steer note (see steer-prompt.ts). */
-  readonly prompt: string;
-  /** The thread's messages before the source input: what a seed is made from. */
+  readonly source: TurnSource;
+  /** The thread's messages before a chat input (all of them for a background turn): what a seed is made from. */
   readonly history: readonly Message[];
   state: 'queued' | 'dispatching' | 'running' | 'settled';
   dispatched: boolean;
@@ -76,8 +85,14 @@ export interface Turn {
   readonly quiet: PromiseWithResolvers<void>;
 }
 
-/** A settled turn's reply, or `not-stored` when the database refused it (the next boot settles it as interrupted). */
-export type StoredReply = { readonly kind: 'stored'; readonly message: AssistantMessage } | { readonly kind: 'not-stored' };
+/**
+ * A settled turn's reply; `quiet` for a background turn that told the user nothing; `not-stored` when the
+ * database refused it (the next boot settles it as interrupted).
+ */
+export type StoredReply =
+  | { readonly kind: 'stored'; readonly message: AssistantMessage }
+  | { readonly kind: 'quiet' }
+  | { readonly kind: 'not-stored' };
 
 /** Turns that share a concurrency slot pool: one plugin and account. */
 export interface Lane {
@@ -108,8 +123,13 @@ export interface ChatCore {
   readonly draining: Map<string, string>;
   /** Sends a turn that got a slot (see dispatch.ts). */
   readonly dispatch: (turn: Turn) => Promise<void>;
-  /** Runs once a settled turn has freed its thread (see queue.ts). */
+  /**
+   * A settled turn freed its thread: the user's queue goes first (see queue.ts), then the next message
+   * waiting from another agent.
+   */
   readonly afterTurn: (turn: Turn, outcome: GenerationOutcome) => void;
+  /** Starts a turn on the next message waiting from another agent, if the thread is free. */
+  readonly readNext: (threadId: string) => void;
   closed: boolean;
 }
 
@@ -141,8 +161,8 @@ export function localSettlement(outcome: TurnOutcome): Settlement {
 }
 
 /**
- * Stores a turn's outcome in one transaction: the reply, its usage, the settled generation and
- * the session row's new state. Then frees the thread once the turn's process groups are gone.
+ * Stores a turn's outcome in one transaction: the reply (if the chat shows one), its usage, the settled
+ * generation and the session row's new state. Then frees the thread once the turn's process groups are gone.
  */
 export function settle(core: ChatCore, turn: Turn, result: Settlement): AssistantMessage | undefined {
   if (turn.state === 'settled') return undefined;
@@ -150,9 +170,10 @@ export function settle(core: ChatCore, turn: Turn, result: Settlement): Assistan
   clearTimeout(turn.flushTimer);
   const { newId, now } = core.options;
   const createdAt = now();
-  const text = turn.text !== '' ? turn.text : (result.finalText ?? '');
-  const base: AssistantMessage = { kind: 'assistant', id: newId(), threadId: turn.threadId, text, outcome: replyOutcome(turn, result.outcome), createdAt };
-  const message: AssistantMessage = turn.seedTruncated ? { ...base, seedTruncated: true } : base;
+  const outcome = replyOutcome(turn, result.outcome);
+  const text = shownText(core, turn, turn.text !== '' ? turn.text : (result.finalText ?? ''), result.outcome);
+  const base: AssistantMessage | null = text === null ? null : { kind: 'assistant', id: newId(), threadId: turn.threadId, text, outcome, createdAt };
+  const message: AssistantMessage | null = base !== null && turn.seedTruncated ? { ...base, seedTruncated: true } : base;
   if (!persistSettlement(core, turn, message, result, createdAt)) {
     turn.settled.resolve({ kind: 'not-stored' });
     releaseWhenGone(core, turn, { keepThreadBusy: true, outcome: null });
@@ -168,10 +189,37 @@ export function settle(core: ChatCore, turn: Turn, result: Settlement): Assistan
     });
   }
   turn.approvals.clear();
-  turn.settled.resolve({ kind: 'stored', message });
-  core.events.publish({ kind: 'generation.finished', threadId: turn.threadId, generationId: turn.generationId, message });
-  releaseWhenGone(core, turn, { keepThreadBusy: false, outcome: message.outcome });
-  return message;
+  const ref = { threadId: turn.threadId, generationId: turn.generationId };
+  if (message === null) {
+    turn.settled.resolve({ kind: 'quiet' });
+    core.events.publish({ kind: 'generation.background-finished', ...ref, outcome: result.outcome });
+  } else {
+    turn.settled.resolve({ kind: 'stored', message });
+    core.events.publish({ kind: 'generation.finished', ...ref, message });
+  }
+  releaseWhenGone(core, turn, { keepThreadBusy: false, outcome });
+  return message ?? undefined;
+}
+
+/**
+ * What the chat shows for a settled turn: a chat turn's reply, or a background turn's notice to the user
+ * (null for none). A completed background turn's answer is sent to the agent that asked; an answer that
+ * cannot be sent is shown to the user instead, so it is never lost.
+ */
+function shownText(core: ChatCore, turn: Turn, text: string, outcome: TurnOutcome): string | null {
+  const { source } = turn;
+  switch (source.kind) {
+    case 'chat':
+      return text;
+    case 'agent-message': {
+      if (outcome.kind !== 'completed') return null;
+      const { reply, notice } = splitAnswer(text);
+      const sent = reply === '' || !answersSender(source.message) ? null : core.options.inbox.reply(source.message, reply);
+      const parts = sent?.kind === 'refused' ? [notice, `My reply could not be sent: ${sent.reason}`, reply] : [notice];
+      const shown = parts.filter((part) => part !== '').join('\n\n');
+      return shown === '' ? null : shown;
+    }
+  }
 }
 
 /** A turn stopped for a steer, not by the user, ends as `steered`: its message runs next. */
@@ -181,13 +229,15 @@ function replyOutcome(turn: Turn, outcome: TurnOutcome): GenerationOutcome {
 }
 
 /** Writes the reply, usage, settled generation and session effect in one transaction; false when it fails. */
-function persistSettlement(core: ChatCore, turn: Turn, message: AssistantMessage, result: Settlement, createdAt: string): boolean {
+function persistSettlement(core: ChatCore, turn: Turn, message: AssistantMessage | null, result: Settlement, createdAt: string): boolean {
   const { store } = core.options;
   try {
     store.transaction(() => {
-      store.messages.insert(message);
-      store.threads.touch(turn.threadId, createdAt);
-      store.generations.settle(turn.generationId, message.id);
+      if (message !== null) {
+        store.messages.insert(message);
+        store.threads.touch(turn.threadId, createdAt);
+      }
+      store.generations.settle(turn.generationId, message?.id ?? null);
       if (!turn.dispatched) return;
       store.generations.insertUsage({
         generationId: turn.generationId,
@@ -250,13 +300,14 @@ function releaseWhenGone(
 ): void {
   const { plugins } = core.options;
   const release = (): void => {
-    if (!keepThreadBusy && core.active.get(turn.threadId) === turn) core.active.delete(turn.threadId);
+    const freed = !keepThreadBusy && core.active.get(turn.threadId) === turn;
+    if (freed) core.active.delete(turn.threadId);
     const lane = laneOf(core, turn);
     lane.running.delete(turn);
     turn.quiet.resolve();
     turn.released.resolve();
     pump(core, lane);
-    if (outcome !== null) core.afterTurn(turn, outcome);
+    if (freed && outcome !== null) core.afterTurn(turn, outcome);
   };
   const update = (): boolean => {
     if (!plugins.holdsGeneration(turn.generationId)) {

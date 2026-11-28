@@ -6,7 +6,11 @@ import { Store } from './store.ts';
 export const SendWith = z.enum(['enter', 'mod-enter']);
 export type SendWith = z.infer<typeof SendWith>;
 
-const ChatPrefs = z.strictObject({ sendWith: SendWith });
+/** Whether a system notification says when an agent needs approval or finishes while the window is in the background. */
+export const Notify = z.enum(['on', 'off']);
+export type Notify = z.infer<typeof Notify>;
+
+const ChatPrefs = z.strictObject({ sendWith: SendWith, notify: Notify.default('on') });
 export type ChatPrefs = z.infer<typeof ChatPrefs>;
 const KEY = 'morrowbot.chat';
 
@@ -17,7 +21,7 @@ export interface ChatPrefsModel {
 
 /** Owns Settings › Chat. */
 export function createChatPrefs(): ChatPrefsModel {
-  const state = new Store<ChatPrefs>(readPref<ChatPrefs>(KEY, ChatPrefs, { sendWith: 'enter' }));
+  const state = new Store<ChatPrefs>(readPref<ChatPrefs>(KEY, ChatPrefs, { sendWith: 'enter', notify: 'on' }));
   return {
     state,
     set: (patch) => {

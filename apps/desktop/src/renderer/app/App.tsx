@@ -17,6 +17,7 @@ import { Pages, type Page } from './Pages.tsx';
 import { Palette } from './Palette.tsx';
 import { Shell } from './Shell.tsx';
 import { UpdateBanner } from './UpdateBanner.tsx';
+import { useAttention } from './use-attention.ts';
 import { UsagePane } from './UsagePane.tsx';
 
 const NO_INFO: AppInfo = { appVersion: '', homeDir: '', userName: '', dataDir: '' };
@@ -48,6 +49,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
   const [approvalFocus, setApprovalFocus] = useState<string | null>(null);
   const [bindingRequest, setBindingRequest] = useState(0);
   const [dialog, setDialog] = useState<AgentDialog | null>(null);
+  const [inspector, setInspector] = useState(false);
   const [info, setInfo] = useState<AppInfo | null>(null);
   const copies = useRef(0);
   const state = useStore(models.agents.state);
@@ -56,6 +58,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
   const activity = useStore(models.chats.activity);
   const appearance = useStore(models.appearance.state);
   const update = useStore(models.updates.status);
+  const { notify } = useStore(models.chatPrefs.state);
   useEffect(() => {
     void models.agents.load();
     void models.providers.load();
@@ -101,6 +104,10 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
     setApprovalFocus(threadId);
     setPage({ kind: 'chat' });
   };
+  const toggleInspector = (): void => {
+    setInspector((open) => !open);
+  };
+  useAttention({ models, agentName: agent?.name ?? null, notify, safe, onOpen: openAgent });
   const newChat = (agentId: string): void => {
     models.agents.selectAgent(agentId);
     setPage({ kind: 'chat' });
@@ -131,12 +138,13 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
           if (id === 'palette') setPalette(true);
           if (id === 'usage') openSettings('usage');
           if (id === 'new-chat' && agent !== undefined) newChat(agent.id);
-          if (id === 'new-agent') setDialog({ kind: 'new-agent' });
+          if (id === 'new-agent') setDialog({ kind: 'new-agent', brain: 'prefill' });
           if (id === 'binding') setBindingRequest((count) => count + 1);
           if (id === 'settings') openSettings('general');
           if (id === 'filter-agents') setFilterRequest((count) => count + 1);
           if (id === 'extensions') setPage({ kind: 'extensions' });
           if (id === 'find' && page.kind === 'chat') setFindRequest((count) => count + 1);
+          if (id === 'inspector' && page.kind === 'chat' && agent !== undefined) toggleInspector();
         }}
         sidebar={(mode, controls) => (
           <Sidebar
@@ -154,7 +162,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
             }}
             onNewChat={(agentId) => { newChat(agentId); controls.dismiss(); }}
             onAgentSettings={(agentId) => { setDialog({ kind: 'agent-settings', agentId, section: 'general' }); controls.dismiss(); }}
-            onNewAgent={() => { setDialog({ kind: 'new-agent' }); controls.dismiss(); }}
+            onNewAgent={() => { setDialog({ kind: 'new-agent', brain: 'prefill' }); controls.dismiss(); }}
             onSettings={() => { openSettings('general'); }}
             onUsage={() => { openSettings('usage'); }}
             onExtensions={() => { setPage({ kind: 'extensions' }); controls.dismiss(); }}
@@ -176,11 +184,12 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
                 avatar={avatarOf}
                 actions={{
                   newChat,
-                  newAgent: () => { setDialog({ kind: 'new-agent' }); },
+                  newAgent: () => { setDialog({ kind: 'new-agent', brain: 'prefill' }); },
                   changeBinding: page.kind === 'chat' && agent !== undefined ? () => { setBindingRequest((count) => count + 1); } : null,
                   openSettings,
                   openExtensions: () => { setPage({ kind: 'extensions' }); },
                   toggleSidebar: chrome.showSidebar,
+                  toggleInspector: page.kind === 'chat' && agent !== undefined ? toggleInspector : null,
                   openAgent: (agentId, threadId) => {
                     openAgent(agentId, threadId);
                     focusComposer();
@@ -211,10 +220,13 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
               approvalFocus={approvalFocus}
               onApprovalFocused={() => { setApprovalFocus(null); }}
               onAgentSettings={(agentId, section) => { setDialog({ kind: 'agent-settings', agentId, section }); }}
-              onNewAgent={() => { setDialog({ kind: 'new-agent' }); }}
+              onNewAgent={() => { setDialog({ kind: 'new-agent', brain: 'prefill' }); }}
               onCopy={copyChat}
               onNewChat={newChat}
               onOpenSettings={openSettings}
+              inspectorOpen={inspector}
+              onToggleInspector={toggleInspector}
+              onFirstAgent={(brain) => { setDialog({ kind: 'new-agent', brain }); }}
             />
           </>
         )}

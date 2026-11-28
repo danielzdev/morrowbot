@@ -104,6 +104,24 @@
   color: var(--text-3);
   font: var(--t-small);
 }
+.exchange-read-note {
+  color: var(--warn);
+}
+/* A background turn: the same quiet line, with a pulse while it works. */
+.background-turn .pulse {
+  flex: none;
+}
+.background-turn .pulse.queued {
+  background: var(--text-3);
+  animation: none;
+}
+.background-draft {
+  width: 100%;
+}
+.background-approval {
+  width: 100%;
+  margin-top: var(--s-3);
+}
 [data-motion='reduced'] .exchange-cards {
   animation: none;
 }
