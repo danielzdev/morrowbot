@@ -50,7 +50,7 @@ function ChatThread(props: {
   const canvas = useRef<ViewInstance>(null);
   const frame = composerFrame(metrics, useKeyboardOverlap(canvas));
   const { view, problem, stale } = screen;
-  const activity = useChatActivity(view.kind === 'loaded' ? view.value : null);
+  const activity = useChatActivity(session.screen);
   return (
     <View ref={canvas} style={styles.fill}>
       <MorrowLayoutMetricsView

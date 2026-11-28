@@ -8,22 +8,25 @@ const quantize = (step: number) => (n: number): number => Math.round(n / step);
 const hundredths = (n: number): number => Math.round(n * 100);
 
 /**
- * The frame with only the cross-sections that show at `size` points: of the slices that would land within
- * SLICE_GAP_PT of each other (an outline about the same centre, in about the same place), only the frontmost is drawn. Each slice is one
- * native view, so a 28 pt row draws a handful instead of a hundred, and looks the same.
+ * The frame with only the cross-sections that show at `size` points. Slices that would land within SLICE_GAP_PT
+ * of each other (an outline about the same centre, in about the same place) are drawn as one: the largest, at its
+ * own depth, so the outline keeps its full extent. Each slice is one native view, so a 28 pt row draws a handful
+ * instead of a hundred.
  */
 export function thinned(frame: AvatarFrame, size: number): AvatarFrame {
   const near = quantize((SLICE_GAP_PT * 100) / size);
   const boxes = new Map(frame.paths.map(({ id, box }) => [id, box]));
-  const frontmost = new Map<string, number>();
+  const largest = new Map<string, { readonly index: number; readonly area: number }>();
   frame.shapes.forEach((shape, index) => {
     if (shape.kind !== 'slice') return;
     const box = boxes.get(shape.path);
     const [a, b, c, d, e, f] = shape.matrix;
     const key = box === undefined ? `${shape.path}#${String(index)}` : [box.x + box.w / 2, box.y + box.h / 2, e, f].map(near).concat([a, b, c, d].map(hundredths)).join(' ');
-    frontmost.set(key, index);
+    const area = box === undefined ? 0 : box.w * box.h;
+    const was = largest.get(key);
+    if (was === undefined || area >= was.area) largest.set(key, { index, area });
   });
-  const kept = new Set(frontmost.values());
+  const kept = new Set([...largest.values()].map(({ index }) => index));
   const shapes = frame.shapes.filter((shape, index) => shape.kind !== 'slice' || kept.has(index));
   const used = new Set(shapes.flatMap((shape) => (shape.kind === 'slice' ? [shape.path] : [])));
   return { ...frame, shapes, paths: frame.paths.filter(({ id }) => used.has(id)) };

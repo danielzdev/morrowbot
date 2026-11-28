@@ -1,5 +1,5 @@
 import type { AvatarFinish } from '@morrowbot/contracts';
-import type { AvatarFrame, EyeMark, FramePath, FrameShape } from 'open-bot-avatar';
+import type { AvatarFrame, EyeMark, FramePath, FrameShape, Matrix } from 'open-bot-avatar';
 import Svg, { Defs, G, LinearGradient, Path, RadialGradient, Stop, type PathProps } from 'react-native-svg';
 import { finishLook, FUR_STROKE, type Sheen } from './finish.ts';
 import { bodyBox } from './frame.ts';
@@ -29,21 +29,52 @@ function roundedRect(x: number, y: number, w: number, h: number, r: number): str
 
 type Box = NonNullable<ReturnType<typeof bodyBox>>;
 
-/** A finish's light laid over the whole body's box, so every cross-section is lit alike wherever it sits. */
-function SheenGradient(props: { readonly sheen: Sheen; readonly box: Box }) {
+/** The matrix that undoes `m`, or null for a slice seen edge-on. */
+function inverse(m: Matrix): Matrix | null {
+  const [a, b, c, d, e, f] = m;
+  const det = a * d - b * c;
+  if (Math.abs(det) < 1e-6) return null;
+  return [d / det, -b / det, -c / det, a / det, (c * f - d * e) / det, (b * e - a * f) / det];
+}
+
+const sheenId = (slice: Slice, sheen: Sheen): string => `${slice.key}-${sheen.id}`;
+
+/**
+ * A finish's light laid over the whole body's box, for one cross-section. A gradient is placed in the coordinates
+ * of the path that uses it, after that path's own transform, so `undo` takes it back to where the body's box is.
+ */
+function SheenGradient(props: { readonly id: string; readonly sheen: Sheen; readonly box: Box; readonly undo: Matrix }) {
   const { sheen, box } = props;
   const x = (share: number): number => box.x + share * box.w;
   const y = (share: number): number => box.y + share * box.h;
   const stops = sheen.stops.map((stop) => <Stop key={stop.offset} offset={stop.offset} stopColor={stop.color} stopOpacity={stop.opacity} />);
   return sheen.kind === 'radial' ? (
-    <RadialGradient id={sheen.id} gradientUnits="userSpaceOnUse" cx={x(sheen.cx)} cy={y(sheen.cy)} r={sheen.r * Math.max(box.w, box.h)}>
+    <RadialGradient id={props.id} gradientUnits="userSpaceOnUse" gradientTransform={props.undo} cx={x(sheen.cx)} cy={y(sheen.cy)} r={sheen.r * Math.max(box.w, box.h)}>
       {stops}
     </RadialGradient>
   ) : (
-    <LinearGradient id={sheen.id} gradientUnits="userSpaceOnUse" x1={x(sheen.x1)} y1={y(sheen.y1)} x2={x(sheen.x2)} y2={y(sheen.y2)}>
+    <LinearGradient id={props.id} gradientUnits="userSpaceOnUse" gradientTransform={props.undo} x1={x(sheen.x1)} y1={y(sheen.y1)} x2={x(sheen.x2)} y2={y(sheen.y2)}>
       {stops}
     </LinearGradient>
   );
+}
+
+/** The part a slice belongs to: one stack of a body part (`0z12` is in `0z`), or a mark on its own. */
+const partOf = (key: string): string => /^(\d+\D+)\d+$/u.exec(key)?.[1] ?? key;
+
+/** For a furry finish, the largest cross-section of each part: its outline is where the tufts show. */
+function furredSlices(slices: readonly Slice[], paths: ReadonlyMap<string, FramePath>): ReadonlySet<string> {
+  const largest = new Map<string, { readonly key: string; readonly area: number }>();
+  for (const slice of slices) {
+    const box = paths.get(slice.path)?.box;
+    if (box === undefined) continue;
+    const [a, b, c, d] = slice.matrix;
+    const area = box.w * box.h * Math.abs(a * d - b * c);
+    const part = partOf(slice.key);
+    const was = largest.get(part);
+    if (was === undefined || area > was.area) largest.set(part, { key: slice.key, area });
+  }
+  return new Set([...largest.values()].map(({ key }) => key));
 }
 
 function Eye(props: { readonly mark: EyeMark; readonly ink: string }) {
@@ -58,7 +89,7 @@ function Eye(props: { readonly mark: EyeMark; readonly ink: string }) {
   }
 }
 
-function Other(props: { readonly shape: Exclude<FrameShape, Slice>; readonly index: number; readonly ink: string }) {
+function Other(props: { readonly shape: Exclude<FrameShape, Slice>; readonly ink: string }) {
   const { shape } = props;
   switch (shape.kind) {
     case 'eye':
@@ -68,7 +99,7 @@ function Other(props: { readonly shape: Exclude<FrameShape, Slice>; readonly ind
         </G>
       );
     case 'ribbon': {
-      const id = `ribbon${String(props.index)}`;
+      const id = shape.key;
       const { gradient } = shape;
       const last = Math.max(1, gradient.stops.length - 1);
       return (
@@ -90,42 +121,55 @@ function Body(props: {
   readonly paths: ReadonlyMap<string, FramePath>;
   readonly color: string;
   readonly sheens: readonly Sheen[];
-  readonly fur: boolean;
+  readonly lit: ReadonlySet<string>;
+  readonly furred: ReadonlySet<string>;
 }) {
-  const front = props.slices.length - 1;
-  const fur = (at: number, paint: string): PathProps =>
-    props.fur && at === front ? { stroke: paint, strokeWidth: FUR_STROKE.width, strokeDasharray: FUR_STROKE.dash, strokeLinecap: 'round' } : {};
-  return props.slices.flatMap((slice, at) => {
+  return props.slices.flatMap((slice) => {
     const path = props.paths.get(slice.path);
     if (path === undefined) return [];
     const rule: 'evenodd' | 'nonzero' = path.evenOdd ? 'evenodd' : 'nonzero';
-    const key = `${slice.key}-${String(at)}`;
+    const fur = (paint: string): PathProps =>
+      props.furred.has(slice.key) ? { stroke: paint, strokeWidth: FUR_STROKE.width, strokeDasharray: FUR_STROKE.dash, strokeLinecap: 'round' } : {};
+    const lights = props.lit.has(slice.key) ? props.sheens : [];
     return [
-      <Path key={key} d={path.d} fillRule={rule} transform={slice.matrix} fill={props.color} {...fur(at, props.color)} />,
-      ...props.sheens.map((sheen) => {
-        const light = `url(#${sheen.id})`;
-        return <Path key={`${key}-${sheen.id}`} d={path.d} fillRule={rule} transform={slice.matrix} fill={light} {...fur(at, light)} />;
+      <Path key={slice.key} d={path.d} fillRule={rule} transform={slice.matrix} fill={props.color} {...fur(props.color)} />,
+      ...lights.map((sheen) => {
+        const id = sheenId(slice, sheen);
+        return <Path key={id} d={path.d} fillRule={rule} transform={slice.matrix} fill={`url(#${id})`} {...fur(`url(#${id})`)} />;
       }),
     ];
   });
 }
+
+const layerKey = (layer: Layer): string => (layer.kind === 'body' ? layer.slices[0]?.key ?? 'body' : layer.shape.key);
 
 /** One avatar frame drawn with react-native-svg, `size` points square over `viewBox`. */
 export function FrameSvg(props: { readonly frame: AvatarFrame; readonly finish: AvatarFinish; readonly size: number; readonly viewBox: string }) {
   const { frame } = props;
   const look = finishLook(props.finish);
   const paths = new Map(frame.paths.map((path) => [path.id, path]));
+  const slices = frame.shapes.filter((shape): shape is Slice => shape.kind === 'slice');
   const box = bodyBox(frame);
   const sheens = box === null ? [] : look.sheens;
+  const undone = sheens.length === 0 ? [] : slices.flatMap((slice) => {
+    const undo = inverse(slice.matrix);
+    return undo === null ? [] : [{ slice, undo }];
+  });
+  const lit = new Set(undone.map(({ slice }) => slice.key));
+  const furred = look.fur ? furredSlices(slices, paths) : new Set<string>();
   return (
     <Svg width={props.size} height={props.size} viewBox={props.viewBox}>
-      <Defs>{box === null ? null : sheens.map((sheen) => <SheenGradient key={sheen.id} sheen={sheen} box={box} />)}</Defs>
+      <Defs>
+        {box === null
+          ? null
+          : undone.flatMap(({ slice, undo }) => sheens.map((sheen) => <SheenGradient key={sheenId(slice, sheen)} id={sheenId(slice, sheen)} sheen={sheen} box={box} undo={undo} />))}
+      </Defs>
       <G transform={frame.root}>
-        {layersOf(frame.shapes).map((layer, index) =>
+        {layersOf(frame.shapes).map((layer) =>
           layer.kind === 'body' ? (
-            <Body key={index} slices={layer.slices} paths={paths} color={frame.color} sheens={sheens} fur={look.fur} />
+            <Body key={layerKey(layer)} slices={layer.slices} paths={paths} color={frame.color} sheens={sheens} lit={lit} furred={furred} />
           ) : (
-            <Other key={index} shape={layer.shape} index={index} ink={frame.ink} />
+            <Other key={layerKey(layer)} shape={layer.shape} ink={frame.ink} />
           ),
         )}
       </G>

@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { AvatarActivity } from '../../lib/bot-avatar/index.ts';
+import type { ChatScreen } from './chat-session.ts';
+import type { Store } from './store.ts';
 import { pendingApprovals, type ActiveTurnView, type ThreadView, type ToolStep } from './thread-view.ts';
 
 /** What a queued or running turn is doing right now. */
@@ -56,16 +58,27 @@ export function nextActivity(before: AvatarActivity | undefined, view: ThreadVie
   return sawTurn && fresh && last.kind === 'assistant' && last.outcome.kind === 'completed' ? 'completed' : 'idle';
 }
 
-/** The open chat's activity, following its view while loaded; `completed` turns back to `idle` after COMPLETED_MS. */
-export function useChatActivity(view: ThreadView | null): AvatarActivity {
-  const [activity, setActivity] = useState<AvatarActivity>(() => (view === null ? 'idle' : nextActivity(undefined, view, null)));
-  const previous = useRef<ThreadView | null>(view);
+const loadedView = (screen: ChatScreen): ThreadView | null => (screen.view.kind === 'loaded' ? screen.view.value : null);
+
+/**
+ * The open chat's activity, following every change to its screen (not only the ones that get drawn, so a turn
+ * that starts and finishes between two renders still completes); `completed` turns back to `idle` after COMPLETED_MS.
+ */
+export function useChatActivity(screen: Store<ChatScreen>): AvatarActivity {
+  const [start] = useState(() => loadedView(screen.get()));
+  const [activity, setActivity] = useState<AvatarActivity>(() => (start === null ? 'idle' : nextActivity(undefined, start, null)));
   useEffect(() => {
-    const before = previous.current;
-    if (view === null || view === before) return;
-    previous.current = view;
-    setActivity((current) => nextActivity(current, view, before));
-  }, [view]);
+    let previous = start;
+    const follow = (value: ChatScreen): void => {
+      const view = loadedView(value);
+      if (view === previous) return;
+      const before = previous;
+      previous = view;
+      setActivity((current) => (view === null ? 'idle' : nextActivity(current, view, before)));
+    };
+    follow(screen.get());
+    return screen.subscribe(follow);
+  }, [screen, start]);
   useEffect(() => {
     if (activity !== 'completed') return;
     const timer = setTimeout(() => {
