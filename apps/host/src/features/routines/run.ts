@@ -22,6 +22,10 @@ export interface RunContext {
   readonly newId: () => string;
   readonly now: () => string;
   readonly report: (error: unknown) => void;
+  /** Called right after the run's thread is created, before the turn starts. */
+  readonly onRunOpen?: (run: { readonly runId: string; readonly routineId: string; readonly agentId: string; readonly threadId: string }) => void;
+  /** Called once the run settles (or fails to admit); returns true if the run was marked silent via `routine_no_update`. */
+  readonly onRunClose?: (threadId: string) => boolean;
 }
 
 /** What the agent is sent: the instruction, then what the wake call brought, then the stay-quiet rule. */
@@ -57,6 +61,7 @@ export async function startRun(
     return { run, settled: Promise.resolve() };
   }
   store.runs.insert({ ...base, threadId: thread.id, result: { kind: 'running' } });
+  context.onRunOpen?.({ runId: base.id, routineId: routine.id, agentId: routine.agentId, threadId: thread.id });
   const finished = Promise.withResolvers<AssistantMessage>();
   const stop = chat.subscribe((event) => {
     if (event.kind === 'generation.finished' && event.threadId === thread.id) finished.resolve(event.message);
@@ -71,6 +76,7 @@ export async function startRun(
   }
   if (admitted.kind !== 'started') {
     stop();
+    context.onRunClose?.(thread.id);
     const result: FinishedResult = { kind: 'failed', finishedAt: context.now(), reason: refusal(admitted) };
     await chat.deleteThread(thread.id);
     store.runs.finish(base.id, result, null);
@@ -78,7 +84,8 @@ export async function startRun(
   }
   const settled = finished.promise.then(async (message) => {
     stop();
-    if (isQuiet(routine, message)) {
+    const markedSilent = context.onRunClose?.(thread.id) ?? false;
+    if ((markedSilent && message.outcome.kind === 'completed') || isQuiet(routine, message)) {
       await chat.deleteThread(thread.id);
       store.runs.finish(base.id, { kind: 'quiet', finishedAt: context.now() }, null);
       return;

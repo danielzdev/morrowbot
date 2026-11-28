@@ -10,6 +10,8 @@ import { keyValue, openVault, vaultBackend, type VaultService } from '../feature
 import { postMcp } from './host-tools-client.ts';
 import { sequence } from './test-host.ts';
 
+
+const NO_SUBAGENTS: { readonly kind: 'refused'; readonly reason: string } = { kind: 'refused', reason: 'Sub-agents are not part of connector tests' };
 export const STDIO_SERVER = fileURLToPath(new URL('./mcp-stdio-server.ts', import.meta.url));
 
 /** The secret every fixture stdio server is given; `echo` with text `leak` answers with an error quoting it. */
@@ -92,6 +94,12 @@ export async function startConnectorKit(options: { readonly agentIds: readonly s
       memories: { list: () => undefined, create: () => undefined, update: () => undefined, delete: () => false },
       vault: { list: () => [] },
       connectors: { tools: (agentId) => connectors.toolsFor(agentId), call: (agentId, name, args, signal) => connectors.call(agentId, name, args, signal) },
+      subagents: {
+        isSubagent: () => false,
+        spawn: () => Promise.resolve(NO_SUBAGENTS),
+        wait: () => Promise.resolve(NO_SUBAGENTS),
+        list: () => Promise.resolve(NO_SUBAGENTS),
+      },
     },
     version: '0.0.0-test',
     report,

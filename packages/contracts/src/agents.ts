@@ -42,16 +42,16 @@ export type AgentAvatar = z.infer<typeof AgentAvatar>;
 /** The avatar of an agent created without one, and of agents saved before avatars had a shape. */
 export const DEFAULT_AVATAR: AgentAvatar = { kind: 'bot', shape: 'chat', color: '#6b7280', finish: 'flat' };
 
-export const ProviderBinding = z.discriminatedUnion('kind', [
-  z.strictObject({ kind: z.literal('unbound') }),
-  z.strictObject({
-    kind: z.literal('bound'),
-    pluginId: PluginId,
-    selection: ModelSelection,
-    access: AccessLevel,
-    vendorSettings: VendorSettings,
-  }),
-]);
+export const BoundProvider = z.strictObject({
+  kind: z.literal('bound'),
+  pluginId: PluginId,
+  selection: ModelSelection,
+  access: AccessLevel,
+  vendorSettings: VendorSettings,
+});
+export type BoundProvider = z.infer<typeof BoundProvider>;
+
+export const ProviderBinding = z.discriminatedUnion('kind', [z.strictObject({ kind: z.literal('unbound') }), BoundProvider]);
 export type ProviderBinding = z.infer<typeof ProviderBinding>;
 
 const FolderName = z.string().trim().min(1).max(80);

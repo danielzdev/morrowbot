@@ -21,6 +21,7 @@ import { sessionRepository, type SessionRepository } from './sessions-repo.ts';
 import { t3BatchRepository, type T3BatchRepository } from './t3-batches-repo.ts';
 import { t3OutboxRepository, type T3OutboxRepository } from './t3-outbox-repo.ts';
 import { t3WatchRepository, type T3WatchRepository } from './t3-watches-repo.ts';
+import { subagentRunRepository, type SubagentRunRepository } from './subagent-runs-repo.ts';
 import { threadRepository, type ThreadRepository } from './threads-repo.ts';
 import { tokenTotalsRepository, type TokenTotalsRepository } from './token-totals-repo.ts';
 import { usageSnapshotRepository, type UsageSnapshotRepository } from './usage-repo.ts';
@@ -49,6 +50,7 @@ export interface Storage {
   readonly t3Watches: T3WatchRepository;
   readonly t3Outbox: T3OutboxRepository;
   readonly t3Batches: T3BatchRepository;
+  readonly subagents: SubagentRunRepository;
   readonly connectors: ConnectorRepository;
   /** Runs `work` in one write transaction (`BEGIN IMMEDIATE`), rolled back if it throws. Not reentrant. */
   transaction<T>(work: () => T): T;
@@ -87,6 +89,7 @@ export function openStorage(file: string, now: () => string): Storage {
       t3Watches: t3WatchRepository(db),
       t3Outbox: t3OutboxRepository(db),
       t3Batches: t3BatchRepository(db),
+      subagents: subagentRunRepository(db),
       connectors: connectorRepository(db),
       transaction: (work) => {
         db.exec('BEGIN IMMEDIATE');
