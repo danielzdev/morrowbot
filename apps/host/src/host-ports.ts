@@ -63,11 +63,8 @@ export function agentToolPorts(options: {
     memories,
     replies,
     replyAttachments: {
-      attach: async (grant, paths, signal) => {
-        const refusal = replies.attachRefusal(grant);
-        if (refusal !== undefined) return { attached: [], refused: paths.map((path) => ({ path, reason: refusal })) };
-        return replyFiles.attach({ generationId: grant.turnId, agentId: grant.agentId, threadId: grant.threadId, signal }, paths);
-      },
+      attach: (grant, paths, signal) =>
+        replyFiles.attach({ generationId: grant.turnId, agentId: grant.agentId, threadId: grant.threadId, signal, refusal: () => replies.attachRefusal(grant) }, paths),
     },
     vault,
     routines: routineToolPort(storage, routines, sharedWithMembers),

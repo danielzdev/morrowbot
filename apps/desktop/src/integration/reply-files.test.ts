@@ -14,6 +14,7 @@ const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0
 const PDF = Buffer.from('%PDF-1.4\n%%EOF\n', 'latin1');
 const MP4 = Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from('ftypisom', 'latin1'), Buffer.alloc(12)]);
 
+const LONG = `${'a'.repeat(251)}.pdf`;
 const cleanup: (() => Promise<void> | void)[] = [];
 afterEach(async () => {
   for (const step of cleanup.splice(0).reverse()) await step();
@@ -32,8 +33,8 @@ it('a reply shows the files its agent attached, the window loads them through ma
   const agent = await chat.agent();
   const thread = await chat.thread(agent);
   const ws = agent.workspace.dir;
-  await Promise.all([writeFile(path.join(ws, 'chart.png'), PNG), writeFile(path.join(ws, 'report.pdf'), PDF), writeFile(path.join(ws, 'demo.mp4'), MP4), writeFile(path.join(ws, 'run.command'), Buffer.concat([PNG, Buffer.from([1])])), writeFile(path.join(ws, 'tool.bin'), 'x')]);
-  const paths = ['chart.png', 'report.pdf', 'demo.mp4', 'run.command', 'tool.bin'].map((name) => path.join(ws, name));
+  await Promise.all([writeFile(path.join(ws, 'chart.png'), PNG), writeFile(path.join(ws, 'report.pdf'), PDF), writeFile(path.join(ws, 'demo.mp4'), MP4), writeFile(path.join(ws, 'run.command'), Buffer.concat([PNG, Buffer.from([1])])), writeFile(path.join(ws, 'tool.bin'), 'x'), writeFile(path.join(ws, LONG), Buffer.concat([PDF, Buffer.from('long')]))]);
+  const paths = ['chart.png', 'report.pdf', 'demo.mp4', 'run.command', 'tool.bin', LONG].map((name) => path.join(ws, name));
   await chat.send(thread, `host-tool attach_files ${JSON.stringify({ paths })}`);
   await chat.close();
   chat = await startChatFixture({ dataDir });
@@ -41,15 +42,15 @@ it('a reply shows the files its agent attached, the window loads them through ma
 
   const target = { url: chat.host.url, token: chat.host.host.token };
   const saved = path.join(dataDir, 'Saved report.pdf');
-  const window = openTestWindow(target, { openDir: path.join(dataDir, 'opened'), saveTo: (name) => (name === 'report.pdf' ? saved : null) });
+  const window = openTestWindow(target, { openDir: path.join(dataDir, 'opened'), saveTo: (name) => (name === 'report.pdf' ? saved : name === LONG ? path.join(dataDir, LONG) : null) });
   const hub = createChatHub({ api: createApi(window.bridge), bridge: window.bridge });
   cleanup.push(() => {
     hub.close();
     window.close();
   });
   const attachments = attachmentsOf(await loaded(hub.session(thread.id)));
-  const [image, pdf, video, renamed, unknown] = attachments;
-  if (image === undefined || pdf === undefined || video === undefined || renamed === undefined || unknown === undefined) throw new Error('missing attachments');
+  const [image, pdf, video, renamed, unknown, long] = attachments;
+  if (image === undefined || pdf === undefined || video === undefined || renamed === undefined || unknown === undefined || long === undefined) throw new Error('missing attachments');
 
   const files = replyFiles(window.bridge);
   const load = async (id: string, headers: Record<string, string> = {}) => {
@@ -64,10 +65,12 @@ it('a reply shows the files its agent attached, the window loads them through ma
     openUnknown: await files.act('open', unknown),
     savePdf: await files.act('save', pdf),
     saveCancelled: await files.act('save', image),
+    openLongName: await files.act('open', long),
+    saveLongName: await files.act('save', long),
   };
   const opened = path.join(dataDir, 'opened');
   expect({
-    kinds: attachments.map(({ name, kind, mimeType }) => `${name}: ${kind} ${mimeType}`),
+    kinds: attachments.map(({ name, kind, mimeType }) => `${name === LONG ? '<255-byte name>' : name}: ${kind} ${mimeType}`),
     image: { ...shownImage, bytes: shownImage.bytes.equals(PNG) },
     seek: { ...seek, bytes: seek.bytes.toString('latin1') },
     otherScheme: (await serveReplyFile(new Request('https://example.com/reply/x'), target)).status,
@@ -75,10 +78,14 @@ it('a reply shows the files its agent attached, the window loads them through ma
     actions,
     opened: { pdf: await readdir(path.join(opened, pdf.id)), renamed: await readdir(path.join(opened, renamed.id)) },
     savedIsThePdf: (await readFile(saved)).equals(PDF),
+    leftBehind: (await readdir(dataDir)).filter((name) => name.endsWith('.part')),
     tokenReachedRenderer: window.received().includes(target.token),
   }).toMatchInlineSnapshot(`
     {
       "actions": {
+        "openLongName": {
+          "kind": "opened",
+        },
         "openPdf": {
           "kind": "opened",
         },
@@ -91,6 +98,9 @@ it('a reply shows the files its agent attached, the window loads them through ma
         },
         "saveCancelled": {
           "kind": "cancelled",
+        },
+        "saveLongName": {
+          "kind": "saved",
         },
         "savePdf": {
           "kind": "saved",
@@ -108,7 +118,9 @@ it('a reply shows the files its agent attached, the window loads them through ma
         "demo.mp4: video video/mp4",
         "run.command: image image/png",
         "tool.bin: file application/octet-stream",
+        "<255-byte name>: file application/pdf",
       ],
+      "leftBehind": [],
       "noHost": 503,
       "opened": {
         "pdf": [

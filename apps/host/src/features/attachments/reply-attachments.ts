@@ -39,6 +39,8 @@ export interface AttachingTurn {
   readonly threadId: string;
   /** Aborts when the turn ends; nothing is saved after that. */
   readonly signal: AbortSignal;
+  /** Why the turn's reply cannot take files now, or undefined; asked again just before each file is saved. */
+  readonly refusal: () => string | undefined;
 }
 
 export interface AttachResult {
@@ -152,6 +154,8 @@ export function createReplyAttachments(options: ReplyAttachmentOptions): ReplyAt
 
   async function attachOne(turn: AttachingTurn, root: string, given: string): Promise<ReplyAttachment> {
     if (ended(turn)) throw new Refusal('The turn ended before the file was attached.');
+    const refusedBefore = turn.refusal();
+    if (refusedBefore !== undefined) throw new Refusal(refusedBefore);
     const open = records.listOpen(turn.generationId);
     if (open.length >= MAX_REPLY_ATTACHMENTS) throw new Refusal(`A reply can carry up to ${String(MAX_REPLY_ATTACHMENTS)} files.`);
     const id = options.newId();
@@ -173,10 +177,11 @@ export function createReplyAttachments(options: ReplyAttachmentOptions): ReplyAt
       const name = nameOf(given);
       const attachment: ReplyAttachment = { ...kindOf(name, copied.head), id, name, size };
       await rename(part, path.join(dir, id));
-      const saved = !ended(turn) && records.insert({ attachment, threadId: turn.threadId, generationId: turn.generationId, sha256: copied.sha256, createdAt: options.now() });
+      const refusal = turn.refusal();
+      const saved = refusal === undefined && !ended(turn) && records.insert({ attachment, threadId: turn.threadId, generationId: turn.generationId, sha256: copied.sha256, createdAt: options.now() });
       if (!saved) {
         await unlink(path.join(dir, id));
-        throw new Refusal('The turn ended before the file was attached.');
+        throw new Refusal(refusal ?? 'The turn ended before the file was attached.');
       }
       return attachment;
     } catch (error) {

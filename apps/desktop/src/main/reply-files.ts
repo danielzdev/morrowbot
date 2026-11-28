@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
 import { mkdir, rename, stat, unlink } from 'node:fs/promises';
 import path from 'node:path';
@@ -103,10 +103,10 @@ export interface FileActionDeps {
 
 const GONE: FileActionResult = { kind: 'failed', reason: 'This file is no longer on the server.' };
 
-/** Downloads the file to a temporary name beside `file`, then renames it, so a failed download never leaves a partial file there. */
+/** Downloads the file to a short temporary name beside `file`, then renames it, so a failed download never leaves a partial file there. */
 async function download(response: Response, file: string): Promise<void> {
   if (response.body === null) throw new Error('Empty response');
-  const part = `${file}.${randomUUID()}.part`;
+  const part = path.join(path.dirname(file), `.morrowbot-${randomBytes(8).toString('hex')}.part`);
   try {
     await pipeline(chunks(response.body), createWriteStream(part, { flags: 'wx', mode: 0o600 }));
     await rename(part, file);
