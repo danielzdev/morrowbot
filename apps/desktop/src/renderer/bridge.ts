@@ -90,7 +90,7 @@ export type ProviderInstallCapabilities = Readonly<Record<string, ProviderInstal
 export type ProviderInstallResult =
   | { readonly kind: 'installed' }
   | { readonly kind: 'cancelled' }
-  | { readonly kind: 'failed'; readonly reason: string; readonly guideUrl: string | null };
+  | { readonly kind: 'failed'; readonly reason: string; readonly downloadUrl: string | null };
 
 /** Live status pushed from main while a built-in provider install or update runs. */
 export interface ProviderInstallProgress {

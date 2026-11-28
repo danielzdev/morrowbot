@@ -28,7 +28,7 @@ function CommandBox(props: { readonly text: string; readonly onCopy: (text: stri
   );
 }
 
-/** "How to set up": short steps and the vendor's own page, for when no command can be shown safely. */
+/** "How to set up": short steps and the vendor's own page, for community providers or when no command can be shown safely. */
 function Guide(props: { readonly providerId: string; readonly onOpenLink: (url: string) => Promise<string | null> }) {
   const guide = guideFor(props.providerId);
   const [error, setError] = useState<string | null>(null);
@@ -92,7 +92,7 @@ function SignInButton(props: { readonly onSignIn: () => Promise<string | null> }
   );
 }
 
-/** One-click auto-install / update (or verified vendor download button) for built-in providers. */
+/** One-click Install / Update (or verified vendor Download button when no automated CLI installer exists) for built-in providers. */
 function AutoInstallControls(props: {
   readonly mode: ProviderInstallMode;
   readonly capability: ProviderInstallCapability;
@@ -103,22 +103,25 @@ function AutoInstallControls(props: {
   readonly onCancelInstall: () => Promise<void>;
   readonly onOpenLink: (url: string) => Promise<string | null>;
 }) {
-  const [note, setNote] = useState<{ readonly kind: 'status' | 'error'; readonly text: string } | null>(null);
+  const [note, setNote] = useState<{ readonly kind: 'status' | 'error'; readonly text: string; readonly downloadUrl: string | null } | null>(null);
+  const openDownload = (url: string): void => {
+    setNote(null);
+    void props.onOpenLink(url).then((reason) => {
+      if (reason === null) setNote({ kind: 'status', text: 'MorrowBot rechecks when you come back.', downloadUrl: null });
+      else setNote({ kind: 'error', text: props.redact(reason), downloadUrl: null });
+    });
+  };
   switch (props.capability.kind) {
     case 'download': {
-      const { label, url } = props.capability;
-      const buttonLabel = props.mode === 'update' ? 'Download update' : label;
+      const { url } = props.capability;
+      const buttonLabel = props.mode === 'update' ? 'Download update' : 'Download';
       return (
         <div class="one-click">
           <button
             type="button"
             class="btn primary"
             onClick={() => {
-              setNote(null);
-              void props.onOpenLink(url).then((reason) => {
-                if (reason === null) setNote({ kind: 'status', text: 'MorrowBot rechecks when you come back.' });
-                else setNote({ kind: 'error', text: props.redact(reason) });
-              });
+              openDownload(url);
             }}
           >
             {buttonLabel} ↗
@@ -150,10 +153,10 @@ function AutoInstallControls(props: {
                     setNote(null);
                     break;
                   case 'cancelled':
-                    setNote({ kind: 'status', text: props.mode === 'update' ? 'Update cancelled.' : 'Install cancelled.' });
+                    setNote({ kind: 'status', text: props.mode === 'update' ? 'Update cancelled.' : 'Install cancelled.', downloadUrl: null });
                     break;
                   case 'failed':
-                    setNote({ kind: 'error', text: props.redact(result.reason) });
+                    setNote({ kind: 'error', text: props.redact(result.reason), downloadUrl: result.downloadUrl });
                     break;
                 }
               });
@@ -179,8 +182,28 @@ function AutoInstallControls(props: {
                 ? props.redact(props.installDetail)
                 : `${busyLabel} via ${toolLabel}.`
               : note !== null
-                ? note.text
-                : `Installs the official CLI via ${toolLabel} and rechecks automatically.`}
+                ? (
+                  <>
+                    {note.text}
+                    {note.downloadUrl !== null && (
+                      <>
+                        {' '}
+                        <button
+                          type="button"
+                          class="engine-note-link"
+                          onClick={() => {
+                            openDownload(note.downloadUrl ?? '');
+                          }}
+                        >
+                          Download ↗
+                        </button>
+                      </>
+                    )}
+                  </>
+                )
+                : props.mode === 'update'
+                  ? `Updates the official CLI via ${toolLabel} and rechecks automatically.`
+                  : `Installs the official CLI via ${toolLabel} and rechecks automatically.`}
           </span>
         </div>
       );
@@ -191,6 +214,7 @@ function AutoInstallControls(props: {
 /** Set up, sign in or update: what the provider needs before it can chat, ending with Recheck. */
 export function ProviderSetup(props: {
   readonly providerId: string;
+  readonly isBuiltin?: boolean;
   readonly setup: Setup;
   readonly info: AppInfo;
   readonly redact: (text: string) => string;
@@ -204,6 +228,7 @@ export function ProviderSetup(props: {
   readonly onCancelInstall?: (() => Promise<void>) | null;
 }) {
   const { setup } = props;
+  const builtin = props.isBuiltin ?? false;
   const installAction =
     (setup.kind === 'install' || setup.kind === 'update') && props.installCapability != null && props.onInstall != null && props.onCancelInstall != null ? (
       <AutoInstallControls
@@ -240,9 +265,15 @@ export function ProviderSetup(props: {
       );
     }
     case 'install':
+      if (builtin) {
+        return (
+          <div class="setup">
+            {installAction ?? <p>{props.redact(setup.text)}</p>}
+          </div>
+        );
+      }
       return (
         <div class="setup">
-          {installAction}
           <p>{props.redact(setup.text)}</p>
           <Guide providerId={props.providerId} onOpenLink={props.onOpenLink} />
         </div>
@@ -250,11 +281,11 @@ export function ProviderSetup(props: {
     case 'update':
       return (
         <div class="setup">
-          {installAction}
           <p>
-            MorrowBot found version <span class="mono">{props.redact(setup.found)}</span> and needs <span class="mono">{props.redact(setup.supported)}</span>. Update the CLI, then press Recheck.
+            MorrowBot found version <span class="mono">{props.redact(setup.found)}</span> and needs <span class="mono">{props.redact(setup.supported)}</span>.
           </p>
-          <Guide providerId={props.providerId} onOpenLink={props.onOpenLink} />
+          {installAction}
+          {!builtin && <Guide providerId={props.providerId} onOpenLink={props.onOpenLink} />}
         </div>
       );
   }

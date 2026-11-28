@@ -19,18 +19,18 @@ export type ProviderInstallPlan =
       readonly command: string;
       readonly args: readonly string[];
       readonly label: string;
-      readonly guideUrl: string;
+      readonly downloadUrl: string;
     }
   | {
       readonly kind: 'download';
-      readonly label: string;
+      readonly label: 'Download';
       readonly url: string;
       readonly reason: string;
     }
   | {
       readonly kind: 'unsupported';
       readonly reason: string;
-      readonly guideUrl: string | null;
+      readonly downloadUrl: string | null;
     };
 
 export function isBuiltinProviderId(id: string): id is BuiltinProviderId {
@@ -45,46 +45,46 @@ export function planProviderInstall(
   tools: InstallTools,
 ): ProviderInstallPlan {
   if (!isBuiltinProviderId(providerId)) {
-    return { kind: 'unsupported', reason: 'Only built-in providers support 1-click install.', guideUrl: null };
+    return { kind: 'unsupported', reason: 'Only built-in providers support 1-click install.', downloadUrl: null };
   }
   const brewVerb = mode === 'update' ? 'upgrade' : 'install';
   switch (providerId) {
     case 'provider-claude': {
-      const guideUrl = 'https://docs.claude.com/claude-code';
+      const downloadUrl = 'https://docs.claude.com/claude-code';
       if (tools.npm !== null) {
-        return { kind: 'run', tool: 'npm', command: tools.npm, args: ['install', '-g', '@anthropic-ai/claude-code@latest'], label: 'npm (@anthropic-ai/claude-code)', guideUrl };
+        return { kind: 'run', tool: 'npm', command: tools.npm, args: ['install', '-g', '@anthropic-ai/claude-code@latest'], label: 'npm (@anthropic-ai/claude-code)', downloadUrl };
       }
       if (platform === 'darwin' && tools.brew !== null) {
-        return { kind: 'run', tool: 'brew', command: tools.brew, args: [brewVerb, '--cask', 'claude-code'], label: 'Homebrew (claude-code)', guideUrl };
+        return { kind: 'run', tool: 'brew', command: tools.brew, args: [brewVerb, '--cask', 'claude-code'], label: 'Homebrew (claude-code)', downloadUrl };
       }
-      return { kind: 'download', label: 'How to install', url: guideUrl, reason: 'Node.js (npm) or Homebrew is needed for 1-click install.' };
+      return { kind: 'download', label: 'Download', url: downloadUrl, reason: 'Node.js (npm) or Homebrew is needed for 1-click install.' };
     }
     case 'provider-openai': {
-      const guideUrl = 'https://developers.openai.com/codex/cli';
+      const downloadUrl = 'https://developers.openai.com/codex/cli';
       if (tools.npm !== null) {
-        return { kind: 'run', tool: 'npm', command: tools.npm, args: ['install', '-g', '@openai/codex@latest'], label: 'npm (@openai/codex)', guideUrl };
+        return { kind: 'run', tool: 'npm', command: tools.npm, args: ['install', '-g', '@openai/codex@latest'], label: 'npm (@openai/codex)', downloadUrl };
       }
       if (platform === 'darwin' && tools.brew !== null) {
-        return { kind: 'run', tool: 'brew', command: tools.brew, args: [brewVerb, '--cask', 'codex'], label: 'Homebrew (codex)', guideUrl };
+        return { kind: 'run', tool: 'brew', command: tools.brew, args: [brewVerb, '--cask', 'codex'], label: 'Homebrew (codex)', downloadUrl };
       }
-      return { kind: 'download', label: 'How to install', url: guideUrl, reason: 'Node.js (npm) or Homebrew is needed for 1-click install.' };
+      return { kind: 'download', label: 'Download', url: downloadUrl, reason: 'Node.js (npm) or Homebrew is needed for 1-click install.' };
     }
     case 'provider-opencode': {
-      const guideUrl = 'https://opencode.ai';
+      const downloadUrl = 'https://opencode.ai';
       if (platform === 'darwin' && tools.brew !== null) {
-        return { kind: 'run', tool: 'brew', command: tools.brew, args: [brewVerb, 'opencode'], label: 'Homebrew (opencode)', guideUrl };
+        return { kind: 'run', tool: 'brew', command: tools.brew, args: [brewVerb, 'opencode'], label: 'Homebrew (opencode)', downloadUrl };
       }
       if (tools.npm !== null) {
-        return { kind: 'run', tool: 'npm', command: tools.npm, args: ['install', '-g', '@opencode/cli@latest'], label: 'npm (@opencode/cli)', guideUrl };
+        return { kind: 'run', tool: 'npm', command: tools.npm, args: ['install', '-g', '@opencode/cli@latest'], label: 'npm (@opencode/cli)', downloadUrl };
       }
-      return { kind: 'download', label: 'How to install', url: guideUrl, reason: 'Homebrew or Node.js (npm) is needed for 1-click install.' };
+      return { kind: 'download', label: 'Download', url: downloadUrl, reason: 'Homebrew or Node.js (npm) is needed for 1-click install.' };
     }
     case 'provider-antigravity': {
-      const guideUrl = 'https://antigravity.google/product/antigravity-cli';
+      const downloadUrl = 'https://antigravity.google/product/antigravity-cli';
       if (platform === 'darwin' && tools.brew !== null) {
-        return { kind: 'run', tool: 'brew', command: tools.brew, args: [brewVerb, '--cask', 'antigravity-cli'], label: 'Homebrew (antigravity-cli)', guideUrl };
+        return { kind: 'run', tool: 'brew', command: tools.brew, args: [brewVerb, '--cask', 'antigravity-cli'], label: 'Homebrew (antigravity-cli)', downloadUrl };
       }
-      return { kind: 'download', label: 'Download', url: guideUrl, reason: '1-click install for Antigravity CLI uses Homebrew on macOS. Download it from antigravity.google instead.' };
+      return { kind: 'download', label: 'Download', url: downloadUrl, reason: '1-click install for Antigravity CLI uses Homebrew on macOS. Download it from antigravity.google instead.' };
     }
   }
 }

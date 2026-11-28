@@ -82,7 +82,7 @@ export function openTestWindow(target: HostTarget): TestWindow {
     restartToUpdate: () => Promise.resolve(),
     signInTerminal: () => Promise.resolve({ kind: 'unavailable', reason: 'One-click sign-in works on macOS only. Use the command instead.' }),
     providerInstallCapabilities: () => Promise.resolve({}),
-    installProvider: () => Promise.resolve({ kind: 'failed', reason: 'Not in tests.', guideUrl: null }),
+    installProvider: () => Promise.resolve({ kind: 'failed', reason: 'Not in tests.', downloadUrl: null }),
     cancelProviderInstall: () => Promise.resolve(),
     onProviderInstallProgress: () => () => undefined,
     resetPlan: () => Promise.resolve({ token: 'test', options: [] }),

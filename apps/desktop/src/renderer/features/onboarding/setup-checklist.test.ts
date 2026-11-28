@@ -22,7 +22,7 @@ const ROWS: readonly EngineRow[] = [
     status: 'Ready · Claude Max 5x',
     ready: true,
     busy: false,
-    installing: null,
+    installing: false,
     progress: null,
     action: { kind: 'none' },
   },
@@ -33,7 +33,7 @@ const ROWS: readonly EngineRow[] = [
     status: 'Sign-in needed',
     ready: false,
     busy: false,
-    installing: null,
+    installing: false,
     progress: null,
     action: { kind: 'sign-in-terminal' },
   },
@@ -44,9 +44,9 @@ const ROWS: readonly EngineRow[] = [
     status: 'Not installed',
     ready: false,
     busy: false,
-    installing: null,
+    installing: false,
     progress: null,
-    action: { kind: 'install', mode: 'install', guideUrl: 'https://opencode.ai' },
+    action: { kind: 'install', downloadUrl: null },
   },
   {
     id: 'provider-antigravity',
@@ -55,26 +55,32 @@ const ROWS: readonly EngineRow[] = [
     status: 'Installing…',
     ready: false,
     busy: true,
-    installing: 'install',
+    installing: true,
     progress: 'Installing with Homebrew (antigravity-cli)…',
-    action: { kind: 'install', mode: 'install', guideUrl: 'https://antigravity.google/product/antigravity-cli' },
+    action: { kind: 'install', downloadUrl: null },
   },
 ];
 
-it('renders one calm signal per row without duplicate warning triangle + yellow status pill', () => {
+it('renders one calm signal per row without duplicate warning triangle, yellow status pill, How to install, or Update', () => {
   const html = renderToString(h(SetupChecklist, { engines: { kind: 'loaded', value: ROWS }, actions: ACTIONS }));
   expect({
     hasStatusPill: html.includes('status-pill'),
     hasWarningTriangle: html.includes('M8 2.5 14 13.5H2z'),
+    hasHowToInstall: html.includes('How to install'),
+    hasUpdateButton: html.includes('>Update<'),
     hasMutedNotInstalled: html.includes('<span class="engine-indicator muted" aria-hidden="true"><span class="status-dot muted"></span></span><span class="engine-name">OpenCode (free models)</span><span class="engine-status muted">Not installed</span>'),
     hasInstallButton: html.includes('aria-label="Install, OpenCode (free models)">Install</button>'),
+    hasSignInButton: html.includes('aria-label="Sign in, OpenAI Codex (subscription)">Sign in</button>'),
     hasInstallingCancel: html.includes('>Installing…</button><button type="button" class="btn ghost" aria-label="Cancel install, Google Antigravity (subscription)">Cancel</button>'),
     hasLiveProgress: html.includes('<p class="engine-note" role="status">Installing with Homebrew (antigravity-cli)…</p>'),
   }).toEqual({
     hasStatusPill: false,
     hasWarningTriangle: false,
+    hasHowToInstall: false,
+    hasUpdateButton: false,
     hasMutedNotInstalled: true,
     hasInstallButton: true,
+    hasSignInButton: true,
     hasInstallingCancel: true,
     hasLiveProgress: true,
   });

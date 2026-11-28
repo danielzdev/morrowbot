@@ -45,8 +45,8 @@ export function FirstRun(props: { readonly models: Models; readonly bridge: Morr
           if (reason === null) recheckLater(id);
           return reason === null ? null : safe(reason);
         },
-        install: async (id, mode) => {
-          const result = await models.providers.install(id, mode);
+        install: async (id) => {
+          const result = await models.providers.install(id, 'install');
           return result.kind === 'failed' ? { ...result, reason: safe(result.reason) } : result;
         },
         cancelInstall: (id) => models.providers.cancelInstall(id),

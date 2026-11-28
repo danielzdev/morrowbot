@@ -2,6 +2,7 @@ import { PluginEntry, type PluginStatus, type ProviderCapabilities, type Provide
 import { h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
 import { expect, it } from 'vitest';
+import type { ProviderInstallResult } from '../../bridge.ts';
 import { redact } from '../../shared/privacy.ts';
 import type { Loadable } from '../../shared/store.ts';
 import { ProviderDetail } from './ProviderDetail.tsx';
@@ -143,5 +144,49 @@ it('never shows a home path, user name, email or workspace name in a provider de
   expect({ leaks: ['/Users/sam', 'sam@', 'Acme', '>sam<', ' sam '].filter((secret) => html.includes(secret)), shown: ['~/.codex', '&lt;email>', '&lt;user>', 'Effort: Low, Medium, High'].filter((safe) => !html.includes(safe)) }).toEqual({
     leaks: [],
     shown: [],
+  });
+});
+
+it('shows Install or Update (and never How to install) in Settings › Providers for built-in engines', () => {
+  const ignore = (): void => undefined;
+  const installed: ProviderInstallResult = { kind: 'installed' };
+  const baseActions = {
+    onEnabled: ignore,
+    onRecheck: ignore,
+    onSaveConfig: ignore,
+    onRelease: ignore,
+    onCopy: () => Promise.resolve(),
+    onOpenLink: () => Promise.resolve(null),
+    onSignInTerminal: null,
+    onInstall: () => Promise.resolve(installed),
+    onCancelInstall: () => Promise.resolve(),
+    onDirty: ignore,
+  };
+  const render = (info: ProviderInfo, capability: { readonly kind: 'auto'; readonly tool: 'brew' } | { readonly kind: 'download'; readonly label: string; readonly url: string }) =>
+    renderToString(
+      h(ProviderDetail, {
+        card: { entry: entry(), info: loaded(info), usage: null, busy: null, problem: null, age: null },
+        info: INFO,
+        redact: (text: string) => redact(text, INFO),
+        actions: { ...baseActions, installCapability: capability },
+      }),
+    );
+  const missingAuto = render({ kind: 'missing-runtime', install: 'Install Codex.' }, { kind: 'auto', tool: 'brew' });
+  const missingDownload = render({ kind: 'missing-runtime', install: 'Install Antigravity.' }, { kind: 'download', label: 'Download', url: 'https://antigravity.google/product/antigravity-cli' });
+  const outdatedAuto = render({ kind: 'outdated', found: '0.160.0', supported: '0.171.x' }, { kind: 'auto', tool: 'brew' });
+  expect({
+    missingAutoHasInstall: missingAuto.includes('Install</button>'),
+    missingAutoNoHowTo: !missingAuto.includes('How to install') && !missingAuto.includes('How to set up'),
+    missingDownloadHasDownload: missingDownload.includes('Download ↗</button>'),
+    missingDownloadNoHowTo: !missingDownload.includes('How to install') && !missingDownload.includes('How to set up'),
+    outdatedAutoHasUpdate: outdatedAuto.includes('Update</button>'),
+    outdatedAutoNoHowTo: !outdatedAuto.includes('How to install') && !outdatedAuto.includes('How to set up'),
+  }).toEqual({
+    missingAutoHasInstall: true,
+    missingAutoNoHowTo: true,
+    missingDownloadHasDownload: true,
+    missingDownloadNoHowTo: true,
+    outdatedAutoHasUpdate: true,
+    outdatedAutoNoHowTo: true,
   });
 });

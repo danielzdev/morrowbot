@@ -179,9 +179,9 @@ export function createProvidersModel(options: ProvidersModelOptions): ProvidersM
     },
     recheck,
     install: async (id, mode) => {
-      if (card(id)?.busy != null) return { kind: 'failed', reason: 'Another action is already running for this provider.', guideUrl: null };
+      if (card(id)?.busy != null) return { kind: 'failed', reason: 'Another action is already running for this provider.', downloadUrl: null };
       if (options.bridge.installProvider === undefined) {
-        return { kind: 'failed', reason: '1-click install is not available in this window.', guideUrl: null };
+        return { kind: 'failed', reason: '1-click install is not available in this window.', downloadUrl: null };
       }
       const busy = mode === 'update' ? 'updating' : 'installing';
       patch(id, { busy, problem: null, installDetail: mode === 'update' ? 'Starting update…' : 'Starting install…' });
@@ -189,7 +189,7 @@ export function createProvidersModel(options: ProvidersModelOptions): ProvidersM
       try {
         reply = parseInstallResult(await options.bridge.installProvider({ providerId: id, mode }));
       } catch (error) {
-        reply = { kind: 'failed', reason: error instanceof Error ? error.message : 'Install failed.', guideUrl: null };
+        reply = { kind: 'failed', reason: error instanceof Error ? error.message : 'Install failed.', downloadUrl: null };
       }
       switch (reply.kind) {
         case 'installed':

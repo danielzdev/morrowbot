@@ -202,23 +202,23 @@ export function createProviderInstaller(context: ProviderInstallerContext): Prov
     },
     install: async ({ providerId, mode }) => {
       if (context.clientOnly()) {
-        return { kind: 'failed', reason: 'Engines run on the server you joined; its owner installs them there.', guideUrl: null };
+        return { kind: 'failed', reason: 'Engines run on the server you joined; its owner installs them there.', downloadUrl: null };
       }
       if (!isBuiltinProviderId(providerId)) {
-        return { kind: 'failed', reason: 'Only built-in providers support 1-click install.', guideUrl: null };
+        return { kind: 'failed', reason: 'Only built-in providers support 1-click install.', downloadUrl: null };
       }
       const checked = await isBuiltinOnHost(providerId, context.host(), context.rendererUrl);
-      if (checked === 'not-found') return { kind: 'failed', reason: 'MorrowBot could not find this provider.', guideUrl: null };
-      if (checked === 'not-builtin') return { kind: 'failed', reason: 'Only built-in providers support 1-click install.', guideUrl: null };
+      if (checked === 'not-found') return { kind: 'failed', reason: 'MorrowBot could not find this provider.', downloadUrl: null };
+      if (checked === 'not-builtin') return { kind: 'failed', reason: 'Only built-in providers support 1-click install.', downloadUrl: null };
       if (running.has(providerId)) {
-        return { kind: 'failed', reason: 'An install is already running for this provider.', guideUrl: null };
+        return { kind: 'failed', reason: 'An install is already running for this provider.', downloadUrl: null };
       }
       const plan = planProviderInstall(providerId, mode, context.platform, await detect());
       switch (plan.kind) {
         case 'unsupported':
-          return { kind: 'failed', reason: plan.reason, guideUrl: plan.guideUrl };
+          return { kind: 'failed', reason: plan.reason, downloadUrl: plan.downloadUrl };
         case 'download':
-          return { kind: 'failed', reason: plan.reason, guideUrl: plan.url };
+          return { kind: 'failed', reason: plan.reason, downloadUrl: plan.url };
         case 'run':
           break;
       }
@@ -252,16 +252,16 @@ export function createProviderInstaller(context: ProviderInstallerContext): Prov
             context.onProgress({ providerId, mode, phase: 'cancelled', detail: 'Cancelled.' });
             return { kind: 'cancelled' };
           case 'timeout': {
-            const reason = `${verb} timed out. Try the manual install guide instead.`;
+            const reason = `${verb} timed out. Try downloading the CLI directly instead.`;
             context.onProgress({ providerId, mode, phase: 'failed', detail: reason });
-            return { kind: 'failed', reason, guideUrl: plan.guideUrl };
+            return { kind: 'failed', reason, downloadUrl: plan.downloadUrl };
           }
           case 'failed': {
             const detail = lastErrorLine(result.output);
             const code = result.exitCode === null ? '' : ` (exit ${String(result.exitCode)})`;
             const reason = detail === null ? `${verb} failed${code}.` : `${verb} failed${code}: ${detail}`;
             context.onProgress({ providerId, mode, phase: 'failed', detail: reason });
-            return { kind: 'failed', reason, guideUrl: plan.guideUrl };
+            return { kind: 'failed', reason, downloadUrl: plan.downloadUrl };
           }
         }
       } finally {

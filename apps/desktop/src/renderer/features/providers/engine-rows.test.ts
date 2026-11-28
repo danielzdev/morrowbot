@@ -53,24 +53,26 @@ const table = (oneClick: boolean, capabilities: ProviderInstallCapabilities = {}
           ? `copy "${action.text}"`
           : action.kind === 'guide'
             ? `${action.label} ${action.url.includes('#') ? action.url.replace(/^.*#/, '#') : action.url}`
-            : action.kind === 'install'
-              ? `auto-${action.mode}`
-              : action.kind
+            : action.kind
       }`,
   );
 
-it('gives each built-in engine its status and exactly one action, with 1-click install/update and Terminal sign-in where available (spec §7)', () => {
+it('gives each built-in engine its onboarding action: Install or Download when missing, Sign in when signed out, and never Update or How to install (spec §7)', () => {
   const autoCaps: ProviderInstallCapabilities = {
     'provider-antigravity': { kind: 'download', label: 'Download', url: 'https://antigravity.google/product/antigravity-cli' },
     'provider-opencode': { kind: 'auto', tool: 'brew' },
   };
-  expect({ oneClick: table(true), terminalHandoff: table(false), withCapabilities: table(true, autoCaps) }).toMatchInlineSnapshot(`
+  const allAuto: ProviderInstallCapabilities = {
+    'provider-antigravity': { kind: 'auto', tool: 'brew' },
+    'provider-opencode': { kind: 'auto', tool: 'brew' },
+  };
+  expect({ oneClick: table(true), terminalHandoff: table(false), withDownloadFallback: table(true, autoCaps), withAutoInstall: table(true, allAuto) }).toMatchInlineSnapshot(`
     {
       "oneClick": [
         "provider-claude [ok]: Ready · Claude Max 5x (ready) → none",
         "provider-openai [warning]: Sign-in needed → sign-in-terminal",
-        "provider-antigravity [muted]: Not installed → How to install #google-antigravity",
-        "provider-opencode [warning]: Needs update · found 2.0.1, needs 2.4 → How to update #opencode",
+        "provider-antigravity [muted]: Not installed → none",
+        "provider-opencode [warning]: Needs update · found 2.0.1, needs 2.4 → none",
         "signed-out-private [warning]: Sign-in needed → sign-in-terminal",
         "turned-off [muted]: Turned off → turn-on",
         "crashed [error]: Crashed → recheck",
@@ -79,18 +81,28 @@ it('gives each built-in engine its status and exactly one action, with 1-click i
       "terminalHandoff": [
         "provider-claude [ok]: Ready · Claude Max 5x (ready) → none",
         "provider-openai [warning]: Sign-in needed → copy "codex login"",
-        "provider-antigravity [muted]: Not installed → How to install #google-antigravity",
-        "provider-opencode [warning]: Needs update · found 2.0.1, needs 2.4 → How to update #opencode",
+        "provider-antigravity [muted]: Not installed → none",
+        "provider-opencode [warning]: Needs update · found 2.0.1, needs 2.4 → none",
         "signed-out-private [warning]: Sign-in needed → recheck",
         "turned-off [muted]: Turned off → turn-on",
         "crashed [error]: Crashed → recheck",
         "checking [muted]: Checking… → none",
       ],
-      "withCapabilities": [
+      "withAutoInstall": [
+        "provider-claude [ok]: Ready · Claude Max 5x (ready) → none",
+        "provider-openai [warning]: Sign-in needed → sign-in-terminal",
+        "provider-antigravity [muted]: Not installed → install",
+        "provider-opencode [warning]: Needs update · found 2.0.1, needs 2.4 → none",
+        "signed-out-private [warning]: Sign-in needed → sign-in-terminal",
+        "turned-off [muted]: Turned off → turn-on",
+        "crashed [error]: Crashed → recheck",
+        "checking [muted]: Checking… → none",
+      ],
+      "withDownloadFallback": [
         "provider-claude [ok]: Ready · Claude Max 5x (ready) → none",
         "provider-openai [warning]: Sign-in needed → sign-in-terminal",
         "provider-antigravity [muted]: Not installed → Download https://antigravity.google/product/antigravity-cli",
-        "provider-opencode [warning]: Needs update · found 2.0.1, needs 2.4 → auto-update",
+        "provider-opencode [warning]: Needs update · found 2.0.1, needs 2.4 → none",
         "signed-out-private [warning]: Sign-in needed → sign-in-terminal",
         "turned-off [muted]: Turned off → turn-on",
         "crashed [error]: Crashed → recheck",

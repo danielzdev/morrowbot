@@ -79,9 +79,10 @@ export function ProviderDetail(props: { readonly card: ProviderCard; readonly in
       <BlockedBanner groups={entry.blockedGroups} busy={card.busy !== null} onRelease={actions.onRelease} />
 
       {activeSetup !== null && (
-        <DetailSection title={activeSetup.kind === 'sign-in' ? 'Sign in' : activeSetup.kind === 'update' ? 'Update' : 'Set up'}>
+        <DetailSection title={activeSetup.kind === 'sign-in' ? 'Sign in' : activeSetup.kind === 'update' ? 'Update' : 'Install'}>
           <ProviderSetup
             providerId={manifest.id}
+            isBuiltin={entry.source === 'built-in'}
             setup={activeSetup}
             info={props.info}
             redact={redact}

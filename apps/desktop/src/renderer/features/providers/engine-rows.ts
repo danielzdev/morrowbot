@@ -1,4 +1,4 @@
-import type { ProviderInstallCapabilities, ProviderInstallMode } from '../../bridge.ts';
+import type { ProviderInstallCapabilities } from '../../bridge.ts';
 import type { EngineRow, EngineTone, SetupAction } from '../../shared/engine-setup.ts';
 import { redact, type AppInfo } from '../../shared/privacy.ts';
 import { guideFor } from './provider-guides.ts';
@@ -11,23 +11,14 @@ const guide = (providerId: string, label: Extract<SetupAction, { kind: 'guide' }
   return link === null ? { kind: 'recheck' } : { kind: 'guide', label, url: link.url };
 };
 
-function installOrGuide(
-  providerId: string,
-  mode: ProviderInstallMode,
-  capabilities: ProviderInstallCapabilities,
-): SetupAction {
+function installOrDownload(providerId: string, capabilities: ProviderInstallCapabilities): SetupAction {
   const capability = capabilities[providerId];
-  const fallbackLabel = mode === 'update' ? 'How to update' : 'How to install';
-  if (capability === undefined) return guide(providerId, fallbackLabel);
+  if (capability === undefined) return { kind: 'none' };
   switch (capability.kind) {
     case 'auto':
-      return { kind: 'install', mode, guideUrl: guideFor(providerId).link?.url ?? null };
+      return { kind: 'install', downloadUrl: null };
     case 'download':
-      return {
-        kind: 'guide',
-        label: mode === 'update' ? 'How to update' : capability.label === 'Download' ? 'Download' : 'How to install',
-        url: capability.url,
-      };
+      return { kind: 'guide', label: 'Download', url: capability.url };
   }
 }
 
@@ -46,6 +37,7 @@ function actionOf(
     case 'starting':
     case 'unsupported':
     case 'safe-mode':
+    case 'outdated':
       return { kind: 'none' };
     case 'disabled':
       return { kind: 'turn-on' };
@@ -56,9 +48,7 @@ function actionOf(
       return command.kind === 'copy' ? command : guide(id, 'How to set up');
     }
     case 'missing-runtime':
-      return installOrGuide(id, 'install', capabilities);
-    case 'outdated':
-      return installOrGuide(id, 'update', capabilities);
+      return installOrDownload(id, capabilities);
     case 'ready':
     case 'error':
     case 'running':
@@ -76,8 +66,8 @@ function toneOf(status: ProviderStatus): EngineTone {
 }
 
 /**
- * The built-in engines for the first-run checklist (spec §7): each with its live status line and
- * one calm action when it is not ready. `oneClick` is true where Terminal sign-in works (macOS).
+ * The built-in engines for the first-run checklist (spec §7): focused on install and sign-in, with
+ * no "How to install" links and no Update buttons (updates live in Settings › Providers).
  */
 export function engineRows(
   cards: readonly ProviderCard[],
@@ -88,19 +78,19 @@ export function engineRows(
   return cards
     .filter(({ entry }) => entry.manifest.kind === 'provider' && entry.source === 'built-in')
     .map((card) => {
-      const installing: ProviderInstallMode | null = card.busy === 'installing' ? 'install' : card.busy === 'updating' ? 'update' : null;
+      const installing = card.busy === 'installing';
       const status = providerStatus(card.entry, card.info, card.busy === 'rechecking');
       const detail = card.installDetail ?? null;
       return {
         id: card.entry.manifest.id,
         name: card.entry.manifest.name,
-        tone: installing !== null ? 'muted' : toneOf(status),
-        status: installing === 'update' ? 'Updating…' : installing === 'install' ? 'Installing…' : redact(status.title, info),
-        ready: installing === null && status.runnable,
+        tone: installing ? 'muted' : toneOf(status),
+        status: installing ? 'Installing…' : redact(status.title, info),
+        ready: !installing && status.runnable,
         busy: card.busy !== null,
         installing,
-        progress: installing !== null && detail !== null ? redact(detail, info) : null,
-        action: installing !== null ? { kind: 'install', mode: installing, guideUrl: guideFor(card.entry.manifest.id).link?.url ?? null } : actionOf(card, status, info, oneClick, capabilities),
+        progress: installing && detail !== null ? redact(detail, info) : null,
+        action: installing ? { kind: 'install', downloadUrl: null } : actionOf(card, status, info, oneClick, capabilities),
       };
     });
 }

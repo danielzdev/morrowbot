@@ -3,23 +3,22 @@ import type {
   ExternalOpenResult,
   MorrowbotBridge,
   ProviderInstallCapabilities,
-  ProviderInstallMode,
   ProviderInstallProgress,
   ProviderInstallResult,
   SignInLaunch,
 } from '../bridge.ts';
 
 /**
- * The one thing a not-ready engine asks of the user (spec §7): 1-click install/update, sign in
- * through Terminal, copy a command, open a download/setup guide, recheck, or turn it back on.
- * `none` while it is ready or busy checking.
+ * The one thing a not-ready engine asks of the user during first-run onboarding (spec §7): 1-click
+ * install, download (when no CLI auto-installer exists), sign in through Terminal, copy a command,
+ * recheck, or turn it back on. Updates live in Settings › Providers only, never in onboarding.
  */
 export type SetupAction =
   | { readonly kind: 'none' }
-  | { readonly kind: 'install'; readonly mode: ProviderInstallMode; readonly guideUrl: string | null }
+  | { readonly kind: 'install'; readonly downloadUrl: string | null }
   | { readonly kind: 'sign-in-terminal' }
   | { readonly kind: 'copy'; readonly text: string }
-  | { readonly kind: 'guide'; readonly label: 'Download' | 'How to install' | 'How to update' | 'How to set up'; readonly url: string }
+  | { readonly kind: 'guide'; readonly label: 'Download' | 'How to set up'; readonly url: string }
   | { readonly kind: 'recheck' }
   | { readonly kind: 'turn-on' };
 
@@ -33,7 +32,7 @@ export interface EngineRow {
   readonly status: string;
   readonly ready: boolean;
   readonly busy: boolean;
-  readonly installing: ProviderInstallMode | null;
+  readonly installing: boolean;
   readonly progress: string | null;
   readonly action: SetupAction;
 }
@@ -90,13 +89,13 @@ export function parseInstallCapabilities(reply: unknown): ProviderInstallCapabil
 const InstallResult = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('installed') }),
   z.strictObject({ kind: z.literal('cancelled') }),
-  z.strictObject({ kind: z.literal('failed'), reason: z.string(), guideUrl: z.string().nullable() }),
+  z.strictObject({ kind: z.literal('failed'), reason: z.string(), downloadUrl: z.string().nullable() }),
 ]);
 
 /** Main's answer to `installProvider`, parsed at the boundary. */
 export function parseInstallResult(reply: unknown): ProviderInstallResult {
   const parsed = InstallResult.safeParse(reply);
-  return parsed.success ? parsed.data : { kind: 'failed', reason: 'MorrowBot could not complete the install.', guideUrl: null };
+  return parsed.success ? parsed.data : { kind: 'failed', reason: 'MorrowBot could not complete the install.', downloadUrl: null };
 }
 
 const InstallProgress = z.strictObject({
