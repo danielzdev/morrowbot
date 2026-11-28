@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/ho
 import type { MorrowbotBridge } from '../../bridge.ts';
 import { BlockedBanner } from '../../shared/BlockedBanner.tsx';
 import { useStore } from '../../shared/use-store.ts';
+import type { PeerDirectory } from './AgentExchange.tsx';
 import { approvalHeadingId } from './ApprovalCard.tsx';
 import type { ChatDisplay } from './display.ts';
 import { FindBar } from './FindBar.tsx';
@@ -30,6 +31,8 @@ export interface ChatViewProps {
   readonly hero: ComponentChildren;
   readonly announce: AnnounceMode;
   readonly onOpenProviders: () => void;
+  /** Names, colors and avatars for agent messages. */
+  readonly peers: PeerDirectory;
 }
 
 /** The chat canvas: history in a window of recent messages, the live turn, FindBar and announcements. */
@@ -49,7 +52,7 @@ export function ChatView(props: ChatViewProps) {
   latest.current = props;
   const begin = start ?? (view === null ? 0 : firstShown(view.messages.length));
   const growth = view === null ? '' : growthOf(view);
-  const fresh = view !== null && view.messages.length === 0 && view.activeTurn === null;
+  const fresh = view !== null && view.messages.length === 0 && view.agentMessages.length === 0 && view.activeTurn === null;
 
   const ctx = useMemo<TimelineContext>(
     () => ({
@@ -67,8 +70,10 @@ export function ChatView(props: ChatViewProps) {
         else latest.current.onOpenProviders();
       },
       onAnswer: (approvalId, choiceId) => void session.answer(approvalId, choiceId),
+      image: session.image,
+      peers: props.peers,
     }),
-    [session, props.display, props.providerName],
+    [session, props.display, props.providerName, props.peers],
   );
 
   const announce = (text: string): void => { setSaid((before) => ({ text, n: before.n + 1 })); };

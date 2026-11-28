@@ -1,54 +1,124 @@
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { PluginManifest } from '@morrowbot/contracts';
 import { afterEach, expect, it } from 'vitest';
-import { discoverPlugins } from './discovery.ts';
+import { discoverPlugins, type PluginSource } from './discovery.ts';
 import type { PluginRecord } from './plugin-store.ts';
 import { bootHost, collect, startTurn, statuses, stopHosts, turnRequest } from './plugin-test-kit.ts';
 
 afterEach(stopHosts);
 
+const FIXTURES = fileURLToPath(new URL('./fixtures', import.meta.url));
+
 const failing = (failure: string): PluginRecord => ({ enabled: true, config: { failure } });
 
-it('boots in safe mode with 0 plugin processes', async () => {
-  const h = await bootHost({ safeMode: true });
-  expect({ statuses: statuses(h.host), turn: startTurn(h, 'echo', 'g1', 'hi').started, info: await h.host.info('echo', false) })
-    .toMatchInlineSnapshot(`
-      {
-        "info": {
-          "kind": "unavailable",
-          "reason": "Plugin "echo" is not running (safe-mode)",
+const builtinEcho = async (id: string): Promise<PluginSource> => {
+  const { plugins } = await discoverPlugins(FIXTURES, 'user');
+  const echo = plugins.find(({ manifest }) => manifest.id === 'echo');
+  if (echo === undefined) throw new Error('the echo fixture is missing');
+  return { manifest: { ...echo.manifest, id, name: 'Built-in Echo' }, source: 'built-in', folder: null, launch: echo.launch };
+};
+
+it('boots in safe mode with no plugin process, while built-in providers still run', async () => {
+  const h = await bootHost({ safeMode: true, builtins: [await builtinEcho('builtin-echo')] });
+  expect({
+    statuses: statuses(h.host),
+    turn: startTurn(h, 'echo', 'g1', 'hi').started,
+    info: await h.host.info('echo', false),
+    restart: await h.host.restart('echo'),
+    builtinTurn: (await startTurn(h, 'builtin-echo', 'g2', 'hi').result).text,
+  }).toMatchInlineSnapshot(`
+    {
+      "builtinTurn": "hello from pid CHILD: hi",
+      "info": {
+        "kind": "unavailable",
+        "reason": "Plugin "echo" is not running (safe-mode)",
+      },
+      "restart": "safe-mode",
+      "statuses": {
+        "builtin-echo": {
+          "kind": "running",
         },
-        "statuses": {
-          "echo": {
-            "kind": "safe-mode",
-          },
-          "faulty": {
-            "kind": "safe-mode",
-          },
+        "echo": {
+          "kind": "safe-mode",
         },
-        "turn": "no worker",
-      }
-    `);
+        "faulty": {
+          "kind": "safe-mode",
+        },
+      },
+      "turn": "no worker",
+    }
+  `);
 });
 
 it('lists a built-in provider first and skips a plugin folder that reuses its id', async () => {
-  const { plugins } = await discoverPlugins(fileURLToPath(new URL('./fixtures', import.meta.url)));
-  const echo = plugins.find(({ manifest }) => manifest.id === 'echo');
-  if (echo === undefined) throw new Error('the echo fixture is missing');
-  const h = await bootHost({ builtins: [{ manifest: { ...echo.manifest, name: 'Built-in Echo' }, launch: echo.launch }] });
+  const h = await bootHost({ builtins: [await builtinEcho('echo')] });
   expect({
-    plugins: h.host.list().map(({ manifest, status }) => `${manifest.id} (${manifest.name}): ${status.kind}`),
-    problems: h.host.problems,
+    plugins: h.host.list().map(({ manifest, source, status }) => `${manifest.id} (${manifest.name}, ${source}): ${status.kind}`),
+    problems: h.host.problems(),
   }).toMatchInlineSnapshot(`
     {
       "plugins": [
-        "echo (Built-in Echo): running",
-        "faulty (Faulty): invalid-config",
+        "echo (Built-in Echo, built-in): running",
+        "faulty (Faulty, user): invalid-config",
       ],
       "problems": [
-        "echo: a plugin folder uses the id of a provider built into MorrowBot, so it was skipped",
+        {
+          "folder": "echo",
+          "id": "echo",
+          "kind": "duplicate",
+          "source": "user",
+          "takenBy": "built-in",
+        },
       ],
     }
   `);
+});
+
+it('adds a plugin folder found by Rescan, and Restart starts a fresh worker', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'morrowbot-rescan-'));
+  try {
+    const h = await bootHost({ pluginsDir: dir, records: {} });
+    const before = h.host.list().map(({ manifest }) => manifest.id);
+    await mkdir(path.join(dir, 'late-echo'));
+    const manifest: unknown = JSON.parse(await readFile(path.join(FIXTURES, 'echo', 'manifest.json'), 'utf8'));
+    await writeFile(path.join(dir, 'late-echo', 'manifest.json'), JSON.stringify({ ...PluginManifest.parse(manifest), id: 'late-echo', name: 'Late Echo' }));
+    await writeFile(path.join(dir, 'late-echo', 'index.ts'), `import ${JSON.stringify(path.join(FIXTURES, 'echo', 'index.ts'))};\n`);
+    await mkdir(path.join(dir, 'broken'));
+    await h.host.rescan();
+    const worker = h.host.revision('late-echo').worker;
+    const restarted = await h.host.restart('late-echo');
+    expect({
+      before,
+      after: h.host.list().map(({ manifest, status }) => `${manifest.id}: ${status.kind}`),
+      problems: h.host.problems(),
+      restarted,
+      newWorker: (h.host.revision('late-echo').worker ?? 0) > (worker ?? 0),
+      reply: (await startTurn(h, 'late-echo', 'g1', 'ping').result).text,
+    }).toMatchInlineSnapshot(`
+      {
+        "after": [
+          "late-echo: running",
+        ],
+        "before": [],
+        "newWorker": true,
+        "problems": [
+          {
+            "folder": "broken",
+            "kind": "invalid-manifest",
+            "problem": "no manifest.json",
+            "source": "user",
+          },
+        ],
+        "reply": "hello from pid CHILD: ping",
+        "restarted": "restarted",
+      }
+    `);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 it('runs a provider turn in its own process and refuses turns for a tool plugin', async () => {

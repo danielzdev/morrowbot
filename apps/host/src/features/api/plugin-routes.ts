@@ -2,6 +2,7 @@ import {
   type PluginEntry,
   type PluginList,
   type PluginManifest,
+  type PluginOrigin,
   type PluginStatus,
   type ProviderInfoResponse,
   type ReleaseGroupResponse,
@@ -12,13 +13,14 @@ import type { ApiPlugins, ApiServices } from './ports.ts';
 import { failure, json, notFound } from './reply.ts';
 import { parseBody, type Route } from './route.ts';
 
-type Summary = { readonly manifest: PluginManifest; readonly status: PluginStatus };
+type Summary = { readonly manifest: PluginManifest; readonly source: PluginOrigin; readonly status: PluginStatus };
 
 /** Plugins the user has never switched off are enabled. */
-async function toEntry(plugins: ApiPlugins, { manifest, status }: Summary): Promise<PluginEntry> {
+async function toEntry(plugins: ApiPlugins, { manifest, source, status }: Summary): Promise<PluginEntry> {
   const saved = await plugins.saved(manifest.id);
   return {
     manifest,
+    source,
     status,
     enabled: saved?.enabled ?? true,
     config: saved?.config ?? {},
@@ -30,13 +32,48 @@ export function pluginRoutes({ plugins, chat }: ApiServices): Route[] {
   const find = (id: string): Summary | undefined => plugins.list().find(({ manifest }) => manifest.id === id);
   const isProvider = (id: string): boolean => find(id)?.manifest.kind === 'provider';
 
+  const listBody = async (): Promise<PluginList> => ({
+    plugins: await Promise.all(plugins.list().map((summary) => toEntry(plugins, summary))),
+    safeMode: plugins.safeMode,
+    pluginsDir: plugins.pluginsDir,
+    problems: [...plugins.problems()],
+  });
+
   return [
     {
       method: 'GET',
       path: '/api/plugins',
+      handle: async () => json(200, await listBody()),
+    },
+    {
+      method: 'POST',
+      path: '/api/plugins/rescan',
       handle: async () => {
-        const body: PluginList = { plugins: await Promise.all(plugins.list().map((summary) => toEntry(plugins, summary))) };
-        return json(200, body);
+        await plugins.rescan();
+        return json(200, await listBody());
+      },
+    },
+    {
+      method: 'POST',
+      path: '/api/plugins/:id/restart',
+      handle: async ({ params }) => {
+        const id = params.get('id');
+        if (find(id) === undefined) return notFound('Plugin');
+        const result = await plugins.restart(id);
+        switch (result) {
+          case 'restarted': {
+            const summary = find(id);
+            return summary === undefined ? notFound('Plugin') : json(200, await toEntry(plugins, summary));
+          }
+          case 'safe-mode':
+            return failure('conflict', 'Plugins stay off in safe mode. Restart MorrowBot normally first.');
+          case 'disabled':
+            return failure('conflict', 'Turn this plugin on before restarting it.');
+          case 'quarantined':
+            return failure('conflict', 'Release its blocked process group before restarting it.');
+          case 'busy':
+            return failure('conflict', 'Stop the turns using this plugin before restarting it.');
+        }
       },
     },
     {

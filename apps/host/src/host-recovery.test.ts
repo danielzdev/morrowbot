@@ -31,7 +31,7 @@ it('settles a turn a crash left open as interrupted, keeping its saved partial t
   chat = undefined;
   const storage = openStorage(path.join(dataDir, 'morrowbot.sqlite'), () => '2026-01-01T01:00:00.000Z');
   storage.transaction(() => {
-    storage.messages.insert({ kind: 'user', id: 'crash-input', threadId: thread.id, text: 'mid-turn', createdAt: '2026-01-01T01:00:00.000Z' });
+    storage.messages.insert({ kind: 'user', id: 'crash-input', threadId: thread.id, text: 'mid-turn', createdAt: '2026-01-01T01:00:00.000Z', attachments: [] });
     storage.generations.insert({
       id: 'crash-turn',
       threadId: thread.id,

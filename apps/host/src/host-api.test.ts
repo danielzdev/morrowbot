@@ -104,6 +104,7 @@ it('keeps agents, threads, messages and AGENTS.md across a host restart', async 
       "messages": {
         "messages": [
           {
+            "attachments": [],
             "createdAt": "2026-01-01T00:00:02.000Z",
             "id": "id-4",
             "kind": "user",

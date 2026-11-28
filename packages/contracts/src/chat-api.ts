@@ -1,5 +1,7 @@
 import { z } from 'zod';
+import { AgentMessagePosted } from './agent-messages.ts';
 import { Agent, AgentInstructionsView, Folder, LastMessage } from './agents.ts';
+import { MAX_ATTACHMENTS } from './attachments.ts';
 import { EntityId, PluginId, Timestamp } from './ids.ts';
 import { AssistantMessage, Message, UserMessage } from './messages.ts';
 import { PluginManifest } from './plugin-manifest.ts';
@@ -54,10 +56,15 @@ export const SessionChoice = z.discriminatedUnion('kind', [
 ]);
 export type SessionChoice = z.infer<typeof SessionChoice>;
 
-export const SendMessageRequest = z.strictObject({
-  text: z.string().min(1).max(1_000_000),
-  sessionChoice: SessionChoice.default({ kind: 'auto' }),
-});
+/** A send needs text, attachments (uploaded to the thread first), or both. */
+export const SendMessageRequest = z
+  .strictObject({
+    text: z.string().max(1_000_000),
+    attachmentIds: z.array(EntityId).max(MAX_ATTACHMENTS).default([]),
+    sessionChoice: SessionChoice.default({ kind: 'auto' }),
+  })
+  .refine((request) => request.text.trim() !== '' || request.attachmentIds.length > 0, { error: 'Write a message or attach a file' })
+  .refine((request) => new Set(request.attachmentIds).size === request.attachmentIds.length, { error: 'Attach each file once' });
 export type SendMessageRequest = z.infer<typeof SendMessageRequest>;
 
 export const SendMessageResponse = z.strictObject({ generationId: EntityId, userMessage: UserMessage });
@@ -128,9 +135,14 @@ export const ThreadState = z.strictObject({
 });
 export type ThreadState = z.infer<typeof ThreadState>;
 
-/** A plugin as the settings page shows it: what it is, whether it runs, and its saved settings. */
+/** `built-in`: ships inside MorrowBot (a built-in provider, or the app's own plugins folder). `user`: the user's plugins folder. */
+export const PluginOrigin = z.enum(['built-in', 'user']);
+export type PluginOrigin = z.infer<typeof PluginOrigin>;
+
+/** A plugin as Extensions and Providers show it: what it is, where it came from, whether it runs, and its saved settings. */
 export const PluginEntry = z.strictObject({
   manifest: PluginManifest,
+  source: PluginOrigin,
   status: PluginStatus,
   enabled: z.boolean(),
   config: PluginConfig,
@@ -138,7 +150,23 @@ export const PluginEntry = z.strictObject({
 });
 export type PluginEntry = z.infer<typeof PluginEntry>;
 
-export const PluginList = z.strictObject({ plugins: z.array(PluginEntry) });
+/** A plugin folder discovery could not load. Text may hold paths: the window redacts it before showing it. */
+export const PluginProblem = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('invalid-manifest'), source: PluginOrigin, folder: z.string().min(1), problem: z.string().min(1) }),
+  /** Its id is taken: built-in ids win over the user's, and the first folder wins within one plugins folder. */
+  z.strictObject({ kind: z.literal('duplicate'), source: PluginOrigin, folder: z.string().min(1), id: z.string().min(1), takenBy: PluginOrigin }),
+  z.strictObject({ kind: z.literal('unreadable'), source: PluginOrigin, problem: z.string().min(1) }),
+]);
+export type PluginProblem = z.infer<typeof PluginProblem>;
+
+export const PluginList = z.strictObject({
+  plugins: z.array(PluginEntry),
+  /** This launch started no plugin process. Built-in providers still run. */
+  safeMode: z.boolean(),
+  /** The user's plugins folder, as a raw path: the window shows it only through its privacy rules. */
+  pluginsDir: z.string().min(1),
+  problems: z.array(PluginProblem),
+});
 export type PluginList = z.infer<typeof PluginList>;
 
 export const SetPluginEnabledRequest = z.strictObject({ enabled: z.boolean() });
@@ -225,6 +253,7 @@ export type EventClientFrame = z.infer<typeof EventClientFrame>;
 /** What the host sends on `/api/events`: events, or `resync` (refetch `/state`, then subscribe at its cursor). */
 export const EventServerFrame = z.union([
   ChatEvent,
+  AgentMessagePosted,
   z.strictObject({ kind: z.literal('resync'), threadId: EntityId }),
 ]);
 export type EventServerFrame = z.infer<typeof EventServerFrame>;

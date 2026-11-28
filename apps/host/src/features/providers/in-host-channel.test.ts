@@ -203,6 +203,7 @@ it('a turn end that is not JSON ends only that provider, as a crash, and the hos
       session: { kind: 'new', seed: null },
       system: null,
       prompt: 'hi',
+      images: [],
     },
     () => undefined,
   );

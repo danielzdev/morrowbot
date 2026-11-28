@@ -18,7 +18,7 @@ it('defaults the port and rejects a bad one', () => {
     port(parse({ MORROWBOT_HOST_PORT: '70000' })),
   ]).toMatchInlineSnapshot(`
     [
-      47800,
+      0,
       0,
       [
         "MORROWBOT_HOST_PORT: Expected an integer port",
@@ -36,7 +36,7 @@ it('defaults the port and rejects a bad one', () => {
   `);
 });
 
-it('turns on safe mode from the flag or the env, and places data under the home folder', () => {
+it('turns on safe mode from the flag or the env, and places data in the dev folder under home unless told where', () => {
   expect([
     parse({}),
     parse({}, ['--safe-mode']),
@@ -46,30 +46,33 @@ it('turns on safe mode from the flag or the env, and places data under the home 
     [
       {
         "config": {
-          "dataDir": "/home/user/.morrowbot",
+          "builtinPluginsDir": null,
+          "dataDir": "/home/user/.morrowbot-dev",
           "hostname": "127.0.0.1",
-          "pluginsDir": "/home/user/.morrowbot/plugins",
-          "port": 47800,
+          "pluginsDir": "/home/user/.morrowbot-dev/plugins",
+          "port": 0,
           "safeMode": false,
         },
         "kind": "ok",
       },
       {
         "config": {
-          "dataDir": "/home/user/.morrowbot",
+          "builtinPluginsDir": null,
+          "dataDir": "/home/user/.morrowbot-dev",
           "hostname": "127.0.0.1",
-          "pluginsDir": "/home/user/.morrowbot/plugins",
-          "port": 47800,
+          "pluginsDir": "/home/user/.morrowbot-dev/plugins",
+          "port": 0,
           "safeMode": true,
         },
         "kind": "ok",
       },
       {
         "config": {
+          "builtinPluginsDir": null,
           "dataDir": "/data",
           "hostname": "127.0.0.1",
           "pluginsDir": "/data/plugins",
-          "port": 47800,
+          "port": 0,
           "safeMode": true,
         },
         "kind": "ok",

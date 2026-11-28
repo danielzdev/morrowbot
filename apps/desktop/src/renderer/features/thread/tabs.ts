@@ -1,5 +1,4 @@
-import type { Thread } from '@morrowbot/contracts';
-import { mainThread } from '../../shared/main-thread.ts';
+import { mainThread, type Thread } from '@morrowbot/contracts';
 
 /** The header's tabs: the agent's main chat (its first, shown under the agent's name and never closed), then the other open chats. */
 export interface Tabs {

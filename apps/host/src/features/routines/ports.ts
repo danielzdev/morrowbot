@@ -50,7 +50,8 @@ export type ChatAdmit =
   | { readonly kind: 'provider_unavailable'; readonly reason: ProviderUnavailableReason }
   | { readonly kind: 'binding_changed' }
   | { readonly kind: 'session_choice_required'; readonly reason: SessionChoiceReason }
-  | { readonly kind: 'not_continuable'; readonly reason: string };
+  | { readonly kind: 'not_continuable'; readonly reason: string }
+  | { readonly kind: 'attachments_missing' };
 
 /** The chat a routine run posts in. */
 export interface RoutineChat {

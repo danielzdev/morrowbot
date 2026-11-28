@@ -15,7 +15,7 @@ const REPLY = 'Here is **step %n** of the plan:\n\n- buy milk\n- call the shop a
 function chatOf(count: number): ThreadView {
   const messages: Message[] = Array.from({ length: count }, (_, index): Message =>
     index % 2 === 0
-      ? { kind: 'user', id: `m${String(index)}`, threadId: 't', text: `Question ${String(index)}`, createdAt: AT }
+      ? { kind: 'user', id: `m${String(index)}`, threadId: 't', text: `Question ${String(index)}`, createdAt: AT, attachments: [] }
       : { kind: 'assistant', id: `m${String(index)}`, threadId: 't', text: REPLY.replaceAll('%n', String(index)), createdAt: AT, outcome: { kind: 'completed', finishReason: 'stop' } },
   );
   return viewOf({ thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT }, messages, activeTurn: null, blockedGroups: [], cursor: { hostEpoch: 'e', seq: 0 } });
@@ -27,6 +27,8 @@ const CTX: TimelineContext = {
   actions: { openLink: () => undefined, copy: () => undefined },
   onAction: () => undefined,
   onAnswer: () => undefined,
+  image: () => Promise.resolve(null),
+  peers: { name: () => 'Peer', color: () => '#6b7280', avatar: () => null },
 };
 
 const render = (view: ThreadView, start: number): string =>

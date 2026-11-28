@@ -1,0 +1,118 @@
+/* Agent-to-agent messages: a quiet centered line in the chat, opened in place into cards. */
+.exchange {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.exchange-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  max-width: 100%;
+  min-height: var(--hit);
+  padding: 0 var(--s-1) 0 var(--s-3);
+  border: none;
+  border-radius: var(--r-pill);
+  background: none;
+  color: var(--text-3);
+  font: var(--t-ui);
+  white-space: nowrap;
+}
+.exchange-pill:hover {
+  background: var(--hover);
+}
+.exchange-peer {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-2);
+  text-overflow: ellipsis;
+}
+.exchange-avatar {
+  display: inline-flex;
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+.exchange-stack {
+  display: inline-flex;
+}
+.exchange-stack .exchange-avatar + .exchange-avatar {
+  margin-left: -6px;
+}
+.exchange-time {
+  font-variant-numeric: tabular-nums;
+}
+.exchange-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--s-6);
+  height: var(--s-6);
+  border-radius: var(--r-sm);
+  transition: transform var(--dur-fast) var(--ease);
+}
+.exchange.open .exchange-chevron {
+  background: var(--selected);
+  transform: rotate(180deg);
+}
+.exchange-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  width: 100%;
+  margin: var(--s-3) 0 0;
+  padding: 0;
+  list-style: none;
+  animation: exchange-in var(--dur-pop) var(--ease);
+}
+.exchange-from {
+  margin-left: calc(28px + var(--s-3));
+  margin-bottom: var(--s-1);
+  color: color-mix(in oklab, var(--peer) 55%, var(--text-1));
+  font: var(--t-ui-strong);
+}
+.exchange-to {
+  color: var(--text-3);
+  font: var(--t-small);
+}
+.exchange-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: end;
+  gap: var(--s-3);
+}
+.exchange-card-avatar {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+}
+.exchange-body {
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  overflow-wrap: anywhere;
+}
+.exchange-card.outgoing .exchange-body {
+  background: var(--surface-1);
+}
+.exchange-meta {
+  margin-top: var(--s-2);
+  color: var(--text-3);
+  font: var(--t-small);
+}
+[data-motion='reduced'] .exchange-cards {
+  animation: none;
+}
+[data-motion='reduced'] .exchange-chevron {
+  transition: none;
+}
+@keyframes exchange-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--pop-shift)));
+  }
+}

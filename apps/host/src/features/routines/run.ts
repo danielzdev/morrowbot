@@ -142,5 +142,7 @@ function refusal(admitted: Exclude<ChatAdmit, { kind: 'started' }>): string {
       return "The agent's provider settings changed while the run was starting.";
     case 'session_choice_required':
       return `The provider session needs a choice first (${admitted.reason}).`;
+    case 'attachments_missing':
+      return 'An attachment for the run was missing.';
   }
 }

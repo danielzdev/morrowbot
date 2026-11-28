@@ -159,7 +159,7 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
     try {
       if (stopped()) return ended({ kind: 'cancelled' }, { sessionTouched: false });
       const text = promptText(request);
-      const reply = await Promise.race([client.call('session/prompt', { sessionId: id, prompt: [{ type: 'text', text }] }, acp.PromptResponse, PROMPT_MS), deps.fenced.then(() => null)]);
+      const reply = await Promise.race([client.call('session/prompt', { sessionId: id, prompt: acp.promptBlocks(text, request.images) }, acp.PromptResponse, PROMPT_MS), deps.fenced.then(() => null)]);
       const touched = { actualModel: model, sessionTouched: true };
       const fenceNow = fence();
       if (reply === null || fenceNow !== null) {

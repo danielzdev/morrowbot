@@ -14,17 +14,36 @@ export interface BridgeChannels {
   readonly appInfo: 'morrowbot:app-info';
   readonly loginItem: 'morrowbot:login-item';
   readonly setOpenAtLogin: 'morrowbot:set-open-at-login';
+  readonly relaunch: 'morrowbot:relaunch';
+  readonly updateStatus: 'morrowbot:update-status';
+  readonly updateChanged: 'morrowbot:update-changed';
+  readonly checkForUpdates: 'morrowbot:check-for-updates';
+  readonly restartToUpdate: 'morrowbot:restart-to-update';
 }
 
 /** A folder or file to show in Finder, named by an opaque id; desktop main resolves the path itself. */
 export type RevealTarget =
   | { readonly kind: 'data-dir' }
+  | { readonly kind: 'plugins-dir' }
   | { readonly kind: 'agent-workspace'; readonly agentId: string }
   /** An AGENTS.md copy kept by Save a copy; `revealId` is the file name the host returned. */
-  | { readonly kind: 'instructions-copy'; readonly agentId: string; readonly revealId: string };
+  | { readonly kind: 'instructions-copy'; readonly agentId: string; readonly revealId: string }
+  /** A skills folder, made first if it is not there yet. */
+  | { readonly kind: 'global-skills' }
+  | { readonly kind: 'agent-skills'; readonly agentId: string };
 
 /** Open at login: only the installed app on macOS and Windows can register a login item. */
 export type LoginItem = { readonly kind: 'unsupported' } | { readonly kind: 'supported'; readonly openAtLogin: boolean };
+
+/** The installed app's own updates. A dev run is `unsupported`; `failed` keeps its reason in main's log. */
+export type UpdateStatus =
+  | { readonly kind: 'unsupported' }
+  | { readonly kind: 'idle' }
+  | { readonly kind: 'checking' }
+  | { readonly kind: 'up-to-date' }
+  | { readonly kind: 'downloading'; readonly version: string; readonly percent: number }
+  | { readonly kind: 'ready'; readonly version: string }
+  | { readonly kind: 'failed' };
 
 export type ApiMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -64,4 +83,14 @@ export interface MorrowbotBridge {
   loginItem(): Promise<unknown>;
   /** Turns open-at-login on or off; answers like `loginItem()`. */
   setOpenAtLogin(open: boolean): Promise<unknown>;
+  /** Saves whether the next launch starts in safe mode (no plugin starts), then restarts MorrowBot. */
+  relaunch(options: { readonly safeMode: boolean }): Promise<void>;
+  /** Where the app's own update stands. Parse with `UpdateStatus`. */
+  updateStatus(): Promise<unknown>;
+  /** Every change to the update status. Returns an unsubscribe function. */
+  onUpdateStatus(listener: (status: unknown) => void): () => void;
+  /** Checks for an update now; answers like `updateStatus()`. */
+  checkForUpdates(): Promise<unknown>;
+  /** Quits, installs the downloaded update and reopens MorrowBot. */
+  restartToUpdate(): Promise<void>;
 }

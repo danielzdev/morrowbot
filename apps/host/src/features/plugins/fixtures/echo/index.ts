@@ -72,6 +72,11 @@ runPlugin((runtime) =>
       }
       if (prompt.split('\n')[0] === 'nothing-new') return end({ kind: 'completed', finishReason: 'stop' }, current, { finalText: QUIET_MARKER });
       emit({ kind: 'text', text: `${String(config.greeting)} from pid ${String(process.pid)}:` });
+      if (prompt.endsWith('describe-input')) {
+        const images = request.images.map(({ mimeType, data }) => ({ mimeType, bytes: Buffer.from(data, 'base64').length }));
+        emit({ kind: 'text', text: ` ${JSON.stringify({ prompt, images })}` });
+        return end({ kind: 'completed', finishReason: 'stop' }, current);
+      }
       switch (prompt) {
         case 'crash':
           process.exit(3);

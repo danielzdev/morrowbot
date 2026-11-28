@@ -1,4 +1,5 @@
 import type {
+  AgentMessage,
   ApprovalResolution,
   BlockedGroup,
   ChatEvent,
@@ -70,6 +71,8 @@ export interface ThreadView {
   readonly finished: Readonly<Record<string, FinishedTurn>>;
   readonly blockedGroups: readonly BlockedGroup[];
   readonly cursor: Cursor;
+  /** Messages this chat's agent sent or received here from other agents, oldest first. */
+  readonly agentMessages: readonly AgentMessage[];
 }
 
 export type ThreadEvent = Exclude<ChatEvent, { kind: 'usage.updated' }>;
@@ -107,7 +110,11 @@ const settled = (steps: readonly TurnStep[], left: 'unfinished' | 'unknown'): Tu
  * window saw: tool steps, timings and approval endings. A request that vanished without a known
  * ending ends as cleared, and a watched turn that ended during the gap keeps its steps on its reply.
  */
-export function viewOf(state: ThreadState, previous: ThreadView | null = null): ThreadView {
+export function viewOf(
+  state: ThreadState,
+  previous: ThreadView | null = null,
+  agentMessages: readonly AgentMessage[] = previous?.agentMessages ?? [],
+): ThreadView {
   const active = state.activeTurn;
   const fresh: ActiveTurnView | null =
     active === null
@@ -123,7 +130,7 @@ export function viewOf(state: ThreadState, previous: ThreadView | null = null): 
         };
   const present = new Set(state.messages.map(({ id }) => id));
   const kept = Object.fromEntries(Object.entries(previous?.finished ?? {}).filter(([id]) => present.has(id)));
-  const base = { thread: state.thread, messages: state.messages, blockedGroups: state.blockedGroups, cursor: state.cursor };
+  const base = { thread: state.thread, messages: state.messages, blockedGroups: state.blockedGroups, cursor: state.cursor, agentMessages };
   const before = previous?.activeTurn ?? null;
   if (before === null || previous === null) return { ...base, activeTurn: fresh, finished: kept };
   if (fresh !== null && active !== null && fresh.generationId === before.generationId) {
@@ -144,6 +151,15 @@ export function viewOf(state: ThreadState, previous: ThreadView | null = null): 
   const reply = state.messages.find(({ id, kind }) => kind === 'assistant' && !seen.has(id));
   const finished = reply === undefined ? kept : { ...kept, [reply.id]: { steps: settled(before.steps, 'unknown'), durationMs: null } };
   return { ...base, activeTurn: fresh, finished };
+}
+
+const byTime = (a: AgentMessage, b: AgentMessage): number => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0);
+
+/** The view with agent messages added: only those shown in this chat, each once, in time order. */
+export function withAgentMessages(view: ThreadView, messages: readonly AgentMessage[]): ThreadView {
+  const known = new Set(view.agentMessages.map(({ id }) => id));
+  const here = messages.filter(({ id, from, to }) => !known.has(id) && (from.threadId === view.thread.id || to.threadId === view.thread.id));
+  return here.length === 0 ? view : { ...view, agentMessages: [...view.agentMessages, ...here].sort(byTime) };
 }
 
 /** Applies one thread event, only if it is the next one after the view's cursor. `now` is this window's clock. */

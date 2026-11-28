@@ -1,10 +1,10 @@
-import type { Agent } from '@morrowbot/contracts';
+import { DEFAULT_AVATAR, type Agent } from '@morrowbot/contracts';
 import { useMemo, useRef, useState } from 'preact/hooks';
 import type { MorrowbotBridge } from '../bridge.ts';
 import { BotAvatar, combineActivity, motionOf } from '../features/avatar/index.ts';
 import type { AgentSection } from '../features/agents/index.ts';
 import { BindingControl, BindingWarnings, sendBlock, type BoundProvider } from '../features/binding/index.ts';
-import { chatDisplay, ChatView, Composer } from '../features/chat/index.ts';
+import { chatDisplay, ChatView, Composer, type PeerDirectory } from '../features/chat/index.ts';
 import { ThreadHeader } from '../features/thread/index.ts';
 import { profileName } from '../shared/binding-ui/access-copy.ts';
 import { displayPath, type AppInfo } from '../shared/privacy.ts';
@@ -30,7 +30,8 @@ export function ChatPane(props: {
   readonly approvalFocus: string | null;
   readonly onApprovalFocused: () => void;
   readonly onAgentSettings: (section: AgentSection) => void;
-  readonly onPlugins: () => void;
+  /** Settings › Providers, at this agent's provider. */
+  readonly onOpenProviders: () => void;
   /** Changes on ⇧⌘M: open the binding popover. */
   readonly bindingRequest: number;
   readonly onCopy: (threadId: string) => void;
@@ -39,7 +40,7 @@ export function ChatPane(props: {
   const { models, agent } = props;
   const display = useMemo(() => chatDisplay(props.info, agent.workspace.dir), [props.info, agent.workspace.dir]);
   const state = useStore(models.agents.state);
-  const cards = useStore(models.plugins.cards);
+  const cards = useStore(models.providers.cards);
   const activity = useStore(models.chats.activity);
   const { sendWith } = useStore(models.chatPrefs.state);
   const threadId = state.openThread[agent.id] ?? null;
@@ -59,6 +60,16 @@ export function ChatPane(props: {
     return result.kind === 'refused' ? result.message : null;
   };
   const session = threadId === null ? undefined : models.chats.session(threadId);
+  const everyone = state.agents.kind === 'loaded' ? state.agents.value : null;
+  const peers = useMemo<PeerDirectory>(() => {
+    const byId = new Map((everyone ?? []).map((each) => [each.id, each]));
+    const avatarOf = (id: string) => byId.get(id)?.avatar ?? DEFAULT_AVATAR;
+    return {
+      name: (id) => byId.get(id)?.name ?? 'Unknown agent',
+      color: (id) => avatarOf(id).color,
+      avatar: (id, size) => <BotAvatar avatar={avatarOf(id)} size={size} reducedMotion={props.reducedMotion} />,
+    };
+  }, [everyone, props.reducedMotion]);
   const motion = motionOf(combineActivity(Object.values(activity).filter((each) => each.agentId === agent.id).map((each) => each.activity)));
   return (
     <div class="main">
@@ -103,7 +114,8 @@ export function ChatPane(props: {
             focusApproval={props.approvalFocus === session.threadId}
             onApprovalFocused={props.onApprovalFocused}
             announce="status"
-            onOpenProviders={props.onPlugins}
+            onOpenProviders={props.onOpenProviders}
+            peers={peers}
             hero={
               <>
                 <BotAvatar avatar={agent.avatar} motion={motion} size={64} reducedMotion={props.reducedMotion} />
@@ -121,7 +133,7 @@ export function ChatPane(props: {
             agentName={agent.name}
             disabledReason={saving ? 'Saving the new settings…' : sendBlock(agent.name, choice, agent.provider)}
             safe={display.safe}
-            onOpenProviders={props.onPlugins}
+            onOpenProviders={props.onOpenProviders}
             sendWith={sendWith}
             toolbar={
               <BindingControl
@@ -132,11 +144,11 @@ export function ChatPane(props: {
                 openRequest={props.bindingRequest}
                 onCommit={commit}
                 redact={display.redact}
-                onOpenProviders={props.onPlugins}
+                onOpenProviders={props.onOpenProviders}
                 onOpenBrain={() => { props.onAgentSettings('brain'); }}
               />
             }
-            notes={<BindingWarnings choice={choice} binding={agent.provider} onOpenProviders={props.onPlugins} />}
+            notes={<BindingWarnings choice={choice} binding={agent.provider} onOpenProviders={props.onOpenProviders} />}
           />
         </>
       )}

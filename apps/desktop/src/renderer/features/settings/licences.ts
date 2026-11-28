@@ -9,6 +9,7 @@ export interface Licence {
 export const LICENCES: readonly Licence[] = [
   { name: 'Croner', npm: 'croner', licence: 'MIT' },
   { name: 'Electron', npm: 'electron', licence: 'MIT' },
+  { name: 'electron-updater', npm: 'electron-updater', licence: 'MIT' },
   { name: 'open-bot-avatar', npm: 'open-bot-avatar', licence: 'MIT' },
   { name: 'Preact', npm: 'preact', licence: 'MIT' },
   { name: 'T3 Code (adapted source)', npm: null, licence: 'MIT' },

@@ -19,6 +19,7 @@ it('runs read-only and isolated, with the model, system prompt file and seeded c
       system: 'Be brief.',
       seed: '<user>\nName a fish.\n</user>\n<assistant>\nKoi.\n</assistant>',
       prompt: 'Another?',
+      images: [],
       effort: null,
     })),
   ).toMatchInlineSnapshot(`
@@ -73,7 +74,7 @@ it('runs read-only and isolated, with the model, system prompt file and seeded c
 });
 
 it('sends an unseeded prompt as is, with no model or system flags', () => {
-  expect(shown(buildInvocation({ access: 'read-only', mode: 'background', selection: { kind: 'default' }, system: null, seed: null, prompt: 'hi', effort: null }))).toMatchInlineSnapshot(`
+  expect(shown(buildInvocation({ access: 'read-only', mode: 'background', selection: { kind: 'default' }, system: null, seed: null, prompt: 'hi', images: [], effort: null }))).toMatchInlineSnapshot(`
     {
       "args": [
         "-p",
@@ -108,7 +109,7 @@ it('sends an unseeded prompt as is, with no model or system flags', () => {
 
 it('lets workspace-write edit with the file tools only, asking the host interactively and nobody in the background', () => {
   const flags = (mode: 'interactive' | 'background') =>
-    buildInvocation({ access: 'workspace-write', mode, selection: { kind: 'default' }, system: null, seed: null, prompt: 'hi', effort: null }).args.slice(10);
+    buildInvocation({ access: 'workspace-write', mode, selection: { kind: 'default' }, system: null, seed: null, prompt: 'hi', images: [], effort: null }).args.slice(10);
   expect({ interactive: flags('interactive'), background: flags('background') }).toMatchInlineSnapshot(`
     {
       "background": [
@@ -140,7 +141,7 @@ it('passes the effort a model offers (its default when none was chosen) after th
   const effort = effortOf(opus);
   expect({
     effort,
-    args: buildInvocation({ access: 'read-only', mode: 'interactive', selection: opus, system: null, seed: null, prompt: 'hi', effort: effort.kind === 'level' ? effort.level : null }).args.slice(-4),
+    args: buildInvocation({ access: 'read-only', mode: 'interactive', selection: opus, system: null, seed: null, prompt: 'hi', images: [], effort: effort.kind === 'level' ? effort.level : null }).args.slice(-4),
     noChoice: effortOf({ kind: 'model', id: 'opus', choices: {} }),
     providerDefault: effortOf({ kind: 'default' }),
     notOffered: effortOf({ kind: 'model', id: 'haiku', choices: { effort: 'ultra' } }),
@@ -185,7 +186,7 @@ it('passes no --effort for a model that reports no efforts, and refuses one aske
   const effort = effortOf(haiku);
   expect({
     effort,
-    args: buildInvocation({ access: 'read-only', mode: 'interactive', selection: haiku, system: null, seed: null, prompt: 'hi', effort: effort.kind === 'level' ? effort.level : null }).args.slice(-2),
+    args: buildInvocation({ access: 'read-only', mode: 'interactive', selection: haiku, system: null, seed: null, prompt: 'hi', images: [], effort: effort.kind === 'level' ? effort.level : null }).args.slice(-2),
     asked: effortOf({ ...haiku, choices: { effort: 'high' } }).kind,
   }).toMatchInlineSnapshot(`
     {
@@ -197,6 +198,41 @@ it('passes no --effort for a model that reports no efforts, and refuses one aske
       "effort": {
         "kind": "none",
       },
+    }
+  `);
+});
+
+it('sends attached images as base64 content blocks before the text', () => {
+  const { frame } = buildInvocation({
+    access: 'read-only',
+    mode: 'interactive',
+    selection: { kind: 'default' },
+    system: null,
+    seed: null,
+    prompt: 'What is in this screenshot?',
+    images: [{ mimeType: 'image/png', data: 'iVBORw0KGgo=' }],
+    effort: null,
+  });
+  expect(JSON.parse(frame)).toMatchInlineSnapshot(`
+    {
+      "message": {
+        "content": [
+          {
+            "source": {
+              "data": "iVBORw0KGgo=",
+              "media_type": "image/png",
+              "type": "base64",
+            },
+            "type": "image",
+          },
+          {
+            "text": "What is in this screenshot?",
+            "type": "text",
+          },
+        ],
+        "role": "user",
+      },
+      "type": "user",
     }
   `);
 });

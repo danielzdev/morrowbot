@@ -10,6 +10,9 @@ export type { SessionKey, SessionRecord, SessionRepository } from './sessions-re
 export type { UsageSnapshot, UsageSnapshotRepository } from './usage-repo.ts';
 export type { TokenTotalsRepository } from './token-totals-repo.ts';
 export type { DeviceRepository } from './devices-repo.ts';
+export type { AttachmentRepository } from './attachments-repo.ts';
+export type { MemoryRepository } from './memories-repo.ts';
+export type { AgentMessageRepository } from './agent-messages-repo.ts';
 export type { RoutineRecord, RoutineRepository } from './routines-repo.ts';
 export type { RoutineRunRepository } from './routine-runs-repo.ts';
 export type { WaitRepository } from './waits-repo.ts';

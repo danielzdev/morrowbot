@@ -1,11 +1,14 @@
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { agentMessageRepository, type AgentMessageRepository } from './agent-messages-repo.ts';
 import { agentRepository, type AgentRepository } from './agents-repo.ts';
+import { attachmentRepository, type AttachmentRepository } from './attachments-repo.ts';
 import { childGroupRepository, type ChildGroupRepository } from './child-groups-repo.ts';
 import { deviceRepository, type DeviceRepository } from './devices-repo.ts';
 import { folderRepository, type FolderRepository } from './folders-repo.ts';
 import { generationRepository, type GenerationRepository } from './generations-repo.ts';
+import { memoryRepository, type MemoryRepository } from './memories-repo.ts';
 import { messageRepository, type MessageRepository } from './messages-repo.ts';
 import { pluginSettingsRepository, type PluginSettingsRepository } from './plugins-repo.ts';
 import { routineRunRepository, type RoutineRunRepository } from './routine-runs-repo.ts';
@@ -29,6 +32,9 @@ export interface Storage {
   readonly usage: UsageSnapshotRepository;
   readonly tokens: TokenTotalsRepository;
   readonly devices: DeviceRepository;
+  readonly attachments: AttachmentRepository;
+  readonly memories: MemoryRepository;
+  readonly agentMessages: AgentMessageRepository;
   readonly routines: RoutineRepository;
   readonly routineRuns: RoutineRunRepository;
   readonly waits: WaitRepository;
@@ -58,6 +64,9 @@ export function openStorage(file: string, now: () => string): Storage {
       usage: usageSnapshotRepository(db),
       tokens: tokenTotalsRepository(db, now),
       devices: deviceRepository(db),
+      attachments: attachmentRepository(db),
+      memories: memoryRepository(db),
+      agentMessages: agentMessageRepository(db),
       routines: routineRepository(db),
       routineRuns: routineRunRepository(db),
       waits: waitRepository(db),

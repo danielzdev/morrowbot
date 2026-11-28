@@ -39,7 +39,7 @@ export interface ChatService {
   /** The thread, its messages, its live turn and blocked groups, and its cursor, as one snapshot. */
   state(threadId: string): ThreadState | undefined;
   /** `background` is for unattended turns (routines): they deny instead of asking for approval. */
-  send(threadId: string, text: string, choice: SessionChoice, mode?: TurnMode): Promise<AdmitResult>;
+  send(threadId: string, text: string, attachmentIds: readonly string[], choice: SessionChoice, mode?: TurnMode): Promise<AdmitResult>;
   continueTurn(threadId: string, failedMessageId: string, choice: SessionChoice): Promise<AdmitResult>;
   /** Stops the thread's turn and resolves once its reply is stored and its processes are gone. */
   stop(threadId: string): Promise<StopResult>;
@@ -163,7 +163,7 @@ export function createChatService(options: ChatServiceOptions): ChatService {
         cursor: core.events.cursor(threadId),
       };
     },
-    send: (threadId, text, choice, mode = 'interactive') => admit(core, threadId, { kind: 'send', text, mode }, choice),
+    send: (threadId, text, attachmentIds, choice, mode = 'interactive') => admit(core, threadId, { kind: 'send', text, attachmentIds, mode }, choice),
     continueTurn: (threadId, failedMessageId, choice) => admit(core, threadId, { kind: 'continue', failedMessageId }, choice),
     stop,
     replyApproval: (threadId, generationId, approvalId, choiceId) => {

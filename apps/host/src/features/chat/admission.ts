@@ -12,10 +12,12 @@ export type AdmitResult =
   | { readonly kind: 'provider_unavailable'; readonly reason: ProviderUnavailableReason }
   | { readonly kind: 'binding_changed' }
   | { readonly kind: 'session_choice_required'; readonly reason: SessionChoiceReason }
-  | { readonly kind: 'not_continuable'; readonly reason: string };
+  | { readonly kind: 'not_continuable'; readonly reason: string }
+  /** An attachment the send names is not an unsent upload of this thread. */
+  | { readonly kind: 'attachments_missing' };
 
 export type AdmitInput =
-  | { readonly kind: 'send'; readonly text: string; readonly mode: TurnMode }
+  | { readonly kind: 'send'; readonly text: string; readonly attachmentIds: readonly string[]; readonly mode: TurnMode }
   | { readonly kind: 'continue'; readonly failedMessageId: string };
 
 type Ready = {
@@ -105,6 +107,8 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
   const messages = store.messages.listByThread(threadId);
   const source = sourceOf(core, messages, input);
   if (source.kind === 'refused') return { kind: 'not_continuable', reason: source.reason };
+  const attachments = source.kind === 'new' ? store.attachments.pending(threadId, source.attachmentIds) : [];
+  if (attachments === undefined) return { kind: 'attachments_missing' };
   const history = source.kind === 'existing' ? messages.slice(0, messages.indexOf(source.message)) : messages;
   const key = { pluginId, accountKey, routeKey, cwd, threadId };
   const row = capabilities.sessions && accountKey !== '' ? store.sessions.find(key) : undefined;
@@ -122,7 +126,7 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
   const at = core.options.now();
   const generationId = core.options.newId();
   const userMessage: UserMessage =
-    source.kind === 'existing' ? source.message : { kind: 'user', id: core.options.newId(), threadId, text: source.text, createdAt: at };
+    source.kind === 'existing' ? source.message : { kind: 'user', id: core.options.newId(), threadId, text: source.text, createdAt: at, attachments };
   store.transaction(() => {
     if (source.kind === 'new') {
       store.messages.insert(userMessage);
@@ -217,13 +221,13 @@ function check(core: ChatCore, threadId: string): Checked {
 }
 
 type Source =
-  | { readonly kind: 'new'; readonly text: string }
+  | { readonly kind: 'new'; readonly text: string; readonly attachmentIds: readonly string[] }
   | { readonly kind: 'existing'; readonly message: UserMessage }
   | { readonly kind: 'refused'; readonly reason: string };
 
 /** A send's new text, or the saved input of the failed or interrupted latest turn being continued. */
 function sourceOf(core: ChatCore, messages: readonly Message[], input: AdmitInput): Source {
-  if (input.kind === 'send') return { kind: 'new', text: input.text };
+  if (input.kind === 'send') return { kind: 'new', text: input.text, attachmentIds: input.attachmentIds };
   const latest = messages.at(-1);
   if (latest?.id !== input.failedMessageId) return { kind: 'refused', reason: 'Only the latest message can be continued.' };
   if (latest.kind !== 'assistant' || (latest.outcome.kind !== 'failed' && latest.outcome.kind !== 'interrupted')) {
