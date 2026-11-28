@@ -134,7 +134,8 @@ it('puts the avatar beside the running turn and brief completion beat, then hide
   }).toMatchInlineSnapshot(`
     {
       "completed": [
-        "[completed] Worked for 12s · searched 1 time",
+        "Worked for 12s · searched 1 time",
+        "[completed] Done",
       ],
       "fromHistory": [],
       "openedMidTurnCompleted": [
