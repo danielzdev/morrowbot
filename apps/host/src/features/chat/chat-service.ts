@@ -9,12 +9,14 @@ import type {
   StopGenerationResponse,
   Thread,
   ThreadState,
+  ThreadSummary,
 } from '@morrowbot/contracts';
 import { admit, type AdmitResult } from './admission.ts';
 import { backgroundPrompt } from './background.ts';
 import { dispatch } from './dispatch.ts';
 import { EventLog, type Replay } from './event-log.ts';
 import type { ChatListener, ChatServiceOptions, RecheckAnswer } from './ports.ts';
+import { createSummaryFeed, type SummaryListener } from './thread-summary.ts';
 import { afterTurn, cancelQueued, enqueue, queueOf, sendsQueue, steerQueued, type QueueAnswer } from './queue.ts';
 import { laneOf, localSettlement, queueNote, settle, type ChatCore, type StoredReply, type Turn } from './turn.ts';
 import { readUsage, type UsageAnswer } from './usage.ts';
@@ -32,8 +34,8 @@ export type SendResult = AdmitResult | { readonly kind: 'queued'; readonly queue
 
 export interface ChatService {
   listThreads(agentId: string): Thread[] | undefined;
-  /** Every agent's threads, most recently changed first (for ⌘K). */
-  listAllThreads(): Thread[];
+  /** Every agent's threads with what each is doing, most recently changed first. */
+  listThreadSummaries(): ThreadSummary[];
   createThread(agentId: string, request: CreateThreadRequest): Thread | undefined;
   getThread(id: string): Thread | undefined;
   renameThread(id: string, title: string): Thread | undefined;
@@ -72,6 +74,8 @@ export interface ChatService {
   /** The events a client missed since `since`, or `resync`. Synchronous with `subscribe`. */
   replay(threadId: string, since: Cursor): Replay;
   subscribe(listener: ChatListener): () => void;
+  /** Each time a thread is created or renamed, gets a message, or changes activity, with its new summary. */
+  watchThreads(listener: SummaryListener): () => void;
   close(): Promise<void>;
 }
 
@@ -111,6 +115,7 @@ export function createChatService(options: ChatServiceOptions): ChatService {
     admit(core, threadId, { kind: 'agent-message', message, prompt: backgroundPrompt(message, sender) }, { kind: 'auto' }).catch(options.report);
   }
   recover(options);
+  const summaries = createSummaryFeed(core);
 
   /** Stops a turn the way its state allows. Resolves once cleanup is over (see `Turn.quiet`), with its reply. */
   const stopTurn = async (turn: Turn): Promise<StoredReply> => {
@@ -177,12 +182,13 @@ export function createChatService(options: ChatServiceOptions): ChatService {
 
   return {
     listThreads: (agentId) => (agents.get(agentId) === undefined ? undefined : store.threads.listByAgent(agentId)),
-    listAllThreads: () => store.threads.listAll(),
+    listThreadSummaries: () => summaries.list(),
     createThread: (agentId, request) => {
       if (agents.get(agentId) === undefined) return undefined;
       const at = options.now();
       const thread: Thread = { id: options.newId(), agentId, title: request.title, createdAt: at, updatedAt: at };
       store.threads.insert(thread);
+      summaries.check(thread.id);
       return thread;
     },
     getThread: (id) => store.threads.get(id),
@@ -191,14 +197,23 @@ export function createChatService(options: ChatServiceOptions): ChatService {
       if (current === undefined) return undefined;
       const next: Thread = { ...current, title, updatedAt: options.now() };
       store.threads.update(next);
+      summaries.check(id);
       return next;
     },
     deleteThread: async (id) => {
       const removed = await exclusively(core.deletingThreads, id, (turn) => turn.threadId === id, () => store.threads.delete(id));
-      if (removed) core.events.forget(id);
+      if (removed) {
+        core.events.forget(id);
+        summaries.forget(id);
+      }
       return removed;
     },
-    deleteAgent: (id) => exclusively(core.deletingAgents, id, (turn) => turn.agentId === id, () => agents.delete(id)),
+    deleteAgent: async (id) => {
+      const threadIds = store.threads.listByAgent(id).map((thread) => thread.id);
+      const removed = await exclusively(core.deletingAgents, id, (turn) => turn.agentId === id, () => agents.delete(id));
+      if (removed) for (const threadId of threadIds) summaries.forget(threadId);
+      return removed;
+    },
     listMessages: (threadId) => (store.threads.get(threadId) === undefined ? undefined : store.messages.listByThread(threadId)),
     state: (threadId) => {
       const thread = store.threads.get(threadId);
@@ -253,6 +268,7 @@ export function createChatService(options: ChatServiceOptions): ChatService {
     agentBusy: (agentId) => [...core.active.values()].some((turn) => turn.agentId === agentId && turn.state !== 'settled'),
     replay: (threadId, since) => core.events.replay(threadId, since),
     subscribe: (listener) => core.events.subscribe(listener),
+    watchThreads: (listener) => summaries.subscribe(listener),
     close: async () => {
       core.closed = true;
       await Promise.all([...core.active.values()].map((turn) => stopTurn(turn)));

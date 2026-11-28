@@ -37,6 +37,8 @@ const LastMessageRow = z
   .transform((row) => ({ agentId: row.agent_id, threadId: row.thread_id, kind: row.kind, preview: preview(row.text), at: row.created_at }))
   .pipe(LastMessage);
 
+const FailedRow = z.object({ failed: z.union([z.literal(0), z.literal(1)]) });
+
 function preview(text: string): string {
   if (text.length <= PREVIEW_LENGTH) return text;
   const head = text.slice(0, PREVIEW_LENGTH + 1);
@@ -50,6 +52,10 @@ export interface MessageRepository {
   listByThread(threadId: string): Message[];
   /** Each agent's newest message with text and no NUL, across all its threads, newest first. */
   lastByAgent(): LastMessage[];
+  /** The thread's newest message with text and no NUL, or null. */
+  lastInThread(threadId: string): LastMessage | null;
+  /** Whether the thread's newest message is a reply that failed. */
+  endsFailed(threadId: string): boolean;
 }
 
 export function messageRepository(db: DatabaseSync): MessageRepository {
@@ -67,6 +73,15 @@ export function messageRepository(db: DatabaseSync): MessageRepository {
        FROM messages m JOIN threads t ON t.id = m.thread_id
        WHERE trim(m.text, ${BLANKS}) <> '' AND instr(CAST(m.text AS BLOB), x'00') = 0
      ) WHERE rank = 1 ORDER BY seq DESC`,
+  );
+  const lastInThread = db.prepare(
+    `SELECT t.agent_id, m.thread_id, m.kind, substr(trim(m.text, ${BLANKS}), 1, ${String(PREVIEW_LENGTH + 1)}) AS text, m.created_at
+     FROM messages m JOIN threads t ON t.id = m.thread_id
+     WHERE m.thread_id = ? AND trim(m.text, ${BLANKS}) <> '' AND instr(CAST(m.text AS BLOB), x'00') = 0
+     ORDER BY m.seq DESC LIMIT 1`,
+  );
+  const endsFailed = db.prepare(
+    `SELECT kind = 'assistant' AND json_extract(outcome, '$.kind') = 'failed' AS failed FROM messages WHERE thread_id = ? ORDER BY seq DESC LIMIT 1`,
   );
   return {
     insert: (message) => {
@@ -96,5 +111,10 @@ export function messageRepository(db: DatabaseSync): MessageRepository {
     },
     listByThread: (threadId) => listByThread.all(threadId).map((row) => MessageRow.parse(row)),
     lastByAgent: () => lastByAgent.all().map((row) => LastMessageRow.parse(row)),
+    lastInThread: (threadId) => {
+      const row = lastInThread.get(threadId);
+      return row === undefined ? null : LastMessageRow.parse(row);
+    },
+    endsFailed: (threadId) => FailedRow.parse(endsFailed.get(threadId) ?? { failed: 0 }).failed === 1,
   };
 }

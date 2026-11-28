@@ -6,6 +6,7 @@ import type {
   BlockedGroup,
   ChatEvent,
   HostTools,
+  LastMessage,
   Message,
   ProviderInfo,
   Thread,
@@ -61,6 +62,10 @@ export interface ChatStore {
     insert(message: Message): void;
     get(id: string): Message | undefined;
     listByThread(threadId: string): Message[];
+    /** The thread's newest message with text, or null. */
+    lastInThread(threadId: string): LastMessage | null;
+    /** Whether the thread's newest message is a reply that failed. */
+    endsFailed(threadId: string): boolean;
   };
   /** Messages sent while a turn ran that the agent has not seen yet. */
   readonly queued: {

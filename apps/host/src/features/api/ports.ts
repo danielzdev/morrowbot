@@ -50,6 +50,7 @@ import type {
   T3WatchAck,
   Thread,
   ThreadState,
+  ThreadSummary,
   TokenRange,
   TokenUsageResponse,
   UpdateAgentRequest,
@@ -123,7 +124,7 @@ export type ApiReplay = { readonly kind: 'events'; readonly events: readonly Cha
 
 export interface ApiChat {
   listThreads(agentId: string): Thread[] | undefined;
-  listAllThreads(): Thread[];
+  listThreadSummaries(): ThreadSummary[];
   createThread(agentId: string, request: CreateThreadRequest): Thread | undefined;
   getThread(id: string): Thread | undefined;
   renameThread(id: string, title: string): Thread | undefined;
@@ -156,6 +157,7 @@ export interface ApiChat {
   ): Promise<{ readonly kind: 'ok'; readonly response: UsageResponse } | { readonly kind: 'unavailable'; readonly reason: string }>;
   replay(threadId: string, since: Cursor): ApiReplay;
   subscribe(listener: (event: ChatEvent) => void): () => void;
+  watchThreads(listener: (summary: ThreadSummary) => void): () => void;
 }
 
 /** The plugin host, plus the settings it saved. */

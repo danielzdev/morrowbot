@@ -35,6 +35,7 @@ import {
   StopGenerationResponse,
   Thread,
   ThreadList,
+  ThreadSummaryList,
   ThreadState,
   TokenUsageResponse,
   UsageResponse,
@@ -82,7 +83,7 @@ export interface Api {
   saveInstructionsCopy(id: string, content: string): Promise<ApiResult<InstructionsCopyReply>>;
   listThreads(agentId: string): Promise<ApiResult<ThreadList>>;
   /** Every agent's chats, newest first (H9, for ⌘K). */
-  listAllThreads(): Promise<ApiResult<ThreadList>>;
+  listAllThreads(): Promise<ApiResult<ThreadSummaryList>>;
   createThread(agentId: string, title?: string): Promise<ApiResult<Thread>>;
   renameThread(id: string, title: string): Promise<ApiResult<Thread>>;
   deleteThread(id: string): Promise<ApiResult<null>>;
@@ -184,7 +185,7 @@ export function createApi(bridge: MorrowbotBridge): Api {
     saveInstructions: (id, content, expectedRevision) => call(PutInstructionsReply, 'PUT', at('agents', id, 'instructions'), { content, expectedRevision }),
     saveInstructionsCopy: (id, content) => call(InstructionsCopyReply, 'POST', at('agents', id, 'instructions', 'copies'), { content }),
     listThreads: (agentId) => call(ThreadList, 'GET', at('agents', agentId, 'threads')),
-    listAllThreads: () => call(ThreadList, 'GET', at('threads')),
+    listAllThreads: () => call(ThreadSummaryList, 'GET', at('threads')),
     createThread: (agentId, title) => call(Thread, 'POST', at('agents', agentId, 'threads'), title === undefined ? {} : { title }),
     renameThread: (id, title) => call(Thread, 'PATCH', at('threads', id), { title }),
     deleteThread: (id) => call(NoContent, 'DELETE', at('threads', id)),

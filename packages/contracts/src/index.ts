@@ -18,6 +18,7 @@ export * from './host-tools.ts';
 export * from './tool-plugin.ts';
 export * from './agents.ts';
 export * from './threads.ts';
+export * from './thread-activity.ts';
 export * from './messages.ts';
 export * from './queue.ts';
 export * from './chat-api.ts';

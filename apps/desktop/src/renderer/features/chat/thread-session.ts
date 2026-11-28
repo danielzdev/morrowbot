@@ -185,7 +185,7 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
   }
 
   function handle(frame: EventServerFrame): void {
-    if (closed || frame.kind === 'usage.updated') return;
+    if (closed || frame.kind === 'usage.updated' || frame.kind === 'thread.changed') return;
     if (frame.kind === 'agent-message.posted') {
       hear(frame.message);
       return;

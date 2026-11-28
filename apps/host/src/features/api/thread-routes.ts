@@ -7,6 +7,7 @@ import {
   SendMessageRequest,
   type SendMessageResponse,
   type ThreadList,
+  type ThreadSummaryList,
   UpdateThreadRequest,
 } from '@morrowbot/contracts';
 import { refusal } from './admit-reply.ts';
@@ -22,7 +23,7 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
       path: '/api/threads',
       access: { kind: 'signed-in' },
       handle: ({ viewer }) => {
-        const body: ThreadList = { threads: chat.listAllThreads().filter(({ agentId }) => sees(viewer, agentId)) };
+        const body: ThreadSummaryList = { threads: chat.listThreadSummaries().filter(({ thread }) => sees(viewer, thread.agentId)) };
         return json(200, body);
       },
     },
