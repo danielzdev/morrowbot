@@ -50,6 +50,7 @@ export function scripted(states: ThreadState[], overrides: Partial<ChatHost> = {
     agents: unused,
     threads: unused,
     createThread: unused,
+    uploadAttachment: unused,
     send: (_threadId, text) => {
       sent.push(text);
       return ok({ kind: 'started', generationId: 'g8', userMessage: { kind: 'user', id: 'u', threadId: 't', text, createdAt: AT, attachments: [] } });
