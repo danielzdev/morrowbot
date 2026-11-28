@@ -38,7 +38,7 @@ it('denies a write opencode asks for without a card, and ends the reply as compl
       ],
       "steps": [
         "tool-start Edit: {"title":"write"}",
-        "status: Denied edit ~/data/workspaces/id-1/inside.txt: Ori Kami runs OpenCode read-only.",
+        "status: Denied edit ~/data/workspaces/id-1/inside.txt: Ori Bot runs OpenCode read-only.",
         "tool-end: error",
       ],
     }
@@ -98,12 +98,12 @@ it("refuses opencode's own request to write a file, and fails a rate-limited pro
     {
       "history": [
         "user: fs-write",
-        "assistant(completed): fs write: {"error":{"code":-32603,"message":"Ori Kami runs OpenCode read-only: it writes no files."}}",
+        "assistant(completed): fs write: {"error":{"code":-32603,"message":"Ori Bot runs OpenCode read-only: it writes no files."}}",
         "user: quota",
         "assistant(failed rate-limited): ",
       ],
       "steps": [
-        "status: Refused OpenCode's fs/write_text_file: Ori Kami runs it read-only.",
+        "status: Refused OpenCode's fs/write_text_file: Ori Bot runs it read-only.",
       ],
     }
   `);
@@ -124,7 +124,7 @@ it('refuses personal settings and workspace-write with their reasons before open
           "body": {
             "error": {
               "kind": "conflict",
-              "message": "Ori Kami turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's AGENTS.md is sent by Ori Kami instead.",
+              "message": "Ori Bot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's AGENTS.md is sent by Ori Bot instead.",
             },
           },
           "status": 409,
@@ -133,7 +133,7 @@ it('refuses personal settings and workspace-write with their reasons before open
           "body": {
             "error": {
               "kind": "conflict",
-              "message": "Ori Kami cannot yet confine OpenCode file writes to the workspace, and opencode runs commands outside any sandbox.",
+              "message": "Ori Bot cannot yet confine OpenCode file writes to the workspace, and opencode runs commands outside any sandbox.",
             },
           },
           "status": 409,
@@ -193,7 +193,7 @@ it('runs full-access turns in full mode without tripping the read-only fence, au
       ],
       "readOnlySteps": [
         "tool-start Edit: {"title":"write"}",
-        "status: Denied edit ~/data/workspaces/id-9/inside.txt: Ori Kami runs OpenCode read-only.",
+        "status: Denied edit ~/data/workspaces/id-9/inside.txt: Ori Bot runs OpenCode read-only.",
         "tool-end: error",
       ],
       "replies": [

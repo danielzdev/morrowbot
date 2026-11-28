@@ -3,7 +3,7 @@ import type { AccessProfile, ProviderInfo, ProviderModel, WithheldProfile } from
 import type { Version } from './version.ts';
 
 /**
- * The profiles OpenCode offers, both isolated (Ori Kami sends the agent's AGENTS.md and opencode
+ * The profiles OpenCode offers, both isolated (Ori Bot sends the agent's AGENTS.md and opencode
  * loads no workspace config):
  * - `read-only`: `build` mode with no write or shell tool offered; outside reads go to an approval
  *   card, so interactive only.
@@ -15,8 +15,8 @@ const FULL: AccessProfile = { access: 'full', vendorSettings: 'isolated', modes:
 const PROFILES: readonly AccessProfile[] = [READ_ONLY, FULL];
 
 const PERSONAL_REASON =
-  "Ori Kami turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's AGENTS.md is sent by Ori Kami instead.";
-const WRITE_REASON = 'Ori Kami cannot yet confine OpenCode file writes to the workspace, and opencode runs commands outside any sandbox.';
+  "Ori Bot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's AGENTS.md is sent by Ori Bot instead.";
+const WRITE_REASON = 'Ori Bot cannot yet confine OpenCode file writes to the workspace, and opencode runs commands outside any sandbox.';
 
 const STATIC_WITHHELD: readonly WithheldProfile[] = [
   { access: 'workspace-write', vendorSettings: 'isolated', reason: WRITE_REASON },
@@ -26,7 +26,7 @@ const STATIC_WITHHELD: readonly WithheldProfile[] = [
 
 /** Why OpenCode profiles are held back on `platform`, or null. */
 export function platformReason(platform: string): string | null {
-  return platform === 'darwin' ? null : `OpenCode in Ori Kami has been checked only on macOS so far, not on ${platform}.`;
+  return platform === 'darwin' ? null : `OpenCode in Ori Bot has been checked only on macOS so far, not on ${platform}.`;
 }
 
 export interface Seen {
@@ -42,7 +42,7 @@ type Runnable = Extract<Version, { kind: 'supported' | 'above' }>;
  * The answer for a CLI in or above the tested range. opencode lists its models only inside a
  * session, so this is `ready-models-later` until a turn has opened one. The free models need no
  * sign-in and opencode reports no account, so the account key is always '' and every turn is
- * stateless: Ori Kami never resumes a session.
+ * stateless: Ori Bot never resumes a session.
  */
 export function readyInfo(version: Runnable, seen: Seen, platform: string): ProviderInfo {
   const held = [version.kind === 'above' ? version.reason : null, platformReason(platform), seen.held].filter((reason) => reason !== null);

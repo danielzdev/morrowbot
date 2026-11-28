@@ -11,7 +11,7 @@ export function openAttachMenu(tray: AttachmentTray, room: number): void {
     if (pick === null) return;
     tray.pickFrom(pick).catch(
       () => {
-        Alert.alert('Could not open', index === 0 ? 'Ori Kami could not open your photos.' : 'Ori Kami could not open Files.');
+        Alert.alert('Could not open', index === 0 ? 'Ori Bot could not open your photos.' : 'Ori Bot could not open Files.');
       },
     );
   });

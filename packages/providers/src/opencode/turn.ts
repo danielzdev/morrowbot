@@ -132,7 +132,7 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
       onRefused: (method) => {
         emit({
           kind: 'status',
-          text: full ? `Refused OpenCode's ${method}: Ori Kami does not answer ${method}.` : `Refused OpenCode's ${method}: Ori Kami runs it read-only.`,
+          text: full ? `Refused OpenCode's ${method}: Ori Bot does not answer ${method}.` : `Refused OpenCode's ${method}: Ori Bot runs it read-only.`,
         });
       },
       replaying: () => false,
@@ -233,7 +233,7 @@ async function preflight(request: TurnRequest, deps: TurnDeps): Promise<Checked>
   if ((request.access !== 'read-only' && request.access !== 'full') || request.vendorSettings !== 'isolated') {
     return refused({
       kind: 'access-not-supported',
-      reason: `provider-opencode runs read-only or full turns with Ori Kami's instructions, not ${request.access} with ${request.vendorSettings} settings.`,
+      reason: `provider-opencode runs read-only or full turns with Ori Bot's instructions, not ${request.access} with ${request.vendorSettings} settings.`,
     });
   }
   if (request.access === 'read-only' && request.mode !== 'interactive') return refused({ kind: 'background-not-allowed' });

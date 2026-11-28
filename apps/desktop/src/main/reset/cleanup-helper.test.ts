@@ -39,7 +39,7 @@ afterEach(async () => {
   await fake.remove();
 });
 
-/** Starts the helper as Ori Kami would, with the fake home as its home and temp folder, and hands it the job over IPC. */
+/** Starts the helper as Ori Bot would, with the fake home as its home and temp folder, and hands it the job over IPC. */
 function start(job: unknown): ChildProcess {
   const child = fork(HELPER, [], { stdio: ['ignore', 'inherit', 'inherit', 'ipc'], env: { ...process.env, HOME: fake.home, TMPDIR: `${fake.home}/tmp` } });
   child.send({ kind: 'job', job });
@@ -50,17 +50,17 @@ function start(job: unknown): ChildProcess {
 function devJob(choice: CleanupJob['choice']): CleanupJob {
   const main = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 400)']);
   if (main.pid === undefined) throw new Error('no pid');
-  return { choice, context: { ...fake.context('isolated', '.orikami-dev'), platform: process.platform }, approved: [{ kind: 'delete', path: `${fake.home}/.orikami-dev/orikami.sqlite` }], waitPids: [main.pid] };
+  return { choice, context: { ...fake.context('isolated', '.oribot-dev'), platform: process.platform }, approved: [{ kind: 'delete', path: `${fake.home}/.oribot-dev/oribot.sqlite` }], waitPids: [main.pid] };
 }
 
-it.skipIf(process.platform !== 'darwin')('says ready, acts only after commit, confirms it, waits for Ori Kami to exit, removes the confirmed files, then opens Ori Kami again', async () => {
-  await fake.file('.orikami-dev/orikami.sqlite');
-  await fake.file('.orikami-dev/desktop/Cookies');
-  await fake.file('.orikami-dev/workspaces/agent-1/todo.md');
+it.skipIf(process.platform !== 'darwin')('says ready, acts only after commit, confirms it, waits for Ori Bot to exit, removes the confirmed files, then opens Ori Bot again', async () => {
+  await fake.file('.oribot-dev/oribot.sqlite');
+  await fake.file('.oribot-dev/desktop/Cookies');
+  await fake.file('.oribot-dev/workspaces/agent-1/todo.md');
   await fake.file('tmp/.keep');
   const relaunch = { command: process.execPath, args: ['-e', `require('node:fs').writeFileSync(${JSON.stringify(`${fake.home}/relaunched`)}, '')`], cwd: fake.home };
   const job = devJob({ kind: 'reset', relaunch });
-  const helper = start({ ...job, approved: [...job.approved, { kind: 'delete', path: `${fake.home}/.orikami-dev/desktop` }] });
+  const helper = start({ ...job, approved: [...job.approved, { kind: 'delete', path: `${fake.home}/.oribot-dev/desktop` }] });
   const ready = await next(helper);
   await new Promise((resolve) => setTimeout(resolve, 600));
   const beforeCommit = await fake.tree();
@@ -72,15 +72,15 @@ it.skipIf(process.platform !== 'darwin')('says ready, acts only after commit, co
   expect({ ready, beforeCommit, committed, code, after: await fake.tree() }).toMatchInlineSnapshot(`
     {
       "after": [
-        ".orikami-dev/workspaces/agent-1/todo.md",
+        ".oribot-dev/workspaces/agent-1/todo.md",
         "relaunched",
         "tmp/.keep",
-        "tmp/orikami-reset.log",
+        "tmp/oribot-reset.log",
       ],
       "beforeCommit": [
-        ".orikami-dev/desktop/Cookies",
-        ".orikami-dev/orikami.sqlite",
-        ".orikami-dev/workspaces/agent-1/todo.md",
+        ".oribot-dev/desktop/Cookies",
+        ".oribot-dev/oribot.sqlite",
+        ".oribot-dev/workspaces/agent-1/todo.md",
         "tmp/.keep",
       ],
       "code": 0,
@@ -94,8 +94,8 @@ it.skipIf(process.platform !== 'darwin')('says ready, acts only after commit, co
   `);
 });
 
-it('does nothing when Ori Kami disconnects without committing, or when the job is malformed, names another platform or home, or would start another program', async () => {
-  await fake.file('.orikami-dev/orikami.sqlite');
+it('does nothing when Ori Bot disconnects without committing, or when the job is malformed, names another platform or home, or would start another program', async () => {
+  await fake.file('.oribot-dev/oribot.sqlite');
   await fake.file('tmp/.keep');
   const cancelled = start(devJob({ kind: 'full-uninstall' }));
   const ready = await next(cancelled);
@@ -104,18 +104,18 @@ it('does nothing when Ori Kami disconnects without committing, or when the job i
     ready,
     cancelled: await exitOf(cancelled),
     malformed: await next(start({ approved: [{ kind: 'delete', path: fake.home }] })),
-    otherPlatform: await next(start({ ...devJob({ kind: 'full-uninstall' }), context: { ...fake.context('isolated', '.orikami-dev'), platform: process.platform === 'win32' ? 'linux' : 'win32' } })),
-    otherHome: await next(start({ ...devJob({ kind: 'full-uninstall' }), context: { ...fake.context('isolated', '.orikami-dev'), platform: process.platform, homeDir: '/Users/someone-else' } })),
+    otherPlatform: await next(start({ ...devJob({ kind: 'full-uninstall' }), context: { ...fake.context('isolated', '.oribot-dev'), platform: process.platform === 'win32' ? 'linux' : 'win32' } })),
+    otherHome: await next(start({ ...devJob({ kind: 'full-uninstall' }), context: { ...fake.context('isolated', '.oribot-dev'), platform: process.platform, homeDir: '/Users/someone-else' } })),
     otherProgram: await next(start(devJob({ kind: 'reset', relaunch: { command: '/bin/sh', args: [], cwd: '/' } }))),
   };
   await new Promise((resolve) => setTimeout(resolve, 600));
-  const log = (await readFile(`${fake.home}/tmp/orikami-reset.log`, 'utf8')).trim().split('\n').map((line) => line.slice(line.indexOf(' ') + 1));
+  const log = (await readFile(`${fake.home}/tmp/oribot-reset.log`, 'utf8')).trim().split('\n').map((line) => line.slice(line.indexOf(' ') + 1));
   expect({ outcomes, left: await fake.tree(), log }).toMatchInlineSnapshot(`
     {
       "left": [
-        ".orikami-dev/orikami.sqlite",
+        ".oribot-dev/oribot.sqlite",
         "tmp/.keep",
-        "tmp/orikami-reset.log",
+        "tmp/oribot-reset.log",
       ],
       "log": [
         "{"kind":"cancelled"}",

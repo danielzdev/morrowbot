@@ -6,7 +6,7 @@ export interface RateLimit {
   readonly rejected: { readonly windowId: string | null; readonly resetsAt: string | null } | null;
 }
 
-/** The windows Ori Kami shows. Claude Code also reports model-scoped and overage buckets; those are left out. */
+/** The windows Ori Bot shows. Claude Code also reports model-scoped and overage buckets; those are left out. */
 const WINDOWS: Readonly<Record<string, Pick<UsageWindow, 'kind' | 'label' | 'windowMinutes'>>> = {
   five_hour: { kind: 'session', label: 'Session', windowMinutes: 5 * 60 },
   seven_day: { kind: 'weekly', label: 'Weekly', windowMinutes: 7 * 24 * 60 },

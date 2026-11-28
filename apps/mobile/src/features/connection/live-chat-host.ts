@@ -39,7 +39,7 @@ function toChat<T>(reply: HostResult<T>): ChatResult<T> {
     case 'unsupported':
       return { kind: 'failed', status: 0, error: { kind: 'internal', message: 'This host does not offer this yet.' } };
     case 'malformed':
-      return { kind: 'failed', status: 0, error: { kind: 'internal', message: 'The host sent something this app cannot read. Update Ori Kami on both devices.' } };
+      return { kind: 'failed', status: 0, error: { kind: 'internal', message: 'The host sent something this app cannot read. Update Ori Bot on both devices.' } };
   }
 }
 

@@ -1,4 +1,4 @@
-/** One open-source component that ships inside Ori Kami; `npm` is its package name, or null for adapted source. */
+/** One open-source component that ships inside Ori Bot; `npm` is its package name, or null for adapted source. */
 export interface Licence {
   readonly name: string;
   readonly npm: string | null;

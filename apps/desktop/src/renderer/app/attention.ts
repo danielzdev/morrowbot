@@ -13,7 +13,7 @@ export function windowTitle(activity: Activity, agentName: string | null): strin
   const waiting = all.filter(({ activity: each }) => each === 'needs-approval').length;
   const working = all.some(({ activity: each }) => BUSY.has(each));
   const status = waiting > 0 ? `Needs you (${String(waiting)})` : working ? 'Working' : null;
-  const base = agentName === null ? 'Ori Kami' : `${agentName} — Ori Kami`;
+  const base = agentName === null ? 'Ori Bot' : `${agentName} — Ori Bot`;
   return status === null ? base : `${status} · ${base}`;
 }
 
@@ -40,9 +40,9 @@ export function attentionCopy(attention: Attention, agentName: string, chatTitle
   const where = chatTitle === null ? '' : `In “${chatTitle}”. `;
   switch (attention.kind) {
     case 'approval':
-      return { title: `${agentName} needs approval`, body: `${where}Open Ori Kami to allow or deny.` };
+      return { title: `${agentName} needs approval`, body: `${where}Open Ori Bot to allow or deny.` };
     case 'finished':
-      return { title: `${agentName} replied`, body: chatTitle === null ? 'Open Ori Kami to read it.' : `In “${chatTitle}”.` };
+      return { title: `${agentName} replied`, body: chatTitle === null ? 'Open Ori Bot to read it.' : `In “${chatTitle}”.` };
     case 'failed':
       return { title: `${agentName} couldn't finish`, body: `${where}Open the chat to see why.` };
   }

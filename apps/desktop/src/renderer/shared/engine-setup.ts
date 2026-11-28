@@ -56,13 +56,13 @@ const ExternalOpen = z.discriminatedUnion('kind', [
 export function parseExternalOpen(reply: unknown): ExternalOpenResult {
   if (reply === undefined) return { kind: 'opened' };
   const parsed = ExternalOpen.safeParse(reply);
-  return parsed.success ? parsed.data : { kind: 'failed', reason: "Ori Kami couldn't open your browser." };
+  return parsed.success ? parsed.data : { kind: 'failed', reason: "Ori Bot couldn't open your browser." };
 }
 
 function cleanIpcMessage(error: unknown): string {
-  if (!(error instanceof Error)) return "Ori Kami couldn't open your browser.";
+  if (!(error instanceof Error)) return "Ori Bot couldn't open your browser.";
   const stripped = error.message.replace(/^Error invoking remote method '[^']+':\s*(?:Error:\s*)?/, '').trim();
-  return stripped === '' ? "Ori Kami couldn't open your browser." : stripped;
+  return stripped === '' ? "Ori Bot couldn't open your browser." : stripped;
 }
 
 /** Opens an external URL through the bridge and returns a user-facing error message, or `null` when it opened. */
@@ -97,7 +97,7 @@ const InstallResult = z.discriminatedUnion('kind', [
 /** Main's answer to `installProvider`, parsed at the boundary. */
 export function parseInstallResult(reply: unknown): ProviderInstallResult {
   const parsed = InstallResult.safeParse(reply);
-  return parsed.success ? parsed.data : { kind: 'failed', reason: 'Ori Kami could not complete the install.', downloadUrl: null };
+  return parsed.success ? parsed.data : { kind: 'failed', reason: 'Ori Bot could not complete the install.', downloadUrl: null };
 }
 
 const InstallProgress = z.strictObject({

@@ -9,7 +9,7 @@ import { PLUGIN_FIXTURES, sequence, startTestHost, type TestHost } from './testi
 let dataDir: string;
 let host: TestHost | undefined;
 beforeEach(async () => {
-  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-api-')));
+  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'oribot-api-')));
 });
 afterEach(async () => {
   await host?.close();

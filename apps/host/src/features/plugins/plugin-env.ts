@@ -94,7 +94,7 @@ export async function resolvePluginPath(source: NodeJS.ProcessEnv = process.env,
 }
 
 function loginShellPath(shell: string): Promise<string> {
-  const marker = '__ORIKAMI_PATH__';
+  const marker = '__ORIBOT_PATH__';
   return new Promise((resolve) => {
     execFile(
       shell,

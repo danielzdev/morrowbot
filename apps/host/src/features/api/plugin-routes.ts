@@ -66,7 +66,7 @@ export function pluginRoutes({ plugins, chat }: ApiServices): Route[] {
             return summary === undefined ? notFound('Plugin') : json(200, await toEntry(plugins, summary));
           }
           case 'safe-mode':
-            return failure('conflict', 'Plugins stay off in safe mode. Restart Ori Kami normally first.');
+            return failure('conflict', 'Plugins stay off in safe mode. Restart Ori Bot normally first.');
           case 'disabled':
             return failure('conflict', 'Turn this plugin on before restarting it.');
           case 'quarantined':

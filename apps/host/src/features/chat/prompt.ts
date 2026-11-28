@@ -48,7 +48,7 @@ function contextBlock(prelude: Prelude): string | null {
     const lines = prelude.memories.map((memory) => `- ${oneLine(memory)}`);
     sections.push(`<memories>\nThings to remember from earlier chats.\n${lines.join('\n')}\n</memories>`);
   }
-  return sections.length === 0 ? null : `<orikami-context>\n${sections.join('\n')}\n</orikami-context>`;
+  return sections.length === 0 ? null : `<oribot-context>\n${sections.join('\n')}\n</oribot-context>`;
 }
 
 const oneLine = (text: string): string => text.replace(/\s+/g, ' ').trim();

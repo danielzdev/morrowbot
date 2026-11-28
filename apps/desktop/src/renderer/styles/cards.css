@@ -1,4 +1,4 @@
-/* Thread cards: an agent's own card in a dashed frame naming the agent, and Ori Kami's own cards in a solid one. */
+/* Thread cards: an agent's own card in a dashed frame naming the agent, and Ori Bot's own cards in a solid one. */
 .thread-cards {
   display: flex;
   flex-direction: column;
@@ -120,7 +120,7 @@
   font: var(--t-ui-strong);
 }
 
-/* Ori Kami's own cards: the solid card with a frame naming Ori Kami and the agent that suggested it. */
+/* Ori Bot's own cards: the solid card with a frame naming Ori Bot and the agent that suggested it. */
 .host-card-frame {
   display: flex;
   align-items: center;

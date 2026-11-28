@@ -176,7 +176,7 @@ export const ThreadState = z.strictObject({
 });
 export type ThreadState = z.infer<typeof ThreadState>;
 
-/** `built-in`: ships inside Ori Kami (a built-in provider, or the app's own plugins folder). `user`: the user's plugins folder. */
+/** `built-in`: ships inside Ori Bot (a built-in provider, or the app's own plugins folder). `user`: the user's plugins folder. */
 export const PluginOrigin = z.enum(['built-in', 'user']);
 export type PluginOrigin = z.infer<typeof PluginOrigin>;
 

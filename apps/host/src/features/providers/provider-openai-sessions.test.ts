@@ -24,7 +24,7 @@ async function sendAndWait(thread: { readonly id: string }, text: string, sessio
 }
 
 function tokens(generationId: string): unknown {
-  const db = new DatabaseSync(path.join(codex.home, 'data', 'orikami.sqlite'), { readOnly: true });
+  const db = new DatabaseSync(path.join(codex.home, 'data', 'oribot.sqlite'), { readOnly: true });
   const row = db.prepare('SELECT input_tokens, cached_input_tokens, output_tokens FROM turn_usage WHERE generation_id = ?').get(generationId);
   db.close();
   return row;
@@ -78,7 +78,7 @@ it('after Recheck, cold-resumes the thread with its overrides and counts a repla
           "features.skill_mcp_dependency_install": false,
           "features.unified_exec": false,
           "mcp_servers.node_repl.enabled": false,
-          "mcp_servers.orikami": {
+          "mcp_servers.oribot": {
             "default_tools_approval_mode": "approve",
             "enabled": true,
             "http_headers": {
@@ -174,7 +174,7 @@ it('declines an approval request without a card', async () => {
       ],
       "statuses": [
         "Thinking",
-        "Denied a Codex approval request: Ori Kami turns are read-only.",
+        "Denied a Codex approval request: Ori Bot turns are read-only.",
       ],
     }
   `);

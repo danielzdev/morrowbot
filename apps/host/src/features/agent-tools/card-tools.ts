@@ -13,7 +13,7 @@ export function cardTools({ cards }: ToolPorts): Tool[] {
       description: [
         'Puts a card in the chat under your reply. Kinds:',
         '"custom": your own card made of blocks (header, text, kv, list, badges, divider, and at most one choices block). It shows as text only, in a frame with your name: no links, images or markup. fallbackText says the same in plain words. When the user clicks a choice, its label comes to you as their next message.',
-        '"plugin": offers a plugin from the Marketplace (find it with search_marketplace first). Ori Kami draws the card from the plugin’s own manifest, with Install, Open and Cancel; only the user’s click installs it.',
+        '"plugin": offers a plugin from the Marketplace (find it with search_marketplace first). Ori Bot draws the card from the plugin’s own manifest, with Install, Open and Cancel; only the user’s click installs it.',
         '"setting": a one-click switch for a safe setting. "agent-emoji-replies" lets you answer with only an emoji, or no message, when a reply would be filler.',
         'At most 3 cards per reply. The phone app shows only your text for now, so say in a line what the card offers or asks.',
       ].join(' '),
@@ -24,7 +24,7 @@ export function cardTools({ cards }: ToolPorts): Tool[] {
     tool({
       name: 'search_marketplace',
       description:
-        'Searches the Ori Kami Marketplace for plugins, by words in their id, name or description (empty for all). Each result says what it does, the permissions it asks for, and whether it is installed. Offer one to the user with propose_card.',
+        'Searches the Ori Bot Marketplace for plugins, by words in their id, name or description (empty for all). Each result says what it does, the permissions it asks for, and whether it is installed. Offer one to the user with propose_card.',
       input: z.strictObject({ query: z.string().trim().max(100).default('').describe('Words to look for, or empty for every plugin.') }),
       visible: (agentId) => !cards.sharedWithMembers(agentId),
       run: async (grant, { query }) => (cards.sharedWithMembers(grant.agentId) ? refused(SHARED_REFUSAL) : result(await cards.searchMarketplace(query))),

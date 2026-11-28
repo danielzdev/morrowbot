@@ -19,7 +19,7 @@ switch (range) {
   case 'above':
   case 'unparsable':
     console.error(
-      `Claude Code ${version} on npm is outside the tested range ${SUPPORTED_TEXT}. Run the live Claude provider fixtures (ORIKAMI_LIVE_CLAUDE=1) on it, then widen the range in packages/providers/src/claude/version.ts.`,
+      `Claude Code ${version} on npm is outside the tested range ${SUPPORTED_TEXT}. Run the live Claude provider fixtures (ORIBOT_LIVE_CLAUDE=1) on it, then widen the range in packages/providers/src/claude/version.ts.`,
     );
     process.exitCode = 1;
     break;

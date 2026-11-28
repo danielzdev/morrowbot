@@ -38,7 +38,7 @@ async function waitForExit(pids: readonly number[], deps: CleanupDeps): Promise<
 const isSafeStorage = (step: ResetStep): boolean => step.kind === 'keychain' && step.service === SAFE_STORAGE.service && step.account === SAFE_STORAGE.account;
 
 /**
- * Runs a confirmed cleanup once Ori Kami has exited. It plans the data side again from the job's context
+ * Runs a confirmed cleanup once Ori Bot has exited. It plans the data side again from the job's context
  * and runs only the confirmed steps that the fresh plan still holds: files first, each checked on disk once
  * more just before deleting it, so a path that became a link, moved under a workspace, or cannot be read is
  * skipped; then Keychain items, Safe Storage only once Electron's profile folder is verifiably gone. Trash

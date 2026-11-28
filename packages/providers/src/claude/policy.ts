@@ -36,16 +36,16 @@ export function systemScope(runtime: PluginRuntime): PolicyScope {
 export async function checkManagedPolicy(scope: PolicyScope): Promise<Policy> {
   const managedDir = managedDirectory(scope.platform);
   if (managedDir === null) {
-    return withheld(`Ori Kami cannot check Claude Code's managed settings on ${scope.platform}.`);
+    return withheld(`Ori Bot cannot check Claude Code's managed settings on ${scope.platform}.`);
   }
   const configDir = configDirectory(scope.env);
   if (configDir === null) {
-    return withheld('Ori Kami cannot find the Claude config folder: neither CLAUDE_CONFIG_DIR nor HOME is set.');
+    return withheld('Ori Bot cannot find the Claude config folder: neither CLAUDE_CONFIG_DIR nor HOME is set.');
   }
   const checks: (() => Promise<Policy>)[] = [() => checkDirectory(scope.root, managedDir)];
   if (scope.platform === 'darwin') {
     const user = scope.env.USER ?? '';
-    if (user === '') return withheld("Ori Kami cannot check this user's managed Claude Code preferences: USER is not set.");
+    if (user === '') return withheld("Ori Bot cannot check this user's managed Claude Code preferences: USER is not set.");
     for (const plist of managedPreferences(user)) checks.push(() => checkPlist(scope, plist));
   }
   checks.push(
@@ -90,7 +90,7 @@ async function checkDirectory(root: string, dir: string): Promise<Policy> {
     if (entries === null || entries.length === 0) return CLEAR;
     return withheld(`Claude Code managed settings are installed in ${dir} (${entries.join(', ')}).`);
   } catch (error) {
-    return withheld(`Ori Kami could not read ${dir}: ${describe(error)}`);
+    return withheld(`Ori Bot could not read ${dir}: ${describe(error)}`);
   }
 }
 
@@ -100,7 +100,7 @@ async function checkPlist(scope: PolicyScope, plist: string): Promise<Policy> {
     if ((await readOptionalFile(file, { maxBytes: MAX_SOURCE_BYTES })) === null) return CLEAR;
     return hasKeys(await plistAsJson(scope.run, file)) ? withheld(`Claude Code managed preferences are set in ${plist}.`) : CLEAR;
   } catch (error) {
-    return withheld(`Ori Kami could not read ${plist}: ${describe(error)}`);
+    return withheld(`Ori Bot could not read ${plist}: ${describe(error)}`);
   }
 }
 
@@ -110,7 +110,7 @@ async function checkJsonFile(file: string, what: string): Promise<Policy> {
     if (text === null || text.trim() === '') return CLEAR;
     return hasKeys(JSON.parse(text)) ? withheld(`Claude Code ${what} are cached in ${file}.`) : CLEAR;
   } catch (error) {
-    return withheld(`Ori Kami could not read ${file}: ${describe(error)}`);
+    return withheld(`Ori Bot could not read ${file}: ${describe(error)}`);
   }
 }
 

@@ -95,7 +95,7 @@ export function createTurnStream(options: StreamOptions): TurnStream {
         if (ours(event.params)) {
           emit({
             kind: 'status',
-            text: options.access === 'full' ? 'Denied an unexpected Codex approval request.' : 'Denied a Codex approval request: Ori Kami turns are read-only.',
+            text: options.access === 'full' ? 'Denied an unexpected Codex approval request.' : 'Denied a Codex approval request: Ori Bot turns are read-only.',
           });
         }
         return;

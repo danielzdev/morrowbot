@@ -291,7 +291,7 @@ describe('ci-changes affected workspace detection', () => {
       ].join('\n'),
     );
 
-    const dir = mkdtempSync(path.join(tmpdir(), 'orikami-ci-changes-'));
+    const dir = mkdtempSync(path.join(tmpdir(), 'oribot-ci-changes-'));
     try {
       const outputFile = path.join(dir, 'github-output.txt');
       execFileSync(process.execPath, [SCRIPT_PATH], {

@@ -9,7 +9,7 @@ export function UpdateBanner(props: { readonly status: UpdateStatus; readonly on
   return (
     <div class="banner update" role="status">
       <span class="banner-text">
-        Update ready <span class="banner-detail">· Ori Kami {status.version}</span>
+        Update ready <span class="banner-detail">· Ori Bot {status.version}</span>
       </span>
       <span class="banner-actions">
         <button type="button" class="btn ghost" onClick={() => { setLater(status.version); }}>

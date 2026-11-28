@@ -1,14 +1,14 @@
 /** "How to set up" for when a command cannot be shown safely, or the provider gave none (spec §6.2, owner decision O3). */
 export interface SetupGuide {
   readonly steps: readonly string[];
-  /** This engine's section of the Ori Kami setup guide, which links on to the vendor's own pages. */
+  /** This engine's section of the Ori Bot setup guide, which links on to the vendor's own pages. */
   readonly link: { readonly label: string; readonly url: string } | null;
 }
 
-/** The Ori Kami setup guide (owner decision O3): one docs page with a section per built-in engine. */
-export const SETUP_GUIDE_URL = 'https://github.com/danielzdev/ori-kami/blob/main/docs/setup.md';
+/** The Ori Bot setup guide (owner decision O3): one docs page with a section per built-in engine. */
+export const SETUP_GUIDE_URL = 'https://github.com/danielzdev/ori-bot/blob/main/docs/setup.md';
 
-const guideLink = (anchor: string) => ({ label: 'Ori Kami setup guide', url: `${SETUP_GUIDE_URL}#${anchor}` });
+const guideLink = (anchor: string) => ({ label: 'Ori Bot setup guide', url: `${SETUP_GUIDE_URL}#${anchor}` });
 
 const GUIDES: Readonly<Record<string, SetupGuide>> = {
   'provider-claude': {
@@ -31,8 +31,8 @@ const GUIDES: Readonly<Record<string, SetupGuide>> = {
 
 const COMMUNITY: SetupGuide = { steps: ['Follow the setup steps of the plugin that adds this provider.'], link: null };
 
-/** Every guide ends by coming back to Ori Kami. */
-export const AFTER_SETUP = 'When it finishes, come back: Ori Kami rechecks by itself, or press Recheck.';
+/** Every guide ends by coming back to Ori Bot. */
+export const AFTER_SETUP = 'When it finishes, come back: Ori Bot rechecks by itself, or press Recheck.';
 
 export function guideFor(providerId: string): SetupGuide {
   return GUIDES[providerId] ?? COMMUNITY;

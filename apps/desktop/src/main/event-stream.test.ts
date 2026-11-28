@@ -5,7 +5,7 @@ import { openEventStream } from './event-stream.ts';
 import { parseSubscription } from './ipc-proxy.ts';
 
 const NOW = '2026-11-27T12:00:00.000Z';
-const RENDERER_URL = 'file:///Applications/Ori Kami.app/Contents/Resources/app/src/renderer/index.html';
+const RENDERER_URL = 'file:///Applications/Ori Bot.app/Contents/Resources/app/src/renderer/index.html';
 
 const cleanup: (() => Promise<void> | void)[] = [];
 afterEach(async () => {

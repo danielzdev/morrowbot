@@ -21,7 +21,7 @@ let hub: ChatHub;
 let plugins: ProvidersModel;
 
 beforeEach(async () => {
-  home = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-desktop-claude-')));
+  home = await realpath(await mkdtemp(path.join(tmpdir(), 'oribot-desktop-claude-')));
   vi.stubEnv('HOME', home);
   vi.stubEnv('CLAUDE_CONFIG_DIR', path.join(home, '.claude'));
   vi.stubEnv('USER', 'tester');

@@ -6,8 +6,8 @@ import { resetFlow, type ResetDeps, type ResetFlow } from './reset-flow.ts';
 let fake: FakeHome;
 beforeEach(async () => {
   fake = await fakeHome();
-  await fake.file('.orikami/orikami.sqlite');
-  await fake.file('Applications/Ori Kami.app/Contents/Info.plist', INFO_PLIST('com.legendarykoi.orikami'));
+  await fake.file('.oribot/oribot.sqlite');
+  await fake.file('Applications/Ori Bot.app/Contents/Info.plist', INFO_PLIST('com.legendarykoi.oribot'));
 });
 afterEach(async () => {
   await fake.remove();
@@ -18,8 +18,8 @@ function flow(options: { readonly failTrash?: boolean; readonly failRelease?: bo
   const calls: unknown[] = [];
   let openAtLogin = true;
   const deps: ResetDeps = {
-    context: () => Promise.resolve(fake.context('installed', '.orikami')),
-    bundle: () => ({ packaged: true, execPath: `${fake.home}/Applications/Ori Kami.app/Contents/MacOS/Ori Kami`, updatePending: false }),
+    context: () => Promise.resolve(fake.context('installed', '.oribot')),
+    bundle: () => ({ packaged: true, execPath: `${fake.home}/Applications/Ori Bot.app/Contents/MacOS/Ori Bot`, updatePending: false }),
     keychain: fakeKeychain([]),
     updates: { pause: () => calls.push('pause updates'), resume: () => calls.push('resume updates') },
     loginItem: {
@@ -48,7 +48,7 @@ function flow(options: { readonly failTrash?: boolean; readonly failRelease?: bo
       calls.push(fake.short({ trash: target }));
       return options.failTrash === true ? Promise.reject(new Error('The Finder refused')) : Promise.resolve();
     },
-    relaunch: { command: '/Applications/Ori Kami.app/Contents/MacOS/Ori Kami', args: [], cwd: '/' },
+    relaunch: { command: '/Applications/Ori Bot.app/Contents/MacOS/Ori Bot', args: [], cwd: '/' },
     mainPid: 100,
     quit: () => calls.push('quit'),
     recover: (message, restart) => calls.push({ recover: message, restart }),
@@ -73,7 +73,7 @@ it('runs each choice in order: stop the host, start the helper for deletions, mo
               "approved": [
                 {
                   "kind": "delete",
-                  "path": "~/.orikami/orikami.sqlite",
+                  "path": "~/.oribot/oribot.sqlite",
                 },
               ],
               "choice": {
@@ -86,7 +86,7 @@ it('runs each choice in order: stop the host, start the helper for deletions, mo
           },
           "open at login off",
           {
-            "trash": "~/Applications/Ori Kami.app",
+            "trash": "~/Applications/Ori Bot.app",
           },
           "release helper",
           "quit",
@@ -104,14 +104,14 @@ it('runs each choice in order: stop the host, start the helper for deletions, mo
               "approved": [
                 {
                   "kind": "delete",
-                  "path": "~/.orikami/orikami.sqlite",
+                  "path": "~/.oribot/oribot.sqlite",
                 },
               ],
               "choice": {
                 "kind": "reset",
                 "relaunch": {
                   "args": [],
-                  "command": "/Applications/Ori Kami.app/Contents/MacOS/Ori Kami",
+                  "command": "/Applications/Ori Bot.app/Contents/MacOS/Ori Bot",
                   "cwd": "/",
                 },
               },
@@ -133,7 +133,7 @@ it('runs each choice in order: stop the host, start the helper for deletions, mo
           "stop host",
           "open at login off",
           {
-            "trash": "~/Applications/Ori Kami.app",
+            "trash": "~/Applications/Ori Bot.app",
           },
           "quit",
         ],
@@ -152,7 +152,7 @@ it('refuses a stale token or a list that changed since it was shown, before stop
 
   const changed = flow();
   const { token } = await changed.reset.plan();
-  await fake.file('.orikami/attachments/new.png');
+  await fake.file('.oribot/attachments/new.png');
   const changedOutcome = await changed.reset.run('full-uninstall', token);
 
   const failing = flow({ failTrash: true });
@@ -160,14 +160,14 @@ it('refuses a stale token or a list that changed since it was shown, before stop
 
   const gone = flow();
   const goneToken = (await gone.reset.plan()).token;
-  await rm(`${fake.home}/Applications/Ori Kami.app`, { recursive: true });
+  await rm(`${fake.home}/Applications/Ori Bot.app`, { recursive: true });
   const goneOutcome = await gone.reset.run('uninstall-app', goneToken);
 
-  await fake.file('Applications/Ori Kami.app/Contents/Info.plist', INFO_PLIST('com.legendarykoi.orikami'));
-  const swapped = flow({ atStop: () => fake.file('Applications/Ori Kami.app/Contents/Info.plist', INFO_PLIST('com.other.app')) });
+  await fake.file('Applications/Ori Bot.app/Contents/Info.plist', INFO_PLIST('com.legendarykoi.oribot'));
+  const swapped = flow({ atStop: () => fake.file('Applications/Ori Bot.app/Contents/Info.plist', INFO_PLIST('com.other.app')) });
   const swappedOutcome = await swapped.reset.run('uninstall-app', (await swapped.reset.plan()).token);
 
-  await fake.file('Applications/Ori Kami.app/Contents/Info.plist', INFO_PLIST('com.legendarykoi.orikami'));
+  await fake.file('Applications/Ori Bot.app/Contents/Info.plist', INFO_PLIST('com.legendarykoi.oribot'));
   const unreleased = flow({ failRelease: true });
   const unreleasedOutcome = await unreleased.reset.run('full-uninstall', (await unreleased.reset.plan()).token);
 
@@ -195,13 +195,13 @@ it('refuses a stale token or a list that changed since it was shown, before stop
           "pause updates",
           "stop host",
           {
-            "recover": "This app bundle is not com.legendarykoi.orikami.",
+            "recover": "This app bundle is not com.legendarykoi.oribot.",
             "restart": true,
           },
         ],
         "outcome": {
           "kind": "refused",
-          "reason": "Ori Kami could not finish, so it is restarting with everything as it was.",
+          "reason": "Ori Bot could not finish, so it is restarting with everything as it was.",
         },
       },
       "changed": {
@@ -228,7 +228,7 @@ it('refuses a stale token or a list that changed since it was shown, before stop
         ],
         "outcome": {
           "kind": "refused",
-          "reason": "Ori Kami could not finish, so it is restarting with everything as it was.",
+          "reason": "Ori Bot could not finish, so it is restarting with everything as it was.",
         },
       },
       "helperLostAfterTrash": {
@@ -238,13 +238,13 @@ it('refuses a stale token or a list that changed since it was shown, before stop
           "open at login off",
           "release helper",
           {
-            "recover": "Ori Kami.app is in the Trash, but its data could not be removed: The cleanup helper stopped before it could go ahead.",
+            "recover": "Ori Bot.app is in the Trash, but its data could not be removed: The cleanup helper stopped before it could go ahead.",
             "restart": false,
           },
         ],
         "outcome": {
           "kind": "refused",
-          "reason": "Ori Kami.app is in the Trash, but its data was not removed. Ori Kami is quitting.",
+          "reason": "Ori Bot.app is in the Trash, but its data was not removed. Ori Bot is quitting.",
         },
       },
       "stale": {

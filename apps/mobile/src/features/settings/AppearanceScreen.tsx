@@ -30,7 +30,7 @@ export function AppearanceScreen() {
           />
         ))}
       </Group>
-      <Group header="Accent" footer="Ori Kami uses Graphite greys with a signal blue, matching the desktop app.">
+      <Group header="Accent" footer="Ori Bot uses Graphite greys with a signal blue, matching the desktop app.">
         <Row
           label="Signal blue"
           detail={null}

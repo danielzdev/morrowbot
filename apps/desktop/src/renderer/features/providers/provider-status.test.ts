@@ -10,7 +10,7 @@ import { providerStatus } from './provider-status.ts';
 import type { ProviderCard } from './providers-model.ts';
 import { setupCommand } from './setup-command.ts';
 
-const INFO = { appVersion: '1.0.0', homeDir: '/Users/sam', userName: 'sam', dataDir: '/Users/sam/.orikami' };
+const INFO = { appVersion: '1.0.0', homeDir: '/Users/sam', userName: 'sam', dataDir: '/Users/sam/.oribot' };
 
 const entry = (status: PluginStatus = { kind: 'running' }, enabled = true): PluginEntry =>
   PluginEntry.parse({

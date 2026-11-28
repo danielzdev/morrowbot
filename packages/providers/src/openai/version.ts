@@ -22,10 +22,10 @@ export function judgeVersion(version: string): Version {
       return {
         kind: 'above',
         version,
-        reason: `Codex ${version} isn't tested with Ori Kami yet. Update Ori Kami, or point "Codex CLI path" at a Codex 0.171.x install.`,
+        reason: `Codex ${version} isn't tested with Ori Bot yet. Update Ori Bot, or point "Codex CLI path" at a Codex 0.171.x install.`,
       };
     case 'unparsable':
-      return { kind: 'unreadable', reason: `Codex reported a version Ori Kami cannot read ("${version}").` };
+      return { kind: 'unreadable', reason: `Codex reported a version Ori Bot cannot read ("${version}").` };
   }
 }
 

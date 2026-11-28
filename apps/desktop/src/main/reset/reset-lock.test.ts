@@ -7,7 +7,7 @@ import { expect, it } from 'vitest';
 import { clearResetLock, resetInProgress, resetLockOf, touchResetLock, writeResetLock } from './reset-lock.ts';
 
 it('blocks starting only while a live helper holds a recently refreshed lock for that data folder, spelt in any case', () => {
-  const dataDir = `/Users/tester/.orikami-${randomUUID()}`;
+  const dataDir = `/Users/tester/.oribot-${randomUUID()}`;
   const alive = (pid: number) => pid === 4242;
   const none = resetInProgress(dataDir, alive);
   writeResetLock(dataDir, 4242);
@@ -35,7 +35,7 @@ it('blocks starting only while a live helper holds a recently refreshed lock for
 });
 
 it.skipIf(process.platform !== 'darwin')('finds the lock through any other path to the same data folder, such as the Data volume firmlink', () => {
-  const dataDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'orikami-lock-')));
+  const dataDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'oribot-lock-')));
   writeResetLock(dataDir, 4242);
   const alive = (pid: number) => pid === 4242;
   const viaFirmlink = resetInProgress(`/System/Volumes/Data${dataDir}`, alive);

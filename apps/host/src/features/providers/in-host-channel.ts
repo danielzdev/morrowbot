@@ -26,7 +26,7 @@ export function inHostChannel(factory: PluginFactory, env: RuntimeEnv, platform:
     };
     let served: ServedPlugin | undefined;
     const crash = (what: string, error: unknown): void => {
-      console.error(`Ori Kami host: a built-in provider ${what}`, error);
+      console.error(`Ori Bot host: a built-in provider ${what}`, error);
       served?.abandon();
       close(1, null);
     };

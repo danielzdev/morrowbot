@@ -57,9 +57,9 @@ export interface ConnectorKit {
 }
 
 export async function startConnectorKit(options: { readonly agentIds: readonly string[]; readonly safeMode?: boolean }): Promise<ConnectorKit> {
-  const dir = await mkdtemp(path.join(tmpdir(), 'orikami-connectors-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'oribot-connectors-'));
   const { newId, now } = sequence();
-  const storage = openStorage(path.join(dir, 'orikami.sqlite'), now);
+  const storage = openStorage(path.join(dir, 'oribot.sqlite'), now);
   for (const id of options.agentIds) {
     storage.agents.insert({
       id,

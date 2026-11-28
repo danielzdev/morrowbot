@@ -15,7 +15,7 @@ let host: TestHost;
 let events: EventClient;
 
 beforeEach(async () => {
-  home = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-claude-')));
+  home = await realpath(await mkdtemp(path.join(tmpdir(), 'oribot-claude-')));
   vi.stubEnv('HOME', home);
   vi.stubEnv('CLAUDE_CONFIG_DIR', path.join(home, '.claude'));
   vi.stubEnv('USER', 'tester');
@@ -168,7 +168,7 @@ it('streams text, status and tool events, and stores the reply with its model an
       },
     ]
   `);
-  const db = new DatabaseSync(path.join(home, 'data', 'orikami.sqlite'), { readOnly: true });
+  const db = new DatabaseSync(path.join(home, 'data', 'oribot.sqlite'), { readOnly: true });
   const usage = db
     .prepare(
       'SELECT actual_model, input_tokens, cached_input_tokens, cache_write_tokens, output_tokens, reasoning_tokens FROM turn_usage WHERE generation_id = ?',
@@ -353,7 +353,7 @@ it('keeps the CLI isolated from a hostile settings file in the Claude config fol
         "--mcp-config",
         "/dev/fd/5",
         "--allowedTools",
-        "mcp__orikami",
+        "mcp__oribot",
       ],
       "cwd": "$HOME/data/workspaces/id-1",
       "history": [

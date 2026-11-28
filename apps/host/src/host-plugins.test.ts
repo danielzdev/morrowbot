@@ -9,7 +9,7 @@ import { PLUGIN_FIXTURES, sequence, startTestHost, type TestHost } from './testi
 let dataDir: string;
 let host: TestHost | undefined;
 beforeEach(async () => {
-  dataDir = await mkdtemp(path.join(tmpdir(), 'orikami-plugins-'));
+  dataDir = await mkdtemp(path.join(tmpdir(), 'oribot-plugins-'));
 });
 afterEach(async () => {
   await host?.close();
@@ -132,7 +132,7 @@ it('lists where each plugin came from, safe mode, the plugins folder and discove
       "restart": {
         "error": {
           "kind": "conflict",
-          "message": "Plugins stay off in safe mode. Restart Ori Kami normally first.",
+          "message": "Plugins stay off in safe mode. Restart Ori Bot normally first.",
         },
       },
       "restartUnknown": 404,

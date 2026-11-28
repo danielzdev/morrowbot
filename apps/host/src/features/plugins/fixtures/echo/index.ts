@@ -10,7 +10,7 @@ import { defineProvider, runPlugin, z, type AccessProfile, type PluginConfig, ty
  * `steerable` takes a steer mid-turn; `gate` runs until a `gate` file appears in its data folder.
  * `tools-gate` reads a file (ok), then runs a command that fails once the `gate` file appears.
  * A prompt whose first line is `nothing-new` gets only the stay-quiet marker back, as a routine's agent would send.
- * Each prompt line `host-tool <name> <json arguments>` calls that Ori Kami tool over the turn's MCP endpoint
+ * Each prompt line `host-tool <name> <json arguments>` calls that Ori Bot tool over the turn's MCP endpoint
  * and answers with the results; `{{message}}` in the arguments is the id of the agent message being read.
  * Such a prompt whose first line is `once-fail` fails the first time, like the `once-fail` prompt.
  * In the turn a user's reaction starts, each quoted line ending `on-reaction <name> <json arguments>` is such a call.

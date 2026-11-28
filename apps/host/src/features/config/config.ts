@@ -21,16 +21,16 @@ const BindAddress = z
 const AbsolutePath = z.string().refine((value) => path.isAbsolute(value), 'Expected an absolute path');
 
 const HostEnv = z.object({
-  ORIKAMI_HOST_PORT: PortString.optional(),
-  ORIKAMI_HOST_BIND: BindAddress.optional(),
-  ORIKAMI_SAFE_MODE: z.enum(['0', '1', 'true', 'false']).optional(),
-  ORIKAMI_DATA_DIR: AbsolutePath.optional(),
-  ORIKAMI_PLUGINS_DIR: AbsolutePath.optional(),
-  ORIKAMI_BUILTIN_PLUGINS_DIR: AbsolutePath.optional(),
-  ORIKAMI_T3_WATCH_DIR: AbsolutePath.optional(),
-  ORIKAMI_T3_BIN: AbsolutePath.optional(),
-  ORIKAMI_T3_ROUTINE_ID: z.string().trim().min(1).optional(),
-  ORIKAMI_T3_PROJECTS: z
+  ORIBOT_HOST_PORT: PortString.optional(),
+  ORIBOT_HOST_BIND: BindAddress.optional(),
+  ORIBOT_SAFE_MODE: z.enum(['0', '1', 'true', 'false']).optional(),
+  ORIBOT_DATA_DIR: AbsolutePath.optional(),
+  ORIBOT_PLUGINS_DIR: AbsolutePath.optional(),
+  ORIBOT_BUILTIN_PLUGINS_DIR: AbsolutePath.optional(),
+  ORIBOT_T3_WATCH_DIR: AbsolutePath.optional(),
+  ORIBOT_T3_BIN: AbsolutePath.optional(),
+  ORIBOT_T3_ROUTINE_ID: z.string().trim().min(1).optional(),
+  ORIBOT_T3_PROJECTS: z
     .string()
     .transform((value) =>
       value
@@ -43,24 +43,24 @@ const HostEnv = z.object({
 
 /** The T3 Code watcher: where agents register threads, which `t3` to run, and which projects discovery scans. */
 export interface T3WatchConfig {
-  /** `ORIKAMI_T3_WATCH_DIR`, else `t3-watch` in the data folder. Point it at a folder sandboxed agents can write. */
+  /** `ORIBOT_T3_WATCH_DIR`, else `t3-watch` in the data folder. Point it at a folder sandboxed agents can write. */
   readonly dir: string;
-  /** `ORIKAMI_T3_BIN`, else `~/.t3/bin/t3`. */
+  /** `ORIBOT_T3_BIN`, else `~/.t3/bin/t3`. */
   readonly bin: string;
-  /** `ORIKAMI_T3_PROJECTS` (comma-separated project ids or paths); empty turns discovery off. */
+  /** `ORIBOT_T3_PROJECTS` (comma-separated project ids or paths); empty turns discovery off. */
   readonly projects: readonly string[];
-  /** `ORIKAMI_T3_ROUTINE_ID`: the orchestrator's background routine that batches go to; unset keeps delivery off. */
+  /** `ORIBOT_T3_ROUTINE_ID`: the orchestrator's background routine that batches go to; unset keeps delivery off. */
   readonly routineId: string | null;
 }
 
 export interface HostConfig {
-  /** `127.0.0.1` unless the user opts in to a LAN or Tailscale address with `ORIKAMI_HOST_BIND`. */
+  /** `127.0.0.1` unless the user opts in to a LAN or Tailscale address with `ORIBOT_HOST_BIND`. */
   readonly hostname: string;
-  /** `ORIKAMI_HOST_PORT`, else a free port. The installed app passes its fixed port itself. */
+  /** `ORIBOT_HOST_PORT`, else a free port. The installed app passes its fixed port itself. */
   readonly port: number;
   /** Start with every plugin turned off. */
   readonly safeMode: boolean;
-  /** `ORIKAMI_DATA_DIR`, else `~/.orikami-dev`. The installed app passes `~/.orikami` itself, so a host run by hand never opens it. */
+  /** `ORIBOT_DATA_DIR`, else `~/.oribot-dev`. The installed app passes `~/.oribot` itself, so a host run by hand never opens it. */
   readonly dataDir: string;
   readonly pluginsDir: string;
   /** The plugins folder that ships inside the app; null when none is given. */
@@ -86,22 +86,22 @@ export function parseHostConfig({ env, args, homeDir }: HostConfigInput): HostCo
     problems.unshift(...parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`));
   }
   if (!parsed.success || problems.length > 0) return { kind: 'invalid', problems };
-  const safeModeEnv = parsed.data.ORIKAMI_SAFE_MODE;
-  const dataDir = parsed.data.ORIKAMI_DATA_DIR ?? path.join(homeDir, DEV_DATA_DIR);
+  const safeModeEnv = parsed.data.ORIBOT_SAFE_MODE;
+  const dataDir = parsed.data.ORIBOT_DATA_DIR ?? path.join(homeDir, DEV_DATA_DIR);
   return {
     kind: 'ok',
     config: {
-      hostname: parsed.data.ORIKAMI_HOST_BIND ?? '127.0.0.1',
-      port: parsed.data.ORIKAMI_HOST_PORT ?? 0,
+      hostname: parsed.data.ORIBOT_HOST_BIND ?? '127.0.0.1',
+      port: parsed.data.ORIBOT_HOST_PORT ?? 0,
       safeMode: args.includes(SAFE_MODE_FLAG) || safeModeEnv === '1' || safeModeEnv === 'true',
       dataDir,
-      pluginsDir: parsed.data.ORIKAMI_PLUGINS_DIR ?? path.join(dataDir, 'plugins'),
-      builtinPluginsDir: parsed.data.ORIKAMI_BUILTIN_PLUGINS_DIR ?? null,
+      pluginsDir: parsed.data.ORIBOT_PLUGINS_DIR ?? path.join(dataDir, 'plugins'),
+      builtinPluginsDir: parsed.data.ORIBOT_BUILTIN_PLUGINS_DIR ?? null,
       t3Watch: {
-        dir: parsed.data.ORIKAMI_T3_WATCH_DIR ?? path.join(dataDir, 't3-watch'),
-        bin: parsed.data.ORIKAMI_T3_BIN ?? path.join(homeDir, '.t3', 'bin', 't3'),
-        projects: parsed.data.ORIKAMI_T3_PROJECTS ?? [],
-        routineId: parsed.data.ORIKAMI_T3_ROUTINE_ID ?? null,
+        dir: parsed.data.ORIBOT_T3_WATCH_DIR ?? path.join(dataDir, 't3-watch'),
+        bin: parsed.data.ORIBOT_T3_BIN ?? path.join(homeDir, '.t3', 'bin', 't3'),
+        projects: parsed.data.ORIBOT_T3_PROJECTS ?? [],
+        routineId: parsed.data.ORIBOT_T3_ROUTINE_ID ?? null,
       },
     },
   };

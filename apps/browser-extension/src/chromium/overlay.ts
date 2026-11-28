@@ -34,7 +34,7 @@ function showBanner(tag: string, takeoverId: string, title: string, message: str
   <button class="cancel" type="button">Cancel</button><button class="done" type="button">I'm done</button></div>`;
   const titleNode = root.querySelector('.title');
   const messageNode = root.querySelector('.message');
-  if (titleNode !== null) titleNode.textContent = `Ori Kami: ${title}`;
+  if (titleNode !== null) titleNode.textContent = `Ori Bot: ${title}`;
   if (messageNode !== null) messageNode.textContent = message;
   const finish = (outcome: 'done' | 'cancelled') => (event: Event) => {
     if (!event.isTrusted) return;

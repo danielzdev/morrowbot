@@ -10,14 +10,14 @@ const AT = '2026-01-01T00:00:00.000Z';
 
 let dir: string;
 beforeEach(async () => {
-  dir = await mkdtemp(path.join(tmpdir(), 'orikami-migration-4-'));
+  dir = await mkdtemp(path.join(tmpdir(), 'oribot-migration-4-'));
 });
 afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
 it('reads agents saved before migration 4 as outside any folder', () => {
-  const file = path.join(dir, 'orikami.sqlite');
+  const file = path.join(dir, 'oribot.sqlite');
   const db = new DatabaseSync(file);
   for (const sql of MIGRATIONS.slice(0, 3)) db.exec(sql);
   db.exec('PRAGMA user_version = 3');

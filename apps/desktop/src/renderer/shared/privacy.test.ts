@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import { displayPath, planLabel, redact, type AppInfo } from './privacy.ts';
 
-const INFO: AppInfo = { appVersion: '0.0.0', homeDir: '/Users/sam', userName: 'sam', dataDir: '/Users/sam/.orikami' };
+const INFO: AppInfo = { appVersion: '0.0.0', homeDir: '/Users/sam', userName: 'sam', dataDir: '/Users/sam/.oribot' };
 
 it('redacts the home path, emails and the user name as a whole word, keeping other wording', () => {
   expect(
@@ -32,9 +32,9 @@ it('hides a home path or user name cut at one of its spaces', () => {
   ]);
 });
 
-it('shows Ori Kami folders and the workspace in full under home, and only the last two segments of any other path', () => {
+it('shows Ori Bot folders and the workspace in full under home, and only the last two segments of any other path', () => {
   expect({
-    data: displayPath('/Users/sam/.orikami/workspaces/agent-1', INFO),
+    data: displayPath('/Users/sam/.oribot/workspaces/agent-1', INFO),
     workspace: displayPath('/Users/sam/Projects/garden/notes', INFO, '/Users/sam/Projects/garden'),
     other: displayPath('/Users/sam/Projects/garden/notes/plan.md', INFO),
     outside: displayPath('/opt/homebrew/bin/claude', INFO),
@@ -43,7 +43,7 @@ it('shows Ori Kami folders and the workspace in full under home, and only the la
     customData: displayPath('/Volumes/data/mb/plugins', { ...INFO, dataDir: '/Volumes/data/mb' }),
     workspaceOutsideHome: displayPath('/srv/work/garden/notes', INFO, '/srv/work/garden'),
   }).toEqual({
-    data: '~/.orikami/workspaces/agent-1',
+    data: '~/.oribot/workspaces/agent-1',
     workspace: '~/Projects/garden/notes',
     other: '…/notes/plan.md',
     outside: '…/bin/claude',

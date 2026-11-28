@@ -4,9 +4,9 @@ import type { CardContext } from './ThreadCards.tsx';
 type CustomBody = Extract<ThreadCard['body'], { kind: 'custom' }>;
 
 /**
- * An agent's own card. Ori Kami draws the frame (the agent's avatar and name, "Agent card") and every block with its
+ * An agent's own card. Ori Bot draws the frame (the agent's avatar and name, "Agent card") and every block with its
  * own components, as plain text: a card cannot draw markup, links or images, and its buttons are never the primary
- * style that approvals use, so it cannot pass for Ori Kami's own cards.
+ * style that approvals use, so it cannot pass for Ori Bot's own cards.
  */
 export function AgentCard(props: {
   readonly card: ThreadCard;

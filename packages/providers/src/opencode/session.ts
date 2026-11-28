@@ -10,7 +10,7 @@ export type Opened =
   | { readonly kind: 'opened'; readonly sessionId: string; readonly options: readonly acp.ConfigOption[]; readonly detach: () => void }
   | { readonly kind: 'refused'; readonly error: ProviderError };
 
-/** Opens the turn's session: `session/new` in `cwd` with only Ori Kami's MCP server. Ori Kami never resumes an opencode session. */
+/** Opens the turn's session: `session/new` in `cwd` with only Ori Bot's MCP server. Ori Bot never resumes an opencode session. */
 export async function openSession(client: acp.AcpClient, cwd: string, tools: HostTools, handlers: acp.SessionHandlers): Promise<Opened> {
   const created = await client.call('session/new', { cwd, mcpServers: acp.hostMcpServers(client, tools) }, acp.SessionNewResponse, OPEN_MS);
   if (created.kind !== 'ok') return { kind: 'refused', error: callError('start a session', created) };
@@ -59,13 +59,13 @@ export async function configureSession(
     const reason =
       access === 'full'
         ? 'OpenCode would not switch this chat to its full-access mode.'
-        : "OpenCode would not run this chat in its build mode, which Ori Kami's read-only permissions hold.";
+        : "OpenCode would not run this chat in its build mode, which Ori Bot's read-only permissions hold.";
     return { kind: 'refused', error: { kind: 'access-not-supported', reason } };
   }
   return { kind: 'configured', model: acp.selectOf(options, MODEL)?.current ?? null };
 }
 
-/** Frees the session in the daemon; opencode keeps it in its own (Ori Kami's) data folder. */
+/** Frees the session in the daemon; opencode keeps it in its own (Ori Bot's) data folder. */
 export function closeSession(client: acp.AcpClient, sessionId: string): void {
   if (!client.canClose || !client.alive()) return;
   client.call('session/close', { sessionId }, acp.Ignored, CLOSE_MS).catch((error: unknown) => {

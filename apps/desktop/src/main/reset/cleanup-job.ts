@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { ResetStep } from '../../renderer/bridge.ts';
 import type { ResetContext } from './reset-paths.ts';
 
-/** How to open Ori Kami again after a reset: always the binary the helper itself runs under. */
+/** How to open Ori Bot again after a reset: always the binary the helper itself runs under. */
 export interface Relaunch {
   readonly command: string;
   readonly args: readonly string[];

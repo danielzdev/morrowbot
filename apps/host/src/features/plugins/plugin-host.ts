@@ -25,7 +25,7 @@ export interface PluginHostOptions {
   readonly pluginsDir: string;
   /** The plugins folder that ships inside the app, if any. Its ids win over the user's. */
   readonly builtinPluginsDir: string | null;
-  /** Providers built into Ori Kami, served in this process. Listed first; their ids are reserved, and safe mode does not stop them. */
+  /** Providers built into Ori Bot, served in this process. Listed first; their ids are reserved, and safe mode does not stop them. */
   readonly builtins: readonly PluginSource[];
   readonly store: PluginStore;
   /** Each plugin gets its own folder `<dataDir>/<plugin id>`. */
@@ -84,7 +84,7 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
   const log =
     options.log ??
     ((message: string) => {
-      console.error(`Ori Kami host: ${message}`);
+      console.error(`Ori Bot host: ${message}`);
     });
   const platform = options.platform ?? process.platform;
   const newId = options.newId ?? (() => crypto.randomUUID());
@@ -189,7 +189,7 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
       return;
     }
     if (manifest.kind === 'provider' && platform === 'win32') {
-      setStatus(slot, { kind: 'unsupported', reason: 'Provider plugins need macOS or Linux in this version of Ori Kami.' });
+      setStatus(slot, { kind: 'unsupported', reason: 'Provider plugins need macOS or Linux in this version of Ori Bot.' });
       return;
     }
     if (slot.quarantine !== undefined) return;

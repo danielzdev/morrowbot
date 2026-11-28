@@ -20,7 +20,7 @@ export function resetLockOf(dataDir: string): string {
   } catch {
     key = `path:${comparable(dataDir)}`;
   }
-  return path.join(tmpdir(), `orikami-reset-${createHash('sha256').update(key).digest('hex').slice(0, 16)}.lock`);
+  return path.join(tmpdir(), `oribot-reset-${createHash('sha256').update(key).digest('hex').slice(0, 16)}.lock`);
 }
 
 /** True while `pid` runs (EPERM: it runs as another user). */
@@ -51,7 +51,7 @@ export function clearResetLock(dataDir: string): void {
   rmSync(resetLockOf(dataDir), { force: true });
 }
 
-/** True while a cleanup helper for this data folder is still at work: Ori Kami must not start on half-deleted data. */
+/** True while a cleanup helper for this data folder is still at work: Ori Bot must not start on half-deleted data. */
 export function resetInProgress(dataDir: string, alive: (pid: number) => boolean = isAlive, now: number = Date.now()): boolean {
   try {
     const lock = resetLockOf(dataDir);

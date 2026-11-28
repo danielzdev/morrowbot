@@ -8,7 +8,7 @@ export function pluginToolPrefix(pluginId: string): string {
 }
 
 /**
- * Builds the full tool list visible to `agentId`: built-in Ori Kami tools first, followed by tools
+ * Builds the full tool list visible to `agentId`: built-in Ori Bot tools first, followed by tools
  * from allowed running tool plugins. Each plugin tool is namespaced under its plugin id prefix unless
  * it already starts with it, and any tool whose exposed name collides with a built-in tool or an
  * earlier plugin's tool is skipped rather than allowed to shadow it.

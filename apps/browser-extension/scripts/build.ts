@@ -17,4 +17,4 @@ await writeFile(`${out}manifest.json`, `${JSON.stringify({ ...manifest, version 
 await copyFile(`${root}src/options/options.html`, `${out}options.html`);
 await copyFile(`${root}src/options/options.css`, `${out}options.css`);
 await cp(`${root}icons`, `${out}icons`, { recursive: true });
-console.log(`Built the Ori Kami extension ${version} into ${out}`);
+console.log(`Built the Ori Bot extension ${version} into ${out}`);

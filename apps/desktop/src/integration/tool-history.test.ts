@@ -35,7 +35,7 @@ function toolRows(screen: ThreadScreen): unknown {
 }
 
 it('a window opened mid-turn shows each tool call and result so far, and one opened after a host restart shows them on the reply', async () => {
-  const dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-tool-history-')));
+  const dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'oribot-tool-history-')));
   cleanup.push(() => rm(dataDir, { recursive: true, force: true }));
   let chat = await startChatFixture({ dataDir });
   const thread = await chat.thread(await chat.agent());

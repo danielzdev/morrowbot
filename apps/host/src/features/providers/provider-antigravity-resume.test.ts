@@ -11,7 +11,7 @@ let home: string;
 let provider: ProviderPlugin;
 
 beforeEach(async () => {
-  home = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-agy-')));
+  home = await realpath(await mkdtemp(path.join(tmpdir(), 'oribot-agy-')));
   const adapter = BUILTIN_PROVIDERS.find((entry) => entry.manifest.id === 'provider-antigravity');
   if (adapter === undefined) throw new Error('provider-antigravity is not built in');
   provider = adapter.create(standaloneRuntime({ env: { ...process.env, HOME: home }, platform: 'darwin' }));

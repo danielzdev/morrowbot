@@ -11,26 +11,26 @@ function port(result: HostConfigResult): number | readonly string[] {
 it('defaults the port and rejects a bad one', () => {
   expect([
     port(parse({})),
-    port(parse({ ORIKAMI_HOST_PORT: '0' })),
-    port(parse({ ORIKAMI_HOST_PORT: '' })),
-    port(parse({ ORIKAMI_HOST_PORT: '   ' })),
-    port(parse({ ORIKAMI_HOST_PORT: 'eighty' })),
-    port(parse({ ORIKAMI_HOST_PORT: '70000' })),
+    port(parse({ ORIBOT_HOST_PORT: '0' })),
+    port(parse({ ORIBOT_HOST_PORT: '' })),
+    port(parse({ ORIBOT_HOST_PORT: '   ' })),
+    port(parse({ ORIBOT_HOST_PORT: 'eighty' })),
+    port(parse({ ORIBOT_HOST_PORT: '70000' })),
   ]).toMatchInlineSnapshot(`
     [
       0,
       0,
       [
-        "ORIKAMI_HOST_PORT: Expected an integer port",
+        "ORIBOT_HOST_PORT: Expected an integer port",
       ],
       [
-        "ORIKAMI_HOST_PORT: Expected an integer port",
+        "ORIBOT_HOST_PORT: Expected an integer port",
       ],
       [
-        "ORIKAMI_HOST_PORT: Expected an integer port",
+        "ORIBOT_HOST_PORT: Expected an integer port",
       ],
       [
-        "ORIKAMI_HOST_PORT: Too big: expected number to be <=65535",
+        "ORIBOT_HOST_PORT: Too big: expected number to be <=65535",
       ],
     ]
   `);
@@ -40,21 +40,21 @@ it('turns on safe mode from the flag or the env, and places data in the dev fold
   expect([
     parse({}),
     parse({}, ['--safe-mode']),
-    parse({ ORIKAMI_SAFE_MODE: '1', ORIKAMI_DATA_DIR: '/data' }),
-    parse({ ORIKAMI_SAFE_MODE: 'yes', ORIKAMI_PLUGINS_DIR: 'relative' }, ['--verbose']),
+    parse({ ORIBOT_SAFE_MODE: '1', ORIBOT_DATA_DIR: '/data' }),
+    parse({ ORIBOT_SAFE_MODE: 'yes', ORIBOT_PLUGINS_DIR: 'relative' }, ['--verbose']),
   ]).toMatchInlineSnapshot(`
     [
       {
         "config": {
           "builtinPluginsDir": null,
-          "dataDir": "/home/user/.orikami-dev",
+          "dataDir": "/home/user/.oribot-dev",
           "hostname": "127.0.0.1",
-          "pluginsDir": "/home/user/.orikami-dev/plugins",
+          "pluginsDir": "/home/user/.oribot-dev/plugins",
           "port": 0,
           "safeMode": false,
           "t3Watch": {
             "bin": "/home/user/.t3/bin/t3",
-            "dir": "/home/user/.orikami-dev/t3-watch",
+            "dir": "/home/user/.oribot-dev/t3-watch",
             "projects": [],
             "routineId": null,
           },
@@ -64,14 +64,14 @@ it('turns on safe mode from the flag or the env, and places data in the dev fold
       {
         "config": {
           "builtinPluginsDir": null,
-          "dataDir": "/home/user/.orikami-dev",
+          "dataDir": "/home/user/.oribot-dev",
           "hostname": "127.0.0.1",
-          "pluginsDir": "/home/user/.orikami-dev/plugins",
+          "pluginsDir": "/home/user/.oribot-dev/plugins",
           "port": 0,
           "safeMode": true,
           "t3Watch": {
             "bin": "/home/user/.t3/bin/t3",
-            "dir": "/home/user/.orikami-dev/t3-watch",
+            "dir": "/home/user/.oribot-dev/t3-watch",
             "projects": [],
             "routineId": null,
           },
@@ -98,8 +98,8 @@ it('turns on safe mode from the flag or the env, and places data in the dev fold
       {
         "kind": "invalid",
         "problems": [
-          "ORIKAMI_SAFE_MODE: Invalid option: expected one of "0"|"1"|"true"|"false"",
-          "ORIKAMI_PLUGINS_DIR: Expected an absolute path",
+          "ORIBOT_SAFE_MODE: Invalid option: expected one of "0"|"1"|"true"|"false"",
+          "ORIBOT_PLUGINS_DIR: Expected an absolute path",
           "--verbose: Unknown option",
         ],
       },
@@ -107,16 +107,16 @@ it('turns on safe mode from the flag or the env, and places data in the dev fold
   `);
 });
 
-it('binds to loopback unless ORIKAMI_HOST_BIND names an IP address, kept in one spelling', () => {
+it('binds to loopback unless ORIBOT_HOST_BIND names an IP address, kept in one spelling', () => {
   const bind = (value: string | undefined) => {
-    const result = parse(value === undefined ? {} : { ORIKAMI_HOST_BIND: value });
+    const result = parse(value === undefined ? {} : { ORIBOT_HOST_BIND: value });
     return result.kind === 'ok' ? result.config.hostname : result.problems;
   };
   const values = [undefined, '100.64.0.1', '0.0.0.0', '::', '0:0:0:0:0:0:0:0', '0:0:0:0:0:0:0:1', 'FD7A:115C:A1E0:0:0:0:0:1', '::ffff:127.0.0.1', 'studio-host.local', 'fe80::1%en0', ''];
   expect(Object.fromEntries(values.map((value) => [value ?? '(unset)', bind(value)]))).toMatchInlineSnapshot(`
     {
       "": [
-        "ORIKAMI_HOST_BIND: Expected an IPv4 or IPv6 address, such as 100.64.0.1 or 0.0.0.0",
+        "ORIBOT_HOST_BIND: Expected an IPv4 or IPv6 address, such as 100.64.0.1 or 0.0.0.0",
       ],
       "(unset)": "127.0.0.1",
       "0.0.0.0": "0.0.0.0",
@@ -125,14 +125,14 @@ it('binds to loopback unless ORIKAMI_HOST_BIND names an IP address, kept in one 
       "100.64.0.1": "100.64.0.1",
       "::": "::",
       "::ffff:127.0.0.1": [
-        "ORIKAMI_HOST_BIND: Use the IPv4 form of an IPv4-mapped address",
+        "ORIBOT_HOST_BIND: Use the IPv4 form of an IPv4-mapped address",
       ],
       "FD7A:115C:A1E0:0:0:0:0:1": "fd7a:115c:a1e0::1",
       "fe80::1%en0": [
-        "ORIKAMI_HOST_BIND: Expected an IPv4 or IPv6 address, such as 100.64.0.1 or 0.0.0.0",
+        "ORIBOT_HOST_BIND: Expected an IPv4 or IPv6 address, such as 100.64.0.1 or 0.0.0.0",
       ],
       "studio-host.local": [
-        "ORIKAMI_HOST_BIND: Expected an IPv4 or IPv6 address, such as 100.64.0.1 or 0.0.0.0",
+        "ORIBOT_HOST_BIND: Expected an IPv4 or IPv6 address, such as 100.64.0.1 or 0.0.0.0",
       ],
     }
   `);
@@ -144,8 +144,8 @@ it('reads the T3 watcher settings, splitting the project list, trimming the rout
     return result.kind === 'ok' ? result.config.t3Watch : result.problems;
   };
   expect([
-    watch({ ORIKAMI_T3_WATCH_DIR: '/shared/t3-watch', ORIKAMI_T3_BIN: '/opt/t3', ORIKAMI_T3_PROJECTS: ' proj-a, /work/repo ,,', ORIKAMI_T3_ROUTINE_ID: ' routine-1 ' }),
-    watch({ ORIKAMI_T3_WATCH_DIR: 'relative' }),
+    watch({ ORIBOT_T3_WATCH_DIR: '/shared/t3-watch', ORIBOT_T3_BIN: '/opt/t3', ORIBOT_T3_PROJECTS: ' proj-a, /work/repo ,,', ORIBOT_T3_ROUTINE_ID: ' routine-1 ' }),
+    watch({ ORIBOT_T3_WATCH_DIR: 'relative' }),
   ]).toMatchInlineSnapshot(`
     [
       {
@@ -158,7 +158,7 @@ it('reads the T3 watcher settings, splitting the project list, trimming the rout
         "routineId": "routine-1",
       },
       [
-        "ORIKAMI_T3_WATCH_DIR: Expected an absolute path",
+        "ORIBOT_T3_WATCH_DIR: Expected an absolute path",
       ],
     ]
   `);

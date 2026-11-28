@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-/** Where a skill was found: the data folder's `skills/` (every agent) or the agent's `.orikami/skills/`. */
+/** Where a skill was found: the data folder's `skills/` (every agent) or the agent's `.oribot/skills/`. */
 export const SkillScope = z.enum(['global', 'agent']);
 export type SkillScope = z.infer<typeof SkillScope>;
 

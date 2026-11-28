@@ -1,15 +1,15 @@
 # T3 watch runbook (orchestrator)
 
-How an orchestrator agent launches T3 Code threads, has the Ori Kami host watch them, and handles the updates the host sends back. The host watches; the orchestrator acts.
+How an orchestrator agent launches T3 Code threads, has the Ori Bot host watch them, and handles the updates the host sends back. The host watches; the orchestrator acts.
 
-> **Preferred interface for Ori Kami agents:** Agents running inside Ori Kami receive built-in MCP tools directly — use `watch_t3_thread`, `list_t3_watches`, `ack_t3_batch`, `unwatch_t3_thread`, and routine tools (`list_routines`, `create_routine`, `update_routine`, `delete_routine`, `routine_no_update`) instead of writing JSONL files by hand. The JSONL file protocol below remains available for external scripts and hosts without tool access.
+> **Preferred interface for Ori Bot agents:** Agents running inside Ori Bot receive built-in MCP tools directly — use `watch_t3_thread`, `list_t3_watches`, `ack_t3_batch`, `unwatch_t3_thread`, and routine tools (`list_routines`, `create_routine`, `update_routine`, `delete_routine`, `routine_no_update`) instead of writing JSONL files by hand. The JSONL file protocol below remains available for external scripts and hosts without tool access.
 
 ## The pieces
 
-- **The orchestrator:** one Ori Kami agent. It launches and steers T3 Code threads with the `t3` CLI.
+- **The orchestrator:** one Ori Bot agent. It launches and steers T3 Code threads with the `t3` CLI.
 - **Its updates routine:** a *manual* routine of that agent (for example "T3 updates"), used only for watch batches. Each batch runs as one routine run in a chat of its own. Batches never post to the orchestrator's interactive chat, never reload it and never cancel a turn there.
-- **The sink:** the host's `routine` sink. Set `ORIKAMI_T3_ROUTINE_ID` to that routine's id and restart the host. Without it, delivery is off: events wait in the host's outbox and nothing reaches any chat.
-- **The watch folder:** `ORIKAMI_T3_WATCH_DIR`, else `t3-watch/` in the host's data folder. Point it at a folder the orchestrator can write. It holds:
+- **The sink:** the host's `routine` sink. Set `ORIBOT_T3_ROUTINE_ID` to that routine's id and restart the host. Without it, delivery is off: events wait in the host's outbox and nothing reaches any chat.
+- **The watch folder:** `ORIBOT_T3_WATCH_DIR`, else `t3-watch/` in the host's data folder. Point it at a folder the orchestrator can write. It holds:
 
 | File | Written by | What it is |
 |---|---|---|
@@ -86,9 +86,9 @@ or append the same JSON as one line to `acks.jsonl`.
 
 ## Turning it on (smoke test)
 
-1. Create the orchestrator's manual updates routine. Set `ORIKAMI_T3_ROUTINE_ID` to its id and restart.
+1. Create the orchestrator's manual updates routine. Set `ORIBOT_T3_ROUTINE_ID` to its id and restart.
 2. Start one quick T3 thread and one that asks for an approval, and register both.
 3. While both run, type in the orchestrator's chat.
 4. Pass: no reload, no interrupted turn, one batch in the updates routine's own chat with both events, and an acked batch (`GET /api/t3-watches` shows the finished watch settled).
 
-Retire the per-thread watcher scripts only after this passes. Until then, leave `ORIKAMI_T3_ROUTINE_ID` unset.
+Retire the per-thread watcher scripts only after this passes. Until then, leave `ORIBOT_T3_ROUTINE_ID` unset.

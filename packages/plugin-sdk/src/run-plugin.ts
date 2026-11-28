@@ -10,7 +10,7 @@ import { servePlugin } from './serve.ts';
 export function runPlugin(factory: PluginFactory): void {
   const channel = process.send?.bind(process);
   if (channel === undefined) {
-    throw new Error('This plugin must be started by the Ori Kami host (no IPC channel found).');
+    throw new Error('This plugin must be started by the Ori Bot host (no IPC channel found).');
   }
   const served = servePlugin(factory, {
     env: process.env,

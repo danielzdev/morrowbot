@@ -67,7 +67,7 @@ export function sessionChoiceRequired(reason: SessionChoiceReason): Reply {
 /** `AGENTS.md` was left as it is: it exists already, or replacing it is not available yet (409). */
 export function instructionsConflict(reason: 'occupied' | 'replace-unavailable', current: AgentInstructionsView): Reply {
   const messages: Record<typeof reason, string> = {
-    occupied: 'This folder already has an AGENTS.md, so Ori Kami kept it and wrote nothing.',
+    occupied: 'This folder already has an AGENTS.md, so Ori Bot kept it and wrote nothing.',
     'replace-unavailable': "Editing AGENTS.md in place isn't available yet. Nothing was changed.",
   };
   const body: ApiError = { error: { kind: 'instructions-conflict', reason, current, message: messages[reason] } };

@@ -27,7 +27,7 @@ runPlugin((runtime) => {
     health: () => {
       const connected = bridge?.browsers() ?? [];
       if (connected.length === 0) {
-        return { kind: 'degraded', detail: 'No browser connected. Open the Ori Kami browser extension and check that its pairing token and port match these settings.' };
+        return { kind: 'degraded', detail: 'No browser connected. Open the Ori Bot browser extension and check that its pairing token and port match these settings.' };
       }
       return { kind: 'ok' };
     },

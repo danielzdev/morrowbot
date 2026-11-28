@@ -8,7 +8,7 @@ import { sequence, startTestHost, type Reply, type TestHost } from './testing/te
 let dataDir: string;
 let host: TestHost;
 beforeEach(async () => {
-  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-h8-')));
+  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'oribot-h8-')));
   host = await startTestHost({ dataDir });
 });
 afterEach(async () => {
@@ -69,7 +69,7 @@ it('leaves an existing file and a dangling symlink byte-identical when a PUT tri
                 "revision": "<revision>",
               },
               "kind": "instructions-conflict",
-              "message": "This folder already has an AGENTS.md, so Ori Kami kept it and wrote nothing.",
+              "message": "This folder already has an AGENTS.md, so Ori Bot kept it and wrote nothing.",
               "reason": "occupied",
             },
           },
@@ -85,7 +85,7 @@ it('leaves an existing file and a dangling symlink byte-identical when a PUT tri
                 "revision": "<revision>",
               },
               "kind": "instructions-conflict",
-              "message": "This folder already has an AGENTS.md, so Ori Kami kept it and wrote nothing.",
+              "message": "This folder already has an AGENTS.md, so Ori Bot kept it and wrote nothing.",
               "reason": "occupied",
             },
           },
@@ -287,7 +287,7 @@ it.skipIf(process.getuid?.() === 0)('reports an unreadable file as present with 
   await chmod(file, 0o000);
   const read = await view(agent);
   await chmod(file, 0o600);
-  expect(read).toMatchObject({ content: null, readError: "Ori Kami isn't allowed to read AGENTS.md.", canReplace: false });
+  expect(read).toMatchObject({ content: null, readError: "Ori Bot isn't allowed to read AGENTS.md.", canReplace: false });
   expect(read.revision).not.toBeNull();
 });
 
@@ -314,7 +314,7 @@ it.skipIf(process.getuid?.() === 0)('in a folder it cannot write: reports an exi
                 "revision": "<revision>",
               },
               "kind": "instructions-conflict",
-              "message": "This folder already has an AGENTS.md, so Ori Kami kept it and wrote nothing.",
+              "message": "This folder already has an AGENTS.md, so Ori Bot kept it and wrote nothing.",
               "reason": "occupied",
             },
           },
@@ -324,7 +324,7 @@ it.skipIf(process.getuid?.() === 0)('in a folder it cannot write: reports an exi
           "body": {
             "error": {
               "kind": "internal",
-              "message": "Ori Kami isn't allowed to write in this folder.",
+              "message": "Ori Bot isn't allowed to write in this folder.",
             },
           },
           "status": 500,
@@ -333,7 +333,7 @@ it.skipIf(process.getuid?.() === 0)('in a folder it cannot write: reports an exi
           "body": {
             "error": {
               "kind": "internal",
-              "message": "The workspace folder could not be made. Ori Kami isn't allowed to write in this folder.",
+              "message": "The workspace folder could not be made. Ori Bot isn't allowed to write in this folder.",
             },
           },
           "status": 500,

@@ -47,7 +47,7 @@ export function writeServerChoice(dataDir: string, choice: ServerChoice): void {
  * choice existed) keeps running it, so an update never strands someone's agents.
  */
 export function serverPlanOf(choice: ServerChoice | undefined, dataDir: string): ServerPlan {
-  if (choice === undefined) return existsSync(path.join(dataDir, 'orikami.sqlite')) ? { kind: 'local' } : { kind: 'ask' };
+  if (choice === undefined) return existsSync(path.join(dataDir, 'oribot.sqlite')) ? { kind: 'local' } : { kind: 'ask' };
   switch (choice.kind) {
     case 'local':
       return { kind: 'local' };

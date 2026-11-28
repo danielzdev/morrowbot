@@ -76,7 +76,7 @@ export function AgentExtensionsSection(props: {
   readonly model: ConnectorsModel;
   readonly agent: Agent;
   readonly agents: readonly Agent[];
-  /** The provider's name when this agent uses the personal CLI setup, whose own tools Ori Kami can't limit. */
+  /** The provider's name when this agent uses the personal CLI setup, whose own tools Ori Bot can't limit. */
   readonly personalProvider: string | null;
   readonly redact: (text: string) => string;
   readonly onDirty: (dirty: boolean) => void;
@@ -118,7 +118,7 @@ export function AgentExtensionsSection(props: {
       <p class="binding-note">Choose which connectors {agent.name} can use.</p>
       {props.personalProvider !== null && (
         <p class="binding-note">
-          This agent's {props.personalProvider} CLI may also use tools from your personal {props.personalProvider} setup. Ori Kami can't see or limit those.
+          This agent's {props.personalProvider} CLI may also use tools from your personal {props.personalProvider} setup. Ori Bot can't see or limit those.
         </p>
       )}
       {list.kind === 'loading' && <p class="muted">Loading connectors…</p>}

@@ -1,6 +1,6 @@
 # Claude (subscription)
 
-A provider built into Ori Kami that answers with the Claude Code CLI you already have, signed in
+A provider built into Ori Bot that answers with the Claude Code CLI you already have, signed in
 with your own Claude Pro or Max subscription. Each turn runs
 
 ```
@@ -8,7 +8,7 @@ claude -p --input-format stream-json --output-format stream-json --verbose
   --include-partial-messages --no-session-persistence --strict-mcp-config
   --setting-sources '' --disable-slash-commands
   <access flags> [--model <id> [--effort <level>]] [--append-system-prompt-file <fd>]
-  [--mcp-config <fd> --allowedTools mcp__orikami]
+  [--mcp-config <fd> --allowedTools mcp__oribot]
 ```
 
 in the agent's workspace folder, writes the conversation as one stream-json user frame
@@ -16,7 +16,7 @@ on stdin, and turns the JSON lines into turn chunks: text, status lines, tool ca
 starting and ending, approval cards and plan usage. Stdin stays open for approval
 answers and closes after the reply. Stopping a reply stops the CLI.
 
-**Access.** Three profiles, all with Ori Kami's own instructions (the agent's
+**Access.** Three profiles, all with Ori Bot's own instructions (the agent's
 `AGENTS.md`, passed as the system prompt). Your own `CLAUDE.md`, skills, plugins,
 hooks, MCP servers and settings files are not loaded. Only full access has a shell.
 `--safe-mode` is not used: on 2.1.332 it also drops `--mcp-config` servers, so
@@ -24,9 +24,9 @@ hooks, MCP servers and settings files are not loaded. Only full access has a she
 `--restricted` in read-only and workspace-write) turn the same things off (the live
 tests check it under hostile project settings).
 
-**Ori Kami's tools.** Each turn gets the host's MCP server for that turn
+**Ori Bot's tools.** Each turn gets the host's MCP server for that turn
 (`--mcp-config`, read from a file descriptor so its token stays out of the process
-list), and its tools (`mcp__orikami__*`: list agents, send a message, search,
+list), and its tools (`mcp__oribot__*`: list agents, send a message, search,
 remember and forget memories) run without asking in both profiles. They act only as
 the turn's agent and stop working when the turn ends.
 
@@ -46,7 +46,7 @@ Full access runs terminal commands (`git`, `gh`, build scripts) and reads and wr
 files anywhere your user can, without asking, in chats and in background turns alike.
 It has no `--restricted`, which refuses `bypassPermissions`; `--setting-sources ''`
 still keeps your settings files and `CLAUDE.md` out, and `--settings` turns off Claude
-Code's own auto-memory (the agent's memories are Ori Kami's). No agent starts on it:
+Code's own auto-memory (the agent's memories are Ori Bot's). No agent starts on it:
 only the owner can turn it on, in Agent Settings › Brain, after a confirmation. Server
 members cannot set it or chat with such an agent, and an agent without full access
 cannot start a conversation with one. `--permission-prompt-tool stdio` is not in `claude --help`,
@@ -80,7 +80,7 @@ Settings:
 
 **Fixtures.** `fixtures/2.1.332/` holds redacted transcripts of real 2.1.332 turns,
 replayed by `wire.test.ts`. `apps/host/src/features/providers/provider-claude-live.test.ts`
-runs the same checks on your real CLI with `ORIKAMI_LIVE_CLAUDE=1` (it spends a little
+runs the same checks on your real CLI with `ORIBOT_LIVE_CLAUDE=1` (it spends a little
 of your plan).
 
 The model comes from the chat's model picker (`fable`, `opus`, `sonnet`, `haiku`, and

@@ -65,7 +65,7 @@ export function servePlugin(factory: PluginFactory, options: RuntimeOptions & { 
       if (abandoned) return;
       const parsed = HostMessage.safeParse(raw);
       if (!parsed.success) {
-        console.error(`Ori Kami plugin: ignored a malformed host message: ${parsed.error.message}`);
+        console.error(`Ori Bot plugin: ignored a malformed host message: ${parsed.error.message}`);
         return;
       }
       handle(served, parsed.data);
@@ -85,7 +85,7 @@ function handle(served: Served, message: HostMessage): void {
   switch (message.kind) {
     case 'turn':
       runTurn(served, message).catch((error: unknown) => {
-        console.error(`Ori Kami plugin: turn ${message.turnId} could not be finished: ${describe(error)}`);
+        console.error(`Ori Bot plugin: turn ${message.turnId} could not be finished: ${describe(error)}`);
       });
       return;
     case 'cancel':
@@ -99,7 +99,7 @@ function handle(served: Served, message: HostMessage): void {
       return;
     case 'approval-reply':
       if (served.turns.get(message.turnId)?.approvals.reply(message.approvalId, message.choiceId) !== true) {
-        console.error(`Ori Kami plugin: ignored a stale or unknown approval reply for ${message.approvalId}`);
+        console.error(`Ori Bot plugin: ignored a stale or unknown approval reply for ${message.approvalId}`);
       }
       return;
     case 'child-group-ack':
@@ -218,7 +218,7 @@ async function runTurn(served: Served, message: Extract<HostMessage, { kind: 'tu
   const request = requestOf(message);
   const { turnId } = request;
   if (turns.has(turnId)) {
-    console.error(`Ori Kami plugin: ignored a second turn with id ${turnId}`);
+    console.error(`Ori Bot plugin: ignored a second turn with id ${turnId}`);
     return;
   }
   const controller = new AbortController();

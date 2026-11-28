@@ -23,31 +23,31 @@ async function confirmed(context: CleanupJob['context'], keychain = fakeKeychain
   return { choice: choice === 'reset' ? { kind: 'reset', relaunch: { command: process.execPath, args: [], cwd: '/' } } : { kind: 'full-uninstall' }, context, approved: plan.steps, waitPids: [4242] };
 }
 
-it('removes exactly the confirmed Ori Kami files and Keychain items, and leaves workspaces, links, their targets and unknown files', async () => {
-  await fake.file('.orikami/orikami.sqlite');
-  await fake.file('.orikami/attachments/a.png');
-  await fake.file('.orikami/workspaces/agent-1/todo.md');
-  await fake.file('.orikami/mine.txt');
+it('removes exactly the confirmed Ori Bot files and Keychain items, and leaves workspaces, links, their targets and unknown files', async () => {
+  await fake.file('.oribot/oribot.sqlite');
+  await fake.file('.oribot/attachments/a.png');
+  await fake.file('.oribot/workspaces/agent-1/todo.md');
+  await fake.file('.oribot/mine.txt');
   await fake.file('my-skills/skill.md');
-  await fake.link('.orikami/skills', `${fake.home}/my-skills`);
-  await fake.file('.orikami/plugin-data/echo/link-target-outside.txt');
-  await fake.link('.orikami/plugin-data/echo/outside', `${fake.home}/Documents`);
+  await fake.link('.oribot/skills', `${fake.home}/my-skills`);
+  await fake.file('.oribot/plugin-data/echo/link-target-outside.txt');
+  await fake.link('.oribot/plugin-data/echo/outside', `${fake.home}/Documents`);
   await fake.file('Documents/report.txt');
-  await fake.file('Library/Application Support/Ori Kami/Cookies');
+  await fake.file('Library/Application Support/Ori Bot/Cookies');
   await fake.file('Library/Application Support/Other/keep.db');
   const keychain = fakeKeychain([RELEASE_TOKEN, SAFE_STORAGE, { service: SAFE_STORAGE.service, account: 'someone-else' }, { service: 'Other Safe Storage', account: 'Other' }]);
-  const job = await confirmed(fake.context('installed', '.orikami'), keychain);
+  const job = await confirmed(fake.context('installed', '.oribot'), keychain);
   const report = await runCleanup(job, exited(keychain));
   expect({ report: fake.short(report), left: await fake.tree(), keychain: [...keychain.items] }).toMatchInlineSnapshot(`
     {
       "keychain": [
-        "Ori Kami Safe Storage / someone-else",
+        "Ori Bot Safe Storage / someone-else",
         "Other Safe Storage / Other",
       ],
       "left": [
-        ".orikami/mine.txt",
-        ".orikami/skills (link)",
-        ".orikami/workspaces/agent-1/todo.md",
+        ".oribot/mine.txt",
+        ".oribot/skills (link)",
+        ".oribot/workspaces/agent-1/todo.md",
         "Documents/report.txt",
         "Library/Application Support/Other/keep.db",
         "my-skills/skill.md",
@@ -56,29 +56,29 @@ it('removes exactly the confirmed Ori Kami files and Keychain items, and leaves 
         "done": [
           {
             "kind": "delete",
-            "path": "~/.orikami/orikami.sqlite",
+            "path": "~/.oribot/oribot.sqlite",
           },
           {
             "kind": "delete",
-            "path": "~/.orikami/attachments",
+            "path": "~/.oribot/attachments",
           },
           {
             "kind": "delete",
-            "path": "~/.orikami/plugin-data",
+            "path": "~/.oribot/plugin-data",
           },
           {
             "kind": "delete",
-            "path": "~/Library/Application Support/Ori Kami",
+            "path": "~/Library/Application Support/Ori Bot",
           },
           {
-            "account": "Ori Kami",
+            "account": "Ori Bot",
             "kind": "keychain",
-            "service": "Ori Kami Safe Storage",
+            "service": "Ori Bot Safe Storage",
           },
           {
             "account": "releases",
             "kind": "keychain",
-            "service": "com.legendarykoi.orikami.releases",
+            "service": "com.legendarykoi.oribot.releases",
           },
         ],
         "failed": [],
@@ -90,28 +90,28 @@ it('removes exactly the confirmed Ori Kami files and Keychain items, and leaves 
 });
 
 it('skips a confirmed path that became a link since, any Trash step, and any step the fresh plan does not hold', async () => {
-  await fake.file('.orikami-dev/attachments/a.png');
-  await fake.file('.orikami-dev/plugins/p/index.js');
+  await fake.file('.oribot-dev/attachments/a.png');
+  await fake.file('.oribot-dev/plugins/p/index.js');
   await fake.file('precious/keep.txt');
-  const job = await confirmed(fake.context('isolated', '.orikami-dev'));
-  await rm(`${fake.home}/.orikami-dev/plugins`, { recursive: true });
-  await fake.link('.orikami-dev/plugins', `${fake.home}/precious`);
+  const job = await confirmed(fake.context('isolated', '.oribot-dev'));
+  await rm(`${fake.home}/.oribot-dev/plugins`, { recursive: true });
+  await fake.link('.oribot-dev/plugins', `${fake.home}/precious`);
   const forged: CleanupJob = {
     ...job,
-    approved: [...job.approved, { kind: 'trash', path: '/Applications/Ori Kami.app' }, { kind: 'delete', path: `${fake.home}/precious` }, { kind: 'delete', path: fake.home }],
+    approved: [...job.approved, { kind: 'trash', path: '/Applications/Ori Bot.app' }, { kind: 'delete', path: `${fake.home}/precious` }, { kind: 'delete', path: fake.home }],
   };
   const report = await runCleanup(forged, exited());
   expect({ report: fake.short(report), left: await fake.tree() }).toMatchInlineSnapshot(`
     {
       "left": [
-        ".orikami-dev/plugins (link)",
+        ".oribot-dev/plugins (link)",
         "precious/keep.txt",
       ],
       "report": {
         "done": [
           {
             "kind": "delete",
-            "path": "~/.orikami-dev/attachments",
+            "path": "~/.oribot-dev/attachments",
           },
         ],
         "failed": [],
@@ -119,11 +119,11 @@ it('skips a confirmed path that became a link since, any Trash step, and any ste
         "skipped": [
           {
             "kind": "delete",
-            "path": "~/.orikami-dev/plugins",
+            "path": "~/.oribot-dev/plugins",
           },
           {
             "kind": "trash",
-            "path": "/Applications/Ori Kami.app",
+            "path": "/Applications/Ori Bot.app",
           },
           {
             "kind": "delete",
@@ -139,19 +139,19 @@ it('skips a confirmed path that became a link since, any Trash step, and any ste
   `);
 });
 
-it('touches nothing while Ori Kami is still running, or when the job aims at the installed data from a development run', async () => {
-  await fake.file('.orikami/orikami.sqlite');
-  const job = await confirmed(fake.context('installed', '.orikami'));
+it('touches nothing while Ori Bot is still running, or when the job aims at the installed data from a development run', async () => {
+  await fake.file('.oribot/oribot.sqlite');
+  const job = await confirmed(fake.context('installed', '.oribot'));
   const stillRunning = await runCleanup(job, { ...exited(), isAlive: (pid) => pid === 4242 });
-  const devAtInstalled = await runCleanup({ ...job, context: fake.context('isolated', '.orikami') }, exited());
+  const devAtInstalled = await runCleanup({ ...job, context: fake.context('isolated', '.oribot') }, exited());
   expect({ stillRunning, devAtInstalled, left: await fake.tree() }).toMatchInlineSnapshot(`
     {
       "devAtInstalled": {
         "kind": "refused",
-        "reason": "A development run never resets the installed app's ~/.orikami.",
+        "reason": "A development run never resets the installed app's ~/.oribot.",
       },
       "left": [
-        ".orikami/orikami.sqlite",
+        ".oribot/oribot.sqlite",
       ],
       "stillRunning": {
         "kind": "timed-out",
@@ -164,11 +164,11 @@ it('touches nothing while Ori Kami is still running, or when the job aims at the
 });
 
 it('checks each path on disk again just before deleting it, and reports a Keychain item it could not delete', async () => {
-  await fake.file('.orikami/attachments/a.png');
-  await fake.file('.orikami/plugins/p/index.js');
+  await fake.file('.oribot/attachments/a.png');
+  await fake.file('.oribot/plugins/p/index.js');
   await fake.file('precious/keep.txt');
   const locked = fakeKeychain([RELEASE_TOKEN], [RELEASE_TOKEN]);
-  const job = await confirmed(fake.context('installed', '.orikami'), locked);
+  const job = await confirmed(fake.context('installed', '.oribot'), locked);
   let armed = true;
   const swapping = {
     ...locked,
@@ -176,8 +176,8 @@ it('checks each path on disk again just before deleting it, and reports a Keycha
     has: async (item: typeof RELEASE_TOKEN) => {
       if (armed) {
         armed = false;
-        await rm(`${fake.home}/.orikami/plugins`, { recursive: true });
-        await fake.link('.orikami/plugins', `${fake.home}/precious`);
+        await rm(`${fake.home}/.oribot/plugins`, { recursive: true });
+        await fake.link('.oribot/plugins', `${fake.home}/precious`);
       }
       return locked.has(item);
     },
@@ -186,23 +186,23 @@ it('checks each path on disk again just before deleting it, and reports a Keycha
   expect({ report: fake.short(report), left: await fake.tree() }).toMatchInlineSnapshot(`
     {
       "left": [
-        ".orikami/plugins (link)",
+        ".oribot/plugins (link)",
         "precious/keep.txt",
       ],
       "report": {
         "done": [
           {
             "kind": "delete",
-            "path": "~/.orikami/attachments",
+            "path": "~/.oribot/attachments",
           },
         ],
         "failed": [
           {
-            "error": "The Keychain refused to delete com.legendarykoi.orikami.releases.",
+            "error": "The Keychain refused to delete com.legendarykoi.oribot.releases.",
             "step": {
               "account": "releases",
               "kind": "keychain",
-              "service": "com.legendarykoi.orikami.releases",
+              "service": "com.legendarykoi.oribot.releases",
             },
           },
         ],
@@ -210,7 +210,7 @@ it('checks each path on disk again just before deleting it, and reports a Keycha
         "skipped": [
           {
             "kind": "delete",
-            "path": "~/.orikami/plugins",
+            "path": "~/.oribot/plugins",
           },
         ],
       },
@@ -219,45 +219,45 @@ it('checks each path on disk again just before deleting it, and reports a Keycha
 });
 
 it("keeps Electron's Safe Storage key when its profile folder could not be deleted, and never deletes a path it cannot check", async () => {
-  await fake.file('.orikami/attachments/a.png');
-  await fake.file('Library/Application Support/Ori Kami/Cookies');
+  await fake.file('.oribot/attachments/a.png');
+  await fake.file('Library/Application Support/Ori Bot/Cookies');
   const keychain = fakeKeychain([SAFE_STORAGE]);
-  const job = await confirmed(fake.context('installed', '.orikami'), keychain);
-  const profile = `${fake.home}/Library/Application Support/Ori Kami`;
+  const job = await confirmed(fake.context('installed', '.oribot'), keychain);
+  const profile = `${fake.home}/Library/Application Support/Ori Bot`;
   await chmod(profile, 0o500);
   const report = await runCleanup(job, exited(keychain));
   await chmod(profile, 0o700);
-  await chmod(`${fake.home}/.orikami`, 0o000);
-  const unreadable = await deleteRefusalNow(job.context, `${fake.home}/.orikami/attachments`);
-  await chmod(`${fake.home}/.orikami`, 0o700);
+  await chmod(`${fake.home}/.oribot`, 0o000);
+  const unreadable = await deleteRefusalNow(job.context, `${fake.home}/.oribot/attachments`);
+  await chmod(`${fake.home}/.oribot`, 0o700);
   const summary = report.kind === 'done' ? { done: report.done, skipped: report.skipped, failed: report.failed.map(({ step }) => step) } : report;
   expect(fake.short({ summary, keychain: [...keychain.items], unreadable })).toMatchInlineSnapshot(`
     {
       "keychain": [
-        "Ori Kami Safe Storage / Ori Kami",
+        "Ori Bot Safe Storage / Ori Bot",
       ],
       "summary": {
         "done": [
           {
             "kind": "delete",
-            "path": "~/.orikami/attachments",
+            "path": "~/.oribot/attachments",
           },
         ],
         "failed": [
           {
             "kind": "delete",
-            "path": "~/Library/Application Support/Ori Kami",
+            "path": "~/Library/Application Support/Ori Bot",
           },
         ],
         "skipped": [
           {
-            "account": "Ori Kami",
+            "account": "Ori Bot",
             "kind": "keychain",
-            "service": "Ori Kami Safe Storage",
+            "service": "Ori Bot Safe Storage",
           },
         ],
       },
-      "unreadable": "Ori Kami could not check it, so it stays.",
+      "unreadable": "Ori Bot could not check it, so it stays.",
     }
   `);
 });

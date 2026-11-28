@@ -115,7 +115,7 @@ export function NewAgentDialog(props: {
               <input type="radio" name="workspace" checked={workspace.kind === 'dedicated'} onChange={() => { setWorkspace({ kind: 'dedicated' }); }} />
               <span>
                 New folder for this agent
-                <small>Created automatically in your Ori Kami workspaces folder.</small>
+                <small>Created automatically in your Ori Bot workspaces folder.</small>
               </span>
             </label>
             <label class="choice">
@@ -140,7 +140,7 @@ export function NewAgentDialog(props: {
         <details class="form-section instructions-disclosure">
           <summary>Add instructions (AGENTS.md)</summary>
           {workspace.kind === 'shared' && (
-            <p class="binding-note">If this folder already has an AGENTS.md, Ori Kami keeps it; edit instructions after creating.</p>
+            <p class="binding-note">If this folder already has an AGENTS.md, Ori Bot keeps it; edit instructions after creating.</p>
           )}
           <textarea
             class="instructions small"

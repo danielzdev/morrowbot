@@ -14,7 +14,7 @@ export interface UsageProvider {
 }
 
 /**
- * Providers that never report plan limits (v23 §5). Ori Kami never asks Google's internal Code
+ * Providers that never report plan limits (v23 §5). Ori Bot never asks Google's internal Code
  * Assist endpoint for Antigravity's quota, so these always show the unsupported card.
  */
 const NO_QUOTA: ReadonlySet<string> = new Set(['provider-antigravity', 'provider-opencode']);

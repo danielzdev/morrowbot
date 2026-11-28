@@ -1,18 +1,18 @@
 {
   "expo": {
-    "name": "Ori Kami",
-    "slug": "orikami",
-    "scheme": "orikami",
+    "name": "Ori Bot",
+    "slug": "oribot",
+    "scheme": "oribot",
     "version": "0.0.0",
     "platforms": ["ios"],
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "bundleIdentifier": "com.legendarykoi.orikami.mobile",
+      "bundleIdentifier": "com.legendarykoi.oribot.mobile",
       "supportsTablet": true,
       "deploymentTarget": "17.0",
       "infoPlist": {
-        "NSLocalNetworkUsageDescription": "Ori Kami connects to Ori Kami on your computer over your local network.",
+        "NSLocalNetworkUsageDescription": "Ori Bot connects to Ori Bot on your computer over your local network.",
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true,
           "NSExceptionDomains": {
@@ -26,7 +26,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Ori Kami uses the camera to scan the pairing QR code shown on your computer.",
+          "cameraPermission": "Ori Bot uses the camera to scan the pairing QR code shown on your computer.",
           "microphonePermission": false,
           "recordAudioAndroid": false
         }
@@ -35,7 +35,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Ori Kami attaches the photos you pick to your messages.",
+          "photosPermission": "Ori Bot attaches the photos you pick to your messages.",
           "cameraPermission": false,
           "microphonePermission": false
         }

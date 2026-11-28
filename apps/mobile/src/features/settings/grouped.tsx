@@ -7,7 +7,7 @@ import { useTheme } from '../../lib/useTheme.ts';
 import type { Tone } from './link-status.ts';
 import type { Loaded } from './use-host-request.ts';
 
-/** iOS grouped-list pieces in Ori Kami's matte surfaces, shared by the Settings screens. */
+/** iOS grouped-list pieces in Ori Bot's matte surfaces, shared by the Settings screens. */
 
 export function GroupedScroll(props: { readonly children: ReactNode }) {
   return <ScrollView contentContainerStyle={styles.scroll}>{props.children}</ScrollView>;

@@ -1,4 +1,4 @@
-# Ori Kami Mobile
+# Ori Bot Mobile
 
 Expo (dev client) + React Native app for iOS, built first for iPhone Duo folded and unfolded.
 
@@ -25,7 +25,7 @@ Expo (dev client) + React Native app for iOS, built first for iPhone Duo folded 
 
 - `src/lib/host-connection.ts` is the contract every screen uses (`useHostConnection()`); only
   `src/features/connection/` provides it and ever sees a device token.
-- Pairing: scan the desktop's QR (`orikami://pair?url=…&code=…`, in-app or with the system
+- Pairing: scan the desktop's QR (`oribot://pair?url=…&code=…`, in-app or with the system
   Camera) or type the host address and 6-digit code. Tokens live in the iOS Keychain, this device
   only.
 - `/api/events` closes when the app goes to the background and reconnects as soon as it is

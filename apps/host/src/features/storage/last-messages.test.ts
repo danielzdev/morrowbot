@@ -9,8 +9,8 @@ const AT = '2026-01-01T00:00:00.000Z';
 let dir: string;
 let storage: Storage;
 beforeEach(async () => {
-  dir = await mkdtemp(path.join(tmpdir(), 'orikami-last-messages-'));
-  storage = openStorage(path.join(dir, 'orikami.sqlite'), () => AT);
+  dir = await mkdtemp(path.join(tmpdir(), 'oribot-last-messages-'));
+  storage = openStorage(path.join(dir, 'oribot.sqlite'), () => AT);
   for (const id of ['gardener', 'owl', 'fox']) {
     storage.agents.insert({
       id,

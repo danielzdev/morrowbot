@@ -3,7 +3,7 @@ import { BrowserCommand, BrowserCommandKind, BrowserEvent, BrowserResult } from 
 
 /**
  * The browser bridge: JSON text frames over a WebSocket on 127.0.0.1 between a browser extension
- * (the client) and the Ori Kami browser plugin (the server).
+ * (the client) and the Ori Bot browser plugin (the server).
  *
  * The extension connects to `ws://127.0.0.1:<port>/` offering two subprotocols:
  * `BROWSER_BRIDGE_SUBPROTOCOL` and `LOOPBACK_TOKEN_PREFIX + <pairing token>`. The plugin refuses the

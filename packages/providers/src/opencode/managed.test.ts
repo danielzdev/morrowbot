@@ -53,18 +53,18 @@ it('withholds on any managed opencode config: an entry in the system folder, or 
     linux: await check(['/etc/opencode/opencode.json'], { platform: 'linux' }),
   }).toMatchInlineSnapshot(`
     {
-      "anotherUserPreferences": "This computer has managed opencode config (/Library/Managed Preferences/someone/ai.opencode.managed.plist), which outranks the read-only config Ori Kami gives OpenCode. Ask your admin, or chat with another provider.",
+      "anotherUserPreferences": "This computer has managed opencode config (/Library/Managed Preferences/someone/ai.opencode.managed.plist), which outranks the read-only config Ori Bot gives OpenCode. Ask your admin, or chat with another provider.",
       "emptySystemFolder": "clear",
-      "linux": "This computer has managed opencode config (/etc/opencode), which outranks the read-only config Ori Kami gives OpenCode. Ask your admin, or chat with another provider.",
+      "linux": "This computer has managed opencode config (/etc/opencode), which outranks the read-only config Ori Bot gives OpenCode. Ask your admin, or chat with another provider.",
       "nothing": "clear",
-      "otherCase": "This computer has managed opencode config (/Library/Managed Preferences/someone/ai.opencode.managed.plist), which outranks the read-only config Ori Kami gives OpenCode. Ask your admin, or chat with another provider.",
+      "otherCase": "This computer has managed opencode config (/Library/Managed Preferences/someone/ai.opencode.managed.plist), which outranks the read-only config Ori Bot gives OpenCode. Ask your admin, or chat with another provider.",
       "otherDomain": "clear",
-      "preferences": "This computer has managed opencode config (/Library/Managed Preferences/ai.opencode.managed.plist), which outranks the read-only config Ori Kami gives OpenCode. Ask your admin, or chat with another provider.",
+      "preferences": "This computer has managed opencode config (/Library/Managed Preferences/ai.opencode.managed.plist), which outranks the read-only config Ori Bot gives OpenCode. Ask your admin, or chat with another provider.",
       "strayFile": "clear",
-      "systemFolder": "This computer has managed opencode config (/Library/Application Support/opencode), which outranks the read-only config Ori Kami gives OpenCode. Ask your admin, or chat with another provider.",
-      "unreadable": "Ori Kami could not check this computer's managed opencode config, which outranks the read-only config Ori Kami gives OpenCode.",
-      "unreadableUserFolder": "Ori Kami could not check this computer's managed opencode config, which outranks the read-only config Ori Kami gives OpenCode.",
-      "userPreferences": "This computer has managed opencode config (/Library/Managed Preferences/me/ai.opencode.managed.plist), which outranks the read-only config Ori Kami gives OpenCode. Ask your admin, or chat with another provider.",
+      "systemFolder": "This computer has managed opencode config (/Library/Application Support/opencode), which outranks the read-only config Ori Bot gives OpenCode. Ask your admin, or chat with another provider.",
+      "unreadable": "Ori Bot could not check this computer's managed opencode config, which outranks the read-only config Ori Bot gives OpenCode.",
+      "unreadableUserFolder": "Ori Bot could not check this computer's managed opencode config, which outranks the read-only config Ori Bot gives OpenCode.",
+      "userPreferences": "This computer has managed opencode config (/Library/Managed Preferences/me/ai.opencode.managed.plist), which outranks the read-only config Ori Bot gives OpenCode. Ask your admin, or chat with another provider.",
     }
   `);
 });

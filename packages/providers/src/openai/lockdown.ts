@@ -31,12 +31,12 @@ const TOOL_FEATURES = [
 export type CodexAccess = 'read-only' | 'full';
 
 /**
- * What every Ori Kami thread runs with:
+ * What every Ori Bot thread runs with:
  * - `read-only`: Codex's read-only sandbox, no approvals, the expected model provider, and none of
  *   the user's command, MCP, app, plugin, agent or hook tools. Without its shell tool, read-only
- *   Codex runs no command (checked on 0.171). The one MCP server it runs is Ori Kami's own (`hostTools`).
+ *   Codex runs no command (checked on 0.171). The one MCP server it runs is Ori Bot's own (`hostTools`).
  * - `full`: Codex's `danger-full-access` sandbox with no approvals and the expected model provider,
- *   keeping Codex's full shell and file access alongside Ori Kami's own MCP server.
+ *   keeping Codex's full shell and file access alongside Ori Bot's own MCP server.
  */
 export type ThreadPolicy =
   | {
@@ -85,7 +85,7 @@ export function threadPolicy(config: CodexConfig, modelProvider: string, hostToo
 }
 
 /**
- * The `config` overrides a thread opens with: the policy's switches, and Ori Kami's MCP server as a
+ * The `config` overrides a thread opens with: the policy's switches, and Ori Bot's MCP server as a
  * whole table, so a server of the user's by the same name is replaced, not merged.
  */
 export function threadConfig(policy: ThreadPolicy): Readonly<Record<string, unknown>> {
@@ -128,7 +128,7 @@ export function turnSandboxPolicy(policy: ThreadPolicy): typeof READ_ONLY_SANDBO
 /**
  * Checks the daemon's own report that a started or resumed thread matches `policy`:
  * - `read-only`: read-only sandbox with no network, no approvals, expected provider, no MCP server
- *   running but Ori Kami's, and no hook.
+ *   running but Ori Bot's, and no hook.
  * - `full`: `dangerFullAccess` sandbox, no approvals, expected provider.
  * Returns why not, or null.
  */
@@ -156,9 +156,9 @@ export async function checkThread(daemon: CodexDaemon, opened: ThreadOpened, pol
       if (servers.kind !== 'ok' || servers.value.nextCursor) return 'Codex did not report which MCP servers the thread runs.';
       const ours = policy.hostTools.kind === 'mcp' ? HOST_TOOLS_SERVER : null;
       const running = servers.value.data.filter((server) => server.runtimeStatus !== 'disabled' && server.name !== ours).map((server) => server.name);
-      if (running.length > 0) return `Ori Kami could not turn off these Codex MCP servers: ${running.join(', ')}.`;
+      if (running.length > 0) return `Ori Bot could not turn off these Codex MCP servers: ${running.join(', ')}.`;
       if (hooks.kind !== 'ok') return 'Codex did not report which hooks the thread runs.';
-      if (hooks.value.data.some((entry) => entry.hooks.length > 0)) return 'Ori Kami could not turn off your Codex hooks.';
+      if (hooks.value.data.some((entry) => entry.hooks.length > 0)) return 'Ori Bot could not turn off your Codex hooks.';
       return null;
     }
   }

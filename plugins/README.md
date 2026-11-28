@@ -2,11 +2,11 @@
 
 Each plugin is one folder here (`plugins/<name>/`) and an npm workspace. The host
 starts every enabled plugin in its own Node process, so a crash cannot take down
-the host or other plugins. `--safe-mode` (or `ORIKAMI_SAFE_MODE=1`) starts the
+the host or other plugins. `--safe-mode` (or `ORIBOT_SAFE_MODE=1`) starts the
 host with no plugin processes; the built-in providers still run, so chat keeps working.
 
 This folder ships inside the app as its built-in plugins folder
-(`ORIKAMI_BUILTIN_PLUGINS_DIR`); the user's own plugins live in `~/.orikami/plugins`.
+(`ORIBOT_BUILTIN_PLUGINS_DIR`); the user's own plugins live in `~/.oribot/plugins`.
 Both are read on every launch and by Rescan in Extensions. A built-in id wins over the user's.
 
 The Claude, Codex, Antigravity and OpenCode providers are not plugin folders: they are built into the host
@@ -113,7 +113,7 @@ the plugin's subprotocol plus `token.<pairing token>`. Close the server in `shut
 ## Browser
 
 `plugins/browser` is a tool plugin: it serves the browser bridge (`runtime.serveLoopback`) that the
-Ori Kami browser extension (`apps/browser-extension`) connects to, and defines the agent's
+Ori Bot browser extension (`apps/browser-extension`) connects to, and defines the agent's
 `browser_*` tools in `src/tools.ts` and `src/secret-tools.ts`. Several browsers can be connected at
 once. Secrets reach a page only through a `SecretSource` (the Secrets Vault, once it ships), never
 through the agent. File uploads are off until the person sets `uploadFolder`; paths outside it,
@@ -132,7 +132,7 @@ prints one JSON reply line.
 The helper never prompts unless asked and never gets around macOS privacy controls. It checks the
 grants a request needs and replies `permission_denied` when one is missing; `check_permissions` with
 `prompt: true` shows the macOS request. macOS attributes the grants to the app that started the host
-(Ori Kami, or a terminal while developing). On other systems every call answers `unsupported`.
+(Ori Bot, or a terminal while developing). On other systems every call answers `unsupported`.
 
 `get_window_state` and `get_desktop_state` each record a snapshot. A snapshot's coordinates are
 screenshot pixels, and its element refs look like `s3/e12`. A newer snapshot of the same window or

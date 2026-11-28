@@ -53,7 +53,7 @@ export function updateNote(status: UpdateStatusValue): string {
     case 'checking':
       return 'Checking…';
     case 'up-to-date':
-      return 'Ori Kami is up to date';
+      return 'Ori Bot is up to date';
     case 'downloading':
       return `Downloading ${status.version}… ${String(status.percent)}%`;
     case 'ready':

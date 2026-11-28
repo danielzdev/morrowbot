@@ -237,7 +237,7 @@ const unreadable: Change = {
   reason: "This login's saved secret can't be read. Enter the password and the two-step key (or remove the key) to replace it.",
 };
 
-const UNREADABLE = 'vault.json in the data folder is not a vault file Ori Kami can read; fix it or move it aside to start with an empty vault';
+const UNREADABLE = 'vault.json in the data folder is not a vault file Ori Bot can read; fix it or move it aside to start with an empty vault';
 
 type Loaded = { readonly kind: 'read'; readonly entries: Entry[]; readonly retired: readonly string[] } | { readonly kind: 'missing' } | { readonly kind: 'unreadable' };
 

@@ -320,7 +320,7 @@ export function createSampleChatHost(now: () => string = () => new Date().toISOS
       if (agent === undefined) return missing('Agent');
       return ok({ content: `# ${agent.name}\n\nKeep answers short. Ask before writing files.`, revision: 'r1', canReplace: false });
     },
-    plugins: () => ok({ plugins, safeMode: false, pluginsDir: '/srv/orikami/plugins', problems: [] }),
+    plugins: () => ok({ plugins, safeMode: false, pluginsDir: '/srv/oribot/plugins', problems: [] }),
     setPluginEnabled: (pluginId, enabled) => {
       const entry = plugins.find(({ manifest }) => manifest.id === pluginId);
       if (entry === undefined) return missing('Plugin');

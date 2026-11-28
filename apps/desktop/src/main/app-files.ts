@@ -22,7 +22,7 @@ export interface AppFiles {
 
 /**
  * Where the window page, the preload script and the host are. A dev run uses the repo's own files;
- * Ori Kami.app ships the bundles `scripts/build-app.ts` lays out as `main/`, `renderer/` and `host/`,
+ * Ori Bot.app ships the bundles `scripts/build-app.ts` lays out as `main/`, `renderer/` and `host/`,
  * and no plugin folders yet; a dev run discovers the repo's `plugins/`.
  */
 export function appFilesOf(build: { readonly kind: 'dev' } | { readonly kind: 'packaged'; readonly appPath: string }): AppFiles {

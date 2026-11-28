@@ -11,7 +11,7 @@ interface Started {
   readonly settings: Settings;
   /** Where the daemon and probes run: the provider's own data folder. */
   readonly probeCwd: string;
-  /** Ori Kami's own opencode folders, kept apart from the user's. */
+  /** Ori Bot's own opencode folders, kept apart from the user's. */
   readonly agentDir: string;
 }
 
@@ -140,5 +140,5 @@ function missingRuntime(): ProviderInfo {
 function breachReason(breach: acp.Breach, version: string | null): string {
   const opencode = version === null ? 'opencode' : `opencode ${version}`;
   const what = breach.kind === 'unasked-change' ? `ran "${breach.tool}" without asking` : `left its build mode for "${breach.mode}"`;
-  return `OpenCode (${opencode}) ${what}. Ori Kami ended it and offers no OpenCode turns until the provider restarts.`;
+  return `OpenCode (${opencode}) ${what}. Ori Bot ended it and offers no OpenCode turns until the provider restarts.`;
 }

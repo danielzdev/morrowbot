@@ -18,6 +18,6 @@ export const ServerAnswer: z.ZodType<ServerAnswerType> = z.discriminatedUnion('k
 /** What a server choice ended in, as a line to show, or null once it took effect. */
 export function answerProblem(reply: unknown): string | null {
   const answer = ServerAnswer.safeParse(reply);
-  if (!answer.success) return "Ori Kami couldn't switch servers. Try again.";
+  if (!answer.success) return "Ori Bot couldn't switch servers. Try again.";
   return answer.data.kind === 'failed' ? answer.data.message : null;
 }

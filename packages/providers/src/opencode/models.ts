@@ -5,7 +5,7 @@ export const MODEL = 'model';
 /** The models opencode offers, learned from its sessions: opencode lists them only once a session is open. */
 export interface ModelCatalog {
   /**
-   * Learns from a session's settings. `fresh` is true for a session's settings before Ori Kami
+   * Learns from a session's settings. `fresh` is true for a session's settings before Ori Bot
    * changed anything, so its model is opencode's default. Returns the new list when it changed.
    */
   observe(options: readonly acp.ConfigOption[], fresh: boolean): readonly ProviderModel[] | null;

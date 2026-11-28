@@ -1,7 +1,7 @@
-# Ori Kami.app for Apple Silicon. `npm run package:mac -w apps/desktop` builds it into release/.
+# Ori Bot.app for Apple Silicon. `npm run package:mac -w apps/desktop` builds it into release/.
 # Signing and notarization switch on by themselves when their env vars are set (see RELEASING.md).
-appId: com.legendarykoi.orikami
-productName: Ori Kami
+appId: com.legendarykoi.oribot
+productName: Ori Bot
 copyright: Copyright © 2026 Legendary Koi
 directories:
   app: dist/app
@@ -27,10 +27,10 @@ mac:
   hardenedRuntime: true
   entitlements: resources/entitlements.mac.plist
   entitlementsInherit: resources/entitlements.mac.plist
-  artifactName: Ori-Kami-${version}-${arch}.${ext}
+  artifactName: OriBot-${version}-${arch}.${ext}
 publish:
   provider: github
   owner: danielzdev
-  repo: ori-kami-releases
+  repo: ori-bot-releases
   private: true
   releaseType: draft

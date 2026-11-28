@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { McpTool } from './mcp-session.ts';
 
-/** The longest tool name an agent sees; providers add their own prefix (`mcp__orikami__`) in front. */
+/** The longest tool name an agent sees; providers add their own prefix (`mcp__oribot__`) in front. */
 export const MAX_BOUND_NAME = 64;
 
 /** One connector tool as an agent gets it: named `<labelKey>__<tool>`, and carrying the instance it calls. */

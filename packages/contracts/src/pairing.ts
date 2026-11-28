@@ -34,8 +34,8 @@ export const PairingCodeResponse = z.strictObject({
   code: PairingCode,
   expiresAt: Timestamp,
   url: HostUrl,
-  /** The QR payload: `orikami://pair?url=<url>&code=<code>`. */
-  pairingUri: z.string().startsWith('orikami://pair?'),
+  /** The QR payload: `oribot://pair?url=<url>&code=<code>`. */
+  pairingUri: z.string().startsWith('oribot://pair?'),
 });
 export type PairingCodeResponse = z.infer<typeof PairingCodeResponse>;
 
@@ -71,5 +71,5 @@ export type PairedDeviceList = z.infer<typeof PairedDeviceList>;
 
 /** The QR payload for a pairing code. */
 export function pairingUri(url: HostUrl, code: PairingCode): string {
-  return `orikami://pair?${new URLSearchParams({ url, code }).toString()}`;
+  return `oribot://pair?${new URLSearchParams({ url, code }).toString()}`;
 }

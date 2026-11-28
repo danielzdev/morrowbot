@@ -6,7 +6,7 @@ import { confinePath } from './confine.ts';
 
 let base: string;
 beforeEach(async () => {
-  base = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-sdk-confine-')));
+  base = await realpath(await mkdtemp(path.join(tmpdir(), 'oribot-sdk-confine-')));
 });
 afterEach(async () => {
   await rm(base, { recursive: true, force: true });

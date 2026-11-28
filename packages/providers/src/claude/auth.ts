@@ -1,7 +1,7 @@
 import { z, type PluginRuntime } from '@morrowbot/plugin-sdk';
 import { describeExit } from './exit.ts';
 
-/** What `claude auth status --json` says about the sign-in, judged against Ori Kami's personal-subscription rule. */
+/** What `claude auth status --json` says about the sign-in, judged against Ori Bot's personal-subscription rule. */
 export type Auth =
   | { readonly kind: 'personal'; readonly accountKey: string; readonly accountLabel: string }
   | { readonly kind: 'withheld'; readonly accountKey: string; readonly reason: string }
@@ -74,22 +74,22 @@ export async function judgeAuth(json: unknown): Promise<Auth> {
   const withheld = (reason: string): Auth => ({ kind: 'withheld', accountKey, reason });
   if (status.authMethod !== 'claude.ai') {
     return withheld(
-      `Claude Code is signed in with ${status.authMethod ?? 'an unknown method'}. Ori Kami supports only a personal Claude Pro or Max login (run "claude auth login").`,
+      `Claude Code is signed in with ${status.authMethod ?? 'an unknown method'}. Ori Bot supports only a personal Claude Pro or Max login (run "claude auth login").`,
     );
   }
   if (status.apiProvider !== 'firstParty') {
-    return withheld(`Claude Code sends requests through ${status.apiProvider ?? 'an unknown provider'}. Ori Kami supports only Anthropic's own service with a personal Claude Pro or Max login.`);
+    return withheld(`Claude Code sends requests through ${status.apiProvider ?? 'an unknown provider'}. Ori Bot supports only Anthropic's own service with a personal Claude Pro or Max login.`);
   }
   if (status.apiKeySource !== undefined) {
-    return withheld(`Claude Code would use an API key from ${status.apiKeySource}. Ori Kami supports only a personal Claude Pro or Max login.`);
+    return withheld(`Claude Code would use an API key from ${status.apiKeySource}. Ori Bot supports only a personal Claude Pro or Max login.`);
   }
   if (status.organizationSignInOrgId !== undefined) {
-    return withheld('Claude Code sign-in is pinned to an organisation. Ori Kami supports only a personal Claude Pro or Max login.');
+    return withheld('Claude Code sign-in is pinned to an organisation. Ori Bot supports only a personal Claude Pro or Max login.');
   }
   const label = planLabel(status.subscriptionType ?? null, status.planTier ?? null);
   if (label === undefined) {
     return withheld(
-      `Claude Code reports the plan "${status.subscriptionType ?? 'unknown'}" (${status.planTier ?? 'no tier'}). Ori Kami supports only a personal Claude Pro or Max plan; Team and Enterprise accounts are not supported yet.`,
+      `Claude Code reports the plan "${status.subscriptionType ?? 'unknown'}" (${status.planTier ?? 'no tier'}). Ori Bot supports only a personal Claude Pro or Max plan; Team and Enterprise accounts are not supported yet.`,
     );
   }
   if (accountKey === '') return withheld('Claude Code did not report which account is signed in.');

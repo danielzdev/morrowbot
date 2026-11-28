@@ -59,7 +59,7 @@ export async function openExternalUrl(url: string, deps: OpenExternalDeps): Prom
 
 function externalErrorReason(error: unknown): string {
   const detail = error instanceof Error ? error.message.trim() : '';
-  return detail === '' ? "Ori Kami couldn't open your browser." : `Ori Kami couldn't open your browser (${detail}).`;
+  return detail === '' ? "Ori Bot couldn't open your browser." : `Ori Bot couldn't open your browser (${detail}).`;
 }
 
 const RevealInput = z.discriminatedUnion('kind', [
@@ -81,7 +81,7 @@ export function parseRevealTarget(options: FromRenderer): RevealTarget {
 
 /** The user's plugins folder: the same rule as the host's own config. */
 export function pluginsDirOf(env: NodeJS.ProcessEnv, dataDir: string): string {
-  const configured = env.ORIKAMI_PLUGINS_DIR;
+  const configured = env.ORIBOT_PLUGINS_DIR;
   return configured !== undefined && path.isAbsolute(configured) ? configured : path.join(dataDir, 'plugins');
 }
 
@@ -123,7 +123,7 @@ export async function resolveReveal(target: RevealTarget, context: RevealContext
     case 'global-skills':
       return skillsFolder(path.join(context.dataDir, 'skills'));
     case 'agent-skills':
-      return skillsFolder(path.join((await hostAgent(target.agentId, context)).workspace.dir, '.orikami', 'skills'));
+      return skillsFolder(path.join((await hostAgent(target.agentId, context)).workspace.dir, '.oribot', 'skills'));
   }
 }
 

@@ -185,7 +185,7 @@ export function createCardService(options: CardServiceOptions): CardService {
       );
       return {
         kind: 'done',
-        value: { plugins: found, note: 'These are the plugins in Ori Kami’s plugins folders. Offer one with propose_card (kind "plugin").' },
+        value: { plugins: found, note: 'These are the plugins in Ori Bot’s plugins folders. Offer one with propose_card (kind "plugin").' },
       };
     },
     list: (threadId) =>

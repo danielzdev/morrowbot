@@ -52,7 +52,7 @@ it('gives every plugin status its own pill, and a folder that could not load its
       "problems": [
         "invalid-manifest → error | Invalid manifest | no manifest.json | broken",
         "duplicate → warning | Duplicate | Another built-in plugin already uses the id “echo”, so this one was skipped. | echo",
-        "unreadable → error | Couldn't read folder | permission denied | Ori Kami couldn't read its plugin folders.",
+        "unreadable → error | Couldn't read folder | permission denied | Ori Bot couldn't read its plugin folders.",
       ],
     }
   `);

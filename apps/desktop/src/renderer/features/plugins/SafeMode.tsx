@@ -28,8 +28,8 @@ export function SafeModeDialog(props: { readonly safeMode: boolean; readonly onR
   return props.safeMode ? (
     <ConfirmDialog
       title="Restart normally?"
-      body="Ori Kami restarts and starts your extensions again."
-      confirmLabel="Restart Ori Kami"
+      body="Ori Bot restarts and starts your extensions again."
+      confirmLabel="Restart Ori Bot"
       tone="primary"
       onCancel={props.onCancel}
       onConfirm={() => {
@@ -41,7 +41,7 @@ export function SafeModeDialog(props: { readonly safeMode: boolean; readonly onR
       title="Start without extensions?"
       body={
         <>
-          <p>Ori Kami restarts in safe mode: no plugin or connector starts, so you can turn off one that is causing trouble.</p>
+          <p>Ori Bot restarts in safe mode: no plugin or connector starts, so you can turn off one that is causing trouble.</p>
           <p>Built-in providers keep working, so your agents can still chat. Safe mode stays on until you restart normally.</p>
         </>
       }

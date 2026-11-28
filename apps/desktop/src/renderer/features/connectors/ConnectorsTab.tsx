@@ -86,7 +86,7 @@ export function ConnectorsTab(props: ConnectorsTabProps) {
   if (list.kind === 'failed') {
     return (
       <div class="banner error" role="alert">
-        <span>Ori Kami couldn't load your connectors. {props.redact(list.message)}</span>
+        <span>Ori Bot couldn't load your connectors. {props.redact(list.message)}</span>
         <button type="button" class="btn secondary" onClick={() => void model.load()}>Try again</button>
       </div>
     );

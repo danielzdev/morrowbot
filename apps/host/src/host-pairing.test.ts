@@ -13,7 +13,7 @@ let host: TestHost;
 let nowMs: number;
 let clock: Sequence;
 beforeEach(async () => {
-  dataDir = await mkdtemp(path.join(tmpdir(), 'orikami-pairing-'));
+  dataDir = await mkdtemp(path.join(tmpdir(), 'oribot-pairing-'));
   nowMs = Date.UTC(2026, 0, 1);
   let id = 0;
   clock = { newId: () => `id-${String(++id)}`, now: () => new Date(nowMs).toISOString() };
@@ -153,7 +153,7 @@ it('pairs a device whose token works over HTTP and /api/events, survives a resta
         "body": {
           "code": "<code>",
           "expiresAt": "2026-01-01T00:05:00.000Z",
-          "pairingUri": "orikami://pair?url=http%3A%2F%2F100.64.0.1%3A47800&code=<code>",
+          "pairingUri": "oribot://pair?url=http%3A%2F%2F100.64.0.1%3A47800&code=<code>",
           "url": "http://100.64.0.1:47800",
         },
         "status": 201,
@@ -344,7 +344,7 @@ it('lets only the desktop token mint codes and manage devices, and needs a url t
         "body": {
           "error": {
             "kind": "conflict",
-            "message": "Set ORIKAMI_HOST_BIND to a LAN or Tailscale address, or send the url devices should use",
+            "message": "Set ORIBOT_HOST_BIND to a LAN or Tailscale address, or send the url devices should use",
           },
         },
         "status": 409,

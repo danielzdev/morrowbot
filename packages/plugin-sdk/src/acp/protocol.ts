@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
 /**
- * The Agent Client Protocol (ACP v1) shapes Ori Kami reads, checked against recorded `agy acp`
- * 1.5.18 and `opencode acp` 2.4.1 traffic. Every shape is loose: only the fields Ori Kami reads are
+ * The Agent Client Protocol (ACP v1) shapes Ori Bot reads, checked against recorded `agy acp`
+ * 1.5.18 and `opencode acp` 2.4.1 traffic. Every shape is loose: only the fields Ori Bot reads are
  * named, so an agent can add its own (`_meta`) and a provider can `extend` a shape to read them.
  */
 
@@ -57,7 +57,7 @@ export const PromptResponse = z.looseObject({
 });
 export type PromptResponse = z.infer<typeof PromptResponse>;
 
-/** A reply whose content Ori Kami does not read. */
+/** A reply whose content Ori Bot does not read. */
 export const Ignored = z.unknown();
 
 export const SessionNotification = z.looseObject({ sessionId: z.string(), update: z.looseObject({ sessionUpdate: z.string() }) });

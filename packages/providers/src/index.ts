@@ -5,7 +5,7 @@ import * as openai from './openai/index.ts';
 import * as opencode from './opencode/index.ts';
 
 /**
- * One provider built into Ori Kami. The host serves it inside its own process, on the same wire
+ * One provider built into Ori Bot. The host serves it inside its own process, on the same wire
  * protocol as a plugin worker; every CLI it runs still gets its own guarded process group.
  */
 export interface ProviderAdapter {

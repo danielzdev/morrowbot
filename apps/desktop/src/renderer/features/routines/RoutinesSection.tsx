@@ -106,7 +106,7 @@ export function RoutinesSection(props: { readonly model: RoutinesModel; readonly
   const { routines } = state;
   return (
     <div class="settings-section">
-      <p class="binding-note">Routines run this agent on a schedule. Each run posts in a chat of its own; runs missed while Ori Kami was off are skipped.</p>
+      <p class="binding-note">Routines run this agent on a schedule. Each run posts in a chat of its own; runs missed while Ori Bot was off are skipped.</p>
       {state.problem !== null && (
         <p class="note error" role="alert">
           {props.redact(state.problem)}{' '}

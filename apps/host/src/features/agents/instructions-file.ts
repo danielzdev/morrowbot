@@ -36,7 +36,7 @@ function readError(code: string | null): string {
       return 'AGENTS.md is a link that loops back on itself.';
     case 'EACCES':
     case 'EPERM':
-      return "Ori Kami isn't allowed to read AGENTS.md.";
+      return "Ori Bot isn't allowed to read AGENTS.md.";
     case 'not-a-file':
       return 'AGENTS.md is not a regular file.';
     case 'too-large':
@@ -101,7 +101,7 @@ function writeError(code: string): string {
   switch (code) {
     case 'EACCES':
     case 'EPERM':
-      return "Ori Kami isn't allowed to write in this folder.";
+      return "Ori Bot isn't allowed to write in this folder.";
     case 'EROFS':
       return 'This folder is read-only.';
     case 'ENOSPC':

@@ -38,7 +38,7 @@ it('denies a file write and a command without asking, so nothing is written or r
     {
       "command": [
         "tool-start Shell: {"title":"touch ran.txt"}",
-        "status: Denied execute touch ran.txt: Ori Kami runs Antigravity read-only.",
+        "status: Denied execute touch ran.txt: Ori Bot runs Antigravity read-only.",
         "tool-end: error",
       ],
       "files": [],
@@ -80,7 +80,7 @@ it('denies a file write and a command without asking, so nothing is written or r
       ],
       "write": [
         "tool-start Edit: {"title":"File inside.txt"}",
-        "status: Denied edit ~/data/workspaces/id-1/inside.txt: Ori Kami runs Antigravity read-only.",
+        "status: Denied edit ~/data/workspaces/id-1/inside.txt: Ori Bot runs Antigravity read-only.",
         "tool-end: error",
       ],
     }
@@ -161,10 +161,10 @@ it('refuses a file write agy asks the client for, and the turn goes on', async (
       "files": [],
       "history": [
         "user: fs-write",
-        "assistant(completed): fs write: {"error":{"code":-32603,"message":"Ori Kami runs Antigravity read-only: it writes no files."}}",
+        "assistant(completed): fs write: {"error":{"code":-32603,"message":"Ori Bot runs Antigravity read-only: it writes no files."}}",
       ],
       "steps": [
-        "status: Refused Antigravity's fs/write_text_file: Ori Kami runs it read-only.",
+        "status: Refused Antigravity's fs/write_text_file: Ori Bot runs it read-only.",
       ],
     }
   `);

@@ -101,16 +101,16 @@ it('reports signed out, and withholds every login that is not positively a perso
     unparsable: await reason('Not JSON'),
   }).toMatchInlineSnapshot(`
     {
-      "apiKey": "Claude Code is signed in with api_key. Ori Kami supports only a personal Claude Pro or Max login (run "claude auth login").",
-      "cloud": "Claude Code sends requests through bedrock. Ori Kami supports only Anthropic's own service with a personal Claude Pro or Max login.",
-      "enterprise": "Claude Code reports the plan "enterprise" (other). Ori Kami supports only a personal Claude Pro or Max plan; Team and Enterprise accounts are not supported yet.",
-      "envApiKey": "Claude Code would use an API key from ANTHROPIC_API_KEY. Ori Kami supports only a personal Claude Pro or Max login.",
-      "maxUnknownTier": "Claude Code reports the plan "max" (max_other). Ori Kami supports only a personal Claude Pro or Max plan; Team and Enterprise accounts are not supported yet.",
+      "apiKey": "Claude Code is signed in with api_key. Ori Bot supports only a personal Claude Pro or Max login (run "claude auth login").",
+      "cloud": "Claude Code sends requests through bedrock. Ori Bot supports only Anthropic's own service with a personal Claude Pro or Max login.",
+      "enterprise": "Claude Code reports the plan "enterprise" (other). Ori Bot supports only a personal Claude Pro or Max plan; Team and Enterprise accounts are not supported yet.",
+      "envApiKey": "Claude Code would use an API key from ANTHROPIC_API_KEY. Ori Bot supports only a personal Claude Pro or Max login.",
+      "maxUnknownTier": "Claude Code reports the plan "max" (max_other). Ori Bot supports only a personal Claude Pro or Max plan; Team and Enterprise accounts are not supported yet.",
       "noEmail": "Claude Code did not report which account is signed in.",
-      "noPlan": "Claude Code reports the plan "unknown" (no tier). Ori Kami supports only a personal Claude Pro or Max plan; Team and Enterprise accounts are not supported yet.",
-      "orgPinned": "Claude Code sign-in is pinned to an organisation. Ori Kami supports only a personal Claude Pro or Max login.",
+      "noPlan": "Claude Code reports the plan "unknown" (no tier). Ori Bot supports only a personal Claude Pro or Max plan; Team and Enterprise accounts are not supported yet.",
+      "orgPinned": "Claude Code sign-in is pinned to an organisation. Ori Bot supports only a personal Claude Pro or Max login.",
       "signedOut": "signed-out",
-      "team": "Claude Code reports the plan "team" (other). Ori Kami supports only a personal Claude Pro or Max plan; Team and Enterprise accounts are not supported yet.",
+      "team": "Claude Code reports the plan "team" (other). Ori Bot supports only a personal Claude Pro or Max plan; Team and Enterprise accounts are not supported yet.",
       "unparsable": "failed",
     }
   `);

@@ -113,7 +113,7 @@ async function preflight({ request, signal }: TurnContext, runtime: PluginRuntim
   }
   if (auth.accountKey !== request.expectedAccountKey) return refuse({ kind: 'account-changed' });
   if (request.vendorSettings !== 'isolated') {
-    return refuse({ kind: 'access-not-supported', reason: `provider-claude runs turns with Ori Kami's own instructions, not ${request.vendorSettings} settings.` });
+    return refuse({ kind: 'access-not-supported', reason: `provider-claude runs turns with Ori Bot's own instructions, not ${request.vendorSettings} settings.` });
   }
   const held = platformReason(request.access, runtime.platform);
   if (held !== null) return refuse({ kind: 'access-not-supported', reason: held });

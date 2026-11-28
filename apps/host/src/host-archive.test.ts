@@ -9,7 +9,7 @@ import { startMemberKit } from './testing/member-kit.ts';
 let dataDir: string;
 let chat: ChatFixture | undefined;
 beforeEach(async () => {
-  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-archive-')));
+  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'oribot-archive-')));
 });
 afterEach(async () => {
   await chat?.close();

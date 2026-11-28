@@ -120,7 +120,7 @@ it('stages an agent’s cards live, keeps them with its reply, and acts only on 
       },
       "history": [
         "user: host-tool search_marketplace {"query":"faulty"}",
-        "assistant(completed): search_marketplace: {"plugins":[{"pluginId":"faulty","name":"Faulty","description":"","kind":"tool","permissions":["shell"],"installed":false}],"note":"These are the plugins in Ori Kami’s plugins folders. Offer one with propose_card (kind \\"plugin\\")."}",
+        "assistant(completed): search_marketplace: {"plugins":[{"pluginId":"faulty","name":"Faulty","description":"","kind":"tool","permissions":["shell"],"installed":false}],"note":"These are the plugins in Ori Bot’s plugins folders. Offer one with propose_card (kind \\"plugin\\")."}",
         "user: Monday",
         "assistant(completed): hello from pid <pid>: Monday",
       ],

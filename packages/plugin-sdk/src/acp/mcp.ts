@@ -10,7 +10,7 @@ export interface AcpMcpServer {
 }
 
 /**
- * The MCP servers a session opens with: Ori Kami's own for this turn, when the agent connects to
+ * The MCP servers a session opens with: Ori Bot's own for this turn, when the agent connects to
  * MCP over HTTP, and nothing else. An agent without HTTP support gets none, so the turn runs without them.
  */
 export function hostMcpServers(client: Pick<AcpClient, 'mcpHttp'>, tools: HostTools): AcpMcpServer[] {

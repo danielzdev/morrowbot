@@ -31,7 +31,7 @@ function security(args: readonly string[]): Promise<number> {
 async function itemArgs(item: KeychainItem): Promise<string[]> {
   const login = path.join(homedir(), 'Library', 'Keychains', 'login.keychain-db');
   const stats = await lstat(login).catch(() => null);
-  if (stats === null || !stats.isFile()) throw new Error('The login Keychain is missing, so Ori Kami leaves the Keychain alone.');
+  if (stats === null || !stats.isFile()) throw new Error('The login Keychain is missing, so Ori Bot leaves the Keychain alone.');
   return ['-s', item.service, '-a', item.account, login];
 }
 

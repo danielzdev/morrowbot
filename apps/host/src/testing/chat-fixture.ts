@@ -30,7 +30,7 @@ export interface ChatFixture {
 }
 
 export async function startChatFixture(options: Partial<TestHostOptions> = {}): Promise<ChatFixture> {
-  const dataDir = options.dataDir ?? (await mkdtemp(path.join(tmpdir(), 'orikami-chat-')));
+  const dataDir = options.dataDir ?? (await mkdtemp(path.join(tmpdir(), 'oribot-chat-')));
   const host = await startTestHost({ ...options, dataDir, pluginsDir: options.pluginsDir ?? PLUGIN_FIXTURES });
   const events = await host.events();
   const fixture: ChatFixture = {
