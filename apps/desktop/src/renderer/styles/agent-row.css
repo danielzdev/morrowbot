@@ -69,6 +69,11 @@
     display: none;
   }
 }
+.agent-muted {
+  display: inline-flex;
+  flex: none;
+  color: var(--text-3);
+}
 .agent-time {
   flex: none;
   margin-left: auto;

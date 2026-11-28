@@ -1,4 +1,5 @@
 import type { Agent, Folder, LastMessage } from '@morrowbot/contracts';
+import { showsUnread, type AgentNotify } from './agent-notify.ts';
 
 /** What the sidebar knows about one agent (spec §3.1): provider readiness, this session's chats, and its last message. */
 export interface AgentFacts {
@@ -10,6 +11,7 @@ export interface AgentFacts {
   readonly failed: boolean;
   readonly working: 'running' | 'queued' | null;
   readonly unread: boolean;
+  readonly notify: AgentNotify;
   readonly lastMessage: LastMessage | null;
 }
 
@@ -40,6 +42,7 @@ export function sectionLabel(section: Section): string {
 export interface AgentEntry {
   readonly agent: Agent;
   readonly status: AgentStatus;
+  readonly notify: AgentNotify;
   readonly lastMessage: LastMessage | null;
 }
 
@@ -55,7 +58,7 @@ export function statusOf(facts: AgentFacts): AgentStatus {
   if (facts.providerReady === false) return { kind: 'needs-you', reason: 'provider' };
   if (facts.working === 'running') return { kind: 'working' };
   if (facts.working === 'queued') return { kind: 'queued' };
-  return facts.unread ? { kind: 'unread' } : { kind: 'idle' };
+  return facts.unread && showsUnread(facts.notify) ? { kind: 'unread' } : { kind: 'idle' };
 }
 
 const byName = (a: AgentEntry, b: AgentEntry): number =>
@@ -69,7 +72,7 @@ export function groupAgents(all: readonly AgentFacts[], folders: readonly Folder
   const wanted = filter.trim().toLocaleLowerCase();
   const matches = (agent: Agent): boolean =>
     wanted === '' || agent.name.toLocaleLowerCase().includes(wanted) || agent.description.toLocaleLowerCase().includes(wanted);
-  const entries = all.filter(({ agent }) => matches(agent)).map((facts) => ({ agent: facts.agent, status: statusOf(facts), lastMessage: facts.lastMessage }));
+  const entries = all.filter(({ agent }) => matches(agent)).map((facts) => ({ agent: facts.agent, status: statusOf(facts), notify: facts.notify, lastMessage: facts.lastMessage }));
   const known = new Set(folders.map(({ id }) => id));
   const inFolder = (folderId: string | null): readonly AgentEntry[] =>
     entries.filter(({ agent }) => (agent.folderId !== null && known.has(agent.folderId) ? agent.folderId : null) === folderId).sort(byName);
