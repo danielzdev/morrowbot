@@ -42,6 +42,8 @@ export function outcomeNote(message: AssistantMessage): OutcomeNote | null {
   switch (outcome.kind) {
     case 'completed':
       return outcome.finishReason === 'stop' ? null : { text: 'The reply was cut short.', tone: 'muted', action: null };
+    case 'steered':
+      return null;
     case 'cancelled':
       return { text: 'Stopped.', tone: 'muted', action: null };
     case 'interrupted':

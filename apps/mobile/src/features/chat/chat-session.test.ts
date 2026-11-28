@@ -20,6 +20,7 @@ function state(seq: number, running: boolean, pending = running): ThreadState {
         }
       : null,
     blockedGroups: [],
+    queue: [],
     cursor: { hostEpoch: 'e1', seq },
   };
 }
@@ -42,7 +43,7 @@ function scripted(states: ThreadState[], overrides: Partial<ChatHost> = {}) {
     threadState: () => ok(states.length > 1 ? (states.shift() ?? unused()) : (states[0] ?? unused())),
     send: (_threadId, text) => {
       sent.push(text);
-      return ok({ generationId: 'g8', userMessage: { kind: 'user', id: 'u', threadId: 't', text, createdAt: AT, attachments: [] } });
+      return ok({ kind: 'started', generationId: 'g8', userMessage: { kind: 'user', id: 'u', threadId: 't', text, createdAt: AT, attachments: [] } });
     },
     continueTurn: unused,
     stop: () => {

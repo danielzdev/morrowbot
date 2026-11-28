@@ -1,4 +1,4 @@
-import type { AssistantMessage, Message } from '@morrowbot/contracts';
+import type { AssistantMessage, Message, QueuedMessage } from '@morrowbot/contracts';
 import { useRef } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 import { radii, spacing, typography } from '../../lib/theme.ts';
@@ -14,13 +14,25 @@ const tools = (steps: readonly TurnStep[]): ToolStep[] => steps.flatMap((step) =
 /** How close to the end still counts as "at the end", so streaming keeps the newest text in view. */
 const FOLLOW_SLACK = 80;
 
-function UserBubble(props: { readonly text: string }) {
+function UserBubble(props: { readonly text: string; readonly note?: string }) {
   const { colors } = useTheme();
   return (
-    <View style={[styles.user, { backgroundColor: colors.surfaceUser }]}>
+    <View style={[styles.user, { backgroundColor: colors.surfaceUser }, props.note !== undefined && styles.queued]}>
       <Text selectable style={[typography.body, { color: colors.text1 }]}>{props.text}</Text>
+      {props.note === undefined ? null : <Text style={[typography.meta, { color: colors.text3 }]}>{props.note}</Text>}
     </View>
   );
+}
+
+function queueNote(message: QueuedMessage): string {
+  switch (message.state.kind) {
+    case 'queued':
+      return 'Queued';
+    case 'steering':
+      return 'Steering…';
+    case 'held':
+      return `Held: ${message.state.reason}`;
+  }
 }
 
 function Outcome(props: { readonly message: AssistantMessage; readonly latest: boolean; readonly onContinue: () => void }) {
@@ -48,6 +60,7 @@ export function MessageList(props: {
   readonly messages: readonly Message[];
   readonly finished: Readonly<Record<string, readonly TurnStep[]>>;
   readonly activeTurn: ActiveTurnView | null;
+  readonly queue: readonly QueuedMessage[];
   readonly answering: readonly string[];
   readonly bottomInset: number;
   readonly onAnswer: (approvalId: string, choiceId: string) => void;
@@ -124,6 +137,9 @@ export function MessageList(props: {
           )}
         </View>
       )}
+      {props.queue.map((message) => (
+        <UserBubble key={message.id} text={message.text} note={queueNote(message)} />
+      ))}
     </ScrollView>
   );
 }
@@ -133,6 +149,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: spacing[4], paddingTop: spacing[2], gap: spacing[4] },
   empty: { textAlign: 'center', marginTop: spacing[8] },
   user: { alignSelf: 'flex-end', maxWidth: '85%', borderRadius: radii.xl, paddingHorizontal: spacing[4], paddingVertical: spacing[3] },
+  queued: { opacity: 0.6, gap: spacing[1] },
   assistant: { gap: spacing[3] },
   outcome: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
   outcomeText: { flex: 1 },

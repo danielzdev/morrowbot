@@ -140,6 +140,7 @@ export function createSampleChatHost(now: () => string = () => new Date().toISOS
       messages: [...(messages.get(thread.id) ?? [])],
       activeTurn: turn === undefined ? null : copy(turn),
       blockedGroups: [],
+      queue: [],
       cursor: { hostEpoch: EPOCH, seq: seqs.get(thread.id) ?? 0 },
     };
   };
@@ -160,7 +161,7 @@ export function createSampleChatHost(now: () => string = () => new Date().toISOS
     send: (threadId, text) => {
       if (active.has(threadId)) return Promise.resolve({ kind: 'failed', status: 409, error: { kind: 'conflict', message: 'A reply is already running.' } });
       const userMessage: UserMessage = { kind: 'user', id: nextId('msg'), threadId, text, createdAt: now(), attachments: [] };
-      return ok({ generationId: start(threadId, userMessage, text), userMessage });
+      return ok({ kind: 'started', generationId: start(threadId, userMessage, text), userMessage });
     },
     continueTurn: (threadId, failedMessageId) => {
       const list = messages.get(threadId) ?? [];

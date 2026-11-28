@@ -18,6 +18,7 @@ function state(seq: number, pending: readonly PendingApproval[] | null): ThreadS
     messages: [],
     activeTurn: pending === null ? null : { generationId: 'g', trigger: { kind: 'chat' }, state: 'running', queueNote: null, text: '', pendingApprovals: [...pending] },
     blockedGroups: [],
+    queue: [],
     cursor: { hostEpoch: 'e1', seq },
   };
 }
@@ -168,4 +169,22 @@ it('runs a background turn for another agent without a chat bubble, and clears i
     messages: 0,
     activeTurn: null,
   });
+});
+
+it('splits a steered turn: the reply so far is saved, the queued message joins the chat, and the turn goes on', () => {
+  const view = play(viewOf(state(0, [])), [
+    { kind: 'generation.tool-start', toolUseId: 'x1', name: 'search_notes', input: {} },
+    { kind: 'generation.delta', text: 'Looking' },
+    {
+      kind: 'generation.steered',
+      segment: { kind: 'assistant', id: 's1', threadId: 't', text: 'Looking', createdAt: AT, outcome: { kind: 'steered' } },
+      userMessage: { kind: 'user', id: 'q1', threadId: 't', text: 'Only trams, please', createdAt: AT, attachments: [] },
+    },
+    { kind: 'generation.delta', text: 'Tram 28.' },
+  ]);
+  expect({
+    messages: view.messages.map(({ id, kind }) => `${kind}:${id}`),
+    text: view.activeTurn?.text,
+    segmentSteps: view.finished.s1?.map((step) => (step.kind === 'tool' ? `${step.name}:${step.outcome}` : step.kind)),
+  }).toEqual({ messages: ['assistant:s1', 'user:q1'], text: 'Tram 28.', segmentSteps: ['search_notes:unfinished'] });
 });

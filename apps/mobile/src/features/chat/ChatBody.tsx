@@ -92,6 +92,7 @@ function ChatThread(props: {
           messages={view.value.messages}
           finished={view.value.finished}
           activeTurn={view.value.activeTurn}
+          queue={view.value.queue}
           answering={screen.answering}
           bottomInset={composerHeight + frame.bottom}
           onAnswer={(approvalId, choiceId) => void session.answer(approvalId, choiceId)}
