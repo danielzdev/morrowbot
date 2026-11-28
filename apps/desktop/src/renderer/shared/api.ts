@@ -19,6 +19,7 @@ import {
   ContinueResponse,
   Folder,
   InviteResponse,
+  lenient,
   MemberList,
   PairedDeviceList,
   WhoAmI,
@@ -70,8 +71,9 @@ export interface ApiFailure {
 export type ApiResult<T> = { readonly kind: 'ok'; readonly value: T } | ApiFailure;
 
 const NoContent = z.null();
+const ApiErrorReply = lenient(ApiError);
 
-/** Every host call the window makes. Replies are parsed here, once, with the shared contracts. */
+/** Every host call the window makes. Replies are parsed leniently here, once, with the shared contracts. */
 export interface Api {
   listAgents(): Promise<ApiResult<AgentList>>;
   createAgent(request: z.input<typeof CreateAgentRequest>): Promise<ApiResult<Agent>>;
@@ -163,7 +165,7 @@ export interface Api {
 
 const at = (...segments: readonly string[]): string => `/api/${segments.map(encodeURIComponent).join('/')}`;
 
-export function createApi(bridge: MorrowbotBridge): Api {
+export function createApi(bridge: Pick<MorrowbotBridge, 'request'>): Api {
   async function call<T>(schema: z.ZodType<T>, method: ApiMethod, path: string, body?: unknown): Promise<ApiResult<T>> {
     let reply;
     try {
@@ -172,10 +174,10 @@ export function createApi(bridge: MorrowbotBridge): Api {
       return internal(0, error instanceof Error ? error.message : 'The request did not reach the host');
     }
     if (reply.status >= 200 && reply.status < 300) {
-      const parsed = schema.safeParse(reply.body);
+      const parsed = lenient(schema).safeParse(reply.body);
       return parsed.success ? { kind: 'ok', value: parsed.data } : internal(reply.status, 'The host sent a reply this window does not understand');
     }
-    const refused = ApiError.safeParse(reply.body);
+    const refused = ApiErrorReply.safeParse(reply.body);
     return refused.success
       ? { kind: 'failed', status: reply.status, error: refused.data.error }
       : internal(reply.status, `The host refused the request (${String(reply.status)})`);
