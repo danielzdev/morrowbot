@@ -73,9 +73,10 @@ function summaryOf(tool: z.infer<typeof CanUseTool>, home: string | null): strin
 
 /**
  * The stdin line that answers `request`. A tool is allowed only when the user chose Allow; every
- * other answer (Deny, expiry, a background turn, the turn ending) denies it with the reason.
+ * other answer (Deny, expiry, a background turn) denies it with the reason. A turn that ended gets
+ * no answer (`null`): its CLI is being stopped, and a denial would only let it reply after Stop.
  */
-export function controlResponse(request: ControlRequest, answer: ApprovalAnswer | null): string {
+export function controlResponse(request: ControlRequest, answer: ApprovalAnswer | null): string | null {
   switch (request.kind) {
     case 'unsupported':
       return line({
@@ -84,16 +85,16 @@ export function controlResponse(request: ControlRequest, answer: ApprovalAnswer 
         error: request.subtype === null ? 'MorrowBot does not answer control requests without a subtype' : `MorrowBot does not answer "${request.subtype}" control requests`,
       });
     case 'can-use-tool': {
-      const allowed = answer?.kind === 'chosen' && answer.choiceId === 'allow';
-      const decision = allowed
-        ? { behavior: 'allow', updatedInput: request.input }
-        : { behavior: 'deny', message: denial(answer) };
-      return line({ subtype: 'success', request_id: request.requestId, response: decision });
+      if (answer?.kind === 'chosen' && answer.choiceId === 'allow') {
+        return line({ subtype: 'success', request_id: request.requestId, response: { behavior: 'allow', updatedInput: request.input } });
+      }
+      const message = denial(answer);
+      return message === null ? null : line({ subtype: 'success', request_id: request.requestId, response: { behavior: 'deny', message } });
     }
   }
 }
 
-function denial(answer: ApprovalAnswer | null): string {
+function denial(answer: ApprovalAnswer | null): string | null {
   if (answer === null) return 'MorrowBot does not ask for approval in this access level, so this was denied.';
   switch (answer.kind) {
     case 'chosen':
@@ -105,7 +106,7 @@ function denial(answer: ApprovalAnswer | null): string {
         case 'expired':
           return 'Nobody answered within 30 minutes, so this was denied.';
         case 'turn-ended':
-          return 'The turn ended before anyone answered.';
+          return null;
       }
   }
 }
