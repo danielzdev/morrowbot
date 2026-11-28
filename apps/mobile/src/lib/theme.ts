@@ -20,6 +20,9 @@ export interface ThemeColors {
   readonly text2: string;
   readonly text3: string;
   readonly textDisabled: string;
+  readonly primary: string;
+  readonly primaryHover: string;
+  readonly onPrimary: string;
   readonly accent: string;
   readonly accentPressed: string;
   readonly onAccent: string;
@@ -27,6 +30,7 @@ export interface ThemeColors {
   readonly ok: string;
   readonly warn: string;
   readonly danger: string;
+  readonly onDanger: string;
   readonly info: string;
   readonly scrim: string;
 }
@@ -60,6 +64,9 @@ const dark: ThemeColors = {
   text2: '#ADADAD',
   text3: '#9E9E9E',
   textDisabled: '#5E5E5E',
+  primary: '#FFFFFF',
+  primaryHover: '#E3E3E3',
+  onPrimary: '#0D0D0D',
   accent: '#74B9FF',
   accentPressed: '#93C8FF',
   onAccent: '#0D0D0D',
@@ -67,6 +74,7 @@ const dark: ThemeColors = {
   ok: '#4ADE80',
   warn: '#F5C451',
   danger: '#F87C7C',
+  onDanger: '#0D0D0D',
   info: '#7AB8FF',
   scrim: 'rgba(0, 0, 0, 0.6)',
 };
@@ -86,6 +94,9 @@ const light: ThemeColors = {
   text2: '#4F4F4F',
   text3: '#5E5E5E',
   textDisabled: '#B0B0B0',
+  primary: '#0D0D0D',
+  primaryHover: '#333333',
+  onPrimary: '#FFFFFF',
   accent: '#0B5FC5',
   accentPressed: '#094EA3',
   onAccent: '#FFFFFF',
@@ -93,6 +104,7 @@ const light: ThemeColors = {
   ok: '#116D33',
   warn: '#805300',
   danger: '#B91C1C',
+  onDanger: '#FFFFFF',
   info: '#1958C2',
   scrim: 'rgba(0, 0, 0, 0.25)',
 };

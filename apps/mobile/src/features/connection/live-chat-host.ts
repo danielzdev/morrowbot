@@ -69,6 +69,10 @@ export function createLiveChatHost(transport: HostTransport): ChatHost {
       return call({ method: 'POST', path: `/api/threads/${part(threadId)}/continue`, reply: ContinueResponse, body });
     },
     stop: (threadId) => call({ method: 'POST', path: `/api/threads/${part(threadId)}/stop`, reply: StopGenerationResponse }),
+    steerQueued: (threadId, queuedId) =>
+      call({ method: 'POST', path: `/api/threads/${part(threadId)}/queue/${part(queuedId)}/steer`, reply: NoContent }),
+    cancelQueued: (threadId, queuedId) =>
+      call({ method: 'DELETE', path: `/api/threads/${part(threadId)}/queue/${part(queuedId)}`, reply: NoContent }),
     answerApproval: (threadId, approvalId, body) =>
       call({ method: 'POST', path: `/api/threads/${part(threadId)}/approvals/${part(approvalId)}`, reply: NoContent, body }),
     providerInfo: (pluginId) => call({ method: 'GET', path: `/api/plugins/${part(pluginId)}/info`, reply: ProviderInfoResponse }),
