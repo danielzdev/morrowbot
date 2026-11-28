@@ -3,7 +3,7 @@ import { sendKeyLabels, shortcutLabel, SHORTCUTS, type Platform, type ShortcutId
 import type { IconName } from '../../shared/ui/Icon.tsx';
 import type { SettingsNavGroup } from '../../shared/ui/SettingsShell.tsx';
 
-export type SettingsSection = 'general' | 'appearance' | 'chat' | 'keyboard' | 'providers' | 'usage' | 'about';
+export type SettingsSection = 'general' | 'appearance' | 'chat' | 'keyboard' | 'providers' | 'usage' | 'devices' | 'about';
 
 /** A place in Settings: a section, or a row inside it (`'appearance/theme'`). Sidebar, palette and banners all open these. */
 export type SettingsLink = SettingsSection | `${SettingsSection}/${string}`;
@@ -31,6 +31,7 @@ export const SECTIONS: Readonly<Record<SettingsSection, { readonly title: string
   keyboard: { title: 'Keyboard', icon: 'keyboard' },
   providers: { title: 'Providers', icon: 'provider' },
   usage: { title: 'Usage', icon: 'gauge' },
+  devices: { title: 'Devices', icon: 'phone' },
   about: { title: 'About', icon: 'info' },
 };
 
@@ -38,7 +39,7 @@ const navItem = (id: SettingsSection) => ({ id, label: SECTIONS[id].title, icon:
 
 export const NAV: readonly SettingsNavGroup[] = [
   { label: 'App', items: [navItem('general'), navItem('appearance'), navItem('chat'), navItem('keyboard')] },
-  { label: 'Connections', items: [navItem('providers'), navItem('usage')] },
+  { label: 'Connections', items: [navItem('providers'), navItem('usage'), navItem('devices')] },
   { label: null, items: [navItem('about')] },
 ];
 
@@ -59,6 +60,8 @@ export const ROWS = {
   sendWith: row('chat', 'send-with', 'Send with', 'Which key sends your message. Shift+Enter always starts a new line.'),
   notifications: row('chat', 'notifications', 'Notifications', 'While MorrowBot is in the background, a system notification says when an agent needs approval or finishes.'),
   providers: row('providers', 'providers', 'AI providers', 'Claude, Codex, Antigravity, OpenCode and community engines: set up, sign in, check status and change settings.'),
+  pairPhone: row('devices', 'pair-phone', 'Pair a phone', 'Show a one-time code and QR code that a phone scans to connect to MorrowBot.'),
+  pairedDevices: row('devices', 'paired-devices', 'Paired devices', 'Phones and computers that can connect. Unpairing one signs it out at once.'),
   version: row('about', 'version', 'MorrowBot', 'Apache License 2.0 · Published by Legendary Koi'),
   updates: row('about', 'updates', 'Updates', 'Downloads new versions in the background and installs them when you restart.'),
   dataFolder: row('about', 'data-folder', 'Data folder', 'Where MorrowBot keeps your agents and chats.'),

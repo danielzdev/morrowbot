@@ -266,6 +266,7 @@ export function App({ bridge }: { readonly bridge: MorrowbotBridge }) {
             />
           )}
           usage={<UsagePane models={models} />}
+          pairing={models.api}
         />
       )}
     </>

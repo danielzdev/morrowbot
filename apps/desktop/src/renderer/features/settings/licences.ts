@@ -12,6 +12,7 @@ export const LICENCES: readonly Licence[] = [
   { name: 'electron-updater', npm: 'electron-updater', licence: 'MIT' },
   { name: 'open-bot-avatar', npm: 'open-bot-avatar', licence: 'MIT' },
   { name: 'Preact', npm: 'preact', licence: 'MIT' },
+  { name: 'uqr', npm: 'uqr', licence: 'MIT' },
   { name: 'T3 Code (adapted source)', npm: null, licence: 'MIT' },
   { name: 'ws', npm: 'ws', licence: 'MIT' },
   { name: 'Zod', npm: 'zod', licence: 'MIT' },

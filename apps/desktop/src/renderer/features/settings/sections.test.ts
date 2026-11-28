@@ -9,8 +9,10 @@ import type { UpdatesModel } from '../../shared/updates.ts';
 import { AboutSection } from './AboutSection.tsx';
 import { AppearanceSection } from './AppearanceSection.tsx';
 import { ChatSection } from './ChatSection.tsx';
+import { DevicesSection } from './DevicesSection.tsx';
 import { GeneralSection } from './GeneralSection.tsx';
 import { KeyboardSection } from './KeyboardSection.tsx';
+import type { PairingPort } from './pairing.ts';
 import { INDEX, type SettingsLink, type SettingsSection } from './settings-index.ts';
 import { SettingsModal, type SettingsModalProps } from './SettingsModal.tsx';
 
@@ -23,6 +25,11 @@ const BRIDGE = {
   revealPath: () => Promise.resolve(),
 };
 const ignore = (): void => undefined;
+const PAIRING: PairingPort = {
+  createPairingCode: () => Promise.resolve({ kind: 'failed', status: 409, error: { kind: 'conflict', message: 'No address' } }),
+  listDevices: () => Promise.resolve({ kind: 'ok', value: { devices: [] } }),
+  unpairDevice: () => Promise.resolve({ kind: 'ok', value: null }),
+};
 const UPDATES: UpdatesModel = { status: new Store<UpdateStatus>({ kind: 'up-to-date' }), check: ignore, restart: ignore, close: ignore };
 const MODAL: SettingsModalProps = {
   link: 'general',
@@ -34,6 +41,7 @@ const MODAL: SettingsModalProps = {
   bridge: BRIDGE,
   providers: () => null,
   usage: h('p', { class: 'usage-stub' }, 'usage'),
+  pairing: PAIRING,
 };
 
 const decode = (text: string): string => text.replaceAll('&amp;', '&').replaceAll('&#39;', "'").replaceAll('&quot;', '"').replaceAll('&lt;', '<').replaceAll('&gt;', '>');
@@ -51,6 +59,7 @@ const SECTIONS: Readonly<Record<SettingsSection, () => string>> = {
   keyboard: () => renderToString(h(KeyboardSection, { platform: 'mac', sendWith: 'enter' })),
   providers: () => renderToString(h(SettingsModal, { ...MODAL, link: 'providers' })),
   usage: () => '',
+  devices: () => renderToString(h(DevicesSection, { pairing: PAIRING })),
   about: () => renderToString(h(AboutSection, { info: INFO, update: { kind: 'up-to-date' }, onRevealData: ignore, onCheckForUpdates: ignore, onRestartToUpdate: ignore })),
 };
 
@@ -85,6 +94,7 @@ it('opens each deep link at its section, with the nav and breadcrumb pointing th
     appearance: modal('appearance/reduce-motion'),
     keyboard: modal('keyboard/key-escape'),
     usage: modal('usage'),
+    devices: modal('devices/paired-devices'),
     about: modal('about'),
     provider: modal('providers/provider-openai'),
   }).toEqual({
@@ -92,6 +102,7 @@ it('opens each deep link at its section, with the nav and breadcrumb pointing th
     appearance: { breadcrumb: 'Settings / Appearance', current: 'Appearance', firstRow: 'theme' },
     keyboard: { breadcrumb: 'Settings / Keyboard', current: 'Keyboard', firstRow: 'key-palette' },
     usage: { breadcrumb: 'Settings / Usage', current: 'Usage', firstRow: undefined },
+    devices: { breadcrumb: 'Settings / Devices', current: 'Devices', firstRow: 'pair-phone' },
     about: { breadcrumb: 'Settings / About', current: 'About', firstRow: 'version' },
     provider: { breadcrumb: 'Settings / Providers', current: 'Providers', firstRow: 'providers', item: 'provider-openai' },
   });

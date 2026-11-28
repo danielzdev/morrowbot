@@ -11,8 +11,10 @@ import { useStore } from '../../shared/use-store.ts';
 import { AboutSection } from './AboutSection.tsx';
 import { AppearanceSection } from './AppearanceSection.tsx';
 import { ChatSection } from './ChatSection.tsx';
+import { DevicesSection } from './DevicesSection.tsx';
 import { GeneralSection } from './GeneralSection.tsx';
 import { KeyboardSection } from './KeyboardSection.tsx';
+import type { PairingPort } from './pairing.ts';
 import { isSection, NAV, ROWS, searchSettings, SECTIONS, targetOf, type SettingEntry, type SettingsLink, type SettingsSection } from './settings-index.ts';
 import { SettingRow } from './SettingRow.tsx';
 import { SettingsSearchField, SettingsSearchResults } from './SettingsNav.tsx';
@@ -34,6 +36,8 @@ export interface SettingsModalProps {
   readonly providers: (slot: { readonly initial: string | null; readonly onTrail: (name: string | null) => void }) => ComponentChildren;
   /** Settings › Usage, composed by the app from the usage feature. */
   readonly usage: ComponentChildren;
+  /** The host's pairing calls, for Settings › Devices. */
+  readonly pairing: PairingPort;
 }
 
 /** A section's own header row, so search finds the section. */
@@ -101,6 +105,8 @@ export function SettingsModal(props: SettingsModalProps) {
         );
       case 'usage':
         return props.usage;
+      case 'devices':
+        return <DevicesSection pairing={props.pairing} />;
       case 'about':
         return (
           <AboutSection

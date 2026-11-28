@@ -30,6 +30,8 @@
   --info: light-dark(#1958C2, #7AB8FF);
   --info-bg: light-dark(#EFF6FF, rgba(122, 184, 255, 0.12));
   --scrim: light-dark(rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0.6));
+  --qr-ink: #000000;
+  --qr-paper: #FFFFFF;
   --shadow-pop: 0 8px 24px light-dark(rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.45));
 
   --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;

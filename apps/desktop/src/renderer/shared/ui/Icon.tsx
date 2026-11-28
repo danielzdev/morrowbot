@@ -23,6 +23,7 @@ export type IconName =
   | 'sun'
   | 'moon'
   | 'monitor'
+  | 'phone'
   | 'eye'
   | 'lock'
   | 'lock-off'
@@ -137,6 +138,12 @@ const SHAPES: Readonly<Record<IconName, ComponentChildren>> = {
     <>
       <rect x="2" y="2.5" width="12" height="8.5" rx="1.5" />
       <path d="M5.5 14h5M8 11v3" />
+    </>
+  ),
+  phone: (
+    <>
+      <rect x="4.5" y="1.5" width="7" height="13" rx="1.5" />
+      <path d="M7 12h2" />
     </>
   ),
   eye: (
