@@ -14,7 +14,7 @@ const WRITE: PendingApproval = {
 
 function state(seq: number, pending: readonly PendingApproval[] | null): ThreadState {
   return {
-    thread: { id: 't', agentId: 'a', title: 'Main', createdAt: AT, updatedAt: AT },
+    thread: { id: 't', agentId: 'a', title: 'Main', createdAt: AT, updatedAt: AT, archivedAt: null },
     messages: [],
     reactions: [],
     toolSteps: [],

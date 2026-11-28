@@ -129,6 +129,7 @@ it('keeps agents, threads, messages and AGENTS.md across a host restart', async 
         "threads": [
           {
             "agentId": "id-1",
+            "archivedAt": null,
             "createdAt": "2026-01-01T00:00:01.000Z",
             "createdSeq": 1,
             "id": "id-2",
@@ -262,6 +263,7 @@ it('creates, updates and deletes agents and threads', async () => {
       "renamedThread": {
         "body": {
           "agentId": "id-2",
+          "archivedAt": null,
           "createdAt": "2026-01-01T00:00:02.000Z",
           "createdSeq": 1,
           "id": "id-3",

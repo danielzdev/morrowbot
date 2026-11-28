@@ -15,7 +15,7 @@ const SECOND: PendingApproval = { ...EDIT, approvalId: 'a2', summary: 'Allow wri
 
 function state(pending: readonly PendingApproval[], seq: number, generationId: string | null = 'g'): ThreadState {
   return {
-    thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT },
+    thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT, archivedAt: null },
     messages: [],
     reactions: [],
     toolSteps: [],

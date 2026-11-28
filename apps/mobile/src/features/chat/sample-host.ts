@@ -152,7 +152,7 @@ export function createSampleChatHost(now: () => string = () => new Date().toISOS
     agents: () => ok({ agents, folders: [], lastMessages: [] }),
     threads: (agentId) => ok({ threads: threads.filter((each) => each.agentId === agentId) }),
     createThread: (agentId) => {
-      const created: Thread = { id: nextId('thread'), agentId, title: 'New chat', createdAt: now(), updatedAt: now() };
+      const created: Thread = { id: nextId('thread'), agentId, title: 'New chat', createdAt: now(), updatedAt: now(), archivedAt: null };
       threads = [...threads, created];
       return ok(created);
     },

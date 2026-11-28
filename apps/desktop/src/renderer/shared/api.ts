@@ -85,10 +85,13 @@ export interface Api {
   saveInstructions(id: string, content: string, expectedRevision: string | null): Promise<ApiResult<PutInstructionsReply>>;
   saveInstructionsCopy(id: string, content: string): Promise<ApiResult<InstructionsCopyReply>>;
   listThreads(agentId: string): Promise<ApiResult<ThreadList>>;
+  listArchivedThreads(agentId: string): Promise<ApiResult<ThreadList>>;
   /** Every agent's chats, newest first (H9, for ⌘K). */
   listAllThreads(): Promise<ApiResult<ThreadSummaryList>>;
   createThread(agentId: string, title?: string): Promise<ApiResult<Thread>>;
   renameThread(id: string, title: string): Promise<ApiResult<Thread>>;
+  archiveThread(id: string): Promise<ApiResult<Thread>>;
+  restoreThread(id: string): Promise<ApiResult<Thread>>;
   deleteThread(id: string): Promise<ApiResult<null>>;
   threadState(id: string): Promise<ApiResult<ThreadState>>;
   send(threadId: string, text: string, attachmentIds: readonly string[], sessionChoice: SessionChoice): Promise<ApiResult<SendMessageResponse>>;
@@ -193,9 +196,12 @@ export function createApi(bridge: MorrowbotBridge): Api {
     saveInstructions: (id, content, expectedRevision) => call(PutInstructionsReply, 'PUT', at('agents', id, 'instructions'), { content, expectedRevision }),
     saveInstructionsCopy: (id, content) => call(InstructionsCopyReply, 'POST', at('agents', id, 'instructions', 'copies'), { content }),
     listThreads: (agentId) => call(ThreadList, 'GET', at('agents', agentId, 'threads')),
+    listArchivedThreads: (agentId) => call(ThreadList, 'GET', `${at('agents', agentId, 'threads')}?archived=only`),
     listAllThreads: () => call(ThreadSummaryList, 'GET', at('threads')),
     createThread: (agentId, title) => call(Thread, 'POST', at('agents', agentId, 'threads'), title === undefined ? {} : { title }),
     renameThread: (id, title) => call(Thread, 'PATCH', at('threads', id), { title }),
+    archiveThread: (id) => call(Thread, 'POST', at('threads', id, 'archive')),
+    restoreThread: (id) => call(Thread, 'POST', at('threads', id, 'restore')),
     deleteThread: (id) => call(NoContent, 'DELETE', at('threads', id)),
     threadState: (id) => call(ThreadState, 'GET', at('threads', id, 'state')),
     send: (threadId, text, attachmentIds, sessionChoice) =>

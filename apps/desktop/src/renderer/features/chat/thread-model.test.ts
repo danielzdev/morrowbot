@@ -6,7 +6,7 @@ import { applyEvent, pendingApprovals, viewOf, type ThreadEvent, type ThreadView
 
 const AT = '2026-01-01T00:00:00.000Z';
 const STATE: ThreadState = {
-  thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT },
+  thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT, archivedAt: null },
   messages: [],
   reactions: [],
   toolSteps: [],

@@ -17,6 +17,8 @@ export interface AttachmentRepository {
   insert(threadId: string, attachment: Attachment, createdAt: string): void;
   /** The thread's unsent uploads named by `ids`, in that order; undefined when one is missing or already sent. */
   pending(threadId: string, ids: readonly string[]): Attachment[] | undefined;
+  /** Refreshes `created_at` on unsent uploads so cancelling/editing an old queued message resets their sweep window. */
+  touch(threadId: string, ids: readonly string[], at: string): void;
   get(id: string): Attachment | undefined;
   /** The thread the attachment was uploaded to. */
   threadOf(id: string): string | undefined;
@@ -32,9 +34,20 @@ export function attachmentRepository(db: DatabaseSync): AttachmentRepository {
      VALUES (:id, :threadId, NULL, 0, :kind, :name, :mimeType, :size, :createdAt)`,
   );
   const pending = db.prepare('SELECT * FROM attachments WHERE id = ? AND thread_id = ? AND message_id IS NULL');
+  const touch = db.prepare('UPDATE attachments SET created_at = ? WHERE id = ? AND thread_id = ? AND message_id IS NULL');
   const get = db.prepare('SELECT * FROM attachments WHERE id = ?');
   const ids = db.prepare('SELECT id FROM attachments');
-  const unsent = db.prepare('DELETE FROM attachments WHERE message_id IS NULL AND created_at < ? RETURNING id');
+  const unsent = db.prepare(
+    `DELETE FROM attachments
+     WHERE message_id IS NULL
+       AND created_at < ?
+       AND NOT EXISTS (
+         SELECT 1
+         FROM queued_messages q, json_each(q.attachment_ids) j
+         WHERE q.thread_id = attachments.thread_id AND j.value = attachments.id
+       )
+     RETURNING id`,
+  );
   const threadOf = db.prepare('SELECT thread_id FROM attachments WHERE id = ?');
   const IdRow = z.object({ id: z.string() });
   const ThreadRow = z.object({ thread_id: z.string() });
@@ -51,6 +64,9 @@ export function attachmentRepository(db: DatabaseSync): AttachmentRepository {
         found.push(AttachmentRow.parse(row));
       }
       return found;
+    },
+    touch: (threadId, idsToTouch, at) => {
+      for (const id of idsToTouch) touch.run(at, id, threadId);
     },
     get: (id) => {
       const row = get.get(id);

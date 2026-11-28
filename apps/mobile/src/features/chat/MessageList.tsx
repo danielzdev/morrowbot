@@ -24,6 +24,12 @@ function UserBubble(props: { readonly text: string; readonly note?: string }) {
   );
 }
 
+function queueText(message: QueuedMessage): string {
+  const files = message.attachments.map((attachment) => attachment.name).join(', ');
+  if (message.text === '') return files;
+  return files === '' ? message.text : `${message.text}\n[${files}]`;
+}
+
 function queueNote(message: QueuedMessage): string {
   switch (message.state.kind) {
     case 'queued':
@@ -152,7 +158,7 @@ export function MessageList(props: {
         </View>
       )}
       {props.queue.map((message) => (
-        <UserBubble key={message.id} text={message.text} note={queueNote(message)} />
+        <UserBubble key={message.id} text={queueText(message)} note={queueNote(message)} />
       ))}
     </ScrollView>
   );

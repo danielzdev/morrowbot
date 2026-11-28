@@ -34,7 +34,7 @@ function agent(id: string, name: string, description: string, color: string, fol
 
 function thread(agentId: string, id: string, title: string, minutesAgo: number, now: number): Thread {
   const createdDaysAgo = id.endsWith('-main') ? 30 : 7;
-  return { id, agentId, title, createdAt: at(60 * 24 * createdDaysAgo, now), updatedAt: at(minutesAgo, now) };
+  return { id, agentId, title, createdAt: at(60 * 24 * createdDaysAgo, now), updatedAt: at(minutesAgo, now), archivedAt: null };
 }
 
 function lastMessages(now: number): readonly LastMessage[] {
@@ -86,7 +86,7 @@ export function createSampleDirectory(clock: () => number = Date.now): Directory
     createThread: (hostId: EntityId, agentId: EntityId) => {
       created += 1;
       const time = new Date(clock()).toISOString();
-      const fresh: Thread = { id: `new-${String(created)}`, agentId, title: 'New chat', createdAt: time, updatedAt: time };
+      const fresh: Thread = { id: `new-${String(created)}`, agentId, title: 'New chat', createdAt: time, updatedAt: time, archivedAt: null };
       store.update((directory) => ({
         ...directory,
         threads: [...directory.threads, { hostId, thread: fresh, activity: { kind: 'idle' } }],

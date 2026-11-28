@@ -95,7 +95,7 @@ export function createSubagentService(ports: SubagentPorts): SubagentService {
       const capped = overCap(caller);
       if (capped !== undefined) return { kind: 'refused', reason: capped };
       const at = ports.now();
-      const thread: Thread = { id: ports.newId(), agentId: caller.agentId, title: request.role, createdAt: at, updatedAt: at };
+      const thread: Thread = { id: ports.newId(), agentId: caller.agentId, title: request.role, createdAt: at, updatedAt: at, archivedAt: null };
       records.insert(thread, {
         threadId: thread.id,
         parentThreadId: caller.threadId,

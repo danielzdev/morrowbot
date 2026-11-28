@@ -33,8 +33,18 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
       method: 'GET',
       path: '/api/agents/:id/threads',
       access: { kind: 'agent', need: 'view' },
-      handle: ({ params }) => {
-        const threads = chat.listThreads(params.get('id'));
+      handle: ({ params, query }) => {
+        const archived = query.get('archived');
+        const filter =
+          archived === null || archived === 'exclude'
+            ? 'active'
+            : archived === 'only'
+              ? 'archived'
+              : archived === 'all'
+                ? 'all'
+                : undefined;
+        if (filter === undefined) return failure('invalid_request', 'archived: Use exclude, only, or all');
+        const threads = chat.listThreads(params.get('id'), filter);
         if (threads === undefined) return notFound('Agent');
         const body: ThreadList = { threads };
         return json(200, body);
@@ -68,6 +78,31 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
         const request = await parseBody(context, UpdateThreadRequest);
         if (request.kind === 'rejected') return request.reply;
         const thread = chat.renameThread(context.params.get('id'), request.value.title);
+        return thread === undefined ? notFound('Thread') : json(200, thread);
+      },
+    },
+    {
+      method: 'POST',
+      path: '/api/threads/:id/archive',
+      access: { kind: 'thread', need: 'edit' },
+      handle: ({ params }) => {
+        const result = chat.archiveThread(params.get('id'));
+        switch (result.kind) {
+          case 'archived':
+            return json(200, result.thread);
+          case 'not_found':
+            return notFound('Thread');
+          case 'conflict':
+            return failure('conflict', result.reason);
+        }
+      },
+    },
+    {
+      method: 'POST',
+      path: '/api/threads/:id/restore',
+      access: { kind: 'thread', need: 'edit' },
+      handle: ({ params }) => {
+        const thread = chat.restoreThread(params.get('id'));
         return thread === undefined ? notFound('Thread') : json(200, thread);
       },
     },
@@ -110,7 +145,6 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
           const body: SendMessageResponse = { kind: 'queued', queued: result.queued };
           return json(202, body);
         }
-        if (result.kind === 'files_wait') return failure('conflict', 'Files can be sent once this reply ends. Send the text alone to queue it.');
         if (result.kind !== 'started') return refusal(result);
         if (result.userMessage === null) return failure('internal', 'The send started without its message');
         const body: SendMessageResponse = { kind: 'started', generationId: result.generationId, userMessage: result.userMessage };
