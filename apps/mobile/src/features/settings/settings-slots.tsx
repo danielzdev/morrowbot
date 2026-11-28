@@ -1,34 +1,54 @@
-import { PlaceholderBody, PlaceholderList, PlaceholderTitle } from '../../lib/Placeholder.tsx';
+import { Text, View } from 'react-native';
 import { ACTION_PRESETS } from '../../lib/symbols.ts';
+import { typography } from '../../lib/theme.ts';
+import { useTheme } from '../../lib/useTheme.ts';
 import type { DetailSlot, SettingsSection, TabSlot } from '../../lib/workspace.ts';
+import { AppearanceScreen } from './AppearanceScreen.tsx';
+import { ConnectionsScreen } from './ConnectionsScreen.tsx';
+import { NotificationsScreen } from './NotificationsScreen.tsx';
+import { ProvidersScreen } from './ProvidersScreen.tsx';
+import { sectionInfo } from './sections.ts';
+import { settingsUi } from './settings-store.ts';
+import { SettingsSidebar } from './SettingsSidebar.tsx';
+import { UsageScreen } from './UsageScreen.tsx';
 
-const SECTIONS: readonly { readonly section: SettingsSection; readonly label: string }[] = [
-  { section: 'connections', label: 'Connections' },
-  { section: 'notifications', label: 'Notifications' },
-  { section: 'appearance', label: 'Appearance' },
-  { section: 'providers', label: 'Providers & Models' },
-  { section: 'usage', label: 'Usage' },
-];
-
-/** Placeholder until #72 lands Settings and host Connections. */
 export const settingsTab: TabSlot = {
-  Sidebar: (props) => (
-    <PlaceholderList
-      title="Settings"
-      rows={SECTIONS.map(({ section, label }) => ({ label, detail: '', route: { kind: 'settings', section } }))}
-      {...props}
-    />
-  ),
+  Sidebar: SettingsSidebar,
   actions: [],
-  onSearch: () => undefined,
+  onSearch: settingsUi.openSearch,
 };
+
+function SectionBody(props: { readonly section: SettingsSection }) {
+  switch (props.section) {
+    case 'connections':
+      return <ConnectionsScreen />;
+    case 'notifications':
+      return <NotificationsScreen />;
+    case 'appearance':
+      return <AppearanceScreen />;
+    case 'providers':
+      return <ProvidersScreen />;
+    case 'usage':
+      return <UsageScreen />;
+  }
+}
+
+function SectionTitle(props: { readonly section: SettingsSection }) {
+  const { colors } = useTheme();
+  return (
+    <View>
+      <Text style={[typography.title, { color: colors.text1 }]} numberOfLines={1}>
+        {sectionInfo(props.section).label}
+      </Text>
+      <Text style={[typography.small, { color: colors.text3 }]}>Settings</Text>
+    </View>
+  );
+}
 
 export const settingsDetail: DetailSlot<'settings'> = {
   tabs: ['settings'],
-  Title: ({ route }) => (
-    <PlaceholderTitle title={SECTIONS.find((item) => item.section === route.section)?.label ?? ''} subtitle="Settings" />
-  ),
-  Body: () => <PlaceholderBody text="Settings arrive with #72." />,
+  Title: ({ route }) => <SectionTitle section={route.section} />,
+  Body: ({ route }) => <SectionBody section={route.section} />,
   actions: (route) =>
-    route.section === 'connections' ? [{ id: 'add-host', ...ACTION_PRESETS.addHost, onPress: () => undefined }] : [],
+    route.section === 'connections' ? [{ id: 'add-host', ...ACTION_PRESETS.addHost, onPress: settingsUi.openPairing }] : [],
 };
