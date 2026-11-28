@@ -12,7 +12,7 @@ import { laneKey, laneOf, localSettlement, settle, type ChatCore, type LiveUsage
 const FLUSH_MS = 1_000;
 
 /**
- * Sends a turn that got a slot. It reads AGENTS.md once (for `system`, a new session's hash and the
+ * Sends a turn that got a slot. It reads SOUL.md once (for `system`, a new session's hash and the
  * resume check), then re-checks everything the admission relied on, applies the session effects and
  * sends `turn` in one synchronous step. A turn stopped, unbound or changed meanwhile sends nothing.
  */
@@ -74,7 +74,7 @@ export async function dispatch(core: ChatCore, turn: Turn): Promise<void> {
     expectedRouteKey: turn.routeKey,
     selection: turn.binding.selection,
     session,
-    system: turn.binding.vendorSettings === 'isolated' ? instructions : null,
+    system: instructions,
     prompt: input.prompt,
     images: input.images,
     hostTools: core.options.tools.open({ turnId: turn.generationId, agentId: turn.agentId, threadId: turn.threadId }),
@@ -111,7 +111,7 @@ type TurnInputs =
   | { readonly kind: 'unreadable'; readonly message: string };
 
 /**
- * AGENTS.md as it is now, the workspace's canonical path (a moved symlink no longer matches the admitted cwd),
+ * SOUL.md as it is now, the workspace's canonical path (a moved symlink no longer matches the admitted cwd),
  * and the prompt: the agent's skills and essential memories, the message's attachments, then its text.
  */
 async function readTurnInputs(core: ChatCore, turn: Turn): Promise<TurnInputs> {
@@ -126,7 +126,7 @@ async function readTurnInputs(core: ChatCore, turn: Turn): Promise<TurnInputs> {
     return { kind: 'read', instructions: instructions ?? '', cwd, input: buildTurnInput(prelude, turn.source.prompt, attachments) };
   } catch (error) {
     core.options.report(error);
-    return { kind: 'unreadable', message: "Could not read the agent's workspace, AGENTS.md or the message's attachments" };
+    return { kind: 'unreadable', message: "Could not read the agent's workspace, SOUL.md or the message's attachments" };
   }
 }
 

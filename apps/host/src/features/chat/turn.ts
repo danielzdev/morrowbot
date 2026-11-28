@@ -80,7 +80,7 @@ export interface Turn {
   outputExceeded: OutputLimitKind | null;
   flushTimer: NodeJS.Timeout | undefined;
   seedTruncated: boolean;
-  /** The AGENTS.md hash read at dispatch, saved with a new session. */
+  /** The SOUL.md hash read at dispatch, saved with a new session. */
   systemHash: string | null;
   /** The session row this turn bound (`session-bound`). */
   boundRow: number | null;

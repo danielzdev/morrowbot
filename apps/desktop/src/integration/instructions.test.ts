@@ -29,7 +29,7 @@ afterEach(async () => {
   expect(chat.host.errors).toEqual([]);
 });
 
-const onDisk = (text: string): Promise<void> => writeFile(path.join(agent.workspace.dir, 'AGENTS.md'), text);
+const onDisk = (text: string): Promise<void> => writeFile(path.join(agent.workspace.dir, 'SOUL.md'), text);
 
 function shown(): unknown {
   const state = editor.state.get();
@@ -55,7 +55,7 @@ async function disk(): Promise<unknown> {
   return { ...Object(body), revision: '<revision>' };
 }
 
-it('creates a missing AGENTS.md, then keeps the file and saves the next edit as a copy', async () => {
+it('creates a missing SOUL.md, then keeps the file and saves the next edit as a copy', async () => {
   const missing = shown();
   editor.setDraft('Be brief.');
   await editor.save();
@@ -96,7 +96,7 @@ it('creates a missing AGENTS.md, then keeps the file and saves the next edit as 
   `);
 });
 
-it('keeps the draft beside the disk version when AGENTS.md changed after it was loaded', async () => {
+it('keeps the draft beside the disk version when SOUL.md changed after it was loaded', async () => {
   await onDisk('Old.');
   await editor.load();
   editor.setDraft('Mine.');
@@ -130,7 +130,7 @@ it('keeps the draft beside the disk version when AGENTS.md changed after it was 
   `);
 });
 
-it('refuses to create over an AGENTS.md that appeared after the editor loaded, and writes nothing', async () => {
+it('refuses to create over a SOUL.md that appeared after the editor loaded, and writes nothing', async () => {
   editor.setDraft('Mine.');
   await onDisk('Theirs.');
   await editor.save();

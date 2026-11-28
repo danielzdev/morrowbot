@@ -45,7 +45,7 @@ export function statelessBudget(maxSeedBytes: number | undefined): { readonly me
   return { messages: Number.POSITIVE_INFINITY, bytes: Math.min(MAX_SEED_BYTES, maxSeedBytes ?? MAX_SEED_BYTES) };
 }
 
-/** The hash a session's instructions are compared by: SHA-256 of the AGENTS.md text ('' when missing). */
+/** The hash a session's instructions are compared by: SHA-256 of the SOUL.md text ('' when missing). */
 export function instructionsHash(text: string): string {
   return createHash('sha256').update(text, 'utf8').digest('hex');
 }

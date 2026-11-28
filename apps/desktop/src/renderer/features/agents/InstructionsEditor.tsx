@@ -8,11 +8,11 @@ function Outcome(props: { readonly outcome: SaveOutcome; readonly disk: boolean;
   const { outcome } = props;
   switch (outcome.kind) {
     case 'created':
-      return <p class="note ok" role="status">AGENTS.md saved.</p>;
+      return <p class="note ok" role="status">SOUL.md saved.</p>;
     case 'copied':
       return (
         <div class="note row" role="status">
-          <span>AGENTS.md wasn't changed. Your version is saved as a copy.</span>
+          <span>SOUL.md wasn't changed. Your version is saved as a copy.</span>
           <button type="button" class="btn secondary" onClick={() => { props.onReveal(outcome.revealId); }}>Reveal</button>
         </div>
       );
@@ -22,7 +22,7 @@ function Outcome(props: { readonly outcome: SaveOutcome; readonly disk: boolean;
           <p class="binding-note warn">This file changed on disk.</p>
           <div class="conflict-panes">
             <pre class="instructions disk" aria-label="Disk version">
-              {outcome.current.content ?? (outcome.current.revision === null ? 'AGENTS.md was removed from disk.' : props.redact(outcome.current.readError ?? 'AGENTS.md could not be read.'))}
+              {outcome.current.content ?? (outcome.current.revision === null ? 'SOUL.md was removed from disk.' : props.redact(outcome.current.readError ?? 'SOUL.md could not be read.'))}
             </pre>
           </div>
           <div class="row">
@@ -34,7 +34,7 @@ function Outcome(props: { readonly outcome: SaveOutcome; readonly disk: boolean;
     case 'failed':
       return (
         <div class="note error row" role="alert">
-          <span>{`Couldn't save AGENTS.md: ${props.redact(outcome.message)}`}</span>
+          <span>{`Couldn't save SOUL.md: ${props.redact(outcome.message)}`}</span>
           <button type="button" class="btn secondary" onClick={props.onRetry}>Try again</button>
         </div>
       );
@@ -42,7 +42,7 @@ function Outcome(props: { readonly outcome: SaveOutcome; readonly disk: boolean;
 }
 
 /**
- * Agent Settings › Instructions (spec §5.2, H8 v1): a missing AGENTS.md is created; an existing one is
+ * Agent Settings › Instructions (spec §5.2, H8 v1): a missing SOUL.md is created; an existing one is
  * never replaced, so Save becomes Save a copy. A conflict keeps the draft beside the disk version.
  */
 export function InstructionsEditor(props: {
@@ -63,7 +63,7 @@ export function InstructionsEditor(props: {
   useEffect(() => {
     props.onDirty(dirty);
   }, [dirty]);
-  if (state.kind === 'loading') return <p class="muted">Loading AGENTS.md…</p>;
+  if (state.kind === 'loading') return <p class="muted">Loading SOUL.md…</p>;
   if (state.kind === 'load-failed') return <p class="note error">{props.redact(state.message)}</p>;
   const mode = saveModeOf(state.loaded);
   const unreadable = state.loaded.revision !== null && state.loaded.content === null;
@@ -71,15 +71,15 @@ export function InstructionsEditor(props: {
   return (
     <div class="settings-section instructions-section">
       {unreadable && (
-        <p class="note warn" role="alert">{`AGENTS.md could not be read. ${props.redact(state.loaded.readError ?? '')}`.trim()}</p>
+        <p class="note warn" role="alert">{`SOUL.md could not be read. ${props.redact(state.loaded.readError ?? '')}`.trim()}</p>
       )}
       <label class="field grow">
         <span>
-          AGENTS.md {dirty && <span class="dot accent" aria-label="Unsaved changes" />}
+          SOUL.md {dirty && <span class="dot accent" aria-label="Unsaved changes" />}
         </span>
         <textarea
           class="instructions"
-          aria-label="AGENTS.md"
+          aria-label="SOUL.md"
           spellcheck={false}
           value={state.draft}
           onInput={(event) => { editor.setDraft(event.currentTarget.value); }}

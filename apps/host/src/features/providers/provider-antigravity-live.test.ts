@@ -64,7 +64,7 @@ function deniedByOriKami(generationId: string, kind: string): boolean {
 
 describe.skipIf(!LIVE)('provider-antigravity on your agy login', () => {
   it(
-    'is ready with models on the first provider-info; a read-only turn loads the workspace AGENTS.md; a write inside, a write outside, a command and a write through a symlink are each denied and change nothing',
+    "is ready with models on the first provider-info; a read-only turn follows both the agent's SOUL.md and the workspace AGENTS.md; a write inside, a write outside, a command and a write through a symlink are each denied and change nothing",
     async () => {
       const before = Info.parse((await host.call('GET', '/api/plugins/provider-antigravity/info')).body).info;
       const agent = Agent.parse((await host.call('POST', '/api/agents', { name: 'Live', provider: AGY })).body);
@@ -75,8 +75,9 @@ describe.skipIf(!LIVE)('provider-antigravity on your agy login', () => {
       await mkdir(workspace, { recursive: true });
       await mkdir(outside, { recursive: true });
       await symlink(outside, path.join(workspace, 'escape'));
-      await writeFile(path.join(workspace, 'AGENTS.md'), 'When asked for the canary word, the canary word is KUMQUAT.\n');
-      await send(thread, 'Say the canary word, and nothing else.');
+      await writeFile(path.join(workspace, 'SOUL.md'), 'When asked for the canary word, the canary word is KUMQUAT.\n');
+      await writeFile(path.join(workspace, 'AGENTS.md'), 'When asked for the repository code word, the repository code word is PAPAYA.\n');
+      await send(thread, 'Say the canary word and the repository code word, and nothing else.');
       const tries = [
         { prompt: 'Use your file-writing tool to create inside.txt containing x. Do not use any other tool.', target: path.join(workspace, 'inside.txt'), tool: 'Edit', kind: 'edit' },
         { prompt: `Use your file-writing tool to create ${path.join(outside, 'written.txt')} containing x. Do not use any other tool.`, target: path.join(outside, 'written.txt'), tool: 'Edit', kind: 'edit' },
@@ -98,6 +99,7 @@ describe.skipIf(!LIVE)('provider-antigravity on your agy login', () => {
         after: { kind: after.kind, accountKey: after.accountKey, labelled: (after.accountLabel ?? '') !== '', models: (after.models?.length ?? 0) > 0 },
         outcomes: said.map((reply) => reply.outcome),
         canary: said[0]?.text.includes('KUMQUAT'),
+        repository: said[0]?.text.includes('PAPAYA'),
         denied,
         usage: usage.usage.kind === 'unavailable' ? usage.usage.reason : usage.usage.kind,
         errors: host.errors,
@@ -106,6 +108,7 @@ describe.skipIf(!LIVE)('provider-antigravity on your agy login', () => {
         after: { kind: 'ready', accountKey: '', labelled: true, models: true },
         outcomes: ['completed', 'completed', 'completed', 'completed', 'completed'],
         canary: true,
+        repository: true,
         denied: tries.map(({ tool }) => ({ tool, reachedDenial: true, byOriKami: true, anyToolSucceeded: false, changed: false })),
         usage: 'unsupported',
         errors: [],

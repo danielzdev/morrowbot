@@ -36,7 +36,7 @@ function request(session: TurnRequest['session'], prompt: string): TurnRequest {
     expectedRouteKey: '',
     selection: { kind: 'default' },
     session,
-    system: null,
+    system: '',
     prompt,
     images: [],
     hostTools: { kind: 'none' },

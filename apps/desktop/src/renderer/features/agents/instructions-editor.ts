@@ -54,7 +54,7 @@ const failed = (result: ApiFailure, conflict: AgentInstructionsView | null = nul
   result.error.kind === 'instructions-conflict' ? { kind: 'conflict', current: result.error.current } : { kind: 'failed', message: result.error.message, conflict };
 
 /**
- * The AGENTS.md editor of one agent (spec §5.2, H8 v1). Saves run one at a time, each checked
+ * The SOUL.md editor of one agent (spec §5.2, H8 v1). Saves run one at a time, each checked
  * against the revision that was loaded; an existing file is never replaced.
  */
 export function createInstructionsEditor(api: Port, agentId: string): InstructionsEditor {

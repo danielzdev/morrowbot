@@ -29,7 +29,7 @@ function redact(value: unknown): unknown {
   return redacted;
 }
 
-it('keeps agents, threads, messages and AGENTS.md across a host restart', async () => {
+it('keeps agents, threads, messages and SOUL.md across a host restart', async () => {
   const ids = sequence();
   const first = await startTestHost({ dataDir, pluginsDir: PLUGIN_FIXTURES, sequence: ids });
   const agent = Agent.parse(

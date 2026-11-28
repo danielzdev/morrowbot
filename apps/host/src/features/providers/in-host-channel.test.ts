@@ -201,7 +201,7 @@ it('a turn end that is not JSON ends only that provider, as a crash, and the hos
       expectedRouteKey: '',
       selection: { kind: 'default' },
       session: { kind: 'new', seed: null },
-      system: null,
+      system: '',
       prompt: 'hi',
       images: [],
       hostTools: { kind: 'none' },

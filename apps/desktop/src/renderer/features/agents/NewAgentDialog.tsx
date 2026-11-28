@@ -138,13 +138,13 @@ export function NewAgentDialog(props: {
           {workspace.kind === 'shared' && <p class="binding-note warn">Other agents using this folder can see its files.</p>}
         </section>
         <details class="form-section instructions-disclosure">
-          <summary>Add instructions (AGENTS.md)</summary>
+          <summary>Add instructions (SOUL.md)</summary>
           {workspace.kind === 'shared' && (
-            <p class="binding-note">If this folder already has an AGENTS.md, Ori Kami keeps it; edit instructions after creating.</p>
+            <p class="binding-note">If this folder already has a SOUL.md, Ori Kami uses it as it is and writes nothing; edit that file in the folder to change it.</p>
           )}
           <textarea
             class="instructions small"
-            aria-label="Instructions (AGENTS.md)"
+            aria-label="Instructions (SOUL.md)"
             spellcheck={false}
             disabled={workspace.kind === 'shared'}
             value={instructions}

@@ -86,7 +86,7 @@ export interface Api {
   renameFolder(id: string, name: string): Promise<ApiResult<Folder>>;
   deleteFolder(id: string): Promise<ApiResult<null>>;
   instructions(id: string): Promise<ApiResult<AgentInstructionsView>>;
-  /** Creates a missing AGENTS.md (`expectedRevision: null`); the host refuses to replace one. */
+  /** Creates a missing SOUL.md (`expectedRevision: null`); the host refuses to replace one. */
   saveInstructions(id: string, content: string, expectedRevision: string | null): Promise<ApiResult<PutInstructionsReply>>;
   saveInstructionsCopy(id: string, content: string): Promise<ApiResult<InstructionsCopyReply>>;
   listThreads(agentId: string): Promise<ApiResult<ThreadList>>;

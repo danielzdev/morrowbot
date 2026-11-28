@@ -59,12 +59,12 @@ it('binds a session on the first turn, resumes it, and asks before reusing histo
   `);
 });
 
-it('never resumes a changed AGENTS.md, even with continue-existing', async () => {
+it('never resumes a changed SOUL.md, even with continue-existing', async () => {
   await chat.configure({ sessions: true });
   const agent = await chat.agent();
   const thread = await chat.thread(agent);
   await chat.send(thread, 'hi');
-  await writeFile(path.join(agent.workspace.dir, 'AGENTS.md'), 'New rules.');
+  await writeFile(path.join(agent.workspace.dir, 'SOUL.md'), 'New rules.');
   expect([
     outcome(await chat.send(thread, 'describe')),
     outcome(await chat.send(thread, 'describe', { kind: 'continue-existing' })),

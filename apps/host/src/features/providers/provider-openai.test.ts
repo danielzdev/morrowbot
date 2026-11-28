@@ -82,12 +82,12 @@ it('reports Codex ready with its read-only and full profiles and why the others 
               },
               {
                 "access": "read-only",
-                "reason": "Codex always loads your own ~/.codex/AGENTS.md (checked on Codex 0.171), so Ori Kami cannot replace its instructions. Use your Codex instructions instead.",
+                "reason": "Codex always loads your own ~/.codex/AGENTS.md (checked on Codex 0.171), so Ori Kami cannot replace its instructions. Ori Kami still sends the agent's SOUL.md.",
                 "vendorSettings": "isolated",
               },
               {
                 "access": "workspace-write",
-                "reason": "Codex always loads your own ~/.codex/AGENTS.md (checked on Codex 0.171), so Ori Kami cannot replace its instructions. Use your Codex instructions instead.",
+                "reason": "Codex always loads your own ~/.codex/AGENTS.md (checked on Codex 0.171), so Ori Kami cannot replace its instructions. Ori Kami still sends the agent's SOUL.md.",
                 "vendorSettings": "isolated",
               },
             ],
@@ -238,6 +238,7 @@ it('streams a new thread, binds it to the account, counts its tokens, lets it go
           },
         },
         "cwd": "$HOME/data/workspaces/id-1",
+        "developerInstructions": null,
         "ephemeral": false,
         "modelProvider": "openai",
         "sandbox": "read-only",

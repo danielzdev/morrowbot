@@ -107,7 +107,8 @@ export function buildInvocation(
     readonly effort: EffortLevel | null;
   },
 ): Invocation {
-  const { selection, system } = request;
+  const { selection } = request;
+  const system = request.system.trim() === '' ? null : request.system;
   const tools = hostToolsConfig(request.hostTools);
   const files = [...(system === null ? [] : [system]), ...(tools === null ? [] : [tools])];
   return {
