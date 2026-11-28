@@ -31,5 +31,7 @@ export * from './agent-messages.ts';
 export * from './profiles.ts';
 export * from './routines.ts';
 export * from './t3-watches.ts';
+export * from './browser-commands.ts';
+export * from './browser-bridge.ts';
 export { lenient } from './lenient.ts';
 export * from './members.ts';

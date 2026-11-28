@@ -105,3 +105,40 @@ mode switch the agent reports finished without asking ends the agent at once. `a
 card; everything else is denied), and `acp.createSessionStream` turns updates into turn chunks.
 A command or daemon may add its own variables with `env`. Small plugin examples live in
 `apps/host/src/features/plugins/fixtures/`.
+
+`runtime.serveLoopback` listens for WebSocket clients on `127.0.0.1` only. A client is refused
+before the upgrade unless its `Origin` matches, its `Host` is the loopback address, and it offers
+the plugin's subprotocol plus `token.<pairing token>`. Close the server in `shutdown`.
+
+## Browser
+
+`plugins/browser` is a tool plugin: it serves the browser bridge (`runtime.serveLoopback`) that the
+MorrowBot browser extension (`apps/browser-extension`) connects to, and defines the agent's
+`browser_*` tools in `src/tools.ts` and `src/secret-tools.ts`. Several browsers can be connected at
+once. Secrets reach a page only through a `SecretSource` (the Secrets Vault, once it ships), never
+through the agent. File uploads are off until the person sets `uploadFolder`; paths outside it,
+symlinks included, are refused.
+
+## Computer Use
+
+`plugins/computer-use` is a macOS tool plugin. Its manifest asks for the `accessibility` and
+`screen-recording` permissions. Its agent tools (`src/tools.ts`) read apps, windows, displays and
+Accessibility trees, take screenshots, and send clicks, drags, scrolls, typing and key presses. The
+work is done by a small Swift helper (`helper/*.swift`). The plugin compiles it with `swiftc` into its
+data folder the first time it runs, and again whenever the sources change, so the Xcode Command Line
+Tools must be installed. Each call starts the helper once: it reads one JSON request on stdin and
+prints one JSON reply line.
+
+The helper never prompts unless asked and never gets around macOS privacy controls. It checks the
+grants a request needs and replies `permission_denied` when one is missing; `check_permissions` with
+`prompt: true` shows the macOS request. macOS attributes the grants to the app that started the host
+(MorrowBot, or a terminal while developing). On other systems every call answers `unsupported`.
+
+`get_window_state` and `get_desktop_state` each record a snapshot. A snapshot's coordinates are
+screenshot pixels, and its element refs look like `s3/e12`. A newer snapshot of the same window or
+display replaces the old one, so refs and points from the old one are refused. Before an action lands,
+the helper checks that the snapshot still holds: the element has the same role and frame, the window
+has not moved and nothing covers the point, or the display is unchanged. Input it sends but cannot
+confirm comes back `unverifiable`, never `ok`. Clipboard text and screenshots go only to the agent,
+never to logs or files. To try the tools outside the host:
+`node plugins/computer-use/scripts/call.ts <data folder> get_screen_size list_windows`.
