@@ -2,7 +2,7 @@
 
 MorrowBot doesn't ship its own AI. It drives the AI tools already on your computer, each in its own process. One ready engine is enough to start chatting.
 
-Open **Settings › Providers** (or the first-run checklist) to see each engine's status. After you install, update or sign in to one, switch back to MorrowBot: it checks again by itself. You can also press **Recheck**.
+Open **Settings › Providers** (or the first-run checklist) to see each engine's status. Built-in engines offer 1-click **Install** during first-run setup and in **Settings › Providers** (1-click **Update** lives only in **Settings › Providers** so first-run setup stays focused). After you install, update or sign in to one, switch back to MorrowBot: it checks again by itself. You can also press **Recheck**.
 
 On macOS, when an engine needs a sign-in, **Sign in** opens Terminal with that engine's own sign-in command. MorrowBot never sees your password.
 

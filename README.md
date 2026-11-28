@@ -2,7 +2,17 @@
 
 An open-source, plugin-first personal AI agent app built on a small TypeScript/Electron core and free, open-source plugins.
 
-> **Status:** Early bootstrap (pre-v0.1). Repository workflow and architecture foundations are in place; Milestone 1 development is starting next.
+> **Status:** Active pre-1.0 self-hosting builds (`apps/desktop`, `apps/host`, `apps/mobile`, `apps/browser-extension`, `plugins/`). Core desktop, always-on host, built-in providers, Vault, connectors, Browser/Computer Use plugins, routines, sub-agents, and Tailscale multi-device pairing are implemented and shipping via signed macOS releases.
+
+## Documentation
+
+- [`AGENTS.md`](AGENTS.md) — coding standards, architecture boundaries, testing philosophy, and git/PR rules
+- [`docs/decisions.md`](docs/decisions.md) — settled product, visual, security, and workflow decisions
+- [`docs/setup.md`](docs/setup.md) — setting up built-in AI engines (Claude, Codex, Antigravity, OpenCode)
+- [`docs/t3-watch-runbook.md`](docs/t3-watch-runbook.md) — driving and watching T3 Code threads from an orchestrator agent
+- [`apps/desktop/RELEASING.md`](apps/desktop/RELEASING.md) — local packaging, signing, notarization, private releases, and Reset/Uninstall
+- [`apps/mobile/README.md`](apps/mobile/README.md) — Expo iOS companion app
+- [`GLOSSARY.md`](GLOSSARY.md) — plain-English project terms
 
 ## Run the desktop app
 

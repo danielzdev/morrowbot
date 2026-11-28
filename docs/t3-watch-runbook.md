@@ -2,6 +2,8 @@
 
 How an orchestrator agent launches T3 Code threads, has the MorrowBot host watch them, and handles the updates the host sends back. The host watches; the orchestrator acts.
 
+> **Preferred interface for MorrowBot agents:** Agents running inside MorrowBot receive built-in MCP tools directly — use `watch_t3_thread`, `list_t3_watches`, `ack_t3_batch`, `unwatch_t3_thread`, and routine tools (`list_routines`, `create_routine`, `update_routine`, `delete_routine`, `routine_no_update`) instead of writing JSONL files by hand. The JSONL file protocol below remains available for external scripts and hosts without tool access.
+
 ## The pieces
 
 - **The orchestrator:** one MorrowBot agent. It launches and steers T3 Code threads with the `t3` CLI.
