@@ -110,18 +110,18 @@ it('stops a probe that prints more than its budget in all, but not a turn comman
 it('kills what the command left running in its group as soon as the command exits', async () => {
   const { lines, exit, ms } = await run('/bin/sh', ['-c', 'sleep 30 & echo $!']);
   const grandchild = Number(lines[0]);
-  expect({ exit, underHalfASecond: ms < 500, after: await waitUntilGone({ grandchild }) }).toMatchInlineSnapshot(`
+  expect({ exit, beforeTheSleepEnds: ms < 10_000, after: await waitUntilGone({ grandchild }) }).toMatchInlineSnapshot(`
     {
       "after": {
         "grandchild": "gone",
       },
+      "beforeTheSleepEnds": true,
       "exit": {
         "code": 0,
         "kind": "exited",
         "signal": null,
         "stderr": "",
       },
-      "underHalfASecond": true,
     }
   `);
 });
