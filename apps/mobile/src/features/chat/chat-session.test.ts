@@ -11,6 +11,7 @@ function state(seq: number, running: boolean, pending = running): ThreadState {
     thread: { id: 't', agentId: 'a', title: 'Main', createdAt: AT, updatedAt: AT },
     messages: [],
     reactions: [],
+    toolSteps: [],
     activeTurn: running
       ? {
           generationId: 'g7',
@@ -19,6 +20,7 @@ function state(seq: number, running: boolean, pending = running): ThreadState {
           queueNote: null,
           text: '',
           pendingApprovals: pending ? [{ approvalId: 'a1', summary: 'Allow?', choices: [{ id: 'allow', label: 'Allow' }] }] : [],
+          toolSteps: [],
         }
       : null,
     blockedGroups: [],

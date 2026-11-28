@@ -1,5 +1,5 @@
 import { realpath } from 'node:fs/promises';
-import type { Attachment, ProviderInfo, TurnChunk, TurnEnd, TurnRequest, TurnSession, UsageWindow } from '@morrowbot/contracts';
+import type { Attachment, ProviderInfo, ToolStep, TurnChunk, TurnEnd, TurnRequest, TurnSession, UsageWindow } from '@morrowbot/contracts';
 import { profileAllowed } from './admission-rules.ts';
 import { bindingOf } from './children.ts';
 import type { TurnSink } from './ports.ts';
@@ -59,7 +59,7 @@ export async function dispatch(core: ChatCore, turn: Turn): Promise<void> {
       return;
     }
   }
-  const seed = seedFor(turn);
+  const seed = seedFor(core, turn);
   turn.seedTruncated = seed.truncated;
   turn.systemHash = hash;
   const session: TurnSession = turn.plan.kind === 'resume' ? { kind: 'resume', ref: turn.plan.ref } : { kind: 'new', seed: seed.text };
@@ -147,12 +147,14 @@ function accountMoved(turn: Turn, info: ProviderInfo): boolean {
   return !info.capabilities.sessions && info.accountKey !== '' && info.accountKey !== turn.accountKey;
 }
 
-function seedFor(turn: Turn): Seed {
+function seedFor(core: ChatCore, turn: Turn): Seed {
+  const tools = (): ReadonlyMap<string, readonly ToolStep[]> =>
+    new Map(core.options.store.toolSteps.listByThread(turn.threadId).map(({ messageId, steps }) => [messageId, steps]));
   switch (turn.plan.kind) {
     case 'stateless':
-      return renderSeed(turn.history, statelessBudget(turn.maxSeedBytes));
+      return renderSeed(turn.history, statelessBudget(turn.maxSeedBytes), tools());
     case 'fresh':
-      return turn.plan.seeded ? renderSeed(turn.history, SEEDED_SESSION_BUDGET) : { text: null, truncated: false };
+      return turn.plan.seeded ? renderSeed(turn.history, SEEDED_SESSION_BUDGET, tools()) : { text: null, truncated: false };
     case 'resume':
       return { text: null, truncated: false };
   }
@@ -190,9 +192,15 @@ function onChunk(core: ChatCore, turn: Turn, chunk: TurnChunk): void {
       core.events.publish({ kind: 'generation.status', ...ref, state: 'running', queueNote: null, detail: chunk.text });
       return;
     case 'tool-start':
+      saveStep(core, () => {
+        store.toolSteps.start({ generationId: turn.generationId, toolUseId: chunk.toolUseId, name: chunk.name, input: chunk.input, startedAt: core.options.now() });
+      });
       core.events.publish({ kind: 'generation.tool-start', ...ref, toolUseId: chunk.toolUseId, name: chunk.name, input: chunk.input });
       return;
     case 'tool-end':
+      saveStep(core, () => {
+        store.toolSteps.end(turn.generationId, chunk.toolUseId, chunk.outcome, core.options.now());
+      });
       core.events.publish({ kind: 'generation.tool-end', ...ref, toolUseId: chunk.toolUseId, outcome: chunk.outcome });
       return;
     case 'session-bound': {
@@ -236,6 +244,15 @@ function onChunk(core: ChatCore, turn: Turn, chunk: TurnChunk): void {
     case 'steer-refused':
       steerRefused(core, turn, chunk.steerId);
       return;
+  }
+}
+
+/** A tool step that could not be saved is still shown live; only a reload loses it. */
+function saveStep(core: ChatCore, work: () => void): void {
+  try {
+    work();
+  } catch (error) {
+    core.options.report(error);
   }
 }
 

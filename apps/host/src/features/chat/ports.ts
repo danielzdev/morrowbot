@@ -11,6 +11,7 @@ import type {
   LastMessage,
   Message,
   MessageReaction,
+  MessageToolSteps,
   ProviderInfo,
   Thread,
   TurnChunk,
@@ -18,6 +19,7 @@ import type {
   TurnOutcome,
   TurnRequest,
   TurnUsage,
+  ToolStep,
   ReactionActor,
   UsageResult,
   UsageWindow,
@@ -80,6 +82,20 @@ export interface ChatStore {
     lastInThread(threadId: string): LastMessage | null;
     /** Whether the thread's newest message is a reply that failed. */
     endsFailed(threadId: string): boolean;
+  };
+  /** Each turn's tool calls, saved as they start and end (see the storage feature's tool-steps repository). */
+  readonly toolSteps: {
+    start(step: {
+      readonly generationId: string;
+      readonly toolUseId: string;
+      readonly name: string;
+      readonly input: ToolStep['input'];
+      readonly startedAt: string;
+    }): void;
+    end(generationId: string, toolUseId: string, outcome: 'ok' | 'error', endedAt: string): void;
+    listOpen(generationId: string): ToolStep[];
+    close(generationId: string, messageId: string | null): void;
+    listByThread(threadId: string): MessageToolSteps[];
   };
   readonly reactions: {
     /** False when the actor already has this emoji on the message. */

@@ -42,6 +42,7 @@ it('Stop waits for the turn to end, and /state shows text streamed since the las
         "queueNote": null,
         "state": "running",
         "text": "hello from pid <pid>:",
+        "toolSteps": [],
         "trigger": {
           "kind": "chat",
         },
@@ -146,6 +147,7 @@ it('queues a third turn on one account, shows why, and cancels it on Stop withou
         "queueNote": "Waiting for one of 2 running turns to finish",
         "state": "queued",
         "text": "",
+        "toolSteps": [],
         "trigger": {
           "kind": "chat",
         },

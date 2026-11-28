@@ -25,3 +25,4 @@ export type { ReactionRepository } from './reactions-repo.ts';
 export type { ChatSettingsRepository } from './chat-settings-repo.ts';
 export type { SubagentRecord, SubagentRunRepository } from './subagent-runs-repo.ts';
 export type { ConnectorRecord, ConnectorRepository, NewConnector, ScopeWrite } from './connectors-repo.ts';
+export type { StartedToolStep, ToolStepRepository } from './tool-steps-repo.ts';
