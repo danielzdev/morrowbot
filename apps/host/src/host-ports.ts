@@ -40,6 +40,7 @@ export function agentToolPorts(options: {
   /** Who started the running turn a grant belongs to (the chat feature knows); undefined once it has ended. */
   readonly startedBy: (grant: ToolGrant) => TurnInitiator | undefined;
   readonly replyFiles: ReplyAttachments;
+  readonly cards: Omit<ToolPorts['cards'], 'sharedWithMembers'>;
   readonly vault: ToolPorts['vault'];
   readonly subagents: SubagentService;
   readonly connectors: ConnectorService;
@@ -50,7 +51,7 @@ export function agentToolPorts(options: {
   readonly defaultT3RoutineId: string | null;
   readonly isPluginAllowedForAgent?: (agentId: string, pluginId: string) => boolean;
 }): ToolPorts {
-  const { storage, agents, agentMessages, memories, replies, replyFiles, vault, subagents, connectors, plugins, routines, t3Watches, t3Clock, defaultT3RoutineId, isPluginAllowedForAgent } =
+  const { storage, agents, agentMessages, memories, replies, replyFiles, cards, vault, subagents, connectors, plugins, routines, t3Watches, t3Clock, defaultT3RoutineId, isPluginAllowedForAgent } =
     options;
   const turnOf = (grant: ToolGrant): TurnOf => ({ agentId: grant.agentId, startedBy: options.startedBy(grant) ?? 'member' });
   const sharedWithMembers = (agentId: string): boolean => storage.members.allowlistsOf(agentId).length > 0;
@@ -65,6 +66,7 @@ export function agentToolPorts(options: {
     },
     memories,
     replies,
+    cards: { propose: (grant, proposal) => cards.propose(grant, proposal), searchMarketplace: (query) => cards.searchMarketplace(query), sharedWithMembers },
     replyAttachments: {
       attach: (grant, paths, signal) =>
         replyFiles.attach({ generationId: grant.turnId, agentId: grant.agentId, threadId: grant.threadId, signal, refusal: () => replies.attachRefusal(grant) }, paths),
@@ -214,6 +216,7 @@ export function chatStore(storage: Storage): ChatOptions['store'] {
     toolSteps: storage.toolSteps,
     replyAttachments: storage.replyAttachments,
     reactions: storage.reactions,
+    cards: storage.cards,
     settings: storage.chatSettings,
     queued: storage.queued,
     generations: storage.generations,

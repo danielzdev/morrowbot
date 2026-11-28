@@ -330,6 +330,7 @@ it('hides routine tools from agents shared with scoped members and refuses direc
         "react_to_message",
         "stay_quiet",
         "attach_files",
+        "propose_card",
       ],
     }
   `);

@@ -2,6 +2,7 @@
   "protocolVersion": 1,
   "id": "computer-use",
   "name": "Computer Use",
+  "description": "Lets agents see your screen and use apps on this Mac with the mouse and keyboard.",
   "version": "0.1.0",
   "kind": "tool",
   "main": "src/index.ts",

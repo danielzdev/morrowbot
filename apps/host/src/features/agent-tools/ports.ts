@@ -3,6 +3,7 @@ import type {
   Agent,
   AgentMessage,
   BoundProvider,
+  CardProposal,
   CreateMemoryRequest,
   CreateRoutineRequest,
   Memory,
@@ -186,6 +187,13 @@ export interface ToolPorts {
   /** Files for the reply of the turn `grant` stands for (the attachments feature provides it). */
   readonly replyAttachments: {
     attach(grant: ToolGrant, paths: readonly string[], signal: AbortSignal): Promise<AttachAnswer>;
+  };
+  /** Cards in the turn's chat, and the Marketplace they can offer from (the cards feature provides them). */
+  readonly cards: {
+    propose(grant: ToolGrant, proposal: CardProposal): Promise<ReplyAnswer>;
+    searchMarketplace(query: string): Promise<ReplyAnswer>;
+    /** Agents shared with members offer no plugins or settings: those belong to the owner. */
+    sharedWithMembers(agentId: string): boolean;
   };
   /** The vault's item names. Secret values never reach the tools. */
   readonly vault: { list(): readonly VaultItem[] };

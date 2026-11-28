@@ -1,5 +1,6 @@
 import type {
   ActiveTurn,
+  CardBody,
   CreateThreadRequest,
   Cursor,
   Message,
@@ -9,11 +10,13 @@ import type {
   StopGenerationResponse,
   SubagentRun,
   Thread,
+  ThreadCard,
   ThreadState,
   ThreadSummary,
 } from '@morrowbot/contracts';
 import { admit, type AdmitResult } from './admission.ts';
 import { backgroundPrompt } from './background.ts';
+import { publishCard, stageCard, type StageAnswer } from './cards.ts';
 import { parentTurn, publishSubagent, stopChildren, stopTurn as stopWithChildren, subagentRefusal, subagentsOf, subagentView, type ParentTurn } from './children.ts';
 import { dispatch } from './dispatch.ts';
 import { EventLog, type Replay } from './event-log.ts';
@@ -75,6 +78,10 @@ export interface ChatService {
   agentReact(grant: TurnGrant, emoji: string): ReplyToolAnswer;
   /** `stay_quiet` for a running turn: it ends with no message, if the agent may answer that way. */
   stayQuiet(grant: TurnGrant): ReplyToolAnswer;
+  /** `propose_card` for a running turn: the card shows live and joins the turn's saved reply. */
+  stageCard(grant: TurnGrant, body: CardBody): StageAnswer;
+  /** Tells the chat's windows a card changed. */
+  publishCard(card: ThreadCard): void;
   /** Why `attach_files` cannot add to the running turn's reply, or undefined when it can. */
   attachRefusal(grant: TurnGrant): string | undefined;
   /** `by` delivers a queued message now: into the running reply, or as the next turn when nothing runs. */
@@ -323,6 +330,10 @@ export function createChatService(options: ChatServiceOptions): ChatService {
     setReaction: (threadId, request, by) => setUserReaction(core, threadId, request, by),
     agentReact: (grant, emoji) => agentReact(core, grant, emoji),
     stayQuiet: (grant) => stayQuiet(core, grant),
+    stageCard: (grant, body) => stageCard(core, grant, body),
+    publishCard: (card) => {
+      publishCard(core, card);
+    },
     attachRefusal: (grant) => attachRefusal(core, grant),
     cancelQueued: (threadId, queuedId) => cancelQueued(core, threadId, queuedId),
     steerQueued: (threadId, queuedId, by) => steerQueued(core, threadId, queuedId, by),

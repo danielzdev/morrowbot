@@ -1,5 +1,8 @@
 import {
   Agent,
+  ThreadCard,
+  ThreadCardList,
+  type CardAction,
   Attachment,
   AttachmentContent,
   Memory,
@@ -116,6 +119,10 @@ export interface Api {
   answerApproval(threadId: string, approvalId: string, generationId: string, choiceId: string): Promise<ApiResult<null>>;
   /** Puts the user's emoji on an agent reply, or takes it off; answers that reply's reactions now. */
   setReaction(threadId: string, request: SetReactionRequest): Promise<ApiResult<SetReactionResponse>>;
+  /** The cards agents put in the chat, kept apart from its messages. */
+  threadCards(threadId: string): Promise<ApiResult<ThreadCardList>>;
+  /** The user's click on a card; answers the card as it is now. */
+  actOnCard(threadId: string, cardId: string, action: CardAction): Promise<ApiResult<ThreadCard>>;
   /** The host's chat settings (Settings › Chat › Emoji-only / silent replies). */
   chatSettings(): Promise<ApiResult<ChatSettings>>;
   saveChatSettings(settings: ChatSettings): Promise<ApiResult<ChatSettings>>;
@@ -225,6 +232,8 @@ export function createApi(bridge: Pick<MorrowbotBridge, 'request'>): Api {
     answerApproval: (threadId, approvalId, generationId, choiceId) =>
       call(NoContent, 'POST', at('threads', threadId, 'approvals', approvalId), { generationId, choiceId }),
     setReaction: (threadId, request) => call(SetReactionResponse, 'PUT', at('threads', threadId, 'reactions'), request),
+    threadCards: (threadId) => call(ThreadCardList, 'GET', at('ui', 'v1', 'threads', threadId, 'cards')),
+    actOnCard: (threadId, cardId, action) => call(ThreadCard, 'POST', at('ui', 'v1', 'threads', threadId, 'cards', cardId, 'act'), action),
     chatSettings: () => call(ChatSettings, 'GET', at('settings', 'chat')),
     saveChatSettings: (settings) => call(ChatSettings, 'PUT', at('settings', 'chat'), settings),
     listPlugins: () => call(PluginList, 'GET', at('plugins')),

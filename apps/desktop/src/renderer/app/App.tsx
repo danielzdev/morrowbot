@@ -145,7 +145,7 @@ export function App({ bridge, server, role }: AppProps) {
   };
   /** Opens Extensions, at one connector or the list when another screen sends the user there. */
   const showExtensions = (target: ConnectorTarget | null = null): void => {
-    setPage({ kind: 'extensions', jump: target === null ? null : { id: ++jumps.current, target } });
+    setPage({ kind: 'extensions', jump: target === null ? null : { id: ++jumps.current, target: { kind: 'connectors', target } } });
   };
   useAttention({ models, agentName: agent?.name ?? null, notify, safe, onOpen: openAgent });
   const newAgent = owner
@@ -278,6 +278,7 @@ export function App({ bridge, server, role }: AppProps) {
               inspectorOpen={inspector}
               onToggleInspector={toggleInspector}
               onFirstAgent={(brain) => { setDialog({ kind: 'new-agent', brain }); }}
+              onOpenPlugin={owner ? (pluginId) => { leave(() => { setPage({ kind: 'extensions', jump: { id: ++jumps.current, target: { kind: 'plugin', pluginId } } }); }); } : null}
             />
           </>
         )}

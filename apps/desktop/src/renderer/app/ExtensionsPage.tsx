@@ -2,15 +2,18 @@ import { useEffect } from 'preact/hooks';
 import type { MorrowbotBridge } from '../bridge.ts';
 import { BotAvatar } from '../features/avatar/index.ts';
 import { ConnectorsTab, matching, type ConnectorTarget } from '../features/connectors/index.ts';
-import { ExtensionsView } from '../features/plugins/index.ts';
+import { ExtensionsView, type ExtensionsJumpTo } from '../features/plugins/index.ts';
 import { redact, type AppInfo } from '../shared/privacy.ts';
 import { useStore } from '../shared/use-store.ts';
 import type { Models } from './models.ts';
 
+/** Where another screen sends the user in Extensions: a connector place, or a plugin's page. */
+export type ExtensionsTarget = { readonly kind: 'connectors'; readonly target: ConnectorTarget } | { readonly kind: 'plugin'; readonly pluginId: string };
+
 /** Where another screen sends the user in Extensions; each new `id` is one visit. */
 export interface ExtensionsJump {
   readonly id: number;
-  readonly target: ConnectorTarget;
+  readonly target: ExtensionsTarget;
 }
 
 /** Extensions, with the Connectors tab drawn by the connectors feature. */
@@ -56,10 +59,19 @@ export function ExtensionsPage(props: {
           />
         ),
       }}
-      jump={jump === null ? null : { id: jump.id, arrive: () => { connectors.arrive(jump.target); } }}
+      jump={jump === null ? null : { id: jump.id, to: jumpTo(jump.target, (target) => { connectors.arrive(target); }) }}
       onOpenProvider={props.onOpenProvider}
       onLeaveCheck={props.onLeaveCheck}
       onExit={props.onExit}
     />
   );
+}
+
+function jumpTo(target: ExtensionsTarget, arrive: (target: ConnectorTarget) => void): ExtensionsJumpTo {
+  switch (target.kind) {
+    case 'connectors':
+      return { kind: 'connectors', arrive: () => { arrive(target.target); } };
+    case 'plugin':
+      return { kind: 'plugin', pluginId: target.pluginId };
+  }
 }

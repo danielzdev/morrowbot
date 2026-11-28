@@ -1,4 +1,4 @@
-import { MAX_ATTACHMENTS, type AgentMessage, type ApiError, type AssistantMessage, type EventServerFrame, type SessionChoice, type SessionChoiceReason, type ThreadState } from '@morrowbot/contracts';
+import { MAX_ATTACHMENTS, type AgentMessage, type ApiError, type AssistantMessage, type CardAction, type EventServerFrame, type SessionChoice, type SessionChoiceReason, type ThreadCard, type ThreadState } from '@morrowbot/contracts';
 import type { MorrowbotBridge } from '../../bridge.ts';
 import type { Api, ApiResult } from '../../shared/api.ts';
 import { Store, type Loadable } from '../../shared/store.ts';
@@ -6,6 +6,7 @@ import { attachmentImages, composerAttachments, type ComposerAttachments } from 
 import { memoryDrafts, type DraftStore } from './drafts.ts';
 import type { BannerReason } from './outcome-copy.ts';
 import { userReacted } from './reactions.ts';
+import { withCard } from './thread-cards.ts';
 import { applyEvent, endApproval, pendingApprovals, viewOf, withAgentMessages, type ThreadView } from './thread-model.ts';
 
 /** Something the composer asked the host to start. Kept so it can be retried exactly. */
@@ -29,6 +30,8 @@ export interface ThreadScreen {
   readonly answering: readonly string[];
   /** Queued messages whose Steer now, Edit or Cancel is on its way to the host. */
   readonly queueActing: readonly string[];
+  /** Cards whose click is on its way to the host. */
+  readonly cardActing: readonly string[];
   /** `reconnecting`: the host can't be reached; the loaded history stays readable and sending waits. */
   readonly connection: 'live' | 'reconnecting';
 }
@@ -58,6 +61,8 @@ export interface ThreadSession {
   answer(approvalId: string, choiceId: string): Promise<void>;
   /** Puts the user's emoji on an agent reply, or takes it off when it is already there. */
   react(messageId: string, emoji: string): Promise<void>;
+  /** The user's click on a card: a choice, Install, Cancel, or a setting switch. True when the host took it. */
+  actOnCard(cardId: string, action: CardAction): Promise<boolean>;
   /** Steer now: the queued message goes into the running reply, or out as the next turn when nothing runs. */
   steer(queuedId: string): Promise<void>;
   /** Takes a queued message out of the queue and puts it back in the draft, above what is typed there. */
@@ -121,7 +126,7 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
   const { api, bridge, threadId } = options;
   const drafts = options.drafts ?? memoryDrafts();
   const now = options.now ?? Date.now;
-  const screen = new Store<ThreadScreen>({ view: { kind: 'loading' }, draft: drafts.read(threadId), busy: null, problem: null, answering: [], queueActing: [], connection: 'live' });
+  const screen = new Store<ThreadScreen>({ view: { kind: 'loading' }, draft: drafts.read(threadId), busy: null, problem: null, answering: [], queueActing: [], cardActing: [], connection: 'live' });
   const patch = (change: Partial<ThreadScreen>): void => {
     if (change.draft !== undefined && change.draft !== screen.get().draft) drafts.write(threadId, change.draft);
     screen.update((current) => {
@@ -139,12 +144,17 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
   /** Agent messages announced while a load is in flight, so none falls between its fetch and live delivery. */
   let heard: AgentMessage[] = [];
 
-  /** The chat's `/state` and its agent messages: both, or the first failure. */
-  async function snapshot(): Promise<ApiResult<{ readonly state: ThreadState; readonly agentMessages: readonly AgentMessage[] }>> {
+  /** The chat's `/state`, its agent messages and its cards (none from a host older than cards): all three, or the first failure. */
+  async function snapshot(): Promise<
+    ApiResult<{ readonly state: ThreadState; readonly agentMessages: readonly AgentMessage[]; readonly cards: readonly ThreadCard[] }>
+  > {
     const state = await api.threadState(threadId);
     if (state.kind === 'failed') return state;
     const exchanged = await api.agentMessages(state.value.thread.agentId, threadId);
-    return exchanged.kind === 'failed' ? exchanged : { kind: 'ok', value: { state: state.value, agentMessages: exchanged.value.messages } };
+    if (exchanged.kind === 'failed') return exchanged;
+    const cards = await api.threadCards(threadId);
+    if (cards.kind === 'failed' && cards.status !== 404) return cards;
+    return { kind: 'ok', value: { state: state.value, agentMessages: exchanged.value.messages, cards: cards.kind === 'ok' ? cards.value.cards : [] } };
   }
 
   async function load(): Promise<void> {
@@ -167,7 +177,7 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
       return;
     }
     const previous = before.kind === 'loaded' ? before.value : null;
-    const view = withAgentMessages(viewOf(result.value.state, previous, result.value.agentMessages), heard);
+    const view = withAgentMessages(viewOf(result.value.state, previous, result.value.agentMessages, result.value.cards), heard);
     heard = [];
     patch({ connection: streamUp ? 'live' : 'reconnecting', view: { kind: 'loaded', value: view } });
     bridge.subscribe(threadId, result.value.state.cursor);
@@ -332,6 +342,19 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
       const reacted = !userReacted(current.value.reactions.filter((reaction) => reaction.messageId === messageId), emoji);
       const result = await api.setReaction(threadId, { messageId, emoji, reacted });
       if (result.kind === 'failed') patch({ problem: { kind: 'error', message: result.error.message } });
+    },
+    actOnCard: async (cardId, action) => {
+      if (screen.get().cardActing.includes(cardId)) return false;
+      patch({ cardActing: [...screen.get().cardActing, cardId], problem: null });
+      const result = await api.actOnCard(threadId, cardId, action);
+      patch({ cardActing: screen.get().cardActing.filter((id) => id !== cardId) });
+      if (result.kind === 'failed') {
+        patch({ problem: { kind: 'error', message: result.error.message } });
+        return false;
+      }
+      const current = screen.get().view;
+      if (current.kind === 'loaded') patch({ view: { kind: 'loaded', value: { ...current.value, cards: withCard(current.value.cards, result.value) } } });
+      return true;
     },
     steer: async (queuedId) => {
       await onQueued(queuedId, () => api.steerQueued(threadId, queuedId));

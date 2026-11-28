@@ -15,6 +15,7 @@ import type {
   MessageToolSteps,
   ProviderInfo,
   Thread,
+  ThreadCard,
   TurnChunk,
   TurnEnd,
   TurnOutcome,
@@ -103,6 +104,12 @@ export interface ChatStore {
     listOpen(generationId: string): ToolStep[];
     close(generationId: string, messageId: string | null): void;
     listByThread(threadId: string): MessageToolSteps[];
+  };
+  /** Cards agents put in the chat (see the storage feature's cards repository). */
+  readonly cards: {
+    insert(card: ThreadCard): void;
+    countOpen(generationId: string): number;
+    close(generationId: string, messageId: string | null): void;
   };
   /** Files each turn's agent attached with `attach_files`, kept with the turn until its reply is saved. */
   readonly replyAttachments: {

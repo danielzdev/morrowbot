@@ -29,6 +29,7 @@ import { createRoutineService, type RoutineClock } from './features/routines/ind
 import { lockDataDir, openStorage } from './features/storage/index.ts';
 import { cliProbe, createT3WatchService, type T3Probe, type T3WatchClock, type T3WatchService } from './features/t3-watch/index.ts';
 import { keyValue, loginFill, openVault, vaultBackend, type VaultKeyChoice } from './features/vault/index.ts';
+import { cardService } from './host-cards.ts';
 import { DATABASE, providerFence } from './host-fence.ts';
 import { agentInbox, agentToolPorts, chatStore, providerPlugins, subagentService } from './host-ports.ts';
 import { routineSink } from './t3-routine-sink.ts';
@@ -215,6 +216,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
     });
     await replyFiles.sweep();
     const subagents = subagentService(storage, chat, plugins, newId, now);
+    const cards = cardService(storage, chat, plugins, agents);
     const routines = createRoutineService({
       store: { routines: storage.routines, runs: storage.routineRuns, waits: storage.waits, transaction: (work) => storage.transaction(work) },
       chat: {
@@ -253,7 +255,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
           replies: { react: (grant, emoji) => chat.agentReact(grant, emoji), stayQuiet: (grant) => chat.stayQuiet(grant), attachRefusal: (grant) => chat.attachRefusal(grant) },
           startedBy: (grant) => chat.startedBy(grant),
           replyFiles,
-          vault,
+          cards, vault,
           subagents,
           connectors,
           plugins,
@@ -301,6 +303,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
           deleteAgent: (id) => afterwards(chat.deleteAgent(id), sweepFiles, report),
         },
         attachments: { ...attachments, threadOf: (id) => storage.attachments.threadOf(id) ?? storage.replyAttachments.get(id)?.threadId, reply: (id) => replyFiles.find(id) },
+        cards,
         memories,
         skills: {
           list: async (agentId) => {

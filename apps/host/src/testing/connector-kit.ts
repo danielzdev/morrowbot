@@ -100,6 +100,7 @@ export async function startConnectorKit(options: { readonly agentIds: readonly s
       memories: { list: () => undefined, create: () => undefined, update: () => undefined, delete: () => false },
       replies: { react: () => ({ kind: 'refused', reason: 'Replies are not part of connector tests' }), stayQuiet: () => ({ kind: 'refused', reason: 'Replies are not part of connector tests' }), attachRefusal: () => 'Replies are not part of connector tests' },
       replyAttachments: { attach: () => Promise.resolve({ attached: [], refused: [] }) },
+      cards: { propose: () => Promise.resolve({ kind: 'refused', reason: 'Cards are not part of connector tests' }), searchMarketplace: () => Promise.resolve({ kind: 'refused', reason: 'Cards are not part of connector tests' }), sharedWithMembers: () => false },
       vault: { list: () => [] },
       connectors: {
         tools: (grant) => connectors.toolsFor(turnOf(grant)),

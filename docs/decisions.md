@@ -26,6 +26,7 @@ Settled product, visual, security, and workflow decisions for MorrowBot so any c
   - Routines: `list_routines`, `create_routine`, `update_routine`, `delete_routine`, `routine_no_update`
   - Calm T3 Code watches: `list_t3_watches`, `watch_t3_thread`, `unwatch_t3_thread`, `ack_t3_batch`
   - Vault metadata lookup (values never exposed to agents): `list_vault_items`
+  - In-chat cards (#52): `propose_card` (custom `UiBlocks` card, plugin card, or safe setting card; the host draws and checks every click) and `search_marketplace`
 - **Access profiles:** New owner agents default to `full` (shell/Bash) access when offered by the chosen provider (co-owners and providers without `full` fall back to the best non-full interactive profile). Switching an existing agent's provider preserves its current access level when offered and never silently escalates to `full`; the access picker lives concisely in **Agent Settings › Brain** and the composer popover (owner-only guard and confirmation warning when turning full access on).
 - **Full-access Stop is best-effort:** Stop cancels the active turn (ending the provider's process or its `session/cancel`), and a provider is not held back from `full` because a command's detached or backgrounded child (`cmd &`, `setsid`) can outlive Stop.
 - **Secrets Vault:** One AES-256-GCM encrypted file (`vault-secrets.json`) sealed under a single master key in the OS keystore (`com.legendarykoi.morrowbot.vault` on macOS Keychain; zero extra master-password prompts). Secrets are injected by `vaultId` inside MCP/Composio connector headers and browser `submit_secret` (password + TOTP with origin checks) and never returned to agents.
@@ -39,7 +40,7 @@ Settled product, visual, security, and workflow decisions for MorrowBot so any c
 
 ## Storage & Migrations
 - SQLite migrations live in `apps/host/src/features/storage/migration-<N>.ts` and are registered in `schema.ts`.
-- Latest merged migration on `main`: **`migration-18.ts`** (`13` = Connectors, `14` = Sub-agents, `15` = Message reactions, `16` = Tool steps, `17` = Agent-message read outcomes & unread lookup index, `18` = Reply attachments). New schema changes start at `migration-19.ts` (always check `ls apps/host/src/features/storage/migration-*.ts` first).
+- Latest merged migration on `main`: **`migration-21.ts`** (`13` = Connectors, `14` = Sub-agents, `15` = Message reactions, `16` = Tool steps, `17` = Agent-message read outcomes & unread lookup index, `18` = Reply attachments, `19` = Queued message attachments & archived chats, `20` = Per-agent disabled extensions & agent revision, `21` = Thread cards). New schema changes start at `migration-22.ts` (always check `ls apps/host/src/features/storage/migration-*.ts` first).
 
 ## Engineering, CI & Review Workflow
 - **CI (`.github/workflows/ci.yml`):** Uses affected-workspace detection (`.github/scripts/ci-changes.mjs`) to run `lint`, `typecheck-build`, and only affected workspace test jobs in parallel on PRs, failing open on root config changes and `push` to `main`, behind a single required `check` gate job. Local full verification stays `npm run check`.

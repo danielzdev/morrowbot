@@ -7,6 +7,7 @@ it('declares a tool plugin that asks for Accessibility and Screen Recording', as
   const parsed = PluginManifest.safeParse(JSON.parse(raw ?? 'null'));
   expect(parsed.success ? parsed.data : parsed.error.issues).toMatchInlineSnapshot(`
     {
+      "description": "Lets agents see your screen and use apps on this Mac with the mouse and keyboard.",
       "envPreset": "cli-runtime",
       "id": "computer-use",
       "kind": "tool",

@@ -32,6 +32,8 @@ export const PluginManifest = z.strictObject({
   protocolVersion: z.literal(1),
   id: z.string().regex(/^[a-z][a-z0-9-]*$/, 'Use lowercase letters, digits, and dashes'),
   name: z.string().min(1),
+  /** One or two sentences on what the plugin does, as the Marketplace and its chat card show it. */
+  description: z.string().max(280).default(''),
   version: z.string().regex(/^\d+\.\d+\.\d+$/, 'Use a MAJOR.MINOR.PATCH version'),
   kind: PluginKind,
   main: RelativeEntry,

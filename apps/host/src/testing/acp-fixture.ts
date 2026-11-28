@@ -123,6 +123,7 @@ function describeStep(event: ChatEvent): string[] {
     case 'generation.finished':
     case 'queue.changed':
     case 'generation.background-started':
+    case 'card.changed':
     case 'generation.background-finished':
     case 'reactions.changed':
     case 'subagent.changed':

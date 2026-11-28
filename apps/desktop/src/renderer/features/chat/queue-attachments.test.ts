@@ -78,7 +78,7 @@ describe('queued message attachments UI', () => {
       { id: 'q2', threadId: 't1', text: '', attachments: [TXT], createdAt: AT, state: { kind: 'queued' } },
     ];
     const view = viewOf(baseState(queue));
-    const screen: ThreadScreen = { view: { kind: 'loaded', value: view }, draft: '', busy: null, problem: null, answering: [], queueActing: [], connection: 'live' };
+    const screen: ThreadScreen = { view: { kind: 'loaded', value: view }, draft: '', busy: null, problem: null, answering: [], queueActing: [], cardActing: [], connection: 'live' };
     const session: ThreadSession = {
       threadId: 't1',
       screen: new Store(screen),
@@ -100,6 +100,7 @@ describe('queued message attachments UI', () => {
       editQueued: () => Promise.resolve(),
       cancelQueued: () => Promise.resolve(),
       release: () => Promise.resolve(),
+      actOnCard: () => Promise.resolve(false),
       close: () => undefined,
     };
     const html = renderToString(h(QueueList, { session, view, screen, agentName: 'Atlas' }));
@@ -122,7 +123,7 @@ describe('queued message attachments UI', () => {
 
   it('enables Queue in Composer when files are attached during a running reply', () => {
     const view = viewOf(baseState([]));
-    const screen: ThreadScreen = { view: { kind: 'loaded', value: view }, draft: '', busy: null, problem: null, answering: [], queueActing: [], connection: 'live' };
+    const screen: ThreadScreen = { view: { kind: 'loaded', value: view }, draft: '', busy: null, problem: null, answering: [], queueActing: [], cardActing: [], connection: 'live' };
     const attachments = composerAttachments({ uploadAttachment: vi.fn() }, 't1');
     attachments.restore([TXT], () => Promise.resolve(null));
     const session: ThreadSession = {
@@ -146,6 +147,7 @@ describe('queued message attachments UI', () => {
       editQueued: () => Promise.resolve(),
       cancelQueued: () => Promise.resolve(),
       release: () => Promise.resolve(),
+      actOnCard: () => Promise.resolve(false),
       close: () => undefined,
     };
     const html = renderToString(
