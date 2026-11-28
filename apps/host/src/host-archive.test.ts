@@ -118,37 +118,33 @@ it('refuses to archive a thread while a reply is running', async () => {
 
 it('rejects steer on an archived thread with 409 and resumes unread agent messages on restore', async () => {
   chat = await startChatFixture({ dataDir });
-  const lead = await chat.agent();
   const peer = await chat.agent();
-  const leadMain = await chat.thread(lead, 'Lead main');
+  const lead = await chat.agent({ kind: 'unbound' });
   const peerMain = await chat.thread(peer, 'Peer main');
+  const leadMain = await chat.thread(lead, 'Lead main');
 
   // Create a held queued message, archive the thread, and confirm steer returns 409
-  await chat.host.call('POST', `/api/threads/${leadMain.id}/messages`, { text: 'stall-polite' });
-  await chat.events.until((event) => event.kind === 'generation.delta');
-  const queued = QueuedSend.parse((await chat.host.call('POST', `/api/threads/${leadMain.id}/messages`, { text: 'held note' })).body).queued;
-  await chat.host.call('POST', `/api/threads/${leadMain.id}/stop`);
-  await chat.host.call('POST', `/api/threads/${leadMain.id}/archive`);
-  const steerArchived = await chat.host.call('POST', `/api/threads/${leadMain.id}/queue/${queued.id}/steer`);
+  await chat.host.call('POST', `/api/threads/${peerMain.id}/messages`, { text: 'stall-polite' });
+  await chat.events.until((event) => event.kind === 'generation.delta' && event.threadId === peerMain.id);
+  const queued = QueuedSend.parse((await chat.host.call('POST', `/api/threads/${peerMain.id}/messages`, { text: 'held note' })).body).queued;
+  await chat.host.call('POST', `/api/threads/${peerMain.id}/stop`);
+  const archiveForSteer = await chat.host.call('POST', `/api/threads/${peerMain.id}/archive`);
+  const steerArchived = await chat.host.call('POST', `/api/threads/${peerMain.id}/queue/${queued.id}/steer`);
 
-  // Restore Lead's main chat and post an agent message from Lead -> Peer, then archive Peer's chat before a reply arrives
-  await chat.host.call('POST', `/api/threads/${leadMain.id}/restore`);
-  const ask = AgentMessage.parse(
-    (
-      await chat.host.call('POST', `/api/agents/${peer.id}/messages`, {
-        kind: 'new',
-        toAgentId: lead.id,
-        fromThreadId: peerMain.id,
-        text: 'Quick question',
-        expectsReply: true,
-      })
-    ).body,
-  );
-  await chat.events.until((event) => event.kind === 'generation.background-finished' && event.threadId === leadMain.id);
+  // Restore peerMain and open an exchange with unbound Lead (so Lead does not auto-reply before archive)
+  const restoreForExchange = await chat.host.call('POST', `/api/threads/${peerMain.id}/restore`);
+  const askReply = await chat.host.call('POST', `/api/agents/${peer.id}/messages`, {
+    kind: 'new',
+    toAgentId: lead.id,
+    fromThreadId: peerMain.id,
+    text: 'Quick question',
+    expectsReply: true,
+  });
+  const ask = AgentMessage.parse(askReply.body);
 
   // Archive peerMain, then have Lead reply to peerMain while it is archived; restoring peerMain triggers the background read
-  await chat.host.call('POST', `/api/threads/${peerMain.id}/archive`);
-  await chat.host.call('POST', `/api/agents/${lead.id}/messages`, {
+  const archivePeer = await chat.host.call('POST', `/api/threads/${peerMain.id}/archive`);
+  const replyWhileArchived = await chat.host.call('POST', `/api/agents/${lead.id}/messages`, {
     kind: 'reply',
     replyToMessageId: ask.id,
     text: 'Here is the answer',
@@ -158,20 +154,34 @@ it('rejects steer on an archived thread with 409 and resumes unread agent messag
   const readWhileArchived = chat.events.received.some(
     (event) => event.kind === 'generation.background-started' && event.threadId === peerMain.id,
   );
-  await chat.host.call('POST', `/api/threads/${peerMain.id}/restore`);
+  const restorePeer = await chat.host.call('POST', `/api/threads/${peerMain.id}/restore`);
   await chat.events.until((event) => event.kind === 'generation.background-finished' && event.threadId === peerMain.id);
   const readAfterRestore = chat.events.received.some(
     (event) => event.kind === 'generation.background-finished' && event.threadId === peerMain.id,
   );
 
   expect({
+    leadMainId: leadMain.id,
+    archiveForSteerStatus: archiveForSteer.status,
     steerArchivedStatus: steerArchived.status,
+    restoreForExchangeStatus: restoreForExchange.status,
+    askStatus: askReply.status,
+    archivePeerStatus: archivePeer.status,
+    replyWhileArchivedStatus: replyWhileArchived.status,
     readWhileArchived,
+    restorePeerStatus: restorePeer.status,
     readAfterRestore,
   }).toMatchInlineSnapshot(`
     {
+      "archiveForSteerStatus": 200,
+      "archivePeerStatus": 200,
+      "askStatus": 201,
+      "leadMainId": "id-4",
       "readAfterRestore": true,
       "readWhileArchived": false,
+      "replyWhileArchivedStatus": 201,
+      "restoreForExchangeStatus": 200,
+      "restorePeerStatus": 200,
       "steerArchivedStatus": 409,
     }
   `);
