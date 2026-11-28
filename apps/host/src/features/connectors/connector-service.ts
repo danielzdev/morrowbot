@@ -9,7 +9,7 @@ import {
 import { keepsSecrets, mergeSetup, targetOf } from './account.ts';
 import { agentTools, callAgentTool, type AccessContext } from './agent-access.ts';
 import { bindTools } from './bindings.ts';
-import type { AgentConnectorCall, AgentConnectorTool, ConnectorStore, ScopeChoice, StoredConnector } from './ports.ts';
+import type { AgentConnectorCall, AgentConnectorTool, ConnectorStore, ScopeChoice, StoredConnector, TurnOf } from './ports.ts';
 import type { ConnectorRuntime } from './runtime.ts';
 import { connectorStatus, setupView } from './status.ts';
 
@@ -47,9 +47,9 @@ export interface ConnectorService {
   start(): void;
   close(): Promise<void>;
   /** The connector tools an agent's turn lists. */
-  toolsFor(agentId: string): AgentConnectorTool[];
+  toolsFor(turn: TurnOf): AgentConnectorTool[];
   /** Calls one of them, rechecking that connector's scope and status first. */
-  call(agentId: string, name: string, args: unknown, signal: AbortSignal): Promise<AgentConnectorCall>;
+  call(turn: TurnOf, name: string, args: unknown, signal: AbortSignal): Promise<AgentConnectorCall>;
 }
 
 export interface ConnectorServiceOptions {
@@ -182,7 +182,7 @@ export function createConnectorService(options: ConnectorServiceOptions): Connec
       await runtime.closeAll();
       await Promise.all(syncing.values());
     },
-    toolsFor: (agentId) => agentTools(store.list(), agentId, access),
-    call: (agentId, name, args, signal) => callAgentTool(store.list(), agentId, name, args, signal, access),
+    toolsFor: (turn) => agentTools(store.list(), turn, access),
+    call: (turn, name, args, signal) => callAgentTool(store.list(), turn, name, args, signal, access),
   };
 }

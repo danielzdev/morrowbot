@@ -129,6 +129,9 @@ export type ApiArchiveThreadResult =
 
 export type ApiThreadArchiveFilter = 'active' | 'archived' | 'all';
 
+/** Who starts a turn through the API. */
+export type ApiInitiator = 'owner' | 'member';
+
 export type ApiQueueAnswer =
   | { readonly kind: 'ok' }
   | { readonly kind: 'not_found' }
@@ -148,14 +151,16 @@ export interface ApiChat {
   deleteAgent(id: string): Promise<boolean>;
   listMessages(threadId: string): Message[] | undefined;
   state(threadId: string): ThreadState | undefined;
-  send(threadId: string, text: string, attachmentIds: readonly string[], choice: SessionChoice): Promise<ApiSendResult>;
+  /** `by` is who sends it: a scoped member's turns get no connectors. */
+  send(threadId: string, text: string, attachmentIds: readonly string[], choice: SessionChoice, by: ApiInitiator): Promise<ApiSendResult>;
   setReaction(
     threadId: string,
     request: SetReactionRequest,
+    by: ApiInitiator,
   ): { readonly kind: 'set'; readonly reactions: MessageReaction[] } | { readonly kind: 'not_found' } | { readonly kind: 'conflict'; readonly reason: string };
   cancelQueued(threadId: string, queuedId: string): ApiQueueAnswer;
-  steerQueued(threadId: string, queuedId: string): ApiQueueAnswer;
-  continueTurn(threadId: string, failedMessageId: string, choice: SessionChoice): Promise<ApiAdmitResult>;
+  steerQueued(threadId: string, queuedId: string, by: ApiInitiator): ApiQueueAnswer;
+  continueTurn(threadId: string, failedMessageId: string, choice: SessionChoice, by: ApiInitiator): Promise<ApiAdmitResult>;
   stop(threadId: string): Promise<StopGenerationResponse | { readonly kind: 'not_stored' }>;
   replyApproval(
     threadId: string,

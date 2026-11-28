@@ -5,7 +5,8 @@ import { Sidebar } from '../features/agents/index.ts';
 import { BotAvatar, combineActivity, motionOf } from '../features/avatar/index.ts';
 import { chatMarkdown } from '../features/chat/index.ts';
 import type { PaletteItem } from '../features/palette/index.ts';
-import { pluginAlert } from '../features/plugins/index.ts';
+import { connectorNote, type ConnectorTarget } from '../features/connectors/index.ts';
+import { extensionsAlert } from '../features/plugins/index.ts';
 import { ProvidersSection } from '../features/providers/index.ts';
 import { hiddenSections, SettingsModal, type ServerRole, type SettingsLink } from '../features/settings/index.ts';
 import { AppInfo, redact } from '../shared/privacy.ts';
@@ -22,6 +23,8 @@ import { useAttention } from './use-attention.ts';
 import { UsagePane } from './UsagePane.tsx';
 
 const NO_INFO: AppInfo = { appVersion: '', homeDir: '', userName: '', dataDir: '' };
+/** Before the plugin list loads (or when it can't), the Extensions dot still shows connectors that need attention. */
+const NO_PLUGINS = { plugins: [], safeMode: false, problems: [] };
 
 const FOCUS_WAIT_MS = 2_000;
 
@@ -67,6 +70,7 @@ export function App({ bridge, server, role }: AppProps) {
   const state = useStore(models.agents.state);
   const cards = useStore(models.providers.cards);
   const pluginList = useStore(models.plugins.list);
+  const connectorList = useStore(models.connectors.list);
   const activity = useStore(models.chats.activity);
   const appearance = useStore(models.appearance.state);
   const update = useStore(models.updates.status);
@@ -76,6 +80,7 @@ export function App({ bridge, server, role }: AppProps) {
     if (owner) {
       void models.providers.load();
       void models.plugins.load();
+      void models.connectors.load();
     }
     void bridge.appInfo().then((reply) => {
       const parsed = AppInfo.safeParse(reply);
@@ -92,6 +97,15 @@ export function App({ bridge, server, role }: AppProps) {
       models.updates.close();
     };
   }, [models]);
+
+  useEffect(() => {
+    if (!owner) return;
+    const look = (): void => void models.connectors.load();
+    window.addEventListener('focus', look);
+    return () => {
+      window.removeEventListener('focus', look);
+    };
+  }, [models, owner]);
 
   useEffect(() => {
     if (palette || picked.current === null) return;
@@ -129,8 +143,9 @@ export function App({ bridge, server, role }: AppProps) {
   const toggleInspector = (): void => {
     setInspector((open) => !open);
   };
-  const showExtensions = (): void => {
-    setPage({ kind: 'extensions', jump: null });
+  /** Opens Extensions, at one connector or the list when another screen sends the user there. */
+  const showExtensions = (target: ConnectorTarget | null = null): void => {
+    setPage({ kind: 'extensions', jump: target === null ? null : { id: ++jumps.current, target: { kind: 'connectors', target } } });
   };
   useAttention({ models, agentName: agent?.name ?? null, notify, safe, onOpen: openAgent });
   const newAgent = owner
@@ -186,7 +201,7 @@ export function App({ bridge, server, role }: AppProps) {
             facts={(each) => liveFactsOf(cards, activity, each)}
             avatar={avatarOf}
             redact={preview}
-            alert={pluginList.kind === 'loaded' ? pluginAlert(pluginList.value) : null}
+            alert={extensionsAlert(pluginList.kind === 'loaded' ? pluginList.value : NO_PLUGINS, [connectorList.kind === 'loaded' ? connectorNote(connectorList.value.connectors) : null])}
             filterRequest={filterRequest}
             onToggle={controls.toggle}
             onOpenAgent={(agentId, threadId) => {
@@ -220,7 +235,8 @@ export function App({ bridge, server, role }: AppProps) {
                   newAgent: () => { setDialog({ kind: 'new-agent', brain: 'prefill' }); },
                   changeBinding: page.kind === 'chat' && agent !== undefined ? () => { setBindingRequest((count) => count + 1); } : null,
                   openSettings,
-                  openExtensions: showExtensions,
+                  openExtensions: () => { showExtensions(); },
+                  openConnector: owner ? (id) => { showExtensions({ kind: 'connector', id }); } : null,
                   toggleSidebar: chrome.showSidebar,
                   toggleInspector: page.kind === 'chat' && agent !== undefined ? toggleInspector : null,
                   openAgent: (agentId, threadId) => {
@@ -276,7 +292,7 @@ export function App({ bridge, server, role }: AppProps) {
         reducedMotion={appearance.reducedMotion}
         allowFull={role === 'owner'}
         onOpenProviders={() => { openSettings('providers'); }}
-        onOpenConnectors={owner ? (target) => { setPage({ kind: 'extensions', jump: { id: ++jumps.current, target: { kind: 'connectors', target } } }); } : null}
+        onOpenConnectors={owner ? showExtensions : null}
         onCreated={(created) => { newChat(created.id); }}
       />
       {settings !== null && (

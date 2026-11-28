@@ -1,22 +1,24 @@
 import type { ComponentChildren } from 'preact';
 
 /** The palette's groups, in the order they show (spec §3.5). */
-export type PaletteGroup = 'actions' | 'agents' | 'chats' | 'settings';
+export type PaletteGroup = 'actions' | 'agents' | 'chats' | 'connectors' | 'settings';
 
 export const GROUP_TITLES: Readonly<Record<PaletteGroup, string>> = {
   actions: 'Actions',
   agents: 'Agents',
   chats: 'Chats',
+  connectors: 'Connectors',
   settings: 'Settings',
 };
 
-const GROUP_ORDER: readonly PaletteGroup[] = ['actions', 'agents', 'chats', 'settings'];
+const GROUP_ORDER: readonly PaletteGroup[] = ['actions', 'agents', 'chats', 'connectors', 'settings'];
 
-/** At most this many rows per group, while searching and before. `settings` shows only while searching. */
+/** At most this many rows per group, while searching and before. `connectors` and `settings` show only while searching. */
 const LIMITS: Readonly<Record<PaletteGroup, { readonly idle: number; readonly searching: number }>> = {
   actions: { idle: Infinity, searching: Infinity },
   agents: { idle: 8, searching: 8 },
   chats: { idle: 8, searching: 10 },
+  connectors: { idle: 0, searching: 8 },
   settings: { idle: 0, searching: 8 },
 };
 

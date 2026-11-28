@@ -1,4 +1,5 @@
 import { CardAction, type ThreadCardList } from '@morrowbot/contracts';
+import { initiatorOf } from './access.ts';
 import { refusal } from './admit-reply.ts';
 import type { ApiServices } from './ports.ts';
 import { failure, json, notFound, type Reply } from './reply.ts';
@@ -29,7 +30,7 @@ export function cardRoutes({ cards, chat }: ApiServices): Route[] {
         const threadId = context.params.get('id');
         let notSent: Reply = failure('internal', 'The choice was not sent');
         const answer = await cards.act(threadId, context.params.get('cardId'), request.value, { owner: context.viewer.kind === 'owner' }, async (text) => {
-          const sent = await chat.send(threadId, text, [], { kind: 'auto' });
+          const sent = await chat.send(threadId, text, [], { kind: 'auto' }, initiatorOf(context.viewer));
           switch (sent.kind) {
             case 'started':
             case 'queued':
