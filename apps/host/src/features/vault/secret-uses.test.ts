@@ -76,6 +76,7 @@ it('matches a page to a saved site by host, subdomain, and any scheme or port th
     ['https://wiki.example:8443', 'https://wiki.example'],
     ['http://intranet.example', 'http://intranet.example'],
     ['http://intranet.example', 'https://intranet.example'],
+    ['https://git.example', 'https://git.example:8443'],
     ['git.example', 'https://git.example/path'],
   ];
   expect(cases.map(([site, origin]) => `${siteMatches(site, origin) ? 'fill' : 'refuse'}  ${site} on ${origin}`)).toMatchInlineSnapshot(`
@@ -91,6 +92,7 @@ it('matches a page to a saved site by host, subdomain, and any scheme or port th
       "refuse  https://wiki.example:8443 on https://wiki.example",
       "fill  http://intranet.example on http://intranet.example",
       "refuse  http://intranet.example on https://intranet.example",
+      "refuse  https://git.example on https://git.example:8443",
       "refuse  git.example on https://git.example/path",
     ]
   `);

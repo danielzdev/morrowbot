@@ -52,6 +52,7 @@ it('connects with header and key values read from the Vault, reports a deleted i
     remote: said(await turn.call('remote__echo', { text: 'hi' })),
     gmail: said(await turn.call('gmail__GMAIL_SEND_EMAIL', {})),
     echoedToken: said(await turn.call('notes__echo', { text: 'leak' })),
+    tokenInResult: said(await turn.call('notes__echo', { text: STDIO_TOKEN })),
     httpView: started.view(http).setup,
     gmailView: started.view(gmail).setup,
     wrongKind: started.view(wrongKind).status,
@@ -115,6 +116,7 @@ it('connects with header and key values read from the Vault, reports a deleted i
           "url": "http://127.0.0.1:<port>/mcp/server-1",
         },
         "remote": "remote ran echo with {\\"text\\":\\"hi\\"}",
+        "tokenInResult": "nobody ran echo with {\\"text\\":\\"[hidden]\\"}",
         "wrongKind": {
           "kind": "reconnect_needed",
           "message": "Header Authorization: its Vault item is a login. Pick an API key or header secret.",

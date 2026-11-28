@@ -22,8 +22,8 @@ const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]']);
 
 /**
  * Whether a page on `origin` may take the login saved for `site`. The page's host must be the site's host or one
- * of its subdomains. A site saved with a scheme or port must match it exactly; otherwise the page must be https
- * (or http on this computer).
+ * of its subdomains. A site saved with a scheme must match its scheme and port exactly, and one saved with a port
+ * that port; otherwise the page must be https (or http on this computer).
  */
 export function siteMatches(site: string, origin: string): boolean {
   const page = URL.parse(origin);
@@ -34,8 +34,8 @@ export function siteMatches(site: string, origin: string): boolean {
   const pageHost = host(page);
   const savedHost = host(saved);
   if (pageHost !== savedHost && !pageHost.endsWith(`.${savedHost}`)) return false;
+  if (explicit) return page.protocol === saved.protocol && page.port === saved.port;
   if (saved.port !== '' && page.port !== saved.port) return false;
-  if (explicit) return page.protocol === saved.protocol;
   return page.protocol === 'https:' || (page.protocol === 'http:' && LOOPBACK.has(pageHost));
 }
 

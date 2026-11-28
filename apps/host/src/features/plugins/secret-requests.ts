@@ -1,6 +1,6 @@
 import type { HostMessage, PluginMessage, SecretFillRequest, SecretResolution } from '@morrowbot/contracts';
 
-/** Resolves one vault secret for a running tool call. Only plugins with the `secrets` permission get one. */
+/** Resolves one vault secret for a running tool call. Only built-in plugins with the `secrets` permission get one. */
 export type SecretResolver = (request: SecretFillRequest) => Promise<SecretResolution>;
 
 export interface SecretAnswerDeps {
@@ -19,7 +19,7 @@ export async function answerSecret({ secretId, callId, request }: Extract<Plugin
 }
 
 async function resolve(secrets: SecretResolver | null, noCall: boolean, request: SecretFillRequest): Promise<SecretResolution> {
-  if (secrets === null) return { kind: 'refused', reason: 'This plugin may not use the Secrets Vault (its manifest does not ask for the secrets permission).' };
+  if (secrets === null) return { kind: 'refused', reason: 'Only plugins that ship with MorrowBot and ask for the secrets permission may use the Secrets Vault.' };
   if (noCall) return { kind: 'refused', reason: 'Secrets are given only during a tool call.' };
   try {
     return await secrets(request);

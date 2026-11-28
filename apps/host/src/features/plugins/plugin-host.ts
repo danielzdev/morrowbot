@@ -45,7 +45,7 @@ export interface PluginHostOptions {
   /** Windows provider plugins are disabled in v1; tests may pretend to be another platform. */
   readonly platform?: NodeJS.Platform;
   readonly log?: (message: string) => void;
-  /** Gives plugins with the `secrets` permission one vault secret at a time, during their tool calls. */
+  /** Gives built-in plugins with the `secrets` permission one vault secret at a time, during their tool calls. */
   readonly secrets?: SecretResolver;
 }
 
@@ -206,7 +206,7 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
       await mkdir(dataDir, { recursive: true });
       child = connectPlugin(launch(pluginEnv(manifest.envPreset, options.pluginPath)), {
         timeouts,
-        secrets: manifest.permissions.includes('secrets') ? (options.secrets ?? null) : null,
+        secrets: slot.plugin.source === 'built-in' && manifest.permissions.includes('secrets') ? (options.secrets ?? null) : null,
         log: (message) => {
           log(`plugin ${manifest.id}: ${message}`);
         },

@@ -1,4 +1,4 @@
-import { mkdtemp, realpath, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -196,7 +196,7 @@ it('fills a vault login into its own site only, and never shows the agent a pass
   `);
 });
 
-it('refuses vault secrets to a plugin whose manifest does not ask for the secrets permission', async () => {
+it('refuses vault secrets to a plugin the user installed, even one whose manifest asks for the secrets permission', async () => {
   dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'morrowbot-vault-peek-')));
   const pluginsDir = path.join(dataDir, 'user-plugins');
   await writeToolPlugin(
@@ -211,6 +211,9 @@ runPlugin(() => defineToolPlugin({
   },
 }));`,
   );
+  const manifest = path.join(pluginsDir, 'peek', 'manifest.json');
+  await writeFile(manifest, (await readFile(manifest, 'utf8')).replace('"permissions":[]', '"permissions":["secrets"]'));
+  expect(await readFile(manifest, 'utf8')).toContain('"permissions":["secrets"]');
   const host = await startChatFixture({ dataDir, builtinPluginsDir: PLUGIN_FIXTURES, pluginsDir, sequence: sequence() });
   chat = host;
   const login = VaultItem.parse((await host.host.call('POST', '/api/vault', { kind: 'login', label: 'Shop', site: 'shop.example', username: 'shopper', password: PASSWORD })).body);
@@ -230,7 +233,7 @@ runPlugin(() => defineToolPlugin({
         "result": {
           "content": [
             {
-              "text": "{"kind":"refused","reason":"This plugin may not use the Secrets Vault (its manifest does not ask for the secrets permission)."}",
+              "text": "{"kind":"refused","reason":"Only plugins that ship with MorrowBot and ask for the secrets permission may use the Secrets Vault."}",
               "type": "text",
             },
           ],
