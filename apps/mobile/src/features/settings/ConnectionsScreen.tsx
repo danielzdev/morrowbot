@@ -24,7 +24,7 @@ export function ConnectionsScreen() {
         header="Hosts"
         footer={
           hosts.length === 0
-            ? 'Pair this phone with Ori Kami on your computer over your home network or Tailscale.'
+            ? 'Pair this phone with Ori Bot on your computer over your home network or Tailscale.'
             : 'Tap a host to use it. Forgetting a host deletes this phone’s key; to cut it off everywhere, also unpair the phone on the desktop.'
         }
       >

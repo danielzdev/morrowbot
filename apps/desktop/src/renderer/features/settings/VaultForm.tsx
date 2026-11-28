@@ -124,7 +124,7 @@ export function VaultForm(props: {
           </label>
         )}
         <p class="setting-description">
-          {draft.kind === 'login' && 'With a setup key, Ori Kami makes the 6-digit sign-in code itself when a tool signs in. '}
+          {draft.kind === 'login' && 'With a setup key, Ori Bot makes the 6-digit sign-in code itself when a tool signs in. '}
           Agents see the name, site{draft.kind === 'login' ? ' and username' : ''} only, never the secret.
         </p>
         {props.error !== null && (

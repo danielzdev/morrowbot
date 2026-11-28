@@ -31,8 +31,8 @@ export interface BridgeChannels {
   readonly fileAction: 'morrowbot:file-action';
 }
 
-/** The scheme the window loads reply attachments from: `orikami-file://reply/<id>`, served by main with the host token. */
-export const REPLY_FILE_SCHEME = 'orikami-file';
+/** The scheme the window loads reply attachments from: `oribot-file://reply/<id>`, served by main with the host token. */
+export const REPLY_FILE_SCHEME = 'oribot-file';
 
 /** How opening or saving a reply attachment went. */
 export type FileActionResult =
@@ -55,7 +55,7 @@ export type ServerRequest =
   | { readonly kind: 'local' }
   | { readonly kind: 'join'; readonly link: string; readonly url: string; readonly code: string };
 
-/** `ready`: in use now (first launch). `restarting`: saved, and Ori Kami reopens on it. */
+/** `ready`: in use now (first launch). `restarting`: saved, and Ori Bot reopens on it. */
 export type ServerAnswer = { readonly kind: 'ready' } | { readonly kind: 'restarting' } | { readonly kind: 'failed'; readonly message: string };
 
 /** A folder or file to show in Finder, named by an opaque id; desktop main resolves the path itself. */
@@ -136,7 +136,7 @@ export interface ResetPlan {
   readonly options: readonly ResetOption[];
 }
 
-/** `quitting`: the host stopped and Ori Kami is quitting to finish. `refused`: nothing was touched. */
+/** `quitting`: the host stopped and Ori Bot is quitting to finish. `refused`: nothing was touched. */
 export type ResetOutcome = { readonly kind: 'quitting' } | { readonly kind: 'refused'; readonly reason: string };
 
 export type ApiMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -173,11 +173,11 @@ export interface MorrowbotBridge {
   revealPath(target: RevealTarget): Promise<void>;
   /** Version, home folder, user name and data folder, for `shared/privacy.ts` and About only. Parse with `AppInfo`. */
   appInfo(): Promise<unknown>;
-  /** Whether Ori Kami opens at login, where the installed app supports it. Parse with `LoginItem`. */
+  /** Whether Ori Bot opens at login, where the installed app supports it. Parse with `LoginItem`. */
   loginItem(): Promise<unknown>;
   /** Turns open-at-login on or off; answers like `loginItem()`. */
   setOpenAtLogin(open: boolean): Promise<unknown>;
-  /** Saves whether the next launch starts in safe mode (no plugin starts), then restarts Ori Kami. */
+  /** Saves whether the next launch starts in safe mode (no plugin starts), then restarts Ori Bot. */
   relaunch(options: { readonly safeMode: boolean }): Promise<void>;
   /** Where the app's own update stands. Parse with `UpdateStatus`. */
   updateStatus(): Promise<unknown>;
@@ -185,7 +185,7 @@ export interface MorrowbotBridge {
   onUpdateStatus(listener: (status: unknown) => void): () => void;
   /** Checks for an update now; answers like `updateStatus()`. */
   checkForUpdates(): Promise<unknown>;
-  /** Quits, installs the downloaded update and reopens Ori Kami. */
+  /** Quits, installs the downloaded update and reopens Ori Bot. */
   restartToUpdate(): Promise<void>;
   /**
    * Opens Terminal on macOS with a built-in provider's own sign-in command, which main reads from

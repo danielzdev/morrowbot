@@ -23,10 +23,10 @@ export function judgeVersion(version: string): Version {
       return {
         kind: 'above',
         version,
-        reason: `Claude ${version} isn't tested with Ori Kami yet. Update Ori Kami, or point \`cliPath\` at a Claude 2.1.x install.`,
+        reason: `Claude ${version} isn't tested with Ori Bot yet. Update Ori Bot, or point \`cliPath\` at a Claude 2.1.x install.`,
       };
     case 'unparsable':
-      return { kind: 'unreadable', reason: `Claude Code reported a version Ori Kami cannot read ("${version}").` };
+      return { kind: 'unreadable', reason: `Claude Code reported a version Ori Bot cannot read ("${version}").` };
   }
 }
 

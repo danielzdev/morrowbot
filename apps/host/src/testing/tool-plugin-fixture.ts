@@ -39,7 +39,7 @@ export interface FakeBrowserExtension {
   close(): void;
 }
 
-/** Connects a fake Ori Kami browser extension to the real Browser plugin's loopback WebSocket bridge. */
+/** Connects a fake Ori Bot browser extension to the real Browser plugin's loopback WebSocket bridge. */
 export async function connectFakeBrowser(port: number, token: string, commands: BrowserCommandKind[]): Promise<FakeBrowserExtension> {
   const socket = new WebSocket(`ws://127.0.0.1:${String(port)}/`, [BROWSER_BRIDGE_SUBPROTOCOL, `${LOOPBACK_TOKEN_PREFIX}${token}`], {
     headers: { origin: 'chrome-extension://test-extension' },

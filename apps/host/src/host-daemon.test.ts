@@ -325,8 +325,8 @@ it('shares one daemon start between concurrent cold sends', async () => {
 });
 
 it('refuses provider-info and usage while a daemon row from before a restart is blocked; Release anyway re-enables them and a new daemon registers', async () => {
-  const dataDir = await mkdtemp(path.join(tmpdir(), 'orikami-daemon-'));
-  const storage = openStorage(path.join(dataDir, 'orikami.sqlite'), () => '2026-01-01T00:00:00.000Z');
+  const dataDir = await mkdtemp(path.join(tmpdir(), 'oribot-daemon-'));
+  const storage = openStorage(path.join(dataDir, 'oribot.sqlite'), () => '2026-01-01T00:00:00.000Z');
   const leftover = { pgid: 4_000_000, regId: 'old-daemon', pluginId: 'daemon', kind: 'daemon', bootId: null, leaderStart: 'Thu Jan  1 00:00:00 2026' } as const;
   storage.childGroups.insert({ ...leftover, startedAt: '2026-01-01T00:00:00.000Z', generationIds: [] });
   storage.close();

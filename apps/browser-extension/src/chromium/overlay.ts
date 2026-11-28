@@ -14,7 +14,7 @@ const TITLES: Readonly<Record<TakeoverReason, string>> = {
 /** What the banner sends the service worker when the person presses Done or Cancel. */
 export const TakeoverFinished = z.strictObject({ kind: z.literal('takeover-finished'), takeoverId: z.string().min(1), outcome: z.enum(['done', 'cancelled']) });
 
-const HOST_TAG = 'morrowbot-takeover';
+const HOST_TAG = 'oribot-takeover';
 
 /** Runs inside the page (the extension's isolated world), so it must not use anything from outside. */
 function showBanner(tag: string, takeoverId: string, title: string, message: string): void {
@@ -34,7 +34,7 @@ function showBanner(tag: string, takeoverId: string, title: string, message: str
   <button class="cancel" type="button">Cancel</button><button class="done" type="button">I'm done</button></div>`;
   const titleNode = root.querySelector('.title');
   const messageNode = root.querySelector('.message');
-  if (titleNode !== null) titleNode.textContent = `Ori Kami: ${title}`;
+  if (titleNode !== null) titleNode.textContent = `Ori Bot: ${title}`;
   if (messageNode !== null) messageNode.textContent = message;
   const finish = (outcome: 'done' | 'cancelled') => (event: Event) => {
     if (!event.isTrusted) return;

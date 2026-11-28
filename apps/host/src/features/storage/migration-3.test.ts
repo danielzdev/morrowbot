@@ -10,14 +10,14 @@ const AT = '2026-01-01T00:00:00.000Z';
 
 let dir: string;
 beforeEach(async () => {
-  dir = await mkdtemp(path.join(tmpdir(), 'orikami-migration-3-'));
+  dir = await mkdtemp(path.join(tmpdir(), 'oribot-migration-3-'));
 });
 afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
 it('turns the initials avatars saved before migration 3 into flat chat bots of the same color', () => {
-  const file = path.join(dir, 'orikami.sqlite');
+  const file = path.join(dir, 'oribot.sqlite');
   const db = new DatabaseSync(file);
   for (const sql of MIGRATIONS.slice(0, 2)) db.exec(sql);
   db.exec('PRAGMA user_version = 2');

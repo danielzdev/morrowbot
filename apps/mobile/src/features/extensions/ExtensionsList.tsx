@@ -11,7 +11,7 @@ import { Badge, ItemMark } from './parts.tsx';
 const EMPTY: Readonly<Record<ExtensionsSegment, string>> = {
   plugins: 'No plugins installed yet.',
   connectors: 'Connect an account so your agents can use it, like your calendar or a to-do app. No connectors are set up yet.',
-  marketplace: 'The Ori Kami catalog is not available in this version yet. To add a plugin, put its folder in the host’s plugins folder.',
+  marketplace: 'The Ori Bot catalog is not available in this version yet. To add a plugin, put its folder in the host’s plugins folder.',
 };
 
 function SegmentBar() {

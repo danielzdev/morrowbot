@@ -12,15 +12,15 @@ export interface ResetContext {
   readonly workspaces: readonly string[] | null;
 }
 
-/** The entries Ori Kami itself writes in its data folder. Anything else there, `workspaces/` above all, stays. */
+/** The entries Ori Bot itself writes in its data folder. Anything else there, `workspaces/` above all, stays. */
 /** The vault's sealed secrets, which `VAULT_KEY` unlocks. */
 export const VAULT_SECRETS = 'vault-secrets.json';
 
 export const DATA_ENTRIES: readonly string[] = [
-  'orikami.sqlite',
-  'orikami.sqlite-wal',
-  'orikami.sqlite-shm',
-  'orikami.sqlite-journal',
+  'oribot.sqlite',
+  'oribot.sqlite-wal',
+  'oribot.sqlite-shm',
+  'oribot.sqlite-journal',
   'host.lock.db',
   'host.lock.db-journal',
   'host.lock.db-wal',
@@ -48,7 +48,7 @@ const ISOLATED_ELECTRON_PROFILE = 'desktop';
 /** The folder in the data folder that holds dedicated agent workspaces; never a target. */
 export const WORKSPACES_ENTRY = 'workspaces';
 
-/** Electron's own profile for the installed app; `Ori Kami Safe Storage` encrypts what is in it. */
+/** Electron's own profile for the installed app; `Ori Bot Safe Storage` encrypts what is in it. */
 export const ELECTRON_PROFILE = `Library/Application Support/${PRODUCT_NAME}`;
 
 /** The installed app's files outside its data folder, under the home folder. */
@@ -56,7 +56,7 @@ export const INSTALLED_LIBRARY_PATHS: readonly string[] = [
   ELECTRON_PROFILE,
   `Library/Caches/${APP_ID}`,
   `Library/Caches/${APP_ID}.ShipIt`,
-  'Library/Caches/orikami-updater',
+  'Library/Caches/oribot-updater',
   `Library/HTTPStorages/${APP_ID}`,
   `Library/Logs/${PRODUCT_NAME}`,
   `Library/Preferences/${APP_ID}.plist`,
@@ -80,8 +80,8 @@ export const SAFE_STORAGE: KeychainItem = { service: `${PRODUCT_NAME} Safe Stora
 
 /**
  * A path as APFS compares it by default: normalised, no trailing separator, one Unicode form, any case (folded
- * through upper case too, so `ſ` is `s`). Every protection check compares these, so `~/.OriKami` is
- * `~/.orikami` and a workspace spelt in another case is still that workspace. Folding more paths together
+ * through upper case too, so `ſ` is `s`). Every protection check compares these, so `~/.OriBot` is
+ * `~/.oribot` and a workspace spelt in another case is still that workspace. Folding more paths together
  * only ever refuses more: every target is built inside its root, and must also equal its own `realpath`.
  */
 export function comparable(target: string): string {
@@ -111,7 +111,7 @@ export function dataDirRefusal(context: ResetContext): string | null {
       return profile.dataDir === installedDir ? null : `The installed app keeps its data only in ~/${INSTALLED_DATA_DIR}.`;
     case 'isolated':
       if (isWithin(profile.dataDir, installedDir) || isWithin(installedDir, profile.dataDir)) return `A development run never resets the installed app's ~/${INSTALLED_DATA_DIR}.`;
-      return profile.dataDir === devDir ? null : `A development run resets only ~/${DEV_DATA_DIR}. This run uses another folder (ORIKAMI_DATA_DIR); delete it yourself if you no longer need it.`;
+      return profile.dataDir === devDir ? null : `A development run resets only ~/${DEV_DATA_DIR}. This run uses another folder (ORIBOT_DATA_DIR); delete it yourself if you no longer need it.`;
   }
 }
 
@@ -122,7 +122,7 @@ export interface DeleteCandidate {
   readonly root: string;
 }
 
-/** Every path a reset removes, when it exists and passes `refusalOf`: Ori Kami's own entries in its data folder, then (installed only) its Library files. */
+/** Every path a reset removes, when it exists and passes `refusalOf`: Ori Bot's own entries in its data folder, then (installed only) its Library files. */
 export function deleteCandidatesOf(context: ResetContext): readonly DeleteCandidate[] {
   const { homeDir, profile } = context;
   const own = profile.kind === 'isolated' ? [...DATA_ENTRIES, ISOLATED_ELECTRON_PROFILE] : DATA_ENTRIES;
@@ -156,28 +156,28 @@ export function workspacesOf(context: ResetContext): readonly string[] {
  */
 export function refusalOf(target: string, root: string, homeDir: string, facts: Exclude<PathFacts, { readonly kind: 'missing' }>, workspaces: readonly string[]): string | null {
   if (!path.isAbsolute(target) || path.normalize(target) !== target) return 'Not a plain absolute path.';
-  if (!strictlyInside(target, root) || !strictlyInside(target, homeDir)) return "Outside Ori Kami's own folders.";
+  if (!strictlyInside(target, root) || !strictlyInside(target, homeDir)) return "Outside Ori Bot's own folders.";
   if (workspaces.some((workspace) => isWithin(target, workspace) || isWithin(workspace, target))) return WORKSPACE_REFUSAL;
   switch (facts.kind) {
     case 'unreadable':
-      return 'Ori Kami could not check it, so it stays.';
+      return 'Ori Bot could not check it, so it stays.';
     case 'symlink':
-      return 'A symbolic link. Ori Kami does not follow it.';
+      return 'A symbolic link. Ori Bot does not follow it.';
     case 'present':
-      return facts.realPath === target ? null : 'Reached through a symbolic link. Ori Kami does not follow it.';
+      return facts.realPath === target ? null : 'Reached through a symbolic link. Ori Bot does not follow it.';
   }
 }
 
-/** Where Ori Kami.app may be installed: the system or the user's own Applications folder. */
+/** Where Ori Bot.app may be installed: the system or the user's own Applications folder. */
 export const appFoldersOf = (homeDir: string): readonly string[] => ['/Applications', path.join(homeDir, 'Applications')];
 
-/** The app bundle that holds `execPath` (`…/Ori Kami.app/Contents/MacOS/Ori Kami`), or why it cannot be moved to the Trash. */
+/** The app bundle that holds `execPath` (`…/Ori Bot.app/Contents/MacOS/Ori Bot`), or why it cannot be moved to the Trash. */
 export function bundleOf(execPath: string, homeDir: string): { readonly kind: 'bundle'; readonly path: string } | { readonly kind: 'refused'; readonly reason: string } {
   const macos = path.dirname(execPath);
   const contents = path.dirname(macos);
   const bundle = path.dirname(contents);
   if (!path.isAbsolute(execPath) || path.normalize(execPath) !== execPath || path.basename(macos) !== 'MacOS' || path.basename(contents) !== 'Contents') {
-    return { kind: 'refused', reason: 'Ori Kami is not running from an app bundle.' };
+    return { kind: 'refused', reason: 'Ori Bot is not running from an app bundle.' };
   }
   if (path.basename(bundle) !== `${PRODUCT_NAME}.app` || !appFoldersOf(homeDir).includes(path.dirname(bundle))) {
     return { kind: 'refused', reason: `Uninstalling works only for ${PRODUCT_NAME}.app in Applications. Move it there, or drag it to the Trash yourself.` };

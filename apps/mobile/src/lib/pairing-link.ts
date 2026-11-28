@@ -1,6 +1,6 @@
 import { HostUrl, PairingCode } from '@morrowbot/contracts';
 
-/** Where to pair and with which code, from a scanned QR, an `orikami://pair` link, or typed fields. */
+/** Where to pair and with which code, from a scanned QR, an `oribot://pair` link, or typed fields. */
 export interface PairingTarget {
   readonly url: HostUrl;
   readonly code: PairingCode;
@@ -10,13 +10,13 @@ export type PairingInput =
   | { readonly kind: 'ok'; readonly target: PairingTarget }
   | { readonly kind: 'invalid'; readonly problem: string };
 
-const LINK = /^orikami:\/\/pair\/?\?([^#]*)$/i;
+const LINK = /^oribot:\/\/pair\/?\?([^#]*)$/i;
 
-/** Reads the QR payload the desktop shows: `orikami://pair?url=<host url>&code=<6 digits>`. */
+/** Reads the QR payload the desktop shows: `oribot://pair?url=<host url>&code=<6 digits>`. */
 export function parsePairingLink(text: string): PairingInput {
   const query = LINK.exec(text.trim())?.[1];
   const params = query === undefined ? null : parseQuery(query);
-  if (params === null) return { kind: 'invalid', problem: 'This is not an Ori Kami pairing code.' };
+  if (params === null) return { kind: 'invalid', problem: 'This is not an Ori Bot pairing code.' };
   return parsePairingFields(params.get('url') ?? '', params.get('code') ?? '');
 }
 

@@ -78,17 +78,17 @@ it('starts one opencode acp daemon with its own folders and read-only config, re
           "withheld": [
             {
               "access": "workspace-write",
-              "reason": "Ori Kami cannot yet confine OpenCode file writes to the workspace, and opencode runs commands outside any sandbox.",
+              "reason": "Ori Bot cannot yet confine OpenCode file writes to the workspace, and opencode runs commands outside any sandbox.",
               "vendorSettings": "isolated",
             },
             {
               "access": "read-only",
-              "reason": "Ori Kami turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's SOUL.md is sent by Ori Kami instead.",
+              "reason": "Ori Bot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's SOUL.md is sent by Ori Bot instead.",
               "vendorSettings": "personal",
             },
             {
               "access": "workspace-write",
-              "reason": "Ori Kami turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's SOUL.md is sent by Ori Kami instead.",
+              "reason": "Ori Bot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's SOUL.md is sent by Ori Bot instead.",
               "vendorSettings": "personal",
             },
           ],
@@ -118,7 +118,7 @@ it('starts one opencode acp daemon with its own folders and read-only config, re
                   "glob": "allow",
                   "grep": "allow",
                   "list": "allow",
-                  "orikami_*": "allow",
+                  "oribot_*": "allow",
                   "read": {
                     "*": "allow",
                     "*.env": "ask",
@@ -155,7 +155,7 @@ it('starts one opencode acp daemon with its own folders and read-only config, re
               "glob": "allow",
               "grep": "allow",
               "list": "allow",
-              "orikami_*": "allow",
+              "oribot_*": "allow",
               "read": {
                 "*": "allow",
                 "*.env": "ask",
@@ -206,17 +206,17 @@ it('starts one opencode acp daemon with its own folders and read-only config, re
           "withheld": [
             {
               "access": "workspace-write",
-              "reason": "Ori Kami cannot yet confine OpenCode file writes to the workspace, and opencode runs commands outside any sandbox.",
+              "reason": "Ori Bot cannot yet confine OpenCode file writes to the workspace, and opencode runs commands outside any sandbox.",
               "vendorSettings": "isolated",
             },
             {
               "access": "read-only",
-              "reason": "Ori Kami turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's SOUL.md is sent by Ori Kami instead.",
+              "reason": "Ori Bot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's SOUL.md is sent by Ori Bot instead.",
               "vendorSettings": "personal",
             },
             {
               "access": "workspace-write",
-              "reason": "Ori Kami turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's SOUL.md is sent by Ori Kami instead.",
+              "reason": "Ori Bot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's SOUL.md is sent by Ori Bot instead.",
               "vendorSettings": "personal",
             },
           ],
@@ -339,7 +339,7 @@ it('sets the picked model on each new session, and refuses a model opencode does
   `);
 });
 
-it("opens each session with Ori Kami's MCP server for that turn and no other", async () => {
+it("opens each session with Ori Bot's MCP server for that turn and no other", async () => {
   const thread = await opencode.thread(await opencode.agent());
   await opencode.events.finished(await opencode.start(thread, 'hello'));
   await opencode.events.finished(await opencode.start(thread, 'again'));
@@ -360,7 +360,7 @@ it("opens each session with Ori Kami's MCP server for that turn and no other", a
                   "value": "Bearer <token>",
                 },
               ],
-              "name": "orikami",
+              "name": "oribot",
               "type": "http",
               "url": "http://127.0.0.1:<port>/mcp",
             },
@@ -376,7 +376,7 @@ it("opens each session with Ori Kami's MCP server for that turn and no other", a
                   "value": "Bearer <token>",
                 },
               ],
-              "name": "orikami",
+              "name": "oribot",
               "type": "http",
               "url": "http://127.0.0.1:<port>/mcp",
             },

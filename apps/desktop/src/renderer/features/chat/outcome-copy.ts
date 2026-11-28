@@ -51,7 +51,7 @@ export function outcomeCopy(outcome: GenerationOutcome, context: CopyContext): O
     case 'cancelled':
       return note('muted', 'Stopped.');
     case 'interrupted':
-      return note('warning', 'Interrupted: Ori Kami stopped before this reply finished.', CONTINUE);
+      return note('warning', 'Interrupted: Ori Bot stopped before this reply finished.', CONTINUE);
     case 'failed':
       return errorCopy(outcome.error, context);
   }
@@ -111,7 +111,7 @@ function errorCopy(error: ProviderError, context: CopyContext): OutcomeCopy {
         'warning',
         error.limit === 'events'
           ? 'The reply sent too many updates and was stopped.'
-          : "The reply hit Ori Kami's output size limit and was cut off.",
+          : "The reply hit Ori Bot's output size limit and was cut off.",
       );
     case 'other': {
       const message = error.message === '' ? null : context.safe(error.message);

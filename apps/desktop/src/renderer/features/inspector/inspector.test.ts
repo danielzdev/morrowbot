@@ -22,7 +22,7 @@ function cards(facts: InspectorFacts): string[] {
 it('shows "Not reported" for every field the renderer does not receive (spec §3.4)', () => {
   const checking: InspectorFacts = {
     description: '',
-    workspace: { path: '~/.orikami/workspaces/a1', kind: 'dedicated' },
+    workspace: { path: '~/.oribot/workspaces/a1', kind: 'dedicated' },
     brain: { kind: 'bound', provider: 'Codex', status: 'Checking…', ready: false, model: null, access: 'Read only', warnings: [], stateless: false },
     instructions: { kind: 'failed' },
   };
@@ -36,7 +36,7 @@ it('shows "Not reported" for every field the renderer does not receive (spec §3
     {
       "checking": [
         "Agent: No description.",
-        "Workspace: ~/.orikami/workspaces/a1; Dedicated: only this agent uses it.",
+        "Workspace: ~/.oribot/workspaces/a1; Dedicated: only this agent uses it.",
         "Brain: Provider=Codex; Status=Checking…; Model=Not reported; Access=Read only",
         "Instructions: Not reported",
         "This chat: Last turn tokens=Not reported; Model that replied=Not reported",

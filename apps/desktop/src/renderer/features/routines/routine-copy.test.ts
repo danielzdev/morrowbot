@@ -59,7 +59,7 @@ it('names how the last run went', () => {
         "tone": "danger",
       },
       {
-        "text": "Missed while Ori Kami was off · <due>",
+        "text": "Missed while Ori Bot was off · <due>",
         "tone": "warn",
       },
     ]

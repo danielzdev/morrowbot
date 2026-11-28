@@ -26,7 +26,7 @@ if (process.channel !== undefined) process.once('disconnect', stop);
 
 function closeHost(running: Host): void {
   running.close().catch((error: unknown) => {
-    console.error('Ori Kami host: failed to stop cleanly', error);
+    console.error('Ori Bot host: failed to stop cleanly', error);
     process.exitCode = 1;
   });
 }
@@ -50,12 +50,12 @@ async function run(config: HostConfig): Promise<void> {
       config,
       version,
       onPluginStatus: ({ pluginId, status }) => {
-        console.log(`Ori Kami host: plugin ${pluginId} is ${status.kind}`);
+        console.log(`Ori Bot host: plugin ${pluginId} is ${status.kind}`);
       },
       newId: randomUUID,
       now: () => new Date().toISOString(),
       report: (error) => {
-        console.error('Ori Kami host:', error);
+        console.error('Ori Bot host:', error);
       },
       signal: lifetime.signal,
     });
@@ -69,25 +69,25 @@ async function run(config: HostConfig): Promise<void> {
     return;
   }
   host = started;
-  for (const problem of started.plugins.problems()) console.error(`Ori Kami host: skipped plugin ${describeProblem(problem)}`);
+  for (const problem of started.plugins.problems()) console.error(`Ori Bot host: skipped plugin ${describeProblem(problem)}`);
   const running = started.plugins.list().filter(({ status }) => status.kind === 'running').length;
   console.log(
     config.safeMode
-      ? `Ori Kami host: safe mode, only the ${String(running)} built-in provider(s) running`
-      : `Ori Kami host: ${String(running)} plugin(s) running`,
+      ? `Ori Bot host: safe mode, only the ${String(running)} built-in provider(s) running`
+      : `Ori Bot host: ${String(running)} plugin(s) running`,
   );
-  console.log(`Ori Kami host ${version} listening on ${started.url}`);
+  console.log(`Ori Bot host ${version} listening on ${started.url}`);
   tellParent({ kind: 'ready', url: started.url, token: started.token });
 }
 
 /** Reports a startup failure to the console and the parent, and returns the exit code. */
 function startupFailed(error: unknown, config: HostConfig): number {
   if (error instanceof HostLockedError) {
-    console.error(`Ori Kami host: already running for ${config.dataDir}`);
+    console.error(`Ori Bot host: already running for ${config.dataDir}`);
     tellParent({ kind: 'already-running' });
     return 3;
   }
-  console.error('Ori Kami host: failed to start', error);
+  console.error('Ori Bot host: failed to start', error);
   tellParent({ kind: 'failed', message: error instanceof Error ? error.message : String(error) });
   return 1;
 }
@@ -95,7 +95,7 @@ function startupFailed(error: unknown, config: HostConfig): number {
 const result = parseHostConfig({ env: process.env, args: process.argv.slice(2), homeDir: homedir() });
 switch (result.kind) {
   case 'invalid':
-    console.error(`Ori Kami host: invalid config\n${result.problems.join('\n')}`);
+    console.error(`Ori Bot host: invalid config\n${result.problems.join('\n')}`);
     tellParent({ kind: 'failed', message: 'invalid config' });
     process.exitCode = 1;
     break;

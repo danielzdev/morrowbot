@@ -31,7 +31,7 @@ let host: TestHost | undefined;
 let events: EventClient;
 
 beforeEach(async () => {
-  home = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-claude-')));
+  home = await realpath(await mkdtemp(path.join(tmpdir(), 'oribot-claude-')));
   vi.stubEnv('HOME', home);
   vi.stubEnv('CLAUDE_CONFIG_DIR', path.join(home, '.claude'));
   vi.stubEnv('USER', 'tester');

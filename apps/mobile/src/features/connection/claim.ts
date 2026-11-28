@@ -25,7 +25,7 @@ export async function claimPairing(fetch: HttpFetch, target: PairingTarget, devi
     case 'failed':
       return reply.status === 429 ? { kind: 'rate-limited' } : { kind: 'failed', message: reply.error.message };
     case 'malformed':
-      return { kind: 'failed', message: 'This host is not an Ori Kami host, or is a version this app cannot read.' };
+      return { kind: 'failed', message: 'This host is not an Ori Bot host, or is a version this app cannot read.' };
     case 'unsupported':
       return { kind: 'failed', message: 'This host cannot pair devices.' };
   }

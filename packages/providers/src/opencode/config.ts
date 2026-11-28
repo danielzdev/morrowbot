@@ -20,10 +20,10 @@ const READ_ONLY_PERMISSION = {
 };
 
 /**
- * The opencode config every Ori Kami session runs under, given as `OPENCODE_CONFIG_CONTENT`.
+ * The opencode config every Ori Bot session runs under, given as `OPENCODE_CONFIG_CONTENT`.
  * Both the top-level `permission` and explicit `agent.build.permission` enforce read-only access
  * (so files in the shared config directory cannot loosen `build`), denying every tool except reads,
- * searches, listings, web fetch, and Ori Kami's own MCP server. The `full` primary agent overrides
+ * searches, listings, web fetch, and Ori Bot's own MCP server. The `full` primary agent overrides
  * those permissions to allow every tool without prompting for full-access turns. Other built-in
  * agents are disabled; language servers and formatters, which run code in the workspace, are off.
  */
@@ -45,7 +45,7 @@ const OPENCODE_CONFIG = {
 
 /**
  * The variables `opencode acp` runs with, on top of the runtime's. Its home, config, data, state and
- * cache folders are Ori Kami's own (under `dir`), so it reads none of the user's opencode settings,
+ * cache folders are Ori Bot's own (under `dir`), so it reads none of the user's opencode settings,
  * plugins, MCP servers, skills (`~/.agents`, `~/.opencode`) or sign-ins: only the free models need
  * none. It loads no config from the workspace (`opencode.json`, `.opencode/`, its top `AGENTS.md`),
  * nor Claude Code's files, and never updates itself (checked on opencode 2.4.1).

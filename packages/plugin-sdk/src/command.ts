@@ -237,7 +237,7 @@ function openCommand(command: string, options: CommandOptions, owner: Owner): Op
         if (!killed) tell({ kind: 'spawn', env: { ...options.env }, fence: owner.fence });
       })
       .catch((error: unknown) => {
-        console.error(`Ori Kami plugin: could not register a command's process group: ${describe(error)}`);
+        console.error(`Ori Bot plugin: could not register a command's process group: ${describe(error)}`);
         terminate();
       });
   });
@@ -332,7 +332,7 @@ function outcome(
 
 /** A private file with `contents` that has no name on disk: only the returned descriptor reaches it. */
 function unlinkedFile(contents: string): number {
-  const dir = mkdtempSync(path.join(tmpdir(), 'orikami-'));
+  const dir = mkdtempSync(path.join(tmpdir(), 'oribot-'));
   let fd: number;
   try {
     fd = openSync(path.join(dir, 'input'), 'wx+', 0o600);

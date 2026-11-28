@@ -8,7 +8,7 @@ const CODE: PairingCodeResponse = {
   code: '042137',
   expiresAt: '2026-11-27T12:05:00.000Z',
   url: 'http://100.64.0.1:47800',
-  pairingUri: 'orikami://pair?url=http%3A%2F%2F100.64.0.1%3A47800&code=042137',
+  pairingUri: 'oribot://pair?url=http%3A%2F%2F100.64.0.1%3A47800&code=042137',
 };
 const refused = (status: number, kind: 'conflict' | 'invalid_request' | 'internal', message: string): ApiResult<PairingCodeResponse> => ({ kind: 'failed', status, error: { kind, message } });
 
@@ -25,7 +25,7 @@ it('shows a minted code, asks for the address when the host has none, and report
   const known = new Set(['a']);
   expect({
     minted: afterMint({ kind: 'ok', value: CODE }, false, known).kind,
-    noAddress: afterMint(refused(409, 'conflict', 'Set ORIKAMI_HOST_BIND…'), false, known),
+    noAddress: afterMint(refused(409, 'conflict', 'Set ORIBOT_HOST_BIND…'), false, known),
     badTypedAddress: afterMint(refused(400, 'invalid_request', 'Invalid url'), true, known),
     hostDown: afterMint(refused(0, 'internal', 'The request did not reach the host'), false, known),
   }).toMatchInlineSnapshot(`

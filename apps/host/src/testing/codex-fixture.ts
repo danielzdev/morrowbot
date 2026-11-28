@@ -65,7 +65,7 @@ export interface CodexFixture extends ChatFixture {
  * turns only on macOS (`platformReason`), so the host acts as on macOS on every OS.
  */
 export async function startCodexFixture(options: Partial<TestHostOptions> = {}): Promise<CodexFixture> {
-  const home = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-codex-')));
+  const home = await realpath(await mkdtemp(path.join(tmpdir(), 'oribot-codex-')));
   const previousHome = process.env.HOME;
   process.env.HOME = home;
   const dir = path.join(home, 'fake-codex');

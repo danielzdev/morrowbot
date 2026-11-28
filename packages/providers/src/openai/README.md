@@ -1,6 +1,6 @@
 # OpenAI Codex (subscription)
 
-A provider built into Ori Kami that answers with the Codex CLI you already have, signed in with
+A provider built into Ori Bot that answers with the Codex CLI you already have, signed in with
 your own ChatGPT plan. It runs one shared daemon,
 
 ```
@@ -27,18 +27,18 @@ workspace (`readsOutsideCwd`), in interactive or background mode:
   turn if anything differs.
 - **full**: starts or resumes with Codex's `danger-full-access` sandbox (`dangerFullAccess` on
   `turn/start`), approvals `never`, and the model provider the route check saw, keeping Codex's
-  full shell and file access alongside Ori Kami's own MCP server. Stop cancels the active turn
+  full shell and file access alongside Ori Bot's own MCP server. Stop cancels the active turn
   best-effort via `turn/interrupt`.
 
 An unexpected approval request is declined without a card.
 
 **Instructions.** Codex loads your `~/.codex/AGENTS.md` and the workspace's `AGENTS.md` by itself,
-but not the agent's `SOUL.md`. Ori Kami sends `SOUL.md` as the thread's `developerInstructions`
+but not the agent's `SOUL.md`. Ori Bot sends `SOUL.md` as the thread's `developerInstructions`
 on every `thread/start` and `thread/resume`; when it is not empty, it takes the place of a
 `developer_instructions` from your Codex config for that thread.
 
-**Ori Kami's tools.** The one MCP server a thread runs is the host's own for the turn
-(`mcp_servers.orikami` in the thread's config overrides, replacing any server of yours by
+**Ori Bot's tools.** The one MCP server a thread runs is the host's own for the turn
+(`mcp_servers.oribot` in the thread's config overrides, replacing any server of yours by
 that name, with `default_tools_approval_mode = "approve"`: approvals are `never`, so Codex
 would block its calls otherwise). Codex takes MCP servers only when a thread opens, and each
 turn's token ends with the turn, so a thread is let go after every turn and resumed cold for
@@ -47,7 +47,7 @@ the next one with that turn's token.
 **Held back** (checked on Codex 0.171, shown on the Plugins page):
 
 - everything, when an administrator manages Codex (`configRequirements/read` is not
-  empty): managed rules apply after Ori Kami's and can turn tools back on;
+  empty): managed rules apply after Ori Bot's and can turn tools back on;
 - a model provider that gets its credentials by running a command (`auth.command`) or
   from AWS: the command would run outside the sandbox;
 - workspace-write: a shell command that calls `setsid` keeps running after Stop;
@@ -79,9 +79,9 @@ Settings:
 **Fixtures.** `fixtures/0.171.0/` holds a redacted real session (a new thread's turn,
 a second turn and a cold resume), replayed by `turn-stream.test.ts`, and a real
 `account/rateLimits/read` answer. `schema/pinned.json` is the generated experimental
-schema for every shape the provider reads or sends. With `ORIKAMI_LIVE_CODEX=1`,
+schema for every shape the provider reads or sends. With `ORIBOT_LIVE_CODEX=1`,
 `apps/host/src/features/providers/provider-openai-live*.test.ts` run the checks on your
-real Codex and compare the schema (`ORIKAMI_PIN_CODEX_SCHEMA=1` rewrites it after a
+real Codex and compare the schema (`ORIBOT_PIN_CODEX_SCHEMA=1` rewrites it after a
 version bump; read its diff). The turn checks spend a little of your plan.
 
 **Credits.** The usage windows in `usage.ts` follow t3code's `codexUsageLimits.ts`

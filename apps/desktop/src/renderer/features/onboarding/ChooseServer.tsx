@@ -34,7 +34,7 @@ export function ChooseServer(props: ChooseServerProps) {
       <div class="choose-drag drag" aria-hidden="true" />
       <header class="welcome-hero">
         <h2 class="welcome-title" ref={title} tabIndex={-1}>
-          {joining ? 'Join a server' : 'Welcome to Ori Kami'}
+          {joining ? 'Join a server' : 'Welcome to Ori Bot'}
         </h2>
         <p class="welcome-lede">
           {joining

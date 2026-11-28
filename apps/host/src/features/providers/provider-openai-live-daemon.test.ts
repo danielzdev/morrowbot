@@ -10,10 +10,10 @@ import { CODEX_PATH, rawCodex, type RawCodex } from '../../testing/codex-live.ts
 /**
  * The §5 provider-openai checks of the pinned Codex itself, on a bare `codex app-server` with your
  * own `~/.codex`. They start threads but send no prompt, so they spend nothing; they still need
- * `ORIKAMI_LIVE_CODEX=1`. `ORIKAMI_PIN_CODEX_SCHEMA=1` rewrites the pinned schema instead of
+ * `ORIBOT_LIVE_CODEX=1`. `ORIBOT_PIN_CODEX_SCHEMA=1` rewrites the pinned schema instead of
  * comparing it.
  */
-const LIVE = process.env.ORIKAMI_LIVE_CODEX === '1';
+const LIVE = process.env.ORIBOT_LIVE_CODEX === '1';
 const PINNED = fileURLToPath(new URL('../../../../../packages/providers/src/openai/schema/pinned.json', import.meta.url));
 
 /** The generated definitions the plugin reads or sends, with everything they refer to. */
@@ -39,7 +39,7 @@ let codex: RawCodex | undefined;
 
 beforeEach(async () => {
   if (!LIVE) return;
-  root = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-live-codex-')));
+  root = await realpath(await mkdtemp(path.join(tmpdir(), 'oribot-live-codex-')));
 });
 
 afterEach(async () => {
@@ -95,7 +95,7 @@ const Config = z.looseObject({ config: z.looseObject({ model_provider: z.unknown
 describe.skipIf(!LIVE)('provider-openai on the pinned Codex', () => {
   it('generates the pinned experimental schema for every shape the plugin reads or sends', async () => {
     const subset = await generatedSubset();
-    if (process.env.ORIKAMI_PIN_CODEX_SCHEMA === '1') await writeFile(PINNED, subset);
+    if (process.env.ORIBOT_PIN_CODEX_SCHEMA === '1') await writeFile(PINNED, subset);
     expect(subset === (await readFile(PINNED, 'utf8'))).toBe(true);
   });
 

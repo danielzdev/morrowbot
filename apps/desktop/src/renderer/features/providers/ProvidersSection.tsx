@@ -76,7 +76,7 @@ export function ProvidersSection(props: ProvidersSectionProps) {
 
   return (
     <div class="providers">
-      {safeMode && <p class="note">Safe mode is on: built-in providers keep working, and community providers stay off until Ori Kami restarts normally.</p>}
+      {safeMode && <p class="note">Safe mode is on: built-in providers keep working, and community providers stay off until Ori Bot restarts normally.</p>}
       <ListDetail
         label="Providers"
         list={list.map((card, index) => (

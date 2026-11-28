@@ -3,7 +3,7 @@ import { ConfigOptionUpdate, ContentChunk, ModeUpdate, selectOf, ToolCall, type 
 import { describeTool } from './tools.ts';
 import type { Breach } from './tripwire.ts';
 
-/** A mode update Ori Kami cannot read counts as leaving the session's mode. */
+/** A mode update Ori Bot cannot read counts as leaving the session's mode. */
 const UNREADABLE = 'an unreadable mode';
 
 const ENDED = new Set(['completed', 'failed']);
@@ -12,11 +12,11 @@ export interface SessionStream {
   /** Hears one `session/update`. */
   hear(update: SessionUpdate): void;
   /**
-   * The mode the agent last announced in an update, or null. Answers to Ori Kami's own changes are
+   * The mode the agent last announced in an update, or null. Answers to Ori Bot's own changes are
    * not counted: one can be read after a later update, so only updates keep the agent's order.
    */
   mode(): string | null;
-  /** Forgets the mode heard so far: called just before Ori Kami asks the agent for `mode`. */
+  /** Forgets the mode heard so far: called just before Ori Bot asks the agent for `mode`. */
   forgetMode(): void;
 }
 

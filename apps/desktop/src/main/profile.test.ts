@@ -7,30 +7,30 @@ const run = (packaged: boolean, env: NodeJS.ProcessEnv = {}): { profile: Profile
   return { profile, host: profile.kind === 'invalid' ? null : hostEnvOf(profile, env) };
 };
 
-it('opens ~/.orikami only for the installed app; every other run gets its own data, Electron profile and port; the host never gets the feed token', () => {
+it('opens ~/.oribot only for the installed app; every other run gets its own data, Electron profile and port; the host never gets the feed token', () => {
   expect({
     installed: run(true),
     dev: run(false),
-    devWithFolder: run(false, { ORIKAMI_DATA_DIR: '/tmp/screens', ORIKAMI_HOST_PORT: '4900' }),
-    installedWithFolder: run(true, { ORIKAMI_DATA_DIR: '/tmp/try', ORIKAMI_RELEASES_TOKEN: 'feed-token' }),
-    relative: run(false, { ORIKAMI_DATA_DIR: 'data' }),
+    devWithFolder: run(false, { ORIBOT_DATA_DIR: '/tmp/screens', ORIBOT_HOST_PORT: '4900' }),
+    installedWithFolder: run(true, { ORIBOT_DATA_DIR: '/tmp/try', ORIBOT_RELEASES_TOKEN: 'feed-token' }),
+    relative: run(false, { ORIBOT_DATA_DIR: 'data' }),
   }).toMatchInlineSnapshot(`
     {
       "dev": {
         "host": {
-          "ORIKAMI_DATA_DIR": "/Users/tester/.orikami-dev",
-          "ORIKAMI_HOST_PORT": "0",
+          "ORIBOT_DATA_DIR": "/Users/tester/.oribot-dev",
+          "ORIBOT_HOST_PORT": "0",
         },
         "profile": {
-          "dataDir": "/Users/tester/.orikami-dev",
+          "dataDir": "/Users/tester/.oribot-dev",
           "kind": "isolated",
-          "userDataDir": "/Users/tester/.orikami-dev/desktop",
+          "userDataDir": "/Users/tester/.oribot-dev/desktop",
         },
       },
       "devWithFolder": {
         "host": {
-          "ORIKAMI_DATA_DIR": "/tmp/screens",
-          "ORIKAMI_HOST_PORT": "4900",
+          "ORIBOT_DATA_DIR": "/tmp/screens",
+          "ORIBOT_HOST_PORT": "4900",
         },
         "profile": {
           "dataDir": "/tmp/screens",
@@ -40,18 +40,18 @@ it('opens ~/.orikami only for the installed app; every other run gets its own da
       },
       "installed": {
         "host": {
-          "ORIKAMI_DATA_DIR": "/Users/tester/.orikami",
-          "ORIKAMI_HOST_PORT": "47800",
+          "ORIBOT_DATA_DIR": "/Users/tester/.oribot",
+          "ORIBOT_HOST_PORT": "47800",
         },
         "profile": {
-          "dataDir": "/Users/tester/.orikami",
+          "dataDir": "/Users/tester/.oribot",
           "kind": "installed",
         },
       },
       "installedWithFolder": {
         "host": {
-          "ORIKAMI_DATA_DIR": "/tmp/try",
-          "ORIKAMI_HOST_PORT": "0",
+          "ORIBOT_DATA_DIR": "/tmp/try",
+          "ORIBOT_HOST_PORT": "0",
         },
         "profile": {
           "dataDir": "/tmp/try",
@@ -63,7 +63,7 @@ it('opens ~/.orikami only for the installed app; every other run gets its own da
         "host": null,
         "profile": {
           "kind": "invalid",
-          "problem": "ORIKAMI_DATA_DIR must be an absolute path, not "data".",
+          "problem": "ORIBOT_DATA_DIR must be an absolute path, not "data".",
         },
       },
     }

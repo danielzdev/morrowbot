@@ -13,7 +13,7 @@ export type ToolResult =
   | { readonly kind: 'content'; readonly blocks: readonly McpContentBlock[] }
   | { readonly kind: 'refused'; readonly reason: string };
 
-/** One Ori Kami tool as MCP lists it. `call` parses the arguments, then acts only as `grant`'s agent. */
+/** One Ori Bot tool as MCP lists it. `call` parses the arguments, then acts only as `grant`'s agent. */
 export interface Tool {
   readonly name: string;
   readonly description: string;

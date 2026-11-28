@@ -4,7 +4,7 @@ import { renderToString } from 'preact-render-to-string';
 import { expect, it } from 'vitest';
 import { ReplyAttachments } from './ReplyAttachments.tsx';
 
-const FILES = { url: (id: string) => `orikami-file://reply/${id}`, act: () => Promise.resolve({ kind: 'cancelled' as const }) };
+const FILES = { url: (id: string) => `oribot-file://reply/${id}`, act: () => Promise.resolve({ kind: 'cancelled' as const }) };
 
 it('shows images and videos inline, a PDF as a card to open or save, and an unknown file only to save', () => {
   const attachments: ReplyAttachment[] = [
@@ -18,11 +18,11 @@ it('shows images and videos inline, a PDF as a card to open or save, and an unkn
   expect(shown).toMatchInlineSnapshot(`
     [
       "<button aria-label="Open chart.png">",
-      "<img src="orikami-file://reply/i1" alt="chart.png"/>",
+      "<img src="oribot-file://reply/i1" alt="chart.png"/>",
       "<span>chart.png",
       "<span>47 KB",
       "<button aria-label="Save chart.png">Save…",
-      "<video src="orikami-file://reply/v1" controls preload="metadata" aria-label="demo.mp4">",
+      "<video src="oribot-file://reply/v1" controls preload="metadata" aria-label="demo.mp4">",
       "<span>demo.mp4",
       "<span>3.3 MB",
       "<button aria-label="Save demo.mp4">Save…",

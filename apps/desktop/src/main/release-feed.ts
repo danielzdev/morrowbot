@@ -3,14 +3,14 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
 
-/** The private release feed until Ori Kami is public; `ORIKAMI_RELEASES_REPO` points a build, or a run, at another. */
-export const DEFAULT_RELEASES_REPO = 'danielzdev/ori-kami-releases';
+/** The private release feed until Ori Bot is public; `ORIBOT_RELEASES_REPO` points a build, or a run, at another. */
+export const DEFAULT_RELEASES_REPO = 'danielzdev/ori-bot-releases';
 /** The login Keychain item (`security add-generic-password -s … -a releases -w <token>`) holding the feed's read token. */
-export const KEYCHAIN_SERVICE = 'com.legendarykoi.orikami.releases';
+export const KEYCHAIN_SERVICE = 'com.legendarykoi.oribot.releases';
 
 export const RepoName = z.string().regex(/^[\w.-]+\/[\w.-]+$/, 'Expected owner/repo');
 /** What `scripts/build-app.ts` writes into the packaged app's package.json: the repo that build publishes to. */
-export const BuiltFeed = z.object({ orikami: z.object({ releasesRepo: RepoName }) });
+export const BuiltFeed = z.object({ oribot: z.object({ releasesRepo: RepoName }) });
 const Token = z.string().trim().min(1);
 
 export type ReleaseFeed =
@@ -24,12 +24,12 @@ export interface FeedSources {
   readonly keychainToken: string | null;
 }
 
-/** The GitHub release feed: `ORIKAMI_RELEASES_REPO`, else the build's repo, read with `ORIKAMI_RELEASES_TOKEN` or the Keychain token. */
+/** The GitHub release feed: `ORIBOT_RELEASES_REPO`, else the build's repo, read with `ORIBOT_RELEASES_TOKEN` or the Keychain token. */
 export function feedOf({ env, builtRepo, keychainToken }: FeedSources): ReleaseFeed {
-  const name = RepoName.safeParse(env.ORIKAMI_RELEASES_REPO ?? builtRepo ?? DEFAULT_RELEASES_REPO);
-  if (!name.success) return { kind: 'invalid', problem: `ORIKAMI_RELEASES_REPO: ${name.error.issues.map(({ message }) => message).join(', ')}` };
+  const name = RepoName.safeParse(env.ORIBOT_RELEASES_REPO ?? builtRepo ?? DEFAULT_RELEASES_REPO);
+  if (!name.success) return { kind: 'invalid', problem: `ORIBOT_RELEASES_REPO: ${name.error.issues.map(({ message }) => message).join(', ')}` };
   const [owner = '', repo = ''] = name.data.split('/');
-  const token = Token.safeParse(env.ORIKAMI_RELEASES_TOKEN ?? keychainToken);
+  const token = Token.safeParse(env.ORIBOT_RELEASES_TOKEN ?? keychainToken);
   return { kind: 'github', owner, repo, token: token.success ? token.data : null };
 }
 
@@ -48,7 +48,7 @@ export function readKeychainToken(): Promise<string | null> {
 export async function readBuiltRepo(appPath: string): Promise<string | null> {
   try {
     const built = BuiltFeed.safeParse(JSON.parse(await readFile(path.join(appPath, 'package.json'), 'utf8')));
-    return built.success ? built.data.orikami.releasesRepo : null;
+    return built.success ? built.data.oribot.releasesRepo : null;
   } catch {
     return null;
   }

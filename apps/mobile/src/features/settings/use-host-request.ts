@@ -69,6 +69,6 @@ function toLoaded<T>(result: HostResult<T>): Loaded<T> {
     case 'failed':
       return { kind: 'error', message: result.error.message };
     case 'malformed':
-      return { kind: 'error', message: 'The host sent something this app cannot read. Update Ori Kami on both devices.' };
+      return { kind: 'error', message: 'The host sent something this app cannot read. Update Ori Bot on both devices.' };
   }
 }

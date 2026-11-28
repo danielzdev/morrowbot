@@ -45,10 +45,10 @@ export type SignInPlan =
 export async function signInPlan(providerId: string, context: HostContext): Promise<SignInPlan> {
   const list = PluginListReply.safeParse(await hostGet('/api/plugins', context));
   const entry = list.success ? list.data.plugins.find(({ manifest }) => manifest.id === providerId) : undefined;
-  if (entry?.manifest.kind !== 'provider') return { kind: 'unavailable', reason: 'Ori Kami could not find this provider.' };
+  if (entry?.manifest.kind !== 'provider') return { kind: 'unavailable', reason: 'Ori Bot could not find this provider.' };
   if (entry.source !== 'built-in') return { kind: 'unavailable', reason: 'Only built-in providers can sign in from here. Use the command instead.' };
   const reply = ProviderInfoReply.safeParse(await hostGet(`/api/plugins/${providerId}/info`, context));
-  if (!reply.success) return { kind: 'unavailable', reason: "Ori Kami couldn't check this provider. Press Recheck and try again." };
+  if (!reply.success) return { kind: 'unavailable', reason: "Ori Bot couldn't check this provider. Press Recheck and try again." };
   const { info } = reply.data;
   if (info.kind !== 'signed-out') return { kind: 'unavailable', reason: `${entry.manifest.name} doesn't need a sign-in now.` };
   return { kind: 'run', name: entry.manifest.name, argv: info.signIn.argv };
@@ -60,8 +60,8 @@ const quote = (text: string): string => `'${text.replaceAll("'", `'\\''`)}'`;
 export function terminalScript(name: string, argv: readonly string[]): string {
   return [
     '#!/bin/sh',
-    '# Written by Ori Kami for a one-click sign-in. Safe to delete.',
-    `printf '%s\\n\\n' ${quote(`Ori Kami: signing in to ${name}. When it finishes, go back to Ori Kami; it rechecks by itself.`)}`,
+    '# Written by Ori Bot for a one-click sign-in. Safe to delete.',
+    `printf '%s\\n\\n' ${quote(`Ori Bot: signing in to ${name}. When it finishes, go back to Ori Bot; it rechecks by itself.`)}`,
     argv.map(quote).join(' '),
     `printf '\\n%s\\n' ${quote('Done. You can close this window.')}`,
     '',

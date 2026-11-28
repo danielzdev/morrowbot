@@ -52,7 +52,7 @@ export async function startSession(channel: McpChannel, clientVersion: string, s
     const init = InitializeResult.safeParse(
       await channel.request(
         'initialize',
-        { protocolVersion: CLIENT_PROTOCOL_VERSIONS[0], capabilities: {}, clientInfo: { name: 'orikami', title: 'Ori Kami', version: clientVersion } },
+        { protocolVersion: CLIENT_PROTOCOL_VERSIONS[0], capabilities: {}, clientInfo: { name: 'oribot', title: 'Ori Bot', version: clientVersion } },
         withTimeout(signal, SETUP_TIMEOUT_MS),
       ),
     );

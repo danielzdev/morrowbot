@@ -31,7 +31,7 @@ const LABELS: Readonly<Record<AvatarShape, string>> = {
 
 const definitionOf = (id: AvatarShape): AvatarDefinition | undefined => getExample(id) ?? CUSTOM_AVATAR_OUTLINES.find((shape) => shape.id === id);
 
-/** The versioned avatar registry (spec §5.3): the engine's built-in examples, then Ori Kami's own shapes. */
+/** The versioned avatar registry (spec §5.3): the engine's built-in examples, then Ori Bot's own shapes. */
 export const AVATARS: readonly AvatarEntry[] = AvatarShape.options.map((id) => ({ id, label: LABELS[id], version: 1, definition: definitionOf(id), pack: 'core' }));
 
 export const avatarEntry = (id: string): AvatarEntry | undefined => AVATARS.find((entry) => entry.id === id);

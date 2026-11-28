@@ -21,9 +21,9 @@ export interface RealHost {
 
 /** Starts the real host process on loopback with an empty data folder, the way the desktop app forks it. Closing the IPC channel stops it. */
 export async function startRealHost(): Promise<RealHost> {
-  const dataDir = await mkdtemp(path.join(tmpdir(), 'orikami-mobile-'));
+  const dataDir = await mkdtemp(path.join(tmpdir(), 'oribot-mobile-'));
   const child = fork(HOST_MAIN, [], {
-    env: { ...process.env, ORIKAMI_DATA_DIR: dataDir, ORIKAMI_PLUGINS_DIR: FIXTURE_PLUGINS },
+    env: { ...process.env, ORIBOT_DATA_DIR: dataDir, ORIBOT_PLUGINS_DIR: FIXTURE_PLUGINS },
     stdio: ['ignore', 'ignore', 'inherit', 'ipc'],
   });
   const exited = new Promise<void>((resolve) => child.once('exit', () => {

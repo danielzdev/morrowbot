@@ -107,7 +107,7 @@ function AutoInstallControls(props: {
   const openDownload = (url: string): void => {
     setNote(null);
     void props.onOpenLink(url).then((reason) => {
-      if (reason === null) setNote({ kind: 'status', text: 'Ori Kami rechecks when you come back.', downloadUrl: null });
+      if (reason === null) setNote({ kind: 'status', text: 'Ori Bot rechecks when you come back.', downloadUrl: null });
       else setNote({ kind: 'error', text: props.redact(reason), downloadUrl: null });
     });
   };
@@ -282,7 +282,7 @@ export function ProviderSetup(props: {
       return (
         <div class="setup">
           <p>
-            Ori Kami found version <span class="mono">{props.redact(setup.found)}</span> and needs <span class="mono">{props.redact(setup.supported)}</span>.
+            Ori Bot found version <span class="mono">{props.redact(setup.found)}</span> and needs <span class="mono">{props.redact(setup.supported)}</span>.
           </p>
           {installAction}
           {!builtin && <Guide providerId={props.providerId} onOpenLink={props.onOpenLink} />}

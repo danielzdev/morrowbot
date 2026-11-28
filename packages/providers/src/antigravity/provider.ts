@@ -12,7 +12,7 @@ interface Started {
   readonly settings: Settings;
   /** Where the daemon and probes run: the provider's own data folder. */
   readonly probeCwd: string;
-  /** Ori Kami's own Antigravity folder, kept apart from the user's `~/.gemini`. */
+  /** Ori Bot's own Antigravity folder, kept apart from the user's `~/.gemini`. */
   readonly geminiDir: string;
 }
 

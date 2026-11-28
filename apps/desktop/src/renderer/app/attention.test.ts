@@ -13,11 +13,11 @@ it('puts what needs the user first in the window title', () => {
     approvals: windowTitle({ a: at('needs-approval'), b: at('needs-approval', false, 'reader'), c: at('thinking') }, 'Errand Bot'),
   }).toMatchInlineSnapshot(`
     {
-      "approvals": "Needs you (2) · Errand Bot — Ori Kami",
-      "noAgent": "Ori Kami",
-      "queued": "Working · Ori Kami",
-      "quiet": "Errand Bot — Ori Kami",
-      "working": "Working · Errand Bot — Ori Kami",
+      "approvals": "Needs you (2) · Errand Bot — Ori Bot",
+      "noAgent": "Ori Bot",
+      "queued": "Working · Ori Bot",
+      "quiet": "Errand Bot — Ori Bot",
+      "working": "Working · Errand Bot — Ori Bot",
     }
   `);
 });
@@ -36,11 +36,11 @@ it('notifies once for a new approval and once when a turn ends, never for a chat
   expect(events.map((event) => attentionCopy(event, 'Errand Bot', event.threadId === 'done' ? null : 'Grocery plan'))).toMatchInlineSnapshot(`
     [
       {
-        "body": "In “Grocery plan”. Open Ori Kami to allow or deny.",
+        "body": "In “Grocery plan”. Open Ori Bot to allow or deny.",
         "title": "Errand Bot needs approval",
       },
       {
-        "body": "Open Ori Kami to read it.",
+        "body": "Open Ori Bot to read it.",
         "title": "Errand Bot replied",
       },
       {

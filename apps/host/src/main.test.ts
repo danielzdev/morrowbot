@@ -10,11 +10,11 @@ const MAIN = fileURLToPath(new URL('./main.ts', import.meta.url));
 const FIXTURES = fileURLToPath(new URL('./features/plugins/fixtures', import.meta.url));
 
 function hostEnv(dataDir: string): NodeJS.ProcessEnv {
-  return { PATH: process.env.PATH, ORIKAMI_HOST_PORT: '0', ORIKAMI_DATA_DIR: dataDir, ORIKAMI_PLUGINS_DIR: FIXTURES };
+  return { PATH: process.env.PATH, ORIBOT_HOST_PORT: '0', ORIBOT_DATA_DIR: dataDir, ORIBOT_PLUGINS_DIR: FIXTURES };
 }
 
 async function withDataDir(body: (dataDir: string) => Promise<void>): Promise<void> {
-  const dataDir = await mkdtemp(path.join(tmpdir(), 'orikami-main-'));
+  const dataDir = await mkdtemp(path.join(tmpdir(), 'oribot-main-'));
   try {
     await body(dataDir);
   } finally {
@@ -70,12 +70,12 @@ it('boots in safe mode with only the built-in providers running and stops cleanl
       {
         "code": 0,
         "lines": [
-          "Ori Kami host 0.0.0 listening on http://127.0.0.1:PORT",
-          "Ori Kami host: plugin provider-antigravity is running",
-          "Ori Kami host: plugin provider-claude is running",
-          "Ori Kami host: plugin provider-openai is running",
-          "Ori Kami host: plugin provider-opencode is running",
-          "Ori Kami host: safe mode, only the 4 built-in provider(s) running",
+          "Ori Bot host 0.0.0 listening on http://127.0.0.1:PORT",
+          "Ori Bot host: plugin provider-antigravity is running",
+          "Ori Bot host: plugin provider-claude is running",
+          "Ori Bot host: plugin provider-openai is running",
+          "Ori Bot host: plugin provider-opencode is running",
+          "Ori Bot host: safe mode, only the 4 built-in provider(s) running",
         ],
       }
     `);
@@ -84,7 +84,7 @@ it('boots in safe mode with only the built-in providers running and stops cleanl
 
 it('runs the built-in Claude, Codex, Antigravity and OpenCode providers with no plugins folder configured', async () => {
   await withDataDir(async (dataDir) => {
-    const env = { PATH: process.env.PATH, HOME: dataDir, ORIKAMI_HOST_PORT: '0', ORIKAMI_DATA_DIR: path.join(dataDir, 'data') };
+    const env = { PATH: process.env.PATH, HOME: dataDir, ORIBOT_HOST_PORT: '0', ORIBOT_DATA_DIR: path.join(dataDir, 'data') };
     const host = spawn(process.execPath, [MAIN], { env, stdio: ['ignore', 'pipe', 'pipe'] });
     let output = '';
     let signalled = false;
@@ -99,12 +99,12 @@ it('runs the built-in Claude, Codex, Antigravity and OpenCode providers with no 
       {
         "code": 0,
         "lines": [
-          "Ori Kami host 0.0.0 listening on http://127.0.0.1:PORT",
-          "Ori Kami host: 4 plugin(s) running",
-          "Ori Kami host: plugin provider-antigravity is running",
-          "Ori Kami host: plugin provider-claude is running",
-          "Ori Kami host: plugin provider-openai is running",
-          "Ori Kami host: plugin provider-opencode is running",
+          "Ori Bot host 0.0.0 listening on http://127.0.0.1:PORT",
+          "Ori Bot host: 4 plugin(s) running",
+          "Ori Bot host: plugin provider-antigravity is running",
+          "Ori Bot host: plugin provider-claude is running",
+          "Ori Bot host: plugin provider-openai is running",
+          "Ori Bot host: plugin provider-opencode is running",
         ],
       }
     `);
@@ -181,7 +181,7 @@ it('a second host process on the same data directory exits before opening the ma
           "message": {
             "kind": "already-running",
           },
-          "output": "Ori Kami host: already running for <dataDir>
+          "output": "Ori Bot host: already running for <dataDir>
         ",
         }
       `);

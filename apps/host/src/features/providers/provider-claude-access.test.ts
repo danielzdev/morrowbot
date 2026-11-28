@@ -14,7 +14,7 @@ let host: TestHost;
 let events: EventClient;
 
 beforeEach(async () => {
-  home = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-claude-access-')));
+  home = await realpath(await mkdtemp(path.join(tmpdir(), 'oribot-claude-access-')));
   vi.stubEnv('HOME', home);
   vi.stubEnv('CLAUDE_CONFIG_DIR', path.join(home, '.claude'));
   vi.stubEnv('USER', 'tester');
@@ -218,7 +218,7 @@ it("runs a full-access agent's turn with Bash, no --restricted and no approval p
           "--mcp-config",
           "/dev/fd/4",
           "--allowedTools",
-          "mcp__orikami",
+          "mcp__oribot",
         ],
       ],
       "history": [

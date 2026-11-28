@@ -13,7 +13,7 @@ afterEach(async () => {
   await server?.close();
   kit = undefined;
   server = undefined;
-  delete process.env.ORIKAMI_HOST_ONLY;
+  delete process.env.ORIBOT_HOST_ONLY;
 });
 
 const ALL: CreateConnectorRequest['scope'] = { mode: 'all', agentIds: [] };
@@ -35,7 +35,7 @@ function alive(pid: number): boolean {
 }
 
 it('discovers a local stdio server’s well-formed tools and calls them with only the variables it was given', async () => {
-  process.env.ORIKAMI_HOST_ONLY = 'host secret';
+  process.env.ORIBOT_HOST_ONLY = 'host secret';
   kit = await startConnectorKit({ agentIds: ['agent-a'] });
   const id = await kit.add({ label: 'Notes', setup: stdioSetup('work', path.join(kit.dir, 'log')), scope: ALL });
   const turn = kit.turn('agent-a');
@@ -62,7 +62,7 @@ it('discovers a local stdio server’s well-formed tools and calls them with onl
       "env": {
         "content": [
           {
-            "text": "FIXTURE_ACCOUNT=set PATH=set ORIKAMI_HOST_ONLY=absent",
+            "text": "FIXTURE_ACCOUNT=set PATH=set ORIBOT_HOST_ONLY=absent",
             "type": "text",
           },
         ],

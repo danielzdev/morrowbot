@@ -8,7 +8,7 @@ import { startTestHost, type Reply, type TestHost } from './testing/test-host.ts
 let dataDir: string;
 let host: TestHost;
 beforeEach(async () => {
-  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-h8-')));
+  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'oribot-h8-')));
   host = await startTestHost({ dataDir });
 });
 afterEach(async () => {
@@ -57,7 +57,7 @@ it('tells an empty file from a missing one, a dangling symlink and a folder', as
         "body": {
           "canReplace": false,
           "content": null,
-          "readError": "SOUL.md is a link. Ori Kami reads only a regular file in the workspace folder.",
+          "readError": "SOUL.md is a link. Ori Bot reads only a regular file in the workspace folder.",
           "revision": "<revision>",
         },
         "status": 200,
@@ -104,12 +104,12 @@ it('never reads SOUL.md through a symlink or a second hard link, even to a file 
       {
         "content": null,
         "present": true,
-        "readError": "SOUL.md is a link. Ori Kami reads only a regular file in the workspace folder.",
+        "readError": "SOUL.md is a link. Ori Bot reads only a regular file in the workspace folder.",
       },
       {
         "content": null,
         "present": true,
-        "readError": "SOUL.md has more than one hard link, so Ori Kami does not read it. Replace SOUL.md with a copy of its text.",
+        "readError": "SOUL.md has more than one hard link, so Ori Bot does not read it. Replace SOUL.md with a copy of its text.",
       },
     ]
   `);
@@ -129,7 +129,7 @@ it('refuses a SOUL.md a create cut short left linked to its staging file, says h
   expect({ before: before.readError, untouched, after: after.content }).toMatchInlineSnapshot(`
     {
       "after": "kept",
-      "before": "SOUL.md has more than one hard link, so Ori Kami does not read it. Replace SOUL.md with a copy of its text.",
+      "before": "SOUL.md has more than one hard link, so Ori Bot does not read it. Replace SOUL.md with a copy of its text.",
       "untouched": {
         "staging": [
           "SOUL.md.00000000-0000-4000-8000-000000000000.tmp",

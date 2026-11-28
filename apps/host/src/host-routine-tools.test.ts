@@ -20,7 +20,7 @@ function fixedClock(at: string): RoutineClock {
 let dataDir: string;
 let chat: ChatFixture;
 beforeEach(async () => {
-  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-routine-tools-')));
+  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'oribot-routine-tools-')));
   chat = await startChatFixture({ dataDir, sequence: sequence(), routineClock: fixedClock('2026-03-02T09:00:00.000Z') });
 });
 afterEach(async () => {

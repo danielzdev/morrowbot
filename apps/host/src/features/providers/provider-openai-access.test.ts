@@ -51,7 +51,7 @@ it('runs full-access turns with danger-full-access sandbox, no lockdown feature 
         {
           "approvalPolicy": "never",
           "config": {
-            "mcp_servers.orikami": {
+            "mcp_servers.oribot": {
               "default_tools_approval_mode": "approve",
               "enabled": true,
               "http_headers": {
@@ -85,7 +85,7 @@ it('runs full-access turns with danger-full-access sandbox, no lockdown feature 
             "features.skill_mcp_dependency_install": false,
             "features.unified_exec": false,
             "mcp_servers.node_repl.enabled": false,
-            "mcp_servers.orikami": {
+            "mcp_servers.oribot": {
               "default_tools_approval_mode": "approve",
               "enabled": true,
               "http_headers": {
@@ -212,7 +212,7 @@ it('switches a resumed Codex thread from full to read-only with a cold resume an
           "features.skill_mcp_dependency_install": false,
           "features.unified_exec": false,
           "mcp_servers.node_repl.enabled": false,
-          "mcp_servers.orikami": {
+          "mcp_servers.oribot": {
             "default_tools_approval_mode": "approve",
             "enabled": true,
             "http_headers": {

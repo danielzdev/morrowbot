@@ -6,8 +6,8 @@ import { createTripwire, type Breach } from './tripwire.ts';
 
 /** Under the host's 30 s provider-info deadline, which starts the agent. */
 const INITIALIZE_MS = 25_000;
-const CLIENT_INFO = { name: 'orikami', title: 'Ori Kami', version: '0.1.0' };
-/** Ori Kami offers the agent no file or terminal access of its own: the agent uses its own tools, which ask first. */
+const CLIENT_INFO = { name: 'oribot', title: 'Ori Bot', version: '0.1.0' };
+/** Ori Bot offers the agent no file or terminal access of its own: the agent uses its own tools, which ask first. */
 const CLIENT_CAPABILITIES = { fs: { readTextFile: false, writeTextFile: false }, terminal: false };
 
 /** The answer to one agent call: a parsed result, the agent's own error, or no usable answer. */
@@ -128,9 +128,9 @@ export async function startAcpClient(jsonRpcProcess: StartJsonRpcProcess, comman
       }
       const scoped = SessionScoped.safeParse(params);
       const full = scoped.success && sessions.get(scoped.data.sessionId)?.allowChanges === true;
-      if (!full && method === 'fs/write_text_file') return refuse(method, params, `Ori Kami runs ${name} read-only: it writes no files.`);
-      if (!full && method.startsWith('terminal/')) return refuse(method, params, `Ori Kami runs ${name} read-only: it runs no commands.`);
-      return refuse(method, params, `Ori Kami does not answer ${method}.`);
+      if (!full && method === 'fs/write_text_file') return refuse(method, params, `Ori Bot runs ${name} read-only: it writes no files.`);
+      if (!full && method.startsWith('terminal/')) return refuse(method, params, `Ori Bot runs ${name} read-only: it runs no commands.`);
+      return refuse(method, params, `Ori Bot does not answer ${method}.`);
     },
   });
   const exited = rpc.exited.then(() => {
@@ -149,7 +149,7 @@ export async function startAcpClient(jsonRpcProcess: StartJsonRpcProcess, comman
         const parsed = schema.safeParse(reply.value);
         return parsed.success
           ? { kind: 'ok', value: parsed.data }
-          : { kind: 'unanswered', reason: `${name} answered ${method} in a shape Ori Kami does not know: ${parsed.error.message}` };
+          : { kind: 'unanswered', reason: `${name} answered ${method} in a shape Ori Bot does not know: ${parsed.error.message}` };
       }
     }
   };
@@ -162,7 +162,7 @@ export async function startAcpClient(jsonRpcProcess: StartJsonRpcProcess, comman
     await close();
     const exit = await rpc.exited;
     if (exit.kind === 'not-found') return { kind: 'failed', reason: `${name} CLI not found ("${command}")` };
-    if (hello.kind === 'ok') return { kind: 'failed', reason: `${name} speaks ACP version ${String(hello.value.protocolVersion)}; Ori Kami speaks version 1.` };
+    if (hello.kind === 'ok') return { kind: 'failed', reason: `${name} speaks ACP version ${String(hello.value.protocolVersion)}; Ori Bot speaks version 1.` };
     return { kind: 'failed', reason: hello.kind === 'error' ? `${name} refused to start: ${hello.message}` : hello.reason };
   }
   const capabilities = hello.value.agentCapabilities;

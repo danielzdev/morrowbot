@@ -7,7 +7,7 @@ import { EntityId, Timestamp } from './ids.ts';
 export const AccessLevel = z.enum(['read-only', 'workspace-write', 'full']);
 export type AccessLevel = z.infer<typeof AccessLevel>;
 
-/** Whether the CLI also loads the user's own CLI setup (`personal`) or only Ori Kami's (`isolated`); the agent's SOUL.md goes with both. */
+/** Whether the CLI also loads the user's own CLI setup (`personal`) or only Ori Bot's (`isolated`); the agent's SOUL.md goes with both. */
 export const VendorSettings = z.enum(['isolated', 'personal']);
 export type VendorSettings = z.infer<typeof VendorSettings>;
 
@@ -262,7 +262,7 @@ export const TurnRequest = z.strictObject({
   prompt: z.string().min(1),
   /** Images the user attached to the prompt, for providers whose models can see them. */
   images: z.array(TurnImage).max(MAX_ATTACHMENTS).default([]),
-  /** Ori Kami's own tools (agent messages, memories) for this turn only. */
+  /** Ori Bot's own tools (agent messages, memories) for this turn only. */
   hostTools: HostTools.default({ kind: 'none' }),
 });
 export type TurnRequest = z.infer<typeof TurnRequest>;

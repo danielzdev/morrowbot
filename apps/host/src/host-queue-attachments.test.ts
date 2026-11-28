@@ -9,7 +9,7 @@ import { startChatFixture, type ChatFixture } from './testing/chat-fixture.ts';
 let dataDir: string;
 let chat: ChatFixture | undefined;
 beforeEach(async () => {
-  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-queue-att-')));
+  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'oribot-queue-att-')));
 });
 afterEach(async () => {
   await chat?.close();
@@ -191,7 +191,7 @@ it('blocks idle sends from stealing a held queued message attachment and renews 
   await chat.close();
   chat = undefined;
 
-  const storage = openStorage(path.join(dataDir, 'orikami.sqlite'), () => '2026-01-03T00:00:00.000Z');
+  const storage = openStorage(path.join(dataDir, 'oribot.sqlite'), () => '2026-01-03T00:00:00.000Z');
   try {
     const swept = storage.attachments.deleteUnsentBefore('2026-01-02T00:00:00.000Z');
     const stillPending = storage.attachments.pending(thread.id, [note.id]);

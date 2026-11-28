@@ -7,11 +7,11 @@ import { SettingRow } from './SettingRow.tsx';
 
 /**
  * Settings › Server: whether this app runs its own server or uses one it joined, and switching between them.
- * Switching saves the choice and reopens Ori Kami; this computer's own agents stay in its data folder either way.
+ * Switching saves the choice and reopens Ori Bot; this computer's own agents stay in its data folder either way.
  */
 export function ServerSection(props: {
   readonly server: Exclude<ServerMode, { kind: 'choosing' }>;
-  /** Answers a problem to show, or null once Ori Kami is reopening on the new server. */
+  /** Answers a problem to show, or null once Ori Bot is reopening on the new server. */
   readonly onChoose: (request: ServerRequest) => Promise<string | null>;
 }) {
   const [joining, setJoining] = useState(false);
@@ -83,7 +83,7 @@ export function ServerSection(props: {
       {confirmLocal && (
         <ConfirmDialog
           title="Start your own server?"
-          body={<p>Ori Kami reopens with a server on this computer. To come back to {server.kind === 'remote' ? server.hostName : 'this server'}, you will need a new invite.</p>}
+          body={<p>Ori Bot reopens with a server on this computer. To come back to {server.kind === 'remote' ? server.hostName : 'this server'}, you will need a new invite.</p>}
           confirmLabel="Start my own server"
           tone="primary"
           onConfirm={() => void startLocal()}

@@ -71,7 +71,7 @@ export function DevicesSection(props: { readonly pairing: PairingPort; readonly 
     setPair({ kind: 'minting' });
     const before = await load();
     if (before === null) {
-      if (live.current) setPair({ kind: 'failed', message: "Couldn't reach Ori Kami's host. Try again." });
+      if (live.current) setPair({ kind: 'failed', message: "Couldn't reach Ori Bot's host. Try again." });
       return;
     }
     const result = await port.current.createPairingCode(typed);

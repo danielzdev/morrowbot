@@ -118,7 +118,7 @@ async function grantAdmits(
 
 /**
  * Why a scoped member's turn may not start on this agent now: its engine setting must stay inside the grant's
- * confinement, use Ori Kami's own isolated CLI settings (never the owner's personal setup and its connectors),
+ * confinement, use Ori Bot's own isolated CLI settings (never the owner's personal setup and its connectors),
  * and be proven not to read files outside the agent's folder. Checked on every turn, so an owner changing the
  * agent later cannot widen what a member reaches.
  */

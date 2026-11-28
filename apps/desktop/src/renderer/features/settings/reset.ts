@@ -40,9 +40,9 @@ export async function loadResetPlan(bridge: ResetBridge): Promise<ResetPlanValue
 export async function runReset(bridge: ResetBridge, choice: ResetChoice, token: string): Promise<ResetOutcomeValue> {
   try {
     const parsed = ResetOutcome.safeParse(await bridge.runReset({ choice, token }));
-    return parsed.success ? parsed.data : { kind: 'refused', reason: 'Ori Kami sent an answer it could not read. Nothing was changed.' };
+    return parsed.success ? parsed.data : { kind: 'refused', reason: 'Ori Bot sent an answer it could not read. Nothing was changed.' };
   } catch {
-    return { kind: 'refused', reason: 'Ori Kami could not start this. Nothing was changed.' };
+    return { kind: 'refused', reason: 'Ori Bot could not start this. Nothing was changed.' };
   }
 }
 
@@ -58,19 +58,19 @@ export const CHOICE_ORDER: readonly ResetChoice[] = ['reset', 'uninstall-app', '
 export const CHOICE_COPY: Readonly<Record<ResetChoice, ChoiceCopy>> = {
   reset: {
     title: 'Reset & start fresh',
-    summary: "Deletes Ori Kami's chats, settings, plugins and caches, then reopens it like new. The app stays installed.",
+    summary: "Deletes Ori Bot's chats, settings, plugins and caches, then reopens it like new. The app stays installed.",
     confirm: 'Reset & relaunch',
     understand: 'I understand the deleted items cannot be recovered.',
   },
   'uninstall-app': {
     title: 'Uninstall app (keep data)',
-    summary: 'Turns off Open at Login, moves Ori Kami.app to the Trash and quits. Your data stays for a future reinstall.',
+    summary: 'Turns off Open at Login, moves Ori Bot.app to the Trash and quits. Your data stays for a future reinstall.',
     confirm: 'Move to Trash & quit',
-    understand: 'I understand Ori Kami quits and moves to the Trash.',
+    understand: 'I understand Ori Bot quits and moves to the Trash.',
   },
   'full-uninstall': {
     title: 'Full uninstall (app + all data)',
-    summary: "Turns off Open at Login, moves Ori Kami.app to the Trash, quits, then deletes all of Ori Kami's data, caches and Keychain items.",
+    summary: "Turns off Open at Login, moves Ori Bot.app to the Trash, quits, then deletes all of Ori Bot's data, caches and Keychain items.",
     confirm: 'Uninstall everything',
     understand: 'I understand the deleted items cannot be recovered.',
   },

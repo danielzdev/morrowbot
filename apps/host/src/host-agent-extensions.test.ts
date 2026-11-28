@@ -47,8 +47,8 @@ async function listedNames(tools: Extract<HostTools, { kind: 'mcp' }>): Promise<
 }
 
 it('enforces per-agent disabledExtensions, preserves opt-outs across app-wide toggles, bumps revision on folder delete, and blocks scoped members', async () => {
-  const dataDir = await makeTempDir('orikami-agent-ext-data-');
-  const pluginsDir = await makeTempDir('orikami-agent-ext-plugins-');
+  const dataDir = await makeTempDir('oribot-agent-ext-data-');
+  const pluginsDir = await makeTempDir('oribot-agent-ext-plugins-');
   await writeToolPlugin(
     pluginsDir,
     'gadget',

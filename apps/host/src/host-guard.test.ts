@@ -10,7 +10,7 @@ import { startTestHost, type TestHost } from './testing/test-host.ts';
 let dataDir: string;
 let host: TestHost;
 beforeEach(async () => {
-  dataDir = await mkdtemp(path.join(tmpdir(), 'orikami-guard-'));
+  dataDir = await mkdtemp(path.join(tmpdir(), 'oribot-guard-'));
   host = await startTestHost({ dataDir });
 });
 afterEach(async () => {

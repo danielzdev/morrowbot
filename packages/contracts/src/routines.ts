@@ -128,7 +128,7 @@ export type RunRoutineRequest = z.infer<typeof RunRoutineRequest>;
 export const RunRoutineResponse = z.strictObject({ run: RoutineRun });
 export type RunRoutineResponse = z.infer<typeof RunRoutineResponse>;
 
-/** Something an agent is waiting on outside Ori Kami, such as a long build; a wake call closes it. */
+/** Something an agent is waiting on outside Ori Bot, such as a long build; a wake call closes it. */
 export const Wait = z.strictObject({
   waitId: EntityId,
   agentId: EntityId,

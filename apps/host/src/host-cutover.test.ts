@@ -27,7 +27,7 @@ async function buildV1(dataDir: string, workspace: string): Promise<void> {
   const first = MIGRATIONS[0];
   if (first === undefined) throw new Error('migration 1 is missing');
   await mkdir(dataDir, { recursive: true });
-  const db = new DatabaseSync(path.join(dataDir, 'orikami.sqlite'));
+  const db = new DatabaseSync(path.join(dataDir, 'oribot.sqlite'));
   db.exec(first);
   db.exec('PRAGMA user_version = 1');
   db.prepare(
@@ -53,7 +53,7 @@ async function buildV1(dataDir: string, workspace: string): Promise<void> {
 const Invocation = z.object({ args: z.array(z.string()), stdin: z.string().nullable() });
 
 it('upgrades a #4 data folder and answers the next two messages through the built-in Claude provider with the saved model', async () => {
-  home = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-cutover-')));
+  home = await realpath(await mkdtemp(path.join(tmpdir(), 'oribot-cutover-')));
   vi.stubEnv('HOME', home);
   vi.stubEnv('CLAUDE_CONFIG_DIR', path.join(home, '.claude'));
   vi.stubEnv('USER', 'tester');

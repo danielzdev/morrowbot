@@ -72,7 +72,7 @@ async function readSecrets(file: string): Promise<Map<string, Sealed>> {
   const text = await readIfThere(file);
   if (text === undefined) return new Map();
   const parsed = SecretsFile.safeParse(parseJson(text));
-  if (!parsed.success) throw new SecretStoreError('The vault secrets file is not one Ori Kami wrote');
+  if (!parsed.success) throw new SecretStoreError('The vault secrets file is not one Ori Bot wrote');
   return new Map(Object.entries(parsed.data.secrets));
 }
 

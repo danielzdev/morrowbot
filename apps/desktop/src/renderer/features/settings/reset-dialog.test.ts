@@ -4,23 +4,23 @@ import { expect, it } from 'vitest';
 import type { ResetPlan } from '../../bridge.ts';
 import { ResetDialogView, type ResetStage } from './ResetDialog.tsx';
 
-const INFO = { appVersion: '1.2.3', homeDir: '/Users/tester', userName: 'tester', dataDir: '/Users/tester/.orikami' };
+const INFO = { appVersion: '1.2.3', homeDir: '/Users/tester', userName: 'tester', dataDir: '/Users/tester/.oribot' };
 const PLAN: ResetPlan = {
   token: 't',
   options: [
-    { kind: 'unavailable', choice: 'reset', reason: "Ori Kami's host isn't running." },
-    { kind: 'available', choice: 'uninstall-app', steps: [{ kind: 'trash', path: '/Applications/Ori Kami.app' }], kept: [{ path: '/Users/tester/.orikami', reason: 'Stays.' }] },
+    { kind: 'unavailable', choice: 'reset', reason: "Ori Bot's host isn't running." },
+    { kind: 'available', choice: 'uninstall-app', steps: [{ kind: 'trash', path: '/Applications/Ori Bot.app' }], kept: [{ path: '/Users/tester/.oribot', reason: 'Stays.' }] },
     {
       kind: 'available',
       choice: 'full-uninstall',
       steps: [
-        { kind: 'trash', path: '/Applications/Ori Kami.app' },
-        { kind: 'delete', path: '/Users/tester/.orikami/orikami.sqlite' },
-        { kind: 'delete', path: '/Users/tester/.orikami/plugin-data/tester-notes' },
-        { kind: 'delete', path: '/Users/tester/Library/Application Support/Ori Kami' },
-        { kind: 'keychain', service: 'Ori Kami Safe Storage', account: 'Ori Kami' },
+        { kind: 'trash', path: '/Applications/Ori Bot.app' },
+        { kind: 'delete', path: '/Users/tester/.oribot/oribot.sqlite' },
+        { kind: 'delete', path: '/Users/tester/.oribot/plugin-data/tester-notes' },
+        { kind: 'delete', path: '/Users/tester/Library/Application Support/Ori Bot' },
+        { kind: 'keychain', service: 'Ori Bot Safe Storage', account: 'Ori Bot' },
       ],
-      kept: [{ path: '/Users/tester/.orikami/workspaces', reason: 'Agent workspaces are never touched.' }],
+      kept: [{ path: '/Users/tester/.oribot/workspaces', reason: 'Agent workspaces are never touched.' }],
     },
   ],
 };
@@ -53,24 +53,24 @@ it('lists every choice with unavailable ones disabled and explained, then every 
     {
       "choose": [
         "Choose what to do. You see every file before anything happens.",
-        "(disabled) Reset & start fresh Deletes Ori Kami's chats, settings, plugins and caches, then reopens it like new. The app stays installed. Ori Kami's host isn't running.",
-        "( ) Uninstall app (keep data) Turns off Open at Login, moves Ori Kami.app to the Trash and quits. Your data stays for a future reinstall.",
-        "( ) Full uninstall (app + all data) Turns off Open at Login, moves Ori Kami.app to the Trash, quits, then deletes all of Ori Kami's data, caches and Keychain items.",
+        "(disabled) Reset & start fresh Deletes Ori Bot's chats, settings, plugins and caches, then reopens it like new. The app stays installed. Ori Bot's host isn't running.",
+        "( ) Uninstall app (keep data) Turns off Open at Login, moves Ori Bot.app to the Trash and quits. Your data stays for a future reinstall.",
+        "( ) Full uninstall (app + all data) Turns off Open at Login, moves Ori Bot.app to the Trash, quits, then deletes all of Ori Bot's data, caches and Keychain items.",
         "[Cancel]",
         "[Continue…, disabled]",
       ],
       "confirm": [
-        "Turns off Open at Login, moves Ori Kami.app to the Trash, quits, then deletes all of Ori Kami's data, caches and Keychain items.",
+        "Turns off Open at Login, moves Ori Bot.app to the Trash, quits, then deletes all of Ori Bot's data, caches and Keychain items.",
         "Moved to the Trash",
-        "/Applications/Ori Kami.app",
+        "/Applications/Ori Bot.app",
         "Deleted for good",
-        "~/.orikami/orikami.sqlite",
-        "~/.orikami/plugin-data/tester-notes",
-        "~/Library/Application Support/Ori Kami",
+        "~/.oribot/oribot.sqlite",
+        "~/.oribot/plugin-data/tester-notes",
+        "~/Library/Application Support/Ori Bot",
         "Removed from the login Keychain",
-        "Ori Kami Safe Storage (account Ori Kami)",
+        "Ori Bot Safe Storage (account Ori Bot)",
         "Kept",
-        "~/.orikami/workspaces Agent workspaces are never touched.",
+        "~/.oribot/workspaces Agent workspaces are never touched.",
         "[ ] I understand the deleted items cannot be recovered.",
         "[Back]",
         "[Uninstall everything, disabled]",

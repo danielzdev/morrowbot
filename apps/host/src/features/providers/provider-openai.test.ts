@@ -24,7 +24,7 @@ function without(event: object, keys: readonly string[]): unknown {
 }
 
 function usageOf(generationId: string): unknown {
-  const db = new DatabaseSync(path.join(codex.home, 'data', 'orikami.sqlite'), { readOnly: true });
+  const db = new DatabaseSync(path.join(codex.home, 'data', 'oribot.sqlite'), { readOnly: true });
   const row = db
     .prepare('SELECT actual_model, input_tokens, cached_input_tokens, cache_write_tokens, output_tokens, reasoning_tokens FROM turn_usage WHERE generation_id = ?')
     .get(generationId);
@@ -77,17 +77,17 @@ it('reports Codex ready with its read-only and full profiles and why the others 
             "withheld": [
               {
                 "access": "workspace-write",
-                "reason": "Codex runs each shell command in its own process group, and Ori Kami cannot yet confine workspace-write commands to the workspace. Use read-only or full access instead.",
+                "reason": "Codex runs each shell command in its own process group, and Ori Bot cannot yet confine workspace-write commands to the workspace. Use read-only or full access instead.",
                 "vendorSettings": "personal",
               },
               {
                 "access": "read-only",
-                "reason": "Codex always loads your own ~/.codex/AGENTS.md (checked on Codex 0.171), so Ori Kami cannot replace its instructions. Ori Kami still sends the agent's SOUL.md.",
+                "reason": "Codex always loads your own ~/.codex/AGENTS.md (checked on Codex 0.171), so Ori Bot cannot replace its instructions. Ori Bot still sends the agent's SOUL.md.",
                 "vendorSettings": "isolated",
               },
               {
                 "access": "workspace-write",
-                "reason": "Codex always loads your own ~/.codex/AGENTS.md (checked on Codex 0.171), so Ori Kami cannot replace its instructions. Ori Kami still sends the agent's SOUL.md.",
+                "reason": "Codex always loads your own ~/.codex/AGENTS.md (checked on Codex 0.171), so Ori Bot cannot replace its instructions. Ori Bot still sends the agent's SOUL.md.",
                 "vendorSettings": "isolated",
               },
             ],
@@ -228,7 +228,7 @@ it('streams a new thread, binds it to the account, counts its tokens, lets it go
           "features.skill_mcp_dependency_install": false,
           "features.unified_exec": false,
           "mcp_servers.node_repl.enabled": false,
-          "mcp_servers.orikami": {
+          "mcp_servers.oribot": {
             "default_tools_approval_mode": "approve",
             "enabled": true,
             "http_headers": {

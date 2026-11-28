@@ -1,12 +1,12 @@
 # AGENTS.md
 
-Hi! This is **Ori Kami** (working name): an open-source, VS-Code-style personal AI agent app built on a small TypeScript/Electron core and free, open-source plugins. What matters most: a tiny, rock-solid core; crash-isolated plugins; clean UI; and zero bloat.
+Hi! This is **Ori Bot** (working name): an open-source, VS-Code-style personal AI agent app built on a small TypeScript/Electron core and free, open-source plugins. What matters most: a tiny, rock-solid core; crash-isolated plugins; clean UI; and zero bloat.
 
 Do not preserve complexity just because it already exists. YAGNI: do not build what we do not need yet. See `GLOSSARY.md` for project terms.
 
 ## Privacy & Branding
 - Keep the owner's personal name out of all code, docs, app text, and IDs.
-- Use `com.legendarykoi.orikami` for bundle and app IDs (publisher: Legendary Koi).
+- Use `com.legendarykoi.oribot` for bundle and app IDs (publisher: Legendary Koi).
 
 ## Layout
 - One feature, one folder (`features/<name>/`) holding its UI, logic, types, tests, and recorded outputs. Each plugin is one folder in `plugins/<name>/`.

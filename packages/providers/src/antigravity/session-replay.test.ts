@@ -160,7 +160,7 @@ it('replays a real command: agy asks, the policy denies it without a card, and t
         {
           "decision": {
             "kind": "deny",
-            "status": "Denied execute touch ran.txt: Ori Kami runs Antigravity read-only.",
+            "status": "Denied execute touch ran.txt: Ori Bot runs Antigravity read-only.",
           },
           "reply": {
             "outcome": {
@@ -211,7 +211,7 @@ it('replays a real write outside the workspace: denied without a card', async ()
         {
           "decision": {
             "kind": "deny",
-            "status": "Denied edit ~/outside/written.txt: Ori Kami runs Antigravity read-only.",
+            "status": "Denied edit ~/outside/written.txt: Ori Bot runs Antigravity read-only.",
           },
           "reply": {
             "outcome": {
@@ -352,7 +352,7 @@ it('replays a real turn of four tool calls: only the first asks, the rest fail w
         {
           "decision": {
             "kind": "deny",
-            "status": "Denied edit ~/ws2/inside.txt: Ori Kami runs Antigravity read-only.",
+            "status": "Denied edit ~/ws2/inside.txt: Ori Bot runs Antigravity read-only.",
           },
           "reply": {
             "outcome": {

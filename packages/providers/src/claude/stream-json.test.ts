@@ -20,7 +20,7 @@ const toolUse = (id: string, input: unknown) => ({
   message: { content: [{ type: 'tool_use', id, name: 'Read', input, caller: { type: 'direct' } }] },
 });
 
-/** The `usage` of a real 2.1.332 `result` line, trimmed to the fields Ori Kami reads plus two it ignores. */
+/** The `usage` of a real 2.1.332 `result` line, trimmed to the fields Ori Bot reads plus two it ignores. */
 const usage = {
   input_tokens: 4,
   cache_creation_input_tokens: 3083,

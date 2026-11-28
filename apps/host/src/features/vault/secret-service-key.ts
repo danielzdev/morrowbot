@@ -36,7 +36,7 @@ export function secretServiceKeyStore(dataDir: string, run: Run = runProgram): M
     create: async (key) => {
       const saved = await load();
       if (saved !== undefined) return saved;
-      const result = await run(SECRET_TOOL, ['store', '--label=Ori Kami vault key', ...attributes(dataDir)], key.toString('base64'));
+      const result = await run(SECRET_TOOL, ['store', '--label=Ori Bot vault key', ...attributes(dataDir)], key.toString('base64'));
       if (result.kind === 'missing') throw new SecretStoreError('secret-tool could not be started to save the vault key');
       if (result.code !== 0) throw new SecretStoreError(`The Secret Service could not save the vault key (secret-tool ${exitedWith(result.code)})`);
       return savedFirst({ load });

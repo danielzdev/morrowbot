@@ -31,12 +31,12 @@ const codeOf = (error: unknown): string | null =>
 function readError(code: string | null): string {
   switch (code) {
     case 'ELOOP':
-      return 'SOUL.md is a link. Ori Kami reads only a regular file in the workspace folder.';
+      return 'SOUL.md is a link. Ori Bot reads only a regular file in the workspace folder.';
     case 'hard-link':
-      return 'SOUL.md has more than one hard link, so Ori Kami does not read it. Replace SOUL.md with a copy of its text.';
+      return 'SOUL.md has more than one hard link, so Ori Bot does not read it. Replace SOUL.md with a copy of its text.';
     case 'EACCES':
     case 'EPERM':
-      return "Ori Kami isn't allowed to read SOUL.md.";
+      return "Ori Bot isn't allowed to read SOUL.md.";
     case 'not-a-file':
       return 'SOUL.md is not a regular file.';
     case 'too-large':
@@ -135,7 +135,7 @@ function writeError(code: string): string {
   switch (code) {
     case 'EACCES':
     case 'EPERM':
-      return "Ori Kami isn't allowed to write in this folder.";
+      return "Ori Bot isn't allowed to write in this folder.";
     case 'EROFS':
       return 'This folder is read-only.';
     case 'ENOSPC':
@@ -145,7 +145,7 @@ function writeError(code: string): string {
     case 'ENOTDIR':
       return 'The folder is missing.';
     case 'no-hard-links':
-      return 'Ori Kami can create SOUL.md only in a folder on the same disk as its data folder. Add SOUL.md to this folder yourself, and Ori Kami will use it.';
+      return 'Ori Bot can create SOUL.md only in a folder on the same disk as its data folder. Add SOUL.md to this folder yourself, and Ori Bot will use it.';
     default:
       return 'The file could not be written.';
   }

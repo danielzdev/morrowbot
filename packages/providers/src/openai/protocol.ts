@@ -36,7 +36,7 @@ export type GetAccountResponse = z.infer<typeof GetAccountResponse>;
 
 const Url = z.string().nullish();
 
-/** The effective config (`config/read`): the route keys, and what Ori Kami turns off per thread. */
+/** The effective config (`config/read`): the route keys, and what Ori Bot turns off per thread. */
 export const ConfigReadResponse = z.looseObject({
   config: z.looseObject({
     model_provider: z.string().nullish(),

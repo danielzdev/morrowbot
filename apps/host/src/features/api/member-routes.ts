@@ -30,7 +30,7 @@ export function memberRoutes(options: MemberRouteOptions): Route[] {
         if (request.kind === 'rejected') return request.reply;
         const url = request.value.url ?? options.remoteUrl();
         if (url === undefined) {
-          return failure('conflict', 'Set ORIKAMI_HOST_BIND to a LAN or Tailscale address, or send the url members should use');
+          return failure('conflict', 'Set ORIBOT_HOST_BIND to a LAN or Tailscale address, or send the url members should use');
         }
         const invited = members.invite({ name: request.value.name, access: request.value.access });
         if (invited.kind === 'invalid') return failure('invalid_request', invited.reason);

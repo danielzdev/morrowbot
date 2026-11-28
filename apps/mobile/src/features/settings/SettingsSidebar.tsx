@@ -67,7 +67,7 @@ export function SettingsSidebar(props: SidebarProps) {
             <View style={[styles.hostStatus, status !== null && styles.hostStatusWithDot]}>
               {status === null ? null : <StatusDot tone={status.tone} />}
               <Text style={[typography.small, { color: colors.text3 }]} numberOfLines={1}>
-                {status === null ? 'Connect to Ori Kami on your computer' : status.label}
+                {status === null ? 'Connect to Ori Bot on your computer' : status.label}
               </Text>
             </View>
           </View>

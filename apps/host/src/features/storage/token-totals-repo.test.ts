@@ -10,8 +10,8 @@ const NOW = '2026-03-31T12:00:00.000Z';
 let dir: string;
 let storage: Storage;
 beforeEach(async () => {
-  dir = await mkdtemp(path.join(tmpdir(), 'orikami-tokens-'));
-  storage = openStorage(path.join(dir, 'orikami.sqlite'), () => NOW);
+  dir = await mkdtemp(path.join(tmpdir(), 'oribot-tokens-'));
+  storage = openStorage(path.join(dir, 'oribot.sqlite'), () => NOW);
 });
 afterEach(async () => {
   storage.close();

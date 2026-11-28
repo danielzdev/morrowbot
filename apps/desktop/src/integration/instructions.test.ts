@@ -184,7 +184,7 @@ it.skipIf(process.getuid?.() === 0)('retries the copy, not the create, when "Sav
         "mode": "create",
         "outcome": {
           "kind": "failed",
-          "message": "Ori Kami isn't allowed to write in this folder.",
+          "message": "Ori Bot isn't allowed to write in this folder.",
           "resolving": "Theirs.",
         },
       },

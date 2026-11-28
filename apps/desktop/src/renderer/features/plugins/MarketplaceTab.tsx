@@ -32,7 +32,7 @@ export function MarketplaceTab(props: {
         onChange={props.onFilter}
       />
       <div class="tab-empty">
-        <p>The Ori Kami catalog isn't available in this version yet.</p>
+        <p>The Ori Bot catalog isn't available in this version yet.</p>
         <p class="muted">To add a plugin now, put its folder in your plugins folder, then choose Rescan.</p>
         <div class="row">
           <button type="button" class="btn secondary" onClick={props.onOpenFolder}>

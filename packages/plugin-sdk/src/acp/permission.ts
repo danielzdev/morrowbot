@@ -11,7 +11,7 @@ export const APPROVAL_CHOICES: ApprovalAsk['choices'] = [
   { id: 'deny', label: 'Deny' },
 ];
 
-/** What Ori Kami does with one permission request in a read-only turn. */
+/** What Ori Bot does with one permission request in a read-only turn. */
 export type Decision = { readonly kind: 'ask'; readonly summary: string } | { readonly kind: 'deny'; readonly status: string };
 
 /**
@@ -23,7 +23,7 @@ export function decide(request: PermissionRequest, home: string | null, name: st
   const kind = request.toolCall.kind ?? 'other';
   const what = describe(request, home);
   if (LOOKING.has(kind)) return { kind: 'ask', summary: what };
-  return { kind: 'deny', status: `Denied ${what}: Ori Kami runs ${name} read-only.` };
+  return { kind: 'deny', status: `Denied ${what}: Ori Bot runs ${name} read-only.` };
 }
 
 /**

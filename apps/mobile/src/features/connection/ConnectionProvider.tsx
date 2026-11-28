@@ -10,7 +10,7 @@ import { usePairingLinks } from './pairing-links.ts';
 import { loadHosts, saveHosts, withActive, withHost, withoutHost, type HostProfile, type SavedHosts } from './saved-hosts.ts';
 
 const report = (problem: string): void => {
-  console.warn(`Ori Kami connection: ${problem}`);
+  console.warn(`Ori Bot connection: ${problem}`);
 };
 
 const DEPS: TransportDeps = {

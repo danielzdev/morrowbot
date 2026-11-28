@@ -160,7 +160,7 @@ it('asks which browser when several are connected, and says when none is', async
       },
       "none": {
         "kind": "error",
-        "text": "No browser is connected. Ask the person to install the Ori Kami browser extension and paste its pairing token into the Browser plugin settings.",
+        "text": "No browser is connected. Ask the person to install the Ori Bot browser extension and paste its pairing token into the Browser plugin settings.",
       },
       "sent": {
         "kind": "snapshot",

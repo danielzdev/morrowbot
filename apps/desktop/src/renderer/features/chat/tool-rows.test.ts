@@ -6,8 +6,8 @@ import type { ToolStep, TurnStep } from './thread-model.ts';
 import { ToolDetails, ToolGroup, ToolRow } from './ToolGroup.tsx';
 import { describeTool, groupSteps, groupSummary } from './tool-rows.ts';
 
-const INFO = { appVersion: '1.0.0', homeDir: '/Users/sam', userName: 'sam', dataDir: '/Users/sam/.orikami' };
-const WORKSPACE = '/Users/sam/.orikami/workspaces/agent-1';
+const INFO = { appVersion: '1.0.0', homeDir: '/Users/sam', userName: 'sam', dataDir: '/Users/sam/.oribot' };
+const WORKSPACE = '/Users/sam/.oribot/workspaces/agent-1';
 const display = chatDisplay(INFO, WORKSPACE);
 
 const tool = (toolUseId: string, name: string, input: unknown, outcome: ToolStep['outcome'] = 'ok'): ToolStep => ({
@@ -22,8 +22,8 @@ const tool = (toolUseId: string, name: string, input: unknown, outcome: ToolStep
 
 it('words each provider’s tool calls as one line, with paths shown privacy-safe', () => {
   const calls: [string, unknown][] = [
-    ['Read', { file_path: '~/.orikami/workspaces/agent-1/SOUL.md' }],
-    ['Edit', { file_path: '~/.orikami/workspaces/agent-1/notes/plan.md', old_string: '(12 characters)' }],
+    ['Read', { file_path: '~/.oribot/workspaces/agent-1/SOUL.md' }],
+    ['Edit', { file_path: '~/.oribot/workspaces/agent-1/notes/plan.md', old_string: '(12 characters)' }],
     ['Write', { file_path: '/Users/sam/Documents/taxes/2026/receipts.csv' }],
     ['Bash', { command: 'ls /Users/sam/Downloads && cat sam@example.com.txt\nrm -rf build', description: 'List files' }],
     ['Grep', { pattern: 'TODO', path: '~/code' }],
@@ -31,7 +31,7 @@ it('words each provider’s tool calls as one line, with paths shown privacy-saf
     ['WebFetch', { url: 'https://example.com/hours?id=1' }],
     ['TodoWrite', { todos: [] }],
     ['Shell', { command: 'npm test' }],
-    ['Edit', { files: ['~/.orikami/workspaces/agent-1/a.md', '~/.orikami/workspaces/agent-1/b.md'] }],
+    ['Edit', { files: ['~/.oribot/workspaces/agent-1/a.md', '~/.oribot/workspaces/agent-1/b.md'] }],
     ['WebSearch', { query: 'opening hours' }],
     ['docs.search', {}],
     ['Read', { title: '~/projects/notes/today.md' }],

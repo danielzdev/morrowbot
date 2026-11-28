@@ -12,7 +12,7 @@ import type { FromRenderer } from './shell-actions.ts';
 const SAFE_ID = /^[A-Za-z0-9_-]{1,128}$/;
 const PASSED_ON = ['content-type', 'content-length', 'content-range', 'accept-ranges', 'cache-control', 'x-content-type-options', 'content-security-policy'];
 
-/** The host file a `orikami-file://reply/<id>` URL names, or undefined for any other URL. */
+/** The host file an `oribot-file://reply/<id>` URL names, or undefined for any other URL. */
 function idOf(url: string): string | undefined {
   const parsed = URL.parse(url);
   if (parsed?.protocol !== `${REPLY_FILE_SCHEME}:` || parsed.host !== 'reply') return undefined;
@@ -28,7 +28,7 @@ async function fetchFile(host: HostTarget, id: string, range: string | null, sig
 }
 
 /**
- * Answers the window's `orikami-file://reply/<id>` requests from the host, adding the token in main so the
+ * Answers the window's `oribot-file://reply/<id>` requests from the host, adding the token in main so the
  * renderer never holds it. `Range` is passed on, so videos stream and seek.
  */
 export async function serveReplyFile(request: Request, host: HostTarget | undefined): Promise<Response> {
@@ -106,7 +106,7 @@ const GONE: FileActionResult = { kind: 'failed', reason: 'This file is no longer
 /** Downloads the file to a short temporary name beside `file`, then renames it, so a failed download never leaves a partial file there. */
 async function download(response: Response, file: string): Promise<void> {
   if (response.body === null) throw new Error('Empty response');
-  const part = path.join(path.dirname(file), `.orikami-${randomBytes(8).toString('hex')}.part`);
+  const part = path.join(path.dirname(file), `.oribot-${randomBytes(8).toString('hex')}.part`);
   try {
     await pipeline(chunks(response.body), createWriteStream(part, { flags: 'wx', mode: 0o600 }));
     await rename(part, file);
@@ -118,7 +118,7 @@ async function download(response: Response, file: string): Promise<void> {
 
 async function openFile(request: FileAction, host: HostTarget, deps: FileActionDeps): Promise<FileActionResult> {
   const upstream = await fetchFile(host, request.id, null);
-  if (upstream === undefined) return { kind: 'failed', reason: 'Ori Kami is not connected to its server.' };
+  if (upstream === undefined) return { kind: 'failed', reason: 'Ori Bot is not connected to its server.' };
   if (!upstream.ok) {
     await upstream.body?.cancel();
     return GONE;
@@ -141,7 +141,7 @@ async function saveFile(request: FileAction, host: HostTarget, deps: FileActionD
   const file = await deps.saveTo(request.name);
   if (file === null) return { kind: 'cancelled' };
   const upstream = await fetchFile(host, request.id, null);
-  if (upstream === undefined) return { kind: 'failed', reason: 'Ori Kami is not connected to its server.' };
+  if (upstream === undefined) return { kind: 'failed', reason: 'Ori Bot is not connected to its server.' };
   if (!upstream.ok) {
     await upstream.body?.cancel();
     return GONE;
@@ -154,7 +154,7 @@ async function saveFile(request: FileAction, host: HostTarget, deps: FileActionD
 /** Opens a reply file in its viewer app, or saves it where the user picks and shows it in Finder. */
 export async function runFileAction(request: FileAction, deps: FileActionDeps): Promise<FileActionResult> {
   const { host } = deps;
-  if (host === undefined) return { kind: 'failed', reason: 'Ori Kami is not connected to its server.' };
+  if (host === undefined) return { kind: 'failed', reason: 'Ori Bot is not connected to its server.' };
   try {
     switch (request.action) {
       case 'open':
@@ -163,6 +163,6 @@ export async function runFileAction(request: FileAction, deps: FileActionDeps): 
         return await saveFile(request, host, deps);
     }
   } catch {
-    return { kind: 'failed', reason: "Ori Kami couldn't write this file." };
+    return { kind: 'failed', reason: "Ori Bot couldn't write this file." };
   }
 }

@@ -9,7 +9,7 @@ import { startTestHost, type TestHost } from './testing/test-host.ts';
 let dataDir: string;
 let host: TestHost;
 beforeEach(async () => {
-  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-connectors-api-')));
+  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'oribot-connectors-api-')));
   host = await startTestHost({ dataDir });
 });
 afterEach(async () => {

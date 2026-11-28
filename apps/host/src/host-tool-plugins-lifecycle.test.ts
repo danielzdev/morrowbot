@@ -110,8 +110,8 @@ runPlugin(() => defineToolPlugin({
 }
 
 it('handles multi-block results, collision prevention, scoping, disable/safe-mode, timeouts, and plugin crashes cleanly', async () => {
-  const dataDir = await makeTempDir('orikami-fixture-tools-');
-  const pluginsDir = await makeTempDir('orikami-custom-plugins-');
+  const dataDir = await makeTempDir('oribot-fixture-tools-');
+  const pluginsDir = await makeTempDir('oribot-custom-plugins-');
   await installFixturePlugins(pluginsDir);
 
   let allowedAgentId = '';
@@ -174,7 +174,7 @@ it('handles multi-block results, collision prevention, scoping, disable/safe-mod
   const namesAfterCrash = (await listedTools(allowedTurn.tools)).map((t) => t.name);
   await stopTurn(chat, allowedThread, allowedTurn.generationId);
 
-  const safeDataDir = await makeTempDir('orikami-safe-mode-tools-');
+  const safeDataDir = await makeTempDir('oribot-safe-mode-tools-');
   const safeChat = await startChatFixture({ dataDir: safeDataDir, builtinPluginsDir: PLUGIN_FIXTURES, pluginsDir, safeMode: true, sequence: sequence() });
   cleanups.push(async () => {
     await safeChat.close();

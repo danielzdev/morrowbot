@@ -9,9 +9,9 @@ import { startTestHost, type EventClient, type TestHost } from '../../testing/te
 /**
  * The §5 provider-claude fixtures, run on the real Claude Code CLI you are signed in to (a personal
  * Pro or Max login, 2.1.x on PATH), through the host and the bundled plugin. They spend a little of
- * your plan, so they run only with `ORIKAMI_LIVE_CLAUDE=1`.
+ * your plan, so they run only with `ORIBOT_LIVE_CLAUDE=1`.
  */
-const LIVE = process.env.ORIKAMI_LIVE_CLAUDE === '1';
+const LIVE = process.env.ORIBOT_LIVE_CLAUDE === '1';
 const TURN_MS = 120_000;
 
 let root = '';
@@ -20,7 +20,7 @@ let events: EventClient;
 
 beforeEach(async () => {
   if (!LIVE) return;
-  root = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-live-claude-')));
+  root = await realpath(await mkdtemp(path.join(tmpdir(), 'oribot-live-claude-')));
   host = await startTestHost({ dataDir: path.join(root, 'data') });
   events = await host.events();
 });
@@ -166,7 +166,7 @@ describe.runIf(LIVE)('provider-claude on the real CLI', () => {
     const { thread } = await agentThread('read-only');
     const first = await send(thread, 'Name one fish. One word.');
     const second = await send(thread, 'Name another one. One word.');
-    const db = new DatabaseSync(path.join(root, 'data', 'orikami.sqlite'), { readOnly: true });
+    const db = new DatabaseSync(path.join(root, 'data', 'oribot.sqlite'), { readOnly: true });
     const cached = [first, second].map((id) => db.prepare('SELECT cached_input_tokens AS cached FROM turn_usage WHERE generation_id = ?').get(id)?.cached);
     db.close();
     const { usage } = UsageResponse.parse((await host.call('GET', '/api/plugins/provider-claude/usage')).body);
@@ -177,11 +177,11 @@ describe.runIf(LIVE)('provider-claude on the real CLI', () => {
     }).toEqual({ outcomes: ['completed', 'completed'], cachedReported: [true, true], windows: ['five_hour', 'seven_day'] });
   });
 
-  it("keeps a memory with Ori Kami's remember tool under hostile project settings, then finds it with search_memories", { timeout: 2 * TURN_MS }, async () => {
+  it("keeps a memory with Ori Bot's remember tool under hostile project settings, then finds it with search_memories", { timeout: 2 * TURN_MS }, async () => {
     const { thread, workspace } = await agentThread('read-only');
     const { marker } = await hostileProject(workspace);
-    const saved = await send(thread, 'Call the orikami remember tool with the text "The deploy window is Friday". Do nothing else, then reply DONE.');
-    const found = await send(thread, 'Call the orikami search_memories tool with the query "deploy window", then reply with the text of the memory it found, or NONE.');
+    const saved = await send(thread, 'Call the oribot remember tool with the text "The deploy window is Friday". Do nothing else, then reply DONE.');
+    const found = await send(thread, 'Call the oribot search_memories tool with the query "deploy window", then reply with the text of the memory it found, or NONE.');
     const { memories } = MemoryList.parse((await host.call('GET', `/api/agents/${thread.agentId}/memories`)).body);
     const { messages } = MessageList.parse((await host.call('GET', `/api/threads/${thread.id}/messages`)).body);
     expect({
@@ -191,7 +191,7 @@ describe.runIf(LIVE)('provider-claude on the real CLI', () => {
       hooked: await contents(marker),
       outcomes: await outcomes(thread),
     }).toEqual({
-      tried: [['mcp__orikami__remember'], ['mcp__orikami__search_memories']],
+      tried: [['mcp__oribot__remember'], ['mcp__oribot__search_memories']],
       memories: ['searchable: The deploy window is Friday'],
       recalled: true,
       hooked: null,

@@ -12,14 +12,14 @@ const LATER = '2026-01-03T00:00:00.000Z';
 
 let dir: string;
 beforeEach(async () => {
-  dir = await mkdtemp(path.join(tmpdir(), 'orikami-migration-19-'));
+  dir = await mkdtemp(path.join(tmpdir(), 'oribot-migration-19-'));
 });
 afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
 it('adds queued_messages.attachment_ids and threads.archived_at, indexes active agent threads, and shields queued attachments from unsent sweeps', () => {
-  const file = path.join(dir, 'orikami.sqlite');
+  const file = path.join(dir, 'oribot.sqlite');
   const db = new DatabaseSync(file);
   for (const sql of MIGRATIONS.slice(0, 18)) db.exec(sql);
   db.exec('PRAGMA user_version = 18');

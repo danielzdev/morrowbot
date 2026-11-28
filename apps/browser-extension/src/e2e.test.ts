@@ -138,7 +138,7 @@ it.skipIf(chromeMissing)(
 );
 
 it.skipIf(chromeMissing)(
-  'the extension reconnects when Ori Kami restarts',
+  'the extension reconnects when Ori Bot restarts',
   async () => {
     const activeBridge = ready(bridge, 'bridge');
     const { port } = activeBridge;
@@ -207,7 +207,7 @@ it.skipIf(chromeMissing)(
     const activeBridge = ready(bridge, 'bridge');
     const activeChrome = ready(chrome, 'chrome');
     const activePages = ready(pages, 'pages');
-    const root = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-uploads-')));
+    const root = await realpath(await mkdtemp(path.join(tmpdir(), 'oribot-uploads-')));
     try {
       await mkdir(path.join(root, 'allowed'));
       await writeFile(path.join(root, 'allowed', 'cv.pdf'), 'cv');

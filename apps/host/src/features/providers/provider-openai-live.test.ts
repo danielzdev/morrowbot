@@ -12,10 +12,10 @@ import { startTestHost, type EventClient, type TestHost } from '../../testing/te
 
 /**
  * The §5 provider-openai fixtures, run through the host and the bundled plugin on the real Codex
- * you are signed in to with ChatGPT (0.171.x; `ORIKAMI_CODEX_PATH` or `codex` on PATH). They spend
- * a little of your plan, so they run only with `ORIKAMI_LIVE_CODEX=1`.
+ * you are signed in to with ChatGPT (0.171.x; `ORIBOT_CODEX_PATH` or `codex` on PATH). They spend
+ * a little of your plan, so they run only with `ORIBOT_LIVE_CODEX=1`.
  */
-const LIVE = process.env.ORIKAMI_LIVE_CODEX === '1';
+const LIVE = process.env.ORIBOT_LIVE_CODEX === '1';
 const TURN_MS = 180_000;
 
 let root = '';
@@ -40,7 +40,7 @@ async function boot(cliPath: string): Promise<void> {
 
 beforeEach(async () => {
   if (!LIVE) return;
-  root = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-live-codex-')));
+  root = await realpath(await mkdtemp(path.join(tmpdir(), 'oribot-live-codex-')));
 });
 
 afterEach(async () => {
@@ -73,7 +73,7 @@ async function replies(of: Thread): Promise<{ readonly outcome: string; readonly
 const Tokens = z.object({ input_tokens: z.number().nullable(), cached_input_tokens: z.number().nullable() });
 
 function promptTokens(generationId: string): number {
-  const db = new DatabaseSync(path.join(root, 'data', 'orikami.sqlite'), { readOnly: true });
+  const db = new DatabaseSync(path.join(root, 'data', 'oribot.sqlite'), { readOnly: true });
   const row = Tokens.parse(db.prepare('SELECT input_tokens, cached_input_tokens FROM turn_usage WHERE generation_id = ?').get(generationId));
   db.close();
   return (row.input_tokens ?? 0) + (row.cached_input_tokens ?? 0);
@@ -114,12 +114,12 @@ describe.skipIf(!LIVE)('provider-openai on your Codex login', () => {
   );
 
   it(
-    "keeps a memory with Ori Kami's remember tool, then finds it with search_memories on the next turn of the resumed thread",
+    "keeps a memory with Ori Bot's remember tool, then finds it with search_memories on the next turn of the resumed thread",
     async () => {
       await boot(CODEX_PATH);
       const { thread } = await agentThread();
-      const saved = await send(thread, 'Call the orikami remember tool with the text "The deploy window is Friday". Do nothing else, then reply DONE.');
-      const found = await send(thread, 'Call the orikami search_memories tool with the query "deploy window", then reply with the text of the memory it found, or NONE.');
+      const saved = await send(thread, 'Call the oribot remember tool with the text "The deploy window is Friday". Do nothing else, then reply DONE.');
+      const found = await send(thread, 'Call the oribot search_memories tool with the query "deploy window", then reply with the text of the memory it found, or NONE.');
       const tools = (generationId: string) =>
         events.received.flatMap((event) => (event.kind === 'generation.tool-start' && event.generationId === generationId ? [event.name] : []));
       const { memories } = MemoryList.parse((await host.call('GET', `/api/agents/${thread.agentId}/memories`)).body);
@@ -130,7 +130,7 @@ describe.skipIf(!LIVE)('provider-openai on your Codex login', () => {
         outcomes: said.map((reply) => reply.outcome),
         recalled: said[1]?.text.includes('Friday'),
       }).toEqual({
-        tools: [['orikami.remember'], ['orikami.search_memories']],
+        tools: [['oribot.remember'], ['oribot.search_memories']],
         memories: ['searchable: The deploy window is Friday'],
         outcomes: ['completed', 'completed'],
         recalled: true,

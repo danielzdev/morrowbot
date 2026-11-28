@@ -22,10 +22,10 @@ export function judgeVersion(version: string): Version {
       return {
         kind: 'above',
         version,
-        reason: `OpenCode ${version} isn't tested with Ori Kami yet. Update Ori Kami, or point "OpenCode CLI path" at an opencode 2.4.x install.`,
+        reason: `OpenCode ${version} isn't tested with Ori Bot yet. Update Ori Bot, or point "OpenCode CLI path" at an opencode 2.4.x install.`,
       };
     case 'unparsable':
-      return { kind: 'unreadable', reason: `OpenCode reported a version Ori Kami cannot read ("${version}").` };
+      return { kind: 'unreadable', reason: `OpenCode reported a version Ori Bot cannot read ("${version}").` };
   }
 }
 

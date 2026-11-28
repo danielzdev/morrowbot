@@ -42,7 +42,7 @@ export interface AcpFixtureSetup {
   readonly fake: string;
   /**
    * How it is set as the provider's `cliPath`: `direct`, or `wrapped` in a script that runs it with
-   * `ORIKAMI_FAKE_HOME` set to `$HOME`, for a provider that starts its CLI with a `HOME` of its own.
+   * `ORIBOT_FAKE_HOME` set to `$HOME`, for a provider that starts its CLI with a `HOME` of its own.
    */
   readonly cli: 'direct' | 'wrapped';
   /** The fake's own folder under `$HOME` (its `state.json`, `log.jsonl` and `launches.jsonl`). */
@@ -52,7 +52,7 @@ export interface AcpFixtureSetup {
 /** Starts the host with `setup.fake` as the provider's CLI. ACP providers offer turns only on macOS, so the host acts as on macOS on every OS. */
 export async function startAcpFixture(setup: AcpFixtureSetup, options: Partial<TestHostOptions> = {}): Promise<AcpFixture> {
   const { binding } = setup;
-  const home = await realpath(await mkdtemp(path.join(tmpdir(), `orikami-${setup.stateDir}-`)));
+  const home = await realpath(await mkdtemp(path.join(tmpdir(), `oribot-${setup.stateDir}-`)));
   const previousHome = process.env.HOME;
   process.env.HOME = home;
   const dir = path.join(home, setup.stateDir);
@@ -137,11 +137,11 @@ export function turnMethods(log: readonly Logged[]): string[] {
   return log.filter((entry) => entry.method !== 'initialize').map((entry) => entry.method);
 }
 
-/** A script in `home` that runs `fake` with `ORIKAMI_FAKE_HOME` set to `home`. */
+/** A script in `home` that runs `fake` with `ORIBOT_FAKE_HOME` set to `home`. */
 async function wrap(fake: string, home: string): Promise<string> {
   const script = path.join(home, 'bin', path.basename(fake, '.ts'));
   await mkdir(path.dirname(script));
-  await writeFile(script, `#!/bin/sh\nORIKAMI_FAKE_HOME='${home}' exec '${fake}' "$@"\n`);
+  await writeFile(script, `#!/bin/sh\nORIBOT_FAKE_HOME='${home}' exec '${fake}' "$@"\n`);
   await chmod(script, 0o755);
   return script;
 }

@@ -174,7 +174,7 @@ describe('pairing', () => {
       {
         "defaultPort": "http://100.64.0.1",
         "ipv6": "http://[fd7a:115c:a1e0::1]:47800",
-        "uri": "orikami://pair?url=http%3A%2F%2F100.64.0.1%3A47800&code=042137",
+        "uri": "oribot://pair?url=http%3A%2F%2F100.64.0.1%3A47800&code=042137",
         "websocket": [
           "(root): Invalid URL",
         ],

@@ -140,7 +140,7 @@ it('after a graceful shutdown no command of the provider survives, and none star
 });
 
 it('runs a built-in provider\'s commands with only its own environment, not the host\'s', async () => {
-  vi.stubEnv('ORIKAMI_HOST_ONLY', 'host secret');
+  vi.stubEnv('ORIBOT_HOST_ONLY', 'host secret');
   const printed = Promise.withResolvers<string>();
   const { channel } = connect((runtime) =>
     defineProvider({
@@ -148,7 +148,7 @@ it('runs a built-in provider\'s commands with only its own environment, not the 
         let output = '';
         await runtime.runCommand('sh', {
           ...sleeperOptions(() => undefined),
-          args: ['-c', 'echo "host=[$ORIKAMI_HOST_ONLY] path=[${PATH:+set}]"'],
+          args: ['-c', 'echo "host=[$ORIBOT_HOST_ONLY] path=[${PATH:+set}]"'],
           input: '',
           onLine: (line) => {
             output += line;

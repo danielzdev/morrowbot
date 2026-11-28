@@ -1,4 +1,4 @@
-/** The SF Symbols Ori Kami uses, so a typo fails typecheck instead of drawing nothing. */
+/** The SF Symbols Ori Bot uses, so a typo fails typecheck instead of drawing nothing. */
 export type MorrowSymbol =
   | 'bubble.left.and.text.bubble.right'
   | 'rectangle.stack'

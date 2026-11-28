@@ -1,5 +1,5 @@
 /**
- * Ori Kami mobile theme. Colours match the desktop tokens
+ * Ori Bot mobile theme. Colours match the desktop tokens
  * (`apps/desktop/src/renderer/styles/tokens.css`): Graphite greys, with blue only for signals.
  */
 
@@ -132,7 +132,7 @@ const THEMES: Readonly<Record<ColorSchemeName, Theme>> = {
 
 /**
  * The theme for the system appearance. React Native reports `null` or `'unspecified'` before it
- * knows; Ori Kami starts dark, like the desktop app.
+ * knows; Ori Bot starts dark, like the desktop app.
  */
 export function themeFor(scheme: string | null | undefined): Theme {
   return scheme === 'light' ? THEMES.light : THEMES.dark;

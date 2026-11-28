@@ -45,13 +45,13 @@ it('ends the daemon at once when agy reports an edit it never asked for, even th
       "next": {
         "error": {
           "kind": "conflict",
-          "message": "Antigravity (agy 1.5.18) ran "Edit File sneaky.txt" without asking. Ori Kami ended it and offers no Antigravity turns until the provider restarts.",
+          "message": "Antigravity (agy 1.5.18) ran "Edit File sneaky.txt" without asking. Ori Bot ended it and offers no Antigravity turns until the provider restarts.",
         },
       },
       "steps": [
         "tool-start Edit: {"title":"File sneaky.txt"}",
         "tool-end: ok",
-        "status: Antigravity (agy 1.5.18) ran "Edit File sneaky.txt" without asking. Ori Kami ended it and offers no Antigravity turns until the provider restarts.",
+        "status: Antigravity (agy 1.5.18) ran "Edit File sneaky.txt" without asking. Ori Bot ended it and offers no Antigravity turns until the provider restarts.",
       ],
       "withheld": {
         "breach": true,
@@ -72,7 +72,7 @@ it('ends the daemon at once when agy leaves Default mode during a turn', async (
         "assistant(failed access-not-supported): ",
       ],
       "steps": [
-        "status: Antigravity (agy 1.5.18) left its Default mode for "auto". Ori Kami ended it and offers no Antigravity turns until the provider restarts.",
+        "status: Antigravity (agy 1.5.18) left its Default mode for "auto". Ori Bot ended it and offers no Antigravity turns until the provider restarts.",
       ],
       "withheld": {
         "breach": true,
@@ -82,7 +82,7 @@ it('ends the daemon at once when agy leaves Default mode during a turn', async (
   `);
 });
 
-it('refuses a turn, before its prompt, whose session leaves Default mode while Ori Kami sets it up', async () => {
+it('refuses a turn, before its prompt, whose session leaves Default mode while Ori Bot sets it up', async () => {
   await agy.setState({ driftOnModel: true });
   const thread = await agy.thread(await agy.agent({ ...AGY, selection: { kind: 'model', id: 'fake-flash', choices: {} } }));
   await agy.send(thread, 'hello');
@@ -115,7 +115,7 @@ it('ends the daemon when agy reports a finished edit in the provider-info probe 
   `);
 });
 
-it("ends a session's turn before its prompt when agy reports a finished edit for it before Ori Kami holds the session", async () => {
+it("ends a session's turn before its prompt when agy reports a finished edit for it before Ori Bot holds the session", async () => {
   const thread = await agy.thread(await agy.agent());
   await agy.host.call('GET', '/api/plugins/provider-antigravity/info');
   await agy.setState({ sneakOnNew: true });
@@ -165,7 +165,7 @@ it('a breach in one turn fails another turn on the same daemon at once and withd
       "read": [
         "tool-start Read: {"title":"File outside.txt"}",
         "card: Antigravity wants to read ~/outside.txt [allow, deny]",
-        "status: Antigravity (agy 1.5.18) ran "Edit File sneaky.txt" without asking. Ori Kami ended it and offers no Antigravity turns until the provider restarts.",
+        "status: Antigravity (agy 1.5.18) ran "Edit File sneaky.txt" without asking. Ori Bot ended it and offers no Antigravity turns until the provider restarts.",
         "card resolved: {"kind":"cleared"}",
       ],
     }

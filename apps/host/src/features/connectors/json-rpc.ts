@@ -17,7 +17,7 @@ export type ServerMessage = z.output<typeof ServerMessage>;
 export function answerServer(id: string | number, method: string): object {
   return method === 'ping'
     ? { jsonrpc: '2.0', id, result: {} }
-    : { jsonrpc: '2.0', id, error: { code: -32601, message: `Ori Kami does not offer ${method}` } };
+    : { jsonrpc: '2.0', id, error: { code: -32601, message: `Ori Bot does not offer ${method}` } };
 }
 
 export function rpcFailure(error: { readonly code: number; readonly message: string }): McpFailure {

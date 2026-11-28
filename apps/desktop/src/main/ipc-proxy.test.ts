@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { parseCopyText, parseSubscription, proxyRequest, type HostTarget, type IpcSender } from './ipc-proxy.ts';
 
-const RENDERER_URL = 'file:///Applications/Ori Kami.app/Contents/Resources/app/src/renderer/index.html';
+const RENDERER_URL = 'file:///Applications/Ori Bot.app/Contents/Resources/app/src/renderer/index.html';
 const TOKEN = 'a'.repeat(43);
 const APP_PAGE: IpcSender = { kind: 'frame', url: RENDERER_URL, isMainFrame: true };
 

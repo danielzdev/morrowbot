@@ -29,7 +29,7 @@ async function pluginsWithParrot(root: string): Promise<string> {
 
 let restarted: ReturnType<typeof sequence>;
 beforeEach(async () => {
-  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-subagents-')));
+  dataDir = await realpath(await mkdtemp(path.join(tmpdir(), 'oribot-subagents-')));
   restarted = sequence();
   chat = await startChatFixture({ dataDir, pluginsDir: await pluginsWithParrot(dataDir), sequence: restarted });
   const parrot = await chat.host.call('PUT', '/api/plugins/parrot/config', { config: { greeting: 'squawk' } });
@@ -46,7 +46,7 @@ async function lead(): Promise<{ readonly agent: Agent; readonly thread: Thread 
   return { agent, thread: await chat.thread(agent) };
 }
 
-/** One echo turn line that calls an Ori Kami tool. */
+/** One echo turn line that calls an Ori Bot tool. */
 const call = (name: string, args: object): string => `host-tool ${name} ${JSON.stringify(args)}`;
 
 async function lastReply(thread: Thread): Promise<string[]> {
@@ -265,7 +265,7 @@ it('keeps sub-agents across a restart, drops one a crash caught before it starte
   await chat.close();
   expect(chat.host.errors).toEqual([]);
   const at = '2026-01-01T00:00:00.000Z';
-  const storage = openStorage(path.join(dataDir, 'orikami.sqlite'), () => at);
+  const storage = openStorage(path.join(dataDir, 'oribot.sqlite'), () => at);
   const [started] = storage.subagents.listByParent(thread.id);
   if (started === undefined) throw new Error('no sub-agent was saved');
   const unstarted = { id: 'unstarted', agentId: agent.id, title: 'Sub-agent', createdAt: at, updatedAt: at, archivedAt: null };

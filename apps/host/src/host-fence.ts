@@ -3,14 +3,14 @@ import path from 'node:path';
 import { dataFolderFence, type Fence } from '@morrowbot/plugin-sdk';
 import { BUILTIN_PROVIDERS } from '@morrowbot/providers';
 
-export const DATABASE = 'orikami.sqlite';
+export const DATABASE = 'oribot.sqlite';
 /** What no built-in provider's program may read: every vault file, the database, and a joined server's token. */
 const HIDDEN = ['vault', DATABASE, 'server.json'];
 
 /**
  * The fence every program a built-in provider starts (an agent's shell among them) runs behind. It writes only in
  * the agents' workspaces and the built-in providers' own data folders: never the vault, the database, the plugins
- * Ori Kami runs, or the app itself (`execPath`'s bundle, when the host runs from one).
+ * Ori Bot runs, or the app itself (`execPath`'s bundle, when the host runs from one).
  */
 export async function providerFence(dataDir: string, pluginsDir: string, execPath: string): Promise<Fence> {
   await mkdir(pluginsDir, { recursive: true });

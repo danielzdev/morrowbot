@@ -11,8 +11,8 @@ afterEach(async () => {
 });
 
 it('reads connector setups saved before Vault items as typed values', async () => {
-  dir = await mkdtemp(path.join(tmpdir(), 'orikami-connectors-repo-'));
-  const file = path.join(dir, 'orikami.sqlite');
+  dir = await mkdtemp(path.join(tmpdir(), 'oribot-connectors-repo-'));
+  const file = path.join(dir, 'oribot.sqlite');
   const storage = openStorage(file, () => '2026-01-01T00:00:00.000Z');
   const old = {
     stdio: { kind: 'stdio', command: 'notes-server', args: [], env: [{ name: 'TOKEN', value: 'env-value' }] },

@@ -4,7 +4,7 @@ import { PluginManifest, type OpenPluginChannel, type PluginOrigin, type PluginP
 import { forkChannel } from './fork-channel.ts';
 import { describeIssues } from './issues.ts';
 
-/** A plugin the host can start: a plugin folder (in its own worker process), or a provider built into Ori Kami. */
+/** A plugin the host can start: a plugin folder (in its own worker process), or a provider built into Ori Bot. */
 export interface PluginSource {
   readonly manifest: PluginManifest;
   readonly source: PluginOrigin;

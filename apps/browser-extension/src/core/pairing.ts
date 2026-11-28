@@ -1,7 +1,7 @@
 import { BROWSER_BRIDGE_DEFAULT_PORT, ExtensionInstanceId, PairingToken } from '@morrowbot/contracts';
 import { z } from 'zod';
 
-/** Where the extension finds the Ori Kami plugin, how it proves it was paired, and which installed copy it is. */
+/** Where the extension finds the Ori Bot plugin, how it proves it was paired, and which installed copy it is. */
 export const Pairing = z.object({ port: z.number().int().min(1024).max(65535), token: PairingToken, instanceId: ExtensionInstanceId });
 export type Pairing = z.infer<typeof Pairing>;
 
