@@ -1,6 +1,5 @@
 import type { ConnectionSlot } from '../../lib/workspace.ts';
+import { ConnectionProvider } from './ConnectionProvider.tsx';
 
-/** Placeholder until #72 lands the host transport; it provides nothing yet. */
-export const connection: ConnectionSlot = {
-  Provider: ({ children }) => children,
-};
+/** Provides `useHostConnection()` to the whole app. */
+export const connection: ConnectionSlot = { Provider: ConnectionProvider };
