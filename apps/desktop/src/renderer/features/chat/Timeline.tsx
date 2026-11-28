@@ -76,8 +76,8 @@ const MessageItem = memo(function MessageItem(props: {
   readonly busy: boolean;
   /** A user message sent into the reply above it with Steer now. */
   readonly steeredIn: boolean;
-  /** The latest reply's avatar: celebrating just after its turn, then resting. Null on other messages. */
-  readonly avatar: 'completed' | 'idle' | null;
+  /** The latest reply's avatar during its brief completion beat; null once idle or on other messages. */
+  readonly avatar: 'completed' | null;
   /** The emoji on this message. */
   readonly reactions: readonly MessageReaction[];
   readonly ctx: TimelineContext;
@@ -246,7 +246,7 @@ export function Timeline(props: {
                 steeredIn={steeredIn.has(item.message.id)}
                 reactions={reactions.get(item.message.id) ?? NO_REACTIONS}
                 busy={item.message === last && (!props.idle || props.locked || props.offline)}
-                avatar={item.message === last && item.message.kind === 'assistant' && active?.trigger.kind !== 'chat' ? (props.activity === 'completed' ? 'completed' : 'idle') : null}
+                avatar={item.message === last && item.message.kind === 'assistant' && active?.trigger.kind !== 'chat' && props.activity === 'completed' ? 'completed' : null}
                 ctx={ctx}
               />
             );

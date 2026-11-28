@@ -108,7 +108,7 @@ function play(view: ThreadView, events: readonly ThreadEvent[], now = 0): Thread
   }, view);
 }
 
-it('puts the avatar beside the running turn, then beside the reply it wrote: celebrating while the chat is completed, resting after', () => {
+it('puts the avatar beside the running turn and brief completion beat, then hides it once idle', () => {
   vi.useFakeTimers({ now: 5_000 });
   const running = play(viewOf(IDLE), [
     { kind: 'generation.started', ...turn(1), state: 'running', userMessage: USER },
@@ -123,6 +123,7 @@ it('puts the avatar beside the running turn, then beside the reply it wrote: cel
     completed: rows(finished, 'completed'),
     settled: rows(finished, 'idle'),
     openedMidTurnCompleted: rows(openedMidTurn, 'completed'),
+    openedMidTurnSettled: rows(openedMidTurn, 'idle'),
     fromHistory: rows(viewOf({ ...IDLE, messages: [...finished.messages] }), 'idle'),
   }).toMatchInlineSnapshot(`
     {
@@ -133,11 +134,12 @@ it('puts the avatar beside the running turn, then beside the reply it wrote: cel
       "openedMidTurnCompleted": [
         "[completed] Done",
       ],
+      "openedMidTurnSettled": [],
       "running": [
         "[running-tool] Searching · 5s",
       ],
       "settled": [
-        "[idle] Worked for 12s",
+        "Worked for 12s",
       ],
     }
   `);
