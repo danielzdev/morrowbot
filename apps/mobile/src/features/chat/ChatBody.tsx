@@ -19,6 +19,7 @@ import { useKeyboardOverlap } from './keyboard-overlap.ts';
 import { MessageList } from './MessageList.tsx';
 import { useStore } from './store.ts';
 import { ThreadTabs } from './ThreadTabs.tsx';
+import { useChatActivity } from './turn-activity.ts';
 
 const EDGE = spacing[3];
 
@@ -49,6 +50,7 @@ function ChatThread(props: {
   const canvas = useRef<ViewInstance>(null);
   const frame = composerFrame(metrics, useKeyboardOverlap(canvas));
   const { view, problem, stale } = screen;
+  const activity = useChatActivity(view.kind === 'loaded' ? view.value : null);
   return (
     <View ref={canvas} style={styles.fill}>
       <MorrowLayoutMetricsView
@@ -73,6 +75,8 @@ function ChatThread(props: {
           activeTurn={view.value.activeTurn}
           queue={view.value.queue}
           agentName={props.agent.name}
+          avatar={props.agent.avatar}
+          activity={activity}
           queueControls={(message) => queuedControls(screen, message)}
           onQueued={(action, queuedId) => {
             switch (action) {
