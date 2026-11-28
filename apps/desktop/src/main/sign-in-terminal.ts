@@ -1,12 +1,14 @@
 import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { PluginList, ProviderInfoResponse } from '@morrowbot/contracts';
+import { lenient, PluginList, ProviderInfoResponse } from '@morrowbot/contracts';
 import { z } from 'zod';
 import type { SignInLaunch } from '../renderer/bridge.ts';
 import { checkSender, IpcRefusedError, proxyRequest, type HostTarget } from './ipc-proxy.ts';
 import type { FromRenderer } from './shell-actions.ts';
 
 const ProviderId = z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/);
+const PluginListReply = lenient(PluginList);
+const ProviderInfoReply = lenient(ProviderInfoResponse);
 
 /** Checks an IPC `sign-in-terminal` message: a provider id, never a command. */
 export function parseSignInRequest(options: FromRenderer): string {
@@ -41,11 +43,11 @@ export type SignInPlan =
  * community provider's command is never run, and the renderer never sends a command.
  */
 export async function signInPlan(providerId: string, context: HostContext): Promise<SignInPlan> {
-  const list = PluginList.safeParse(await hostGet('/api/plugins', context));
+  const list = PluginListReply.safeParse(await hostGet('/api/plugins', context));
   const entry = list.success ? list.data.plugins.find(({ manifest }) => manifest.id === providerId) : undefined;
   if (entry?.manifest.kind !== 'provider') return { kind: 'unavailable', reason: 'MorrowBot could not find this provider.' };
   if (entry.source !== 'built-in') return { kind: 'unavailable', reason: 'Only built-in providers can sign in from here. Use the command instead.' };
-  const reply = ProviderInfoResponse.safeParse(await hostGet(`/api/plugins/${providerId}/info`, context));
+  const reply = ProviderInfoReply.safeParse(await hostGet(`/api/plugins/${providerId}/info`, context));
   if (!reply.success) return { kind: 'unavailable', reason: "MorrowBot couldn't check this provider. Press Recheck and try again." };
   const { info } = reply.data;
   if (info.kind !== 'signed-out') return { kind: 'unavailable', reason: `${entry.manifest.name} doesn't need a sign-in now.` };
