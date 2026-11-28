@@ -12,6 +12,7 @@ import { QueuedMessage } from './queue.ts';
 import { SubagentRun } from './subagents.ts';
 import { AccountKey, ApprovalChoice, ProviderInfo, TurnOutcome, UsageResult } from './provider.ts';
 import { MessageReaction } from './reactions.ts';
+import { ThreadChanged } from './thread-activity.ts';
 import { Thread } from './threads.ts';
 
 export const ProviderUnavailableReason = z.enum(['route-info-timeout', 'route-info-failed', 'daemon-blocked', 'rechecking']);
@@ -305,6 +306,7 @@ export type EventClientFrame = z.infer<typeof EventClientFrame>;
 export const EventServerFrame = z.union([
   ChatEvent,
   AgentMessagePosted,
+  ThreadChanged,
   z.strictObject({ kind: z.literal('resync'), threadId: EntityId }),
 ]);
 export type EventServerFrame = z.infer<typeof EventServerFrame>;

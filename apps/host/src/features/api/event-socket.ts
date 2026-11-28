@@ -5,9 +5,10 @@ import type { ApiServices } from './ports.ts';
 
 /**
  * One `/api/events` socket. Global events go out to the owner; a scoped member gets only agent messages to or from
- * its agents. A thread's events go out only after `subscribe`, which a scoped member may send only for its agents'
- * threads. A subscribe with a cursor first replays what was missed (or sends `resync`), in the same synchronous step
- * that starts live delivery, so nothing is missed or sent twice.
+ * its agents, and `thread.changed` only for its agents' threads. A thread's events go out only after `subscribe`,
+ * which a scoped member may send only for its agents' threads. A subscribe with a cursor first replays what was
+ * missed (or sends `resync`), in the same synchronous step that starts live delivery, so nothing is missed or sent
+ * twice.
  */
 export function serveEvents(ws: WebSocket, services: ApiServices, viewer: Viewer, report: (error: unknown) => void): void {
   const { chat } = services;
@@ -20,6 +21,9 @@ export function serveEvents(ws: WebSocket, services: ApiServices, viewer: Viewer
   });
   const unsubscribeMessages = services.agentMessages.subscribe((message) => {
     if (sees(viewer, message.from.agentId) || sees(viewer, message.to.agentId)) sendFrame({ kind: 'agent-message.posted', message });
+  });
+  const unsubscribeSummaries = chat.watchThreads((summary) => {
+    if (sees(viewer, summary.thread.agentId)) sendFrame({ kind: 'thread.changed', summary });
   });
   ws.on('message', (data, isBinary) => {
     if (ws.readyState !== ws.OPEN) return;
@@ -60,6 +64,7 @@ export function serveEvents(ws: WebSocket, services: ApiServices, viewer: Viewer
   ws.on('close', () => {
     unsubscribe();
     unsubscribeMessages();
+    unsubscribeSummaries();
   });
   ws.on('error', report);
 }

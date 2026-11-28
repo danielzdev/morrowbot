@@ -8,6 +8,7 @@ import type {
   ChatEvent,
   ChatSettings,
   HostTools,
+  LastMessage,
   Message,
   MessageReaction,
   ProviderInfo,
@@ -75,6 +76,10 @@ export interface ChatStore {
     insert(message: Message): void;
     get(id: string): Message | undefined;
     listByThread(threadId: string): Message[];
+    /** The thread's newest message with text, or null. */
+    lastInThread(threadId: string): LastMessage | null;
+    /** Whether the thread's newest message is a reply that failed. */
+    endsFailed(threadId: string): boolean;
   };
   readonly reactions: {
     /** False when the actor already has this emoji on the message. */
