@@ -1,6 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import { WorkspaceShell } from '../features/layout/index.ts';
 import { SavedAppearance } from '../features/settings/index.ts';
+import { HostProviders } from './HostProviders.tsx';
 import { registry } from './registry.ts';
 
 export function App() {
@@ -8,8 +9,10 @@ export function App() {
   return (
     <Provider>
       <SavedAppearance />
-      <StatusBar style="auto" />
-      <WorkspaceShell registry={registry} />
+      <HostProviders>
+        <StatusBar style="auto" />
+        <WorkspaceShell registry={registry} />
+      </HostProviders>
     </Provider>
   );
 }
