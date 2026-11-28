@@ -8,6 +8,7 @@ import { chatDisplay, ChatView, Composer, type EngineLabel, type PeerDirectory }
 import { INSPECTOR_TOGGLE } from '../features/inspector/index.ts';
 import { ThreadHeader } from '../features/thread/index.ts';
 import { profileName } from '../shared/binding-ui/access-copy.ts';
+import { bubbleStyleVars } from '../shared/bubble-color.ts';
 import { displayPath, type AppInfo } from '../shared/privacy.ts';
 import { useStore } from '../shared/use-store.ts';
 import { choiceFor, providerChoicesOf, threadStatusOf } from './derive.ts';
@@ -48,7 +49,17 @@ export function ChatPane(props: {
   const state = useStore(models.agents.state);
   const cards = useStore(models.providers.cards);
   const activity = useStore(models.chats.activity);
+  const appearance = useStore(models.appearance.state);
   const { sendWith } = useStore(models.chatPrefs.state);
+  const bubbleStyle = useMemo(
+    () =>
+      bubbleStyleVars({
+        global: appearance.messageColor,
+        agentOverride: appearance.agentMessageColors[agent.id],
+        agentColor: agent.avatar.color,
+      }),
+    [appearance.messageColor, appearance.agentMessageColors, agent.id, agent.avatar.color],
+  );
   const threadId = state.openThread[agent.id] ?? null;
   const threads = state.threads[agent.id];
   const choices = providerChoicesOf(cards);
@@ -87,7 +98,7 @@ export function ChatPane(props: {
   const motion = motionOf(combineActivity(Object.values(activity).filter((each) => each.agentId === agent.id).map((each) => each.activity)));
   return (
     <div class="main-row">
-    <div class="main">
+    <div class="main" style={bubbleStyle}>
       <ThreadHeader
         agent={agent}
         avatar={<BotAvatar avatar={agent.avatar} motion={motion} size={20} reducedMotion={props.reducedMotion} />}

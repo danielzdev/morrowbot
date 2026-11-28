@@ -22,6 +22,8 @@ export interface SettingEntry {
   readonly section: SettingsSection;
   readonly label: string;
   readonly description: string;
+  /** Extra search terms matched by settings search without cluttering the visible copy. */
+  readonly keywords?: readonly string[];
 }
 
 export const SECTIONS: Readonly<Record<SettingsSection, { readonly title: string; readonly icon: IconName }>> = {
@@ -71,12 +73,20 @@ export function isSection(id: string): id is SettingsSection {
   return Object.hasOwn(SECTIONS, id);
 }
 
-const row = (section: SettingsSection, id: string, label: string, description: string): SettingEntry => ({ id, section, label, description });
+const row = (section: SettingsSection, id: string, label: string, description: string, keywords?: readonly string[]): SettingEntry =>
+  keywords === undefined ? { id, section, label, description } : { id, section, label, description, keywords };
 
 /** The rows of every section except Keyboard, in the order they render. */
 export const ROWS = {
   openAtLogin: row('general', 'open-at-login', 'Open at login', 'Start MorrowBot when you log in to this computer.'),
   theme: row('appearance', 'theme', 'Theme', 'Follow the system, or always use light or dark.'),
+  messageColor: row(
+    'appearance',
+    'message-color',
+    'Message color',
+    'Tint your outgoing chat bubbles to match each bot, use a custom color, or keep them neutral.',
+    ['bubble', 'chat color', 'colour', 'match bot', 'outgoing'],
+  ),
   chatWidth: row('appearance', 'chat-width', 'Chat width', 'How wide the chat column gets: Normal is 720px, Wide is 920px.'),
   reduceMotion: row('appearance', 'reduce-motion', 'Reduce motion', "On stills avatars and slide-ins. Your system's reduce-motion setting always applies."),
   sendWith: row('chat', 'send-with', 'Send with', 'Which key sends your message. Shift+Enter always starts a new line.'),
@@ -173,12 +183,12 @@ export interface SearchGroup {
   readonly entries: readonly SettingEntry[];
 }
 
-/** The rows whose label or description holds every word of `query` (any case), grouped by section in nav order. */
+/** The rows whose label, description or keywords hold every word of `query` (any case), grouped by section in nav order. */
 export function searchSettings(query: string, index: readonly SettingEntry[] = INDEX): readonly SearchGroup[] {
   const words = query.toLocaleLowerCase().split(/\s+/).filter((word) => word !== '');
   if (words.length === 0) return [];
   const found = index.filter((entry) => {
-    const text = `${entry.label} ${entry.description}`.toLocaleLowerCase();
+    const text = [entry.label, entry.description, ...(entry.keywords ?? [])].join(' ').toLocaleLowerCase();
     return words.every((word) => text.includes(word));
   });
   return SECTION_ORDER.map((section) => ({ section, entries: found.filter((entry) => entry.section === section) })).filter(({ entries }) => entries.length > 0);

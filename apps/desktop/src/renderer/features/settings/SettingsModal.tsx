@@ -9,7 +9,7 @@ import { SettingsShell } from '../../shared/ui/SettingsShell.tsx';
 import type { UpdatesModel } from '../../shared/updates.ts';
 import { useStore } from '../../shared/use-store.ts';
 import { AboutSection } from './AboutSection.tsx';
-import { AppearanceSection } from './AppearanceSection.tsx';
+import { AppearanceSection, type SampleAgent } from './AppearanceSection.tsx';
 import { ChatSection } from './ChatSection.tsx';
 import { DevicesSection } from './DevicesSection.tsx';
 import { GeneralSection } from './GeneralSection.tsx';
@@ -33,6 +33,8 @@ export interface SettingsModalProps {
   readonly link: SettingsLink;
   readonly onClose: () => void;
   readonly appearance: AppearanceModel;
+  /** The active agent, used to preview "Match bot" in Settings › Appearance. */
+  readonly sampleAgent?: SampleAgent;
   readonly chatPrefs: ChatPrefsModel;
   readonly info: AppInfo | null;
   readonly updates: UpdatesModel;
@@ -109,7 +111,7 @@ export function SettingsModal(props: SettingsModalProps) {
       case 'general':
         return <GeneralSection bridge={props.bridge} />;
       case 'appearance':
-        return <AppearanceSection appearance={appearance} onChange={props.appearance.set} />;
+        return <AppearanceSection appearance={appearance} onChange={props.appearance.set} {...(props.sampleAgent === undefined ? {} : { sampleAgent: props.sampleAgent })} />;
       case 'chat':
         return <ChatSection prefs={chatPrefs} onChange={props.chatPrefs.set} platform={PLATFORM} />;
       case 'keyboard':

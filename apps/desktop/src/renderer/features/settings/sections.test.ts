@@ -21,7 +21,15 @@ import { SettingsModal, type SettingsModalProps } from './SettingsModal.tsx';
 import type { VaultPort } from './vault.ts';
 import { VaultSection } from './VaultSection.tsx';
 
-const APPEARANCE: Appearance = { theme: 'system', reduceMotion: 'system', chatWidth: 'normal', reducedMotion: false };
+const APPEARANCE: Appearance = {
+  theme: 'system',
+  reduceMotion: 'system',
+  chatWidth: 'normal',
+  messageColor: { kind: 'match-bot' },
+  agentMessageColors: {},
+  reducedMotion: false,
+  resolvedTheme: 'dark',
+};
 const PREFS: ChatPrefs = { sendWith: 'enter', notify: 'on' };
 const INFO = { appVersion: '1.2.3', homeDir: '/Users/tester', userName: 'tester', dataDir: '/Users/tester/.morrowbot' };
 const BRIDGE = {
@@ -54,7 +62,7 @@ const UPDATES: UpdatesModel = { status: new Store<UpdateStatus>({ kind: 'up-to-d
 const MODAL: SettingsModalProps = {
   link: 'general',
   onClose: ignore,
-  appearance: { state: new Store(APPEARANCE), set: ignore, close: ignore },
+  appearance: { state: new Store(APPEARANCE), set: ignore, setAgentMessageColor: ignore, close: ignore },
   chatPrefs: { state: new Store(PREFS), set: ignore },
   info: INFO,
   updates: UPDATES,
@@ -138,5 +146,28 @@ it('opens each deep link at its section, with the nav and breadcrumb pointing th
     provider: { breadcrumb: 'Settings / Providers', current: 'Providers', firstRow: 'providers', item: 'provider-openai' },
     devicesOnJoinedServer: { breadcrumb: 'Settings / General', current: 'General', firstRow: 'open-at-login' },
     usageAsScopedMember: { breadcrumb: 'Settings / General', current: 'General', firstRow: 'open-at-login' },
+  });
+});
+
+it('renders Message color modes with swatches only in Custom mode and a live preview bubble in every mode', () => {
+  const matchBot = renderToString(h(AppearanceSection, { appearance: APPEARANCE, onChange: ignore, sampleAgent: { name: 'Scout', color: '#10b981' } }));
+  const off = renderToString(h(AppearanceSection, { appearance: { ...APPEARANCE, messageColor: { kind: 'off' } }, onChange: ignore }));
+  const custom = renderToString(
+    h(AppearanceSection, { appearance: { ...APPEARANCE, messageColor: { kind: 'custom', color: '#0ea5e9' } }, onChange: ignore }),
+  );
+  expect({
+    matchBotHasSwatches: matchBot.includes('bubble-color-picker'),
+    matchBotHasPreview: matchBot.includes('Matches Scout') && matchBot.includes('--user-bubble-bg'),
+    offHasSwatches: off.includes('bubble-color-picker'),
+    offNeutralPreview: off.includes('Default (neutral)') && !off.includes('--user-bubble-bg'),
+    customHasSwatches: custom.includes('bubble-color-picker') && custom.includes('value="#0ea5e9"'),
+    customHasPreview: custom.includes('Custom · Sky') && custom.includes('--user-bubble-bg'),
+  }).toEqual({
+    matchBotHasSwatches: false,
+    matchBotHasPreview: true,
+    offHasSwatches: false,
+    offNeutralPreview: true,
+    customHasSwatches: true,
+    customHasPreview: true,
   });
 });

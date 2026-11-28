@@ -14,8 +14,9 @@
   justify-content: space-between;
   gap: var(--s-2) var(--s-3);
   padding: var(--s-2) var(--s-3);
-  background: var(--surface-user);
-  border: 1px dashed var(--hairline-strong);
+  background: var(--user-bubble-bg, var(--surface-user));
+  border: 1px dashed var(--user-bubble-border, var(--hairline-strong));
+  color: var(--user-bubble-fg, var(--text-1));
   border-radius: var(--r-md);
 }
 .queued.steering {
@@ -32,7 +33,7 @@
   min-width: 12rem;
 }
 .queued-status {
-  color: var(--text-3);
+  color: var(--user-bubble-muted, var(--text-3));
   font: var(--t-meta);
 }
 .queued.steering .queued-status {
@@ -52,4 +53,10 @@
 .queued-actions {
   display: flex;
   gap: var(--s-1);
+}
+.queued-actions button.ghost {
+  color: var(--user-bubble-muted, var(--text-2));
+}
+.queued-actions button.ghost:hover:not(:disabled) {
+  color: var(--user-bubble-fg, var(--text-1));
 }

@@ -57,6 +57,20 @@ it('matches every word anywhere in a row, groups matches by section in nav order
   `);
 });
 
+it('finds Message color by its label, description, and search keywords', () => {
+  expect({
+    bubble: ids('bubble'),
+    messageColor: ids('message color'),
+    chatColor: ids('chat color'),
+    matchBot: ids('match bot'),
+  }).toEqual({
+    bubble: ['message-color'],
+    messageColor: ['message-color'],
+    chatColor: ['message-color'],
+    matchBot: ['message-color'],
+  });
+});
+
 it('opens a deep link at its section, at its row when the row is in that section, or at an item inside it', () => {
   expect({
     section: targetOf('chat'),

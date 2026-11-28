@@ -95,11 +95,15 @@
 }
 .setting-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--s-4);
+  gap: var(--s-3) var(--s-4);
   min-height: var(--row-settings);
   padding: var(--s-3) 0;
   border-bottom: 1px solid var(--hairline);
+}
+.setting-extra {
+  flex: 0 0 100%;
 }
 .setting-text {
   flex: 1;
@@ -307,4 +311,83 @@ textarea.instructions {
 }
 .reset-understand input {
   margin-top: 2px;
+}
+
+/* Message bubble color picker and live preview */
+.bubble-setting-extra {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.bubble-color-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+}
+.bubble-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.bubble-hex-input {
+  width: 6.5rem;
+  min-height: 1.75rem;
+  padding: 2px var(--s-2);
+}
+.bubble-preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2) var(--s-3);
+  padding: var(--s-2) var(--s-3);
+  background: var(--surface-1);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+}
+.bubble-preview-caption {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+  font: var(--t-small);
+}
+.bubble-preview-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--hairline-strong);
+  flex: none;
+}
+.bubble-preview-sample {
+  padding: 6px var(--s-3);
+  background: var(--user-bubble-bg, var(--surface-user));
+  border: 1px solid var(--user-bubble-border, transparent);
+  color: var(--user-bubble-fg, var(--text-1));
+  border-radius: var(--r-lg);
+  font: var(--t-ui);
+}
+.agent-message-color {
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--hairline);
+  gap: var(--s-3);
+}
+.agent-message-color-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2) var(--s-4);
+}
+.agent-message-color-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 12rem;
+}
+.agent-message-color-label {
+  color: var(--text-1);
+  font: var(--t-ui-strong);
 }
