@@ -1,6 +1,7 @@
 import type { PluginEntry, PluginList, PluginOrigin, PluginProblem } from '@morrowbot/contracts';
+import { ItemMark } from '../../shared/ui/ItemMark.tsx';
 import { ListDetail, ListRow, Pill } from '../../shared/ui/ListDetail.tsx';
-import { ItemMark, PluginDetail, ProblemDetail, sourceLabel, type PluginActions } from './PluginDetail.tsx';
+import { PluginDetail, ProblemDetail, sourceLabel, type PluginActions } from './PluginDetail.tsx';
 import { healthOf, isListedPlugin, problemHealth } from './plugin-health.ts';
 import type { PluginActivity } from './plugins-model.ts';
 

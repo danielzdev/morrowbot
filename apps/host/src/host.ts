@@ -9,6 +9,7 @@ import { createAgentService, createFolderService } from './features/agents/index
 import { startApiServer } from './features/api/index.ts';
 import { createAttachmentService, type AttachmentService } from './features/attachments/index.ts';
 import { createChatService } from './features/chat/index.ts';
+import { createConnectorRuntime, createConnectorService } from './features/connectors/index.ts';
 import type { HostConfig } from './features/config/index.ts';
 import { healthListener } from './features/health/index.ts';
 import { createMemberService } from './features/members/index.ts';
@@ -163,7 +164,19 @@ export async function startHost(options: HostOptions): Promise<Host> {
       now,
       report,
     });
-    const tools = await startToolServer({ ports: agentToolPorts(storage, agents, agentMessages, memories, vault), version: options.version, report });
+    const connectors = createConnectorService({
+      store: storage.connectors,
+      runtime: createConnectorRuntime({ path: pluginPath, version: options.version }),
+      safeMode: config.safeMode,
+      agentExists: (id) => agents.get(id) !== undefined,
+      sharedWithMembers: (agentId) => storage.members.allowlistsOf(agentId).length > 0,
+      newId,
+      now,
+      report,
+    });
+    undo.push(() => connectors.close());
+    connectors.start();
+    const tools = await startToolServer({ ports: agentToolPorts(storage, agents, agentMessages, memories, vault, connectors), version: options.version, report });
     undo.push(() => tools.stop());
     const chat = createChatService({
       store: chatStore(storage),
@@ -266,6 +279,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
           },
           releaseGroup: (regId) => plugins.releaseGroup(regId),
         },
+        connectors,
         pairing: createPairingService({ records: storage.devices, newId, now }),
         members,
         agentMessages,
