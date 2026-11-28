@@ -1,5 +1,5 @@
 open-bot-avatar (https://github.com/DominikScholz/open-bot-avatar)
-Used by apps/desktop/src/renderer/features/avatar as the animated avatar engine (npm package open-bot-avatar).
+Used by apps/desktop/src/renderer/features/avatar and apps/mobile/src/lib/bot-avatar as the animated avatar engine (npm package open-bot-avatar).
 
 MIT License
 
