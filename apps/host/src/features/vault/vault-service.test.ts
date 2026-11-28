@@ -38,11 +38,11 @@ async function storedValues(): Promise<number> {
  * A store where the host stops at `step`, never to answer: right after a write saves its value, or right before a
  * remove erases one. `reached` settles when it gets there.
  */
-function stopsAt(step: 'write' | 'remove'): { readonly store: SecretStore; readonly reached: Promise<void> } {
+function stopsAt(step: 'write' | 'remove'): { readonly store: SecretStore; readonly reached: Promise<undefined> } {
   const inner = sealedStore();
-  const reached = Promise.withResolvers<void>();
+  const reached = Promise.withResolvers<undefined>();
   const stop = async (): Promise<void> => {
-    reached.resolve();
+    reached.resolve(undefined);
     await new Promise<void>(() => undefined);
   };
   return {
@@ -54,7 +54,6 @@ function stopsAt(step: 'write' | 'remove'): { readonly store: SecretStore; reado
         if (step === 'write') await stop();
       },
       remove: (ref) => (step === 'remove' ? stop() : inner.remove(ref)),
-      list: () => inner.list(),
     },
   };
 }
@@ -297,7 +296,8 @@ it('replaces a secret that can no longer be read, when the change names every pa
   const vault = await open();
   const login = idOf(await create(vault, { kind: 'login', label: 'Forge', username: 'robot', password: 'old', twoStepKey: 'JBSWY3DPEHPK3PXP' }));
   const key = idOf(await create(vault, { kind: 'api_key', label: 'Weather', key: 'old' }));
-  for (const ref of await secrets.list()) await secrets.remove(ref);
+  const saved = z.object({ entries: z.array(z.object({ secretRef: z.string() })) }).parse(JSON.parse(await readFile(path.join(dir, 'vault.json'), 'utf8')));
+  for (const { secretRef } of saved.entries) await secrets.remove(secretRef);
   expect({
     passwordOnly: await update(vault, login, { kind: 'login', password: 'new' }),
     wholeLogin: (await update(vault, login, { kind: 'login', password: 'new', twoStepKey: null })).kind,
