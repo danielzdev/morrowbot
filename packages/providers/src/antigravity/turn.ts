@@ -198,7 +198,7 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
     } finally {
       over = true;
       stopFence();
-      await closeBridge(bridge);
+      closeBridge(bridge);
     }
 
     async function prompt(id: string, model: string | null): Promise<TurnEnd> {

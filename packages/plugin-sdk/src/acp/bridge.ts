@@ -21,7 +21,10 @@ export interface AcpStdioServer {
 export interface HostToolsBridge {
   /** The servers the turn's session opens with: Ori Bot's own, or none. */
   readonly servers: readonly AcpStdioServer[];
-  /** Ends the bridge: the program it gave the agent exits, and a copy the agent starts later exits at once. */
+  /**
+   * Ends the bridge: its socket ends before this returns, so the program it gave the agent exits, and
+   * a copy the agent starts later exits at once. Settles once its private folder is removed.
+   */
   close(): Promise<void>;
 }
 

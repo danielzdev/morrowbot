@@ -23,11 +23,12 @@ export async function bridgeHostTools(tools: HostTools): Promise<Bridged> {
   }
 }
 
-/** Ends the turn's bridge, so the program agy runs for it exits before the next turn. */
-export async function closeBridge(bridge: acp.HostToolsBridge): Promise<void> {
-  try {
-    await bridge.close();
-  } catch (error) {
+/**
+ * Ends the turn's bridge: its socket ends at once, so the program agy runs for it exits. The turn
+ * does not wait for the rest of the cleanup, so its end is not held behind it.
+ */
+export function closeBridge(bridge: acp.HostToolsBridge): void {
+  bridge.close().catch((error: unknown) => {
     console.error("provider-antigravity: could not close a turn's tools bridge", error);
-  }
+  });
 }
