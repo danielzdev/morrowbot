@@ -9,11 +9,20 @@ import {
 } from '@morrowbot/contracts';
 import type { ChatAdmit, FinishedResult, RoutineChat, RoutineRecord, RoutineStore } from './ports.ts';
 
+export type RunSettled =
+  | { readonly kind: 'posted'; readonly text: string }
+  | { readonly kind: 'quiet' }
+  | { readonly kind: 'failed'; readonly reason: string };
+
 export interface RunInput {
   readonly trigger: RoutineTrigger;
   /** Absent when the wake call sent none. */
   readonly payload: { readonly kind: 'none' } | { readonly kind: 'json'; readonly value: Exclude<RunRoutineRequest['payload'], undefined> };
   readonly wait: Wait | null;
+  /** Optional target chat thread to inherit if this routine run registers follow-up T3 watches. */
+  readonly replyThreadId?: string | null;
+  /** Called right before the run is marked finished in storage. */
+  readonly onSettled?: (outcome: RunSettled, runThreadId: string) => void;
 }
 
 export interface RunContext {
@@ -23,7 +32,13 @@ export interface RunContext {
   readonly now: () => string;
   readonly report: (error: unknown) => void;
   /** Called right after the run's thread is created, before the turn starts. */
-  readonly onRunOpen?: (run: { readonly runId: string; readonly routineId: string; readonly agentId: string; readonly threadId: string }) => void;
+  readonly onRunOpen?: (run: {
+    readonly runId: string;
+    readonly routineId: string;
+    readonly agentId: string;
+    readonly threadId: string;
+    readonly replyThreadId: string | null;
+  }) => void;
   /** Called once the run settles (or fails to admit); returns true if the run was marked silent via `routine_no_update`. */
   readonly onRunClose?: (threadId: string) => boolean;
 }
@@ -61,7 +76,13 @@ export async function startRun(
     return { run, settled: Promise.resolve() };
   }
   store.runs.insert({ ...base, threadId: thread.id, result: { kind: 'running' } });
-  context.onRunOpen?.({ runId: base.id, routineId: routine.id, agentId: routine.agentId, threadId: thread.id });
+  context.onRunOpen?.({
+    runId: base.id,
+    routineId: routine.id,
+    agentId: routine.agentId,
+    threadId: thread.id,
+    replyThreadId: input.replyThreadId ?? null,
+  });
   const finished = Promise.withResolvers<AssistantMessage>();
   const stop = chat.subscribe((event) => {
     if (event.kind === 'generation.finished' && event.threadId === thread.id) finished.resolve(event.message);
@@ -82,15 +103,31 @@ export async function startRun(
     store.runs.finish(base.id, result, null);
     return { run: { ...base, threadId: null, result }, settled: Promise.resolve() };
   }
+  const notifySettled = (outcome: RunSettled): void => {
+    try {
+      input.onSettled?.(outcome, thread.id);
+    } catch (error) {
+      context.report(error);
+    }
+  };
   const settled = finished.promise.then(async (message) => {
     stop();
     const markedSilent = context.onRunClose?.(thread.id) ?? false;
     if ((markedSilent && message.outcome.kind === 'completed') || isQuiet(routine, message)) {
       await chat.deleteThread(thread.id);
+      notifySettled({ kind: 'quiet' });
       store.runs.finish(base.id, { kind: 'quiet', finishedAt: context.now() }, null);
       return;
     }
-    store.runs.finish(base.id, resultOf(message, context.now()), thread.id);
+    const result = resultOf(message, context.now());
+    notifySettled(
+      result.kind === 'posted'
+        ? { kind: 'posted', text: message.text }
+        : result.kind === 'failed'
+          ? { kind: 'failed', reason: result.reason }
+          : { kind: 'quiet' },
+    );
+    store.runs.finish(base.id, result, thread.id);
   });
   return { run: { ...base, threadId: thread.id, result: { kind: 'running' } }, settled };
 }

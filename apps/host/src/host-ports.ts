@@ -74,7 +74,7 @@ export function agentToolPorts(options: {
     },
     vault,
     routines: routineToolPort(storage, routines, sharedWithMembers),
-    t3Watches: t3WatchToolPort(storage, t3Watches, t3Clock, defaultT3RoutineId, sharedWithMembers),
+    t3Watches: t3WatchToolPort(storage, routines, t3Watches, t3Clock, defaultT3RoutineId, sharedWithMembers),
     subagents: {
       isSubagent: (threadId) => storage.subagents.get(threadId) !== undefined,
       spawn: (grant, input) => subagents.spawn(grant, input),
@@ -112,6 +112,7 @@ type WatchOwnership =
 
 function t3WatchToolPort(
   storage: Storage,
+  routines: RoutineService,
   t3Watches: T3WatchService,
   t3Clock: Pick<T3WatchClock, 'now'>,
   defaultT3RoutineId: string | null,
@@ -158,12 +159,19 @@ function t3WatchToolPort(
         );
       return { watches, pendingBatches, pendingEvents };
     },
-    watch: (agentId, request) => {
+    watch: (agentId, request, sourceThreadId = null) => {
       if (storage.routines.get(request.routineId)?.agentId !== agentId) {
         return { kind: 'refused', reason: `You have no routine ${request.routineId}` };
       }
       const conflict = storage.t3Watches.unsettled(request.threadId).some((existing) => !visibleTo(watchOwner(existing.watchId), agentId));
       if (conflict) return { kind: 'refused', reason: `Thread ${request.threadId} is already watched by another agent.` };
+      const resolveChat = (): string | null => {
+        if (sourceThreadId === null) return null;
+        const origin = routines.originChatOf(sourceThreadId);
+        if (origin.isRoutineThread) return origin.replyThreadId;
+        const thread = storage.threads.get(sourceThreadId);
+        return thread?.agentId === agentId && storage.subagents.get(sourceThreadId) === undefined ? sourceThreadId : null;
+      };
       const watch = t3Watches.register(
         {
           threadId: request.threadId,
@@ -175,6 +183,7 @@ function t3WatchToolPort(
           ...(request.stallAfterMin === undefined ? {} : { stallAfterMin: request.stallAfterMin }),
         },
         request.routineId,
+        resolveChat(),
       );
       return { kind: 'watched', watch: { ...watch, routineId: request.routineId } };
     },

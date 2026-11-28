@@ -1,5 +1,6 @@
 import type {
   ActiveTurn,
+  AssistantMessage,
   CardBody,
   CreateThreadRequest,
   Cursor,
@@ -23,6 +24,7 @@ import { EventLog, type Replay } from './event-log.ts';
 import { attributionOf, forgetSettled, startedBy, type TurnInitiator } from './initiator.ts';
 import type { ChatListener, ChatServiceOptions, RecheckAnswer, ThreadArchiveFilter } from './ports.ts';
 import { agentReact, attachRefusal, dropNote, emojiReplies, nextNote, reactionPrompt, readOrGone, setUserReaction, stayQuiet, type ReplyToolAnswer, type SetReactionAnswer, type TurnGrant } from './reactions.ts';
+import { postAssistantMessage } from './post.ts';
 import { recover } from './recover.ts';
 import { createSummaryFeed, type SummaryListener } from './thread-summary.ts';
 import { afterTurn, cancelQueued, enqueue, queueOf, sendsQueue, steerQueued, type QueueAnswer } from './queue.ts';
@@ -67,6 +69,8 @@ export interface ChatService {
   send(threadId: string, text: string, attachmentIds: readonly string[], choice: SessionChoice, by: TurnInitiator): Promise<SendResult>;
   /** A routine's send: never queued (refused as busy), and its turn denies instead of asking for approval. */
   sendUnattended(threadId: string, text: string, choice: SessionChoice): Promise<AdmitResult>;
+  /** Posts an assistant message directly into an active chat (for example, a delivered T3 watch report). */
+  postAssistantMessage(threadId: string, text: string): AssistantMessage | undefined;
   /** Takes a message the agent has not seen out of the queue. */
   cancelQueued(threadId: string, queuedId: string): QueueAnswer;
   /**
@@ -327,6 +331,7 @@ export function createChatService(options: ChatServiceOptions): ChatService {
       return enqueue(core, threadId, text, attachmentIds, by);
     },
     sendUnattended: (threadId, text, choice) => admit(core, threadId, { kind: 'send', text, attachmentIds: [], mode: 'background', by: 'owner' }, choice),
+    postAssistantMessage: (threadId, text) => postAssistantMessage(core, threadId, text),
     setReaction: (threadId, request, by) => setUserReaction(core, threadId, request, by),
     agentReact: (grant, emoji) => agentReact(core, grant, emoji),
     stayQuiet: (grant) => stayQuiet(core, grant),

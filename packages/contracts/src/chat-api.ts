@@ -298,6 +298,8 @@ export const ChatEvent = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('reactions.changed'), threadId: EntityId, cursor: Cursor, messageId: EntityId, reactions: z.array(MessageReaction) }),
   /** A card was put in the chat, or changed: `card` is its whole newest copy (see `ThreadCard.revision`). */
   z.strictObject({ kind: z.literal('card.changed'), threadId: EntityId, cursor: Cursor, card: ThreadCard }),
+  /** An assistant message was posted directly into the chat (for example, a T3 watch report). */
+  z.strictObject({ kind: z.literal('message.posted'), threadId: EntityId, cursor: Cursor, message: AssistantMessage }),
   /** A sub-agent of this chat's turn `generationId` started, began running or ended. */
   z.strictObject({ kind: z.literal('subagent.changed'), ...ThreadEvent, run: SubagentRun }),
   /** Global (not part of any thread's cursor): refetch `/api/plugins/:id/usage`. */

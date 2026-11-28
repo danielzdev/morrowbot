@@ -49,13 +49,19 @@ export interface T3BatchRecord {
 /** What a send to the orchestrator's routine came to. */
 export type SinkAnswer = { readonly kind: 'sent' } | { readonly kind: 'busy' } | { readonly kind: 'failed'; readonly reason: string };
 
-/** Where batches go: one background routine of the orchestrator, never an interactive chat. */
+/** Where a watch's batch goes: its owning routine, and the Ori Bot chat to deliver its report to (null for the agent's main chat). */
+export interface T3DeliveryTarget {
+  readonly routineId: string | null;
+  readonly chatThreadId: string | null;
+}
+
+/** Where batches go: one background routine of the orchestrator, whose posted report is delivered to the creating or main chat. */
 export interface T3DeliverySink {
-  /** Resolves a watch's bound routine (or null for unbound/service events) to a target routine id, or null to hold in outbox. */
-  targetFor?(watchRoutineId: string | null): string | null;
+  /** Resolves a watch's bound routine and creating chat to a concrete target, or null to hold in outbox. */
+  targetFor?(watch: T3DeliveryTarget): T3DeliveryTarget | null;
   /** True while that routine or any turn of the orchestrator agent runs; batches hold until it has been idle 5 s. */
-  busy(routineId?: string | null): boolean;
-  deliver(batch: T3WatchBatch, routineId?: string | null): Promise<SinkAnswer>;
+  busy(target?: T3DeliveryTarget | null): boolean;
+  deliver(batch: T3WatchBatch, target?: T3DeliveryTarget | null): Promise<SinkAnswer>;
 }
 
 /** Where watches, their events and the outbox are kept (the storage feature provides them). */

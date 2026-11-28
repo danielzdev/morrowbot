@@ -264,6 +264,7 @@ it('sends the batch as the design lays it out: frozen events, a status table, th
         "Act on needs_you only if the same request is still pending; otherwise record stale.",
         "Two NotFound reads at least 5 s apart: record gone and list the eventId in goneEventIds. Any other failed or incomplete read: defer it (no done record) and list it in deferredEventIds.",
         "An event marked unverified: show it to the user as unconfirmed, take no action, record done (disposition unverified). Never revalidate or defer it.",
+        "For idle_unverified events, report clearly that tracking stopped without confirming the thread finished (include the thread and reason); never close silently or call routine_no_update.",
         "Append {"eventId","phase":"start"} to <dir>/handled.jsonl before acting, and {"eventId","batchId","phase":"done","disposition":"handled|stale|gone|unverified"} once the outcome is durable. A start without a done means a crash: check whether the action already happened before doing it again.",
         "Make every action retry-safe by eventId: a thread you start carries it in its title (\`t3 thread start --title "<label> [<eventId>]"\`, never --generate-title).",
         "Keep handling under 5 min: start long work as new T3 threads and register them.",
@@ -327,6 +328,63 @@ it('drops a finished that a fresh read contradicts, and the real finish later st
         },
       ],
       "sentAt": 123,
+    }
+  `);
+});
+
+it('drops a queued finished when a newer run starts before delivery, switches to the new run, and delivers its real finish', async () => {
+  watch('mcp:restarted-late');
+  await kit.run(5000);
+  kit.t3.finish('mcp:restarted-late');
+  await kit.until(() => kit.events().length === 1);
+  kit.t3.startRun('mcp:restarted-late', 2);
+  await kit.run(40_000);
+  const afterRevalidation = { sent: sink.sent.length, events: kit.events(), watches: kit.watches() };
+  kit.t3.finish('mcp:restarted-late');
+  await kit.until(() => sink.sent.length > 0);
+  expect({ afterRevalidation, sent: kit.sent(), watches: kit.watches() }).toMatchInlineSnapshot(`
+    {
+      "afterRevalidation": {
+        "events": [],
+        "sent": 0,
+        "watches": [
+          {
+            "reason": null,
+            "run": "#2",
+            "settled": false,
+            "source": "registered",
+            "state": "running",
+            "thread": "mcp:restarted-late",
+          },
+        ],
+      },
+      "sent": [
+        {
+          "asOf": "+123s",
+          "attempt": 1,
+          "batchId": "id-4",
+          "events": [
+            {
+              "eventId": "id-3",
+              "kind": "finished",
+              "thread": "mcp:restarted-late",
+            },
+          ],
+          "status": [
+            "mcp:restarted-late finished",
+          ],
+        },
+      ],
+      "watches": [
+        {
+          "reason": null,
+          "run": "#2",
+          "settled": false,
+          "source": "registered",
+          "state": "finished",
+          "thread": "mcp:restarted-late",
+        },
+      ],
     }
   `);
 });

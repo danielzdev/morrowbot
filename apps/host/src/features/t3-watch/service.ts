@@ -33,10 +33,12 @@ export interface T3WatchServiceOptions {
 }
 
 export interface T3WatchService {
-  register(request: RegisterT3WatchRequest, routineId?: string | null): T3Watch;
+  register(request: RegisterT3WatchRequest, routineId?: string | null, chatThreadId?: string | null): T3Watch;
   list(): T3Watch[];
   /** The routine bound to `watchId` when registered via agent tools, or null. */
   routineOf(watchId: string): string | null;
+  /** The Ori Bot chat thread where `watchId` was created, or null. */
+  chatThreadOf(watchId: string): string | null;
   /** Stops and forgets a watch and its queued events. False when no such watch exists. */
   remove(watchId: string): boolean;
   /** Events waiting for an ack, oldest first. */
@@ -290,13 +292,14 @@ export function createT3WatchService(options: T3WatchServiceOptions): T3WatchSer
   });
 
   return {
-    register: (request, routineId = null) => {
-      const watch = store.transaction(() => registry.register(request, clock.now(), routineId));
+    register: (request, routineId = null, chatThreadId = null) => {
+      const watch = store.transaction(() => registry.register(request, clock.now(), routineId, chatThreadId));
       publish();
       return view(watch);
     },
     list: () => store.watches.list().map(view),
     routineOf: (watchId) => registry.routineOf(watchId),
+    chatThreadOf: (watchId) => registry.chatThreadOf(watchId),
     remove: (watchId) => {
       const removed = store.watches.delete(watchId);
       if (removed) publish();

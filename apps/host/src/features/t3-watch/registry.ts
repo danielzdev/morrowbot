@@ -50,9 +50,11 @@ export function view(watch: T3WatchRecord): T3Watch {
 
 export interface Registry {
   /** Records a registration, superseding the thread's unsettled watches. The caller runs the transaction. */
-  register(request: RegisterT3WatchRequest, at: number, routineId?: string | null): T3WatchRecord;
+  register(request: RegisterT3WatchRequest, at: number, routineId?: string | null, chatThreadId?: string | null): T3WatchRecord;
   /** The routine bound to this watch when registered via agent tools, or null. */
   routineOf(watchId: string): string | null;
+  /** The Ori Bot chat thread where this watch was created, or null. */
+  chatThreadOf(watchId: string): string | null;
   /** A watch for a thread discovery found running, unless one already covers it. The caller runs the transaction. */
   discover(thread: ListedThread, at: number): T3WatchRecord | undefined;
   /** Applies one read to an open watch and queues its events, in one transaction. False when the watch is not open. */
@@ -139,7 +141,7 @@ export function createRegistry(store: T3WatchStore, newId: () => string): Regist
   };
 
   return {
-    register: (request, at, routineId = null) => {
+    register: (request, at, routineId = null, chatThreadId = null) => {
       const binding = bindingOf(request);
       const stallAfterMs = request.stallAfterMin === undefined ? DEFAULT_STALL_MS : request.stallAfterMin * 60_000;
       const record: T3WatchRecord = {
@@ -153,7 +155,7 @@ export function createRegistry(store: T3WatchStore, newId: () => string): Regist
         registeredAt: iso(at),
         settledAt: null,
         updatedAt: iso(at),
-        memory: JSON.stringify(freshMemory(binding, stallAfterMs, routineId)),
+        memory: JSON.stringify(freshMemory(binding, stallAfterMs, routineId, chatThreadId)),
       };
       supersede(request.threadId, record.watchId, at);
       store.watches.insert(record);
@@ -162,6 +164,10 @@ export function createRegistry(store: T3WatchStore, newId: () => string): Regist
     routineOf: (watchId) => {
       const watch = store.watches.get(watchId);
       return watch === undefined ? null : StoredMemory.parse(watch.memory).routineId;
+    },
+    chatThreadOf: (watchId) => {
+      const watch = store.watches.get(watchId);
+      return watch === undefined ? null : StoredMemory.parse(watch.memory).chatThreadId;
     },
     discover: (thread, at) => {
       if (phaseOf(thread.status) !== 'active' || thread.latestRunId === null) return undefined;
