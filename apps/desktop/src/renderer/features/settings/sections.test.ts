@@ -15,7 +15,7 @@ import { INDEX, type SettingsLink, type SettingsSection } from './settings-index
 import { SettingsModal, type SettingsModalProps } from './SettingsModal.tsx';
 
 const APPEARANCE: Appearance = { theme: 'system', reduceMotion: 'system', chatWidth: 'normal', reducedMotion: false };
-const PREFS: ChatPrefs = { sendWith: 'enter' };
+const PREFS: ChatPrefs = { sendWith: 'enter', notify: 'on' };
 const INFO = { appVersion: '1.2.3', homeDir: '/Users/tester', userName: 'tester', dataDir: '/Users/tester/.morrowbot' };
 const BRIDGE = {
   loginItem: () => Promise.resolve({ kind: 'unsupported' }),

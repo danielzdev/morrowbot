@@ -6,7 +6,7 @@ import { z } from 'zod';
 import type { LoginItem, RevealTarget } from '../renderer/bridge.ts';
 import { checkSender, IpcRefusedError, proxyRequest, type HostTarget, type IpcSender } from './ipc-proxy.ts';
 
-interface FromRenderer {
+export interface FromRenderer {
   readonly sender: IpcSender;
   readonly rendererUrl: string;
   readonly input: unknown;

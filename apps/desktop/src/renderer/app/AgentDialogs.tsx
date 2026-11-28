@@ -7,8 +7,11 @@ import { useStore } from '../shared/use-store.ts';
 import { providerChoicesOf } from './derive.ts';
 import type { Models } from './models.ts';
 
+/** How New Agent's Brain starts: on the first eligible provider (§5.1), or unbound ("Skip for now", §7). */
+export type NewAgentBrain = 'prefill' | 'unbound';
+
 export type AgentDialog =
-  | { readonly kind: 'new-agent' }
+  | { readonly kind: 'new-agent'; readonly brain: NewAgentBrain }
   | { readonly kind: 'agent-settings'; readonly agentId: string; readonly section: AgentSection };
 
 const NO_INFO: AppInfo = { appVersion: '', homeDir: '', userName: '', dataDir: '' };
@@ -48,6 +51,7 @@ export function AgentDialogs(props: {
           model={models.agents}
           bridge={bridge}
           choices={choices}
+          prefill={dialog.brain === 'prefill'}
           avatarEditor={avatarEditor}
           newAvatar={freshAvatar}
           pathLabel={(path) => displayPath(path, info)}

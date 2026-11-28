@@ -80,6 +80,7 @@ export function openTestWindow(target: HostTarget): TestWindow {
     onUpdateStatus: () => () => undefined,
     checkForUpdates: () => Promise.resolve({ kind: 'unsupported' }),
     restartToUpdate: () => Promise.resolve(),
+    signInTerminal: () => Promise.resolve({ kind: 'unavailable', reason: 'One-click sign-in works on macOS only. Use the command instead.' }),
   };
   return {
     bridge,

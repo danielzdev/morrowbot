@@ -23,12 +23,14 @@ it('matches every word anywhere in a row, groups matches by section in nav order
   }).toMatchInlineSnapshot(`
     {
       "acrossSections": [
+        "notifications",
         "key-palette",
         "key-new-chat",
         "key-new-agent",
         "key-usage",
         "key-filter-agents",
         "key-binding",
+        "key-inspector",
         "data-folder",
       ],
       "blank": [],
@@ -85,6 +87,7 @@ it('writes each key row for macOS and elsewhere, following Send with', () => {
         "Extensions: ⇧⌘X",
         "Find in chat: ⌘F",
         "Model and access: ⇧⌘M",
+        "Agent Inspector: ⌘I",
         "Send message: Enter",
         "New line: ⇧Enter",
         "Search: /",
@@ -105,6 +108,7 @@ it('writes each key row for macOS and elsewhere, following Send with', () => {
         "Extensions: Ctrl+Shift+X",
         "Find in chat: Ctrl+F",
         "Model and access: Ctrl+Shift+M",
+        "Agent Inspector: Ctrl+I",
         "Send message: Enter",
         "New line: Shift+Enter",
         "Search: /",

@@ -1,0 +1,153 @@
+/* The Agent Inspector (spec §3.4): a 300px drawer beside the chat, over it below 1200px. */
+.main-row {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.main-row > .main {
+  min-width: 0;
+}
+.inspector {
+  display: flex;
+  flex-direction: column;
+  width: 300px;
+  flex: none;
+  min-height: 0;
+  background: var(--surface-1);
+  border-left: 1px solid var(--hairline);
+}
+.inspector.overlay {
+  --drawer-shift: 12px;
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--z-drawer);
+  width: min(300px, 85vw);
+  box-shadow: var(--shadow-pop);
+  animation: inspector-in var(--dur-pop) var(--ease);
+}
+[data-motion='reduced'] .inspector.overlay {
+  --drawer-shift: 0px;
+}
+@keyframes inspector-in {
+  from {
+    opacity: 0;
+    transform: translateX(var(--drawer-shift));
+  }
+}
+.inspector-header {
+  display: flex;
+  align-items: center;
+  flex: none;
+  height: var(--header-h);
+  padding: 0 var(--s-2) 0 var(--s-4);
+  border-bottom: 1px solid var(--hairline);
+}
+.inspector-title {
+  margin: 0;
+  font: var(--t-ui-strong);
+}
+.inspector-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.inspector-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-4);
+  border-bottom: 1px solid var(--hairline);
+}
+.inspector-card > .kicker {
+  margin: 0;
+}
+.inspector-text {
+  margin: 0;
+  font: var(--t-ui);
+  color: var(--text-1);
+  overflow-wrap: anywhere;
+}
+.inspector-text.muted {
+  color: var(--text-3);
+}
+.inspector-path {
+  margin: 0;
+  font: var(--t-mono);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.inspector-facts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  margin: 0;
+}
+.inspector-fact {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: var(--s-2);
+  font: var(--t-small);
+}
+.inspector-fact dt {
+  color: var(--text-3);
+}
+.inspector-fact dd {
+  margin: 0;
+  color: var(--text-1);
+  overflow-wrap: anywhere;
+}
+:is(.inspector-fact dd, .inspector-text).not-reported {
+  color: var(--text-3);
+  font-style: italic;
+}
+.inspector-warnings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--warn);
+  font: var(--t-small);
+}
+.inspector-warnings li {
+  display: flex;
+  gap: var(--s-2);
+  align-items: flex-start;
+}
+.inspector-warnings svg {
+  flex: none;
+  margin-top: 1px;
+}
+.inspector-instructions {
+  margin: 0;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  font: var(--t-mono);
+  color: var(--text-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.inspector-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.inspector-actions .btn {
+  min-height: var(--hit);
+  padding: 0 var(--s-2);
+  font: var(--t-small);
+  font-weight: 500;
+}
+.icon-btn[aria-pressed='true'] {
+  background: var(--selected);
+  color: var(--text-1);
+}

@@ -25,6 +25,8 @@ export interface ProviderActions {
   readonly onRelease: (regId: string) => void;
   readonly onCopy: (text: string) => Promise<void>;
   readonly onOpenLink: (url: string) => void;
+  /** Opens Terminal with the provider's own sign-in command and returns why it could not; null where one-click sign-in isn't offered. */
+  readonly onSignInTerminal: (() => Promise<string | null>) | null;
   readonly onDirty: (dirty: boolean) => void;
 }
 
@@ -72,7 +74,7 @@ export function ProviderDetail(props: { readonly card: ProviderCard; readonly in
 
       {status.setup !== null && (
         <DetailSection title={status.setup.kind === 'sign-in' ? 'Sign in' : status.setup.kind === 'update' ? 'Update' : 'Set up'}>
-          <ProviderSetup providerId={manifest.id} setup={status.setup} info={props.info} redact={redact} onCopy={actions.onCopy} onOpenLink={actions.onOpenLink} />
+          <ProviderSetup providerId={manifest.id} setup={status.setup} info={props.info} redact={redact} onCopy={actions.onCopy} onOpenLink={actions.onOpenLink} onSignInTerminal={actions.onSignInTerminal} />
         </DetailSection>
       )}
 
