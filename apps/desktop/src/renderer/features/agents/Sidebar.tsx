@@ -32,10 +32,11 @@ export interface SidebarProps {
   readonly onOpenAgent: (agentId: string, threadId: string | null) => void;
   readonly onNewChat: (agentId: string) => void;
   readonly onAgentSettings: (agentId: string) => void;
-  readonly onNewAgent: () => void;
+  /** Null hides New agent, for a member who may not create agents. */
+  readonly onNewAgent: (() => void) | null;
   readonly onSettings: () => void;
-  readonly onUsage: () => void;
-  readonly onExtensions: () => void;
+  readonly onUsage: (() => void) | null;
+  readonly onExtensions: (() => void) | null;
   readonly onToggle: () => void;
   readonly alert: { readonly tone: 'warn' | 'danger'; readonly label: string } | null;
   /** Bumped by ⇧⌘F: focuses the search. */

@@ -1,0 +1,64 @@
+/* Joining a server (Welcome and Settings › Server) and inviting members (Settings › Members). */
+.join-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.join-or {
+  color: var(--text-3);
+  font: var(--t-small);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.join-pair {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: var(--s-3);
+}
+.join-error {
+  margin: 0;
+  color: var(--danger);
+  font: var(--t-small);
+}
+.invite-form .pair-info,
+.server-panel .pair-info {
+  gap: var(--s-3);
+}
+.invite-agents {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.invite-agents legend {
+  margin-bottom: var(--s-1);
+  padding: 0;
+  color: var(--text-2);
+  font: var(--t-small);
+  font-weight: 500;
+}
+.invite-check {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font: var(--t-ui);
+}
+.invite-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  font: var(--t-ui);
+}
+.invite-link {
+  display: block;
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  background: var(--surface-1);
+  font: var(--t-mono);
+  overflow-wrap: anywhere;
+  user-select: all;
+}

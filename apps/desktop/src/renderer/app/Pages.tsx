@@ -29,7 +29,8 @@ export function Pages(props: {
   readonly approvalFocus: string | null;
   readonly onApprovalFocused: () => void;
   readonly onAgentSettings: (agentId: string, section: AgentSection) => void;
-  readonly onNewAgent: () => void;
+  /** Null for a member who may not create agents. */
+  readonly onNewAgent: (() => void) | null;
   readonly onCopy: (threadId: string) => void;
   readonly onNewChat: (agentId: string) => void;
   readonly onOpenSettings: (link: SettingsLink) => void;
@@ -73,12 +74,16 @@ export function Pages(props: {
       }
       return (
         <PageFrame title="MorrowBot" chrome={chrome}>
-          {state.agents.kind === 'loaded' && state.agents.value.length === 0 ? (
+          {state.agents.kind === 'loaded' && state.agents.value.length === 0 && props.onNewAgent === null ? (
+            <div class="chat empty">
+              <p>No agents are shared with you on this server right now. Ask its owner to share one.</p>
+            </div>
+          ) : state.agents.kind === 'loaded' && state.agents.value.length === 0 ? (
             <FirstRun models={models} bridge={bridge} info={info} onFirstAgent={props.onFirstAgent} />
           ) : (
             <div class="chat empty">
               <p>{state.agents.kind === 'loading' ? 'Loading…' : state.agents.kind === 'failed' ? "MorrowBot couldn't load your agents." : 'Choose an agent to start chatting.'}</p>
-              {state.agents.kind === 'loaded' && <button class="btn primary" onClick={props.onNewAgent}>New agent</button>}
+              {state.agents.kind === 'loaded' && props.onNewAgent !== null && <button class="btn primary" onClick={props.onNewAgent}>New agent</button>}
             </div>
           )}
         </PageFrame>
