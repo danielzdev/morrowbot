@@ -1,4 +1,4 @@
-import type { ChatPrefs, ChatPrefsModel, Notify, SendWith } from '../../shared/chat-prefs.ts';
+import type { ChatPrefs, ChatPrefsModel, Notify, SendWith, ToolActivity } from '../../shared/chat-prefs.ts';
 import type { ChatSettingsModel } from '../../shared/chat-settings.ts';
 import { sendKeyLabels, type Platform } from '../../shared/keys.ts';
 import { Segmented } from '../../shared/ui/Segmented.tsx';
@@ -29,6 +29,19 @@ export function ChatSection(props: { readonly prefs: ChatPrefs; readonly onChang
         value={props.prefs.notify}
         onChange={(notify) => {
           props.onChange({ notify });
+        }}
+        options={[
+          { value: 'on', label: 'On' },
+          { value: 'off', label: 'Off' },
+        ]}
+      />
+    </SettingRow>
+    <SettingRow entry={ROWS.toolActivity}>
+      <Segmented<ToolActivity>
+        label={ROWS.toolActivity.label}
+        value={props.prefs.toolActivity}
+        onChange={(toolActivity) => {
+          props.onChange({ toolActivity });
         }}
         options={[
           { value: 'on', label: 'On' },

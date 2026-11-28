@@ -26,6 +26,7 @@ const CTX: TimelineContext = {
   files: { url: (id) => id, act: () => Promise.resolve({ kind: 'cancelled' }) },
   peers: { name: () => 'Peer', color: () => '#6b7280', avatar: () => null },
   avatar: () => null,
+  tools: false,
   cards: { peers: { name: () => 'Peer', color: () => '#6b7280', avatar: () => null }, owner: true, onAct: () => undefined, onOpenPlugin: null },
 };
 

@@ -48,6 +48,8 @@ export interface ChatViewProps {
   readonly onOpenPlugin: ((pluginId: string) => void) | null;
   /** A card changed one of the agent's settings. */
   readonly onAgentChanged: (agentId: string) => void;
+  /** Settings › Chat › Show tool activity. */
+  readonly tools: boolean;
 }
 
 /** The chat canvas: history in a window of recent messages, the live turn, FindBar and announcements. */
@@ -92,6 +94,7 @@ export function ChatView(props: ChatViewProps) {
       peers: props.peers,
       engine: props.engine,
       avatar: props.avatar,
+      tools: props.tools,
       cards: {
         peers: props.peers,
         owner: props.owner,
@@ -104,7 +107,7 @@ export function ChatView(props: ChatViewProps) {
         },
       },
     }),
-    [session, props.display, props.providerName, props.peers, props.agentName, props.engine, props.avatar, props.owner, props.onOpenPlugin === null],
+    [session, props.display, props.providerName, props.peers, props.agentName, props.engine, props.avatar, props.owner, props.onOpenPlugin === null, props.tools],
   );
 
   const announce = (text: string): void => { setSaid((before) => ({ text, n: before.n + 1 })); };
