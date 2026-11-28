@@ -84,6 +84,22 @@ const CANCEL_WHEEL_WAIT = `(() => {
   if (window[key] === entry) delete window[key];
 })()`;
 
+const WAIT_FOR_FRAME = `new Promise((resolve) => {
+  if (document.visibilityState !== 'visible') {
+    setTimeout(resolve, 50);
+    return;
+  }
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    resolve(undefined);
+  };
+  const timer = setTimeout(finish, 250);
+  requestAnimationFrame(() => requestAnimationFrame(finish));
+})`;
+
 export interface Point {
   readonly x: number;
   readonly y: number;
@@ -166,15 +182,26 @@ async function dispatchWheelAndSettle(session: CdpSession, x: number, y: number,
   return result.value ?? 'no-wheel';
 }
 
+async function waitForFrame(session: CdpSession): Promise<void> {
+  await session.send('Runtime.evaluate', { expression: WAIT_FOR_FRAME, awaitPromise: true });
+}
+
 /** Drags with the mouse: Chrome runs HTML drag-and-drop and pointer drags alike from DevTools mouse events. */
 export async function drag(session: CdpSession, from: Point, target: () => Promise<Point>): Promise<void> {
   const move = (point: Point): Promise<unknown> => session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: point.x, y: point.y, button: 'left', buttons: 1 });
+  await waitForFrame(session);
   await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: from.x, y: from.y });
   await session.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: from.x, y: from.y, button: 'left', buttons: 1, clickCount: 1 });
   for (let step = 1; step <= 3; step += 1) await move({ x: from.x + step * 4, y: from.y + step * 4 });
+  await waitForFrame(session);
+  await target();
+  await waitForFrame(session);
   const to = await target();
   const steps = 5;
   for (let step = 1; step <= steps; step += 1) await move({ x: from.x + ((to.x - from.x) * step) / steps, y: from.y + ((to.y - from.y) * step) / steps });
   await move(to);
+  await waitForFrame(session);
+  await move(to);
   await session.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: to.x, y: to.y, button: 'left', buttons: 0, clickCount: 1 });
+  await waitForFrame(session);
 }

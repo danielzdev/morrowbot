@@ -172,7 +172,14 @@ describe.skipIf(chromeMissing)('the Chromium driver on a real page', () => {
     const toElement = await t.chrome.evaluate(tabId, 'window.scrollY > 2000');
     await t.chrome.evaluate(tabId, "scrollTo(0, 0); document.getElementById('log').textContent = ''");
     await t.run({ kind: 'drag', tabId, from: refOf(snapshot, 'button "Card"'), to: refOf(snapshot, 'region "Far bin"') });
-    const farDropped = await t.log(tabId);
+    const farDropped = await vi.waitFor(
+      async () => {
+        const text = await t.log(tabId);
+        if (text === '') throw new Error('waiting for far drop');
+        return text;
+      },
+      { timeout: 5_000 },
+    );
     expect({ hovered, dropped, byPage, toElement, farDropped }).toMatchInlineSnapshot(`
       {
         "byPage": 500,

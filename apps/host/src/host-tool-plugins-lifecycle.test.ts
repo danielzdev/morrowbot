@@ -56,7 +56,7 @@ async function installFixturePlugins(pluginsDir: string): Promise<void> {
   await writeToolPlugin(
     pluginsDir,
     'gadget',
-    `import { writeFileSync } from 'node:fs';
+    `import { renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { defineToolPlugin, runPlugin } from ${JSON.stringify(PLUGIN_SDK_URL)};
 runPlugin(() => {
@@ -75,7 +75,12 @@ runPlugin(() => {
       if (name === 'gadget_prefixed') return { kind: 'ok', content: [{ kind: 'text', text: 'from gadget' }] };
       if (name === 'extra_tool') return { kind: 'ok', content: [{ kind: 'text', text: 'owner: gadget' }] };
       if (name === 'hang') {
-        await new Promise((resolve) => signal.addEventListener('abort', () => { writeFileSync(path.join(dir, 'aborted.txt'), 'yes'); resolve(undefined); }, { once: true }));
+        await new Promise((resolve) => signal.addEventListener('abort', () => {
+          const tmp = path.join(dir, 'aborted.txt.tmp');
+          writeFileSync(tmp, 'yes');
+          renameSync(tmp, path.join(dir, 'aborted.txt'));
+          resolve(undefined);
+        }, { once: true }));
         return { kind: 'error', message: 'cancelled' };
       }
       if (name === 'crash') process.exit(9);
@@ -115,7 +120,7 @@ it('handles multi-block results, collision prevention, scoping, disable/safe-mod
     builtinPluginsDir: PLUGIN_FIXTURES,
     pluginsDir,
     sequence: sequence(),
-    timeouts: { ...DEFAULT_PLUGIN_TIMEOUTS, toolCallMs: 180 },
+    timeouts: { ...DEFAULT_PLUGIN_TIMEOUTS, toolCallMs: 300 },
     isPluginAllowedForAgent: (agentId, pluginId) => pluginId !== 'gadget' || agentId === allowedAgentId,
   });
   cleanups.push(async () => {
@@ -149,7 +154,14 @@ it('handles multi-block results, collision prevention, scoping, disable/safe-mod
   const collisionWinner = await call(3, 'gadget_extra_tool');
   const multiBlock = await call(4, 'gadget_snap');
   const timedOut = await call(5, 'gadget_hang');
-  const abortMarker = await vi.waitFor(() => readFile(path.join(dataDir, 'plugin-data', 'gadget', 'aborted.txt'), 'utf8'));
+  const abortMarker = await vi.waitFor(
+    async () => {
+      const content = await readFile(path.join(dataDir, 'plugin-data', 'gadget', 'aborted.txt'), 'utf8');
+      if (content === '') throw new Error('waiting for abort marker content');
+      return content;
+    },
+    { timeout: 5_000 },
+  );
 
   await chat.host.call('PUT', '/api/plugins/gadget/enabled', { enabled: false });
   const namesWhileDisabled = (await listedTools(allowedTurn.tools)).map((t) => t.name);
