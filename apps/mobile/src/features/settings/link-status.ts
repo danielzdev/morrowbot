@@ -18,6 +18,8 @@ export function describeLink(status: LinkStatus, now: number): StatusLabel {
       const seconds = Math.max(1, Math.ceil((status.retryAt - now) / 1000));
       return { tone: 'warn', label: `Offline · retrying in ${String(seconds)} s` };
     }
+    case 'paused':
+      return { tone: 'muted', label: 'Paused in the background' };
     case 'revoked':
       return { tone: 'danger', label: 'Unpaired on the desktop' };
   }

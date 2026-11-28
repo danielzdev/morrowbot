@@ -1,12 +1,12 @@
 import { PluginList, ProviderInfoResponse, type PluginEntry, type ProviderInfo } from '@morrowbot/contracts';
 import { Check, Group, GroupedScroll, LoadedNote, Row, StatusDot } from './grouped.tsx';
 import type { StatusLabel } from './link-status.ts';
-import { useHostGet } from './use-host-request.ts';
+import { loadedValue, useHostGet } from './use-host-request.ts';
 
 /** The host's provider plugins, whether each runs, and the models a ready one offers. */
 export function ProvidersScreen() {
   const plugins = useHostGet('/api/plugins', PluginList);
-  const providers = plugins.kind === 'ready' ? plugins.value.plugins.filter((entry) => entry.manifest.kind === 'provider') : [];
+  const providers = loadedValue(plugins)?.plugins.filter((entry) => entry.manifest.kind === 'provider') ?? [];
   return (
     <GroupedScroll>
       <LoadedNote loaded={plugins} empty={providers.length === 0 ? 'This host has no providers.' : null} />
@@ -30,15 +30,16 @@ function ProviderGroup(props: { readonly entry: PluginEntry }) {
 
 function ProviderModels(props: { readonly pluginId: string }) {
   const info = useHostGet(`/api/plugins/${encodeURIComponent(props.pluginId)}/info`, ProviderInfoResponse);
-  if (info.kind !== 'ready') return <Row label={info.kind === 'error' ? info.message : 'Loading models…'} detail={null} leading={null} trailing={null} tone="default" selected={false} onPress={null} />;
-  const summary = infoSummary(info.value.info);
-  if (info.value.info.kind !== 'ready') {
+  const value = loadedValue(info);
+  if (value === null) return <Row label={info.kind === 'error' ? info.message : 'Loading models…'} detail={null} leading={null} trailing={null} tone="default" selected={false} onPress={null} />;
+  const summary = infoSummary(value.info);
+  if (value.info.kind !== 'ready') {
     return <Row label={summary} detail={null} leading={null} trailing={null} tone="default" selected={false} onPress={null} />;
   }
   return (
     <>
       <Row label="Account" detail={summary} leading={null} trailing={null} tone="default" selected={false} onPress={null} />
-      {info.value.info.models.map((model) => (
+      {value.info.models.map((model) => (
         <Row key={model.id} label={model.label} detail={model.isDefault ? 'Default' : null} leading={null} trailing={model.isDefault ? <Check /> : null} tone="default" selected={false} onPress={null} />
       ))}
     </>

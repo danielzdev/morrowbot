@@ -130,6 +130,8 @@ export function LoadedNote<T>(props: { readonly loaded: Loaded<T>; readonly empt
       return <Note text={props.loaded.message} />;
     case 'ready':
       return props.empty === null ? null : <Note text={props.empty} />;
+    case 'stale':
+      return <Note text="Showing what the host last sent. It updates when the host is back." />;
   }
 }
 

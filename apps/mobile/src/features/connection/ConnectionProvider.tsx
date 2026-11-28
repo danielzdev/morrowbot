@@ -69,7 +69,8 @@ export function ConnectionProvider(props: { readonly children: ReactNode }) {
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (next) => {
-      if (next === 'active') live?.link.retryNow();
+      if (next === 'background') live?.link.pause();
+      else if (next === 'active') live?.link.wake();
     });
     return () => {
       subscription.remove();
@@ -118,7 +119,7 @@ export function ConnectionProvider(props: { readonly children: ReactNode }) {
         return profile === undefined ? { kind: 'revoked' } : probeHost(fetch, profile);
       },
       retryNow: () => {
-        live?.link.retryNow();
+        live?.link.wake();
       },
     };
   }, [saved, live, active]);

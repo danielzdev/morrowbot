@@ -1,9 +1,10 @@
-import { Agent, PairingCodeResponse, SendMessageResponse, Thread, ThreadState, type EventServerFrame } from '@morrowbot/contracts';
+import { Agent, EventClientFrame, PairingCodeResponse, SendMessageResponse, Thread, ThreadState } from '@morrowbot/contracts';
 import { afterEach, expect, it } from 'vitest';
 import WebSocket from 'ws';
-import type { LinkStatus } from '../../lib/host-connection.ts';
+import type { ThreadWatcher } from '../../lib/host-connection.ts';
 import { claimPairing, probeHost } from './claim.ts';
 import type { OpenSocket } from './event-stream.ts';
+import type { HttpFetch } from './host-http.ts';
 import { connectHost, type LiveTransport } from './host-transport.ts';
 import { startRealHost, type RealHost } from './real-host.test-support.ts';
 import type { HostProfile } from './saved-hosts.ts';
@@ -13,8 +14,11 @@ afterEach(async () => {
   for (const step of cleanup.splice(0).reverse()) await step();
 });
 
-/** Real sockets to the real host; `drop` cuts the newest one the way a lost network does. */
-function realSockets(): { readonly open: OpenSocket; readonly drop: () => void } {
+/**
+ * Real sockets to the real host. `log` records each frame the app sends and each socket closing;
+ * `drop` cuts the newest socket the way a lost network does.
+ */
+function realSockets(log: string[]): { readonly open: OpenSocket; readonly drop: () => void } {
   const sockets: WebSocket[] = [];
   return {
     open: (url, token, handlers) => {
@@ -24,10 +28,15 @@ function realSockets(): { readonly open: OpenSocket; readonly drop: () => void }
       ws.on('message', (data: Buffer) => {
         handlers.onMessage(data.toString('utf8'));
       });
-      ws.on('close', handlers.onClose);
+      ws.on('close', (code: number) => {
+        log.push('socket closed');
+        handlers.onClose(code);
+      });
       ws.on('error', () => undefined);
       return {
         send: (text) => {
+          const frame = EventClientFrame.parse(JSON.parse(text));
+          log.push(frame.kind === 'subscribe' ? `subscribe since ${String(frame.since?.seq ?? null)}` : 'unsubscribe');
           ws.send(text);
         },
         close: () => {
@@ -37,6 +46,27 @@ function realSockets(): { readonly open: OpenSocket; readonly drop: () => void }
     },
     drop: () => sockets.at(-1)?.terminate(),
   };
+}
+
+/** `fetch`, noting each thread state request in `log`. */
+function loggingFetch(log: string[]): HttpFetch {
+  return async (url, init) => {
+    if (url.endsWith('/state')) log.push('GET /state');
+    return fetch(url, init);
+  };
+}
+
+/** Notes in `log` what a screen watching the thread would be told. */
+function recorder(log: string[]): ThreadWatcher {
+  return {
+    onFresh: (state) => log.push(`fresh: ${String(state.messages.length)} messages at seq ${String(state.cursor.seq)}`),
+    onEvent: (event) => log.push(`event ${event.kind}`),
+    onStale: () => log.push('stale'),
+  };
+}
+
+async function until(check: () => boolean): Promise<void> {
+  while (!check()) await new Promise((resolve) => setTimeout(resolve, 10));
 }
 
 async function startHost(): Promise<RealHost> {
@@ -62,49 +92,45 @@ async function echoThread(host: RealHost): Promise<Thread> {
   return Thread.parse((await host.call('POST', `/api/agents/${agent.id}/threads`, { title: 'Chat' })).body);
 }
 
-interface Watched {
+interface App {
   readonly live: LiveTransport;
-  readonly statuses: LinkStatus['kind'][];
-  readonly frames: EventServerFrame[];
-  readonly until: (match: (frame: EventServerFrame) => boolean) => Promise<void>;
-  readonly online: () => Promise<void>;
+  readonly statuses: string[];
 }
 
-function connect(profile: HostProfile, open: OpenSocket): Watched {
-  const statuses: LinkStatus['kind'][] = [];
-  const frames: EventServerFrame[] = [];
-  const waiters: (() => void)[] = [];
-  const notify = (): void => {
-    for (const waiter of waiters.splice(0)) waiter();
-  };
-  const live = connectHost(
-    profile,
-    { fetch, openSocket: open, delayFor: () => 50, now: () => 0, report: () => undefined },
-    (state) => {
-      if (statuses.at(-1) !== state.status.kind) statuses.push(state.status.kind);
-      notify();
-    },
-  );
-  cleanup.push(live.close);
-  live.transport.listen((frame) => {
-    frames.push(frame);
-    notify();
+/** The app's transport. Backoff waits a minute, so any quick reconnect here is one the app asked for. */
+function connect(profile: HostProfile, open: OpenSocket, httpFetch: HttpFetch = fetch): App {
+  const statuses: string[] = [];
+  const live = connectHost(profile, { fetch: httpFetch, openSocket: open, delayFor: () => 60_000, now: () => 0, report: () => undefined }, (state) => {
+    const label = state.status.kind === 'connecting' ? `connecting (attempt ${String(state.status.attempt)})` : state.status.kind;
+    if (statuses.at(-1) !== label) statuses.push(label);
   });
-  const until = async (match: (frame: EventServerFrame) => boolean): Promise<void> => {
-    while (!frames.some(match)) await new Promise<void>((resolve) => waiters.push(resolve));
-  };
-  const online = async (): Promise<void> => {
-    while (statuses.at(-1) !== 'online') await new Promise<void>((resolve) => waiters.push(resolve));
-  };
-  return { live, statuses, frames, until, online };
+  cleanup.push(live.close);
+  return { live, statuses };
 }
 
-function startedId(reply: SendMessageResponse): string {
-  if (reply.kind !== 'started') throw new Error(`expected an idle thread to start, got ${reply.kind}`);
-  return reply.generationId;
+/** Sends `text` the way the desktop would, and waits for the host to finish the turn. */
+async function sendFromDesktop(host: RealHost, threadId: string, text: string): Promise<void> {
+  SendMessageResponse.parse((await host.call('POST', `/api/threads/${threadId}/messages`, { text })).body);
+  const idle = async (): Promise<boolean> => ThreadState.parse((await host.call('GET', `/api/threads/${threadId}/state`)).body).activeTurn === null;
+  while (!(await idle())) await new Promise((resolve) => setTimeout(resolve, 10));
 }
 
-const finished = (generationId: string) => (frame: EventServerFrame) => frame.kind === 'generation.finished' && frame.generationId === generationId;
+/** A paired app watching a fresh echo thread that already holds one finished turn. */
+async function watchingApp(host: RealHost): Promise<{ readonly app: App; readonly sockets: ReturnType<typeof realSockets>; readonly log: string[]; readonly threadId: string }> {
+  const log: string[] = [];
+  const sockets = realSockets(log);
+  const app = connect(await pair(host), sockets.open, loggingFetch(log));
+  await until(() => app.statuses.at(-1) === 'online');
+  const thread = await echoThread(host);
+  cleanup.push(app.live.transport.watchThread(thread.id, recorder(log)));
+  await until(() => log.some((line) => line.startsWith('fresh')));
+  await sendFromDesktop(host, thread.id, 'first');
+  await until(() => log.includes('event generation.finished'));
+  log.push('---');
+  return { app, sockets, log, threadId: thread.id };
+}
+
+const freshCount = (log: readonly string[]): number => log.filter((line) => line.startsWith('fresh')).length;
 
 it('refuses a wrong code, then pairs and reaches the host with the device token', async () => {
   const host = await startHost();
@@ -138,57 +164,56 @@ it('refuses a wrong code, then pairs and reaches the host with the device token'
   `);
 });
 
-it('resumes a thread from its cursor after the socket drops, delivering each missed event once', async () => {
+it('after the socket drops, marks the thread stale, and on reconnecting fetches its state before subscribing', async () => {
   const host = await startHost();
-  const sockets = realSockets();
-  const watched = connect(await pair(host), sockets.open);
-  const unbroken = connect(await pair(host), realSockets().open);
-  await Promise.all([watched.online(), unbroken.online()]);
-  const thread = await echoThread(host);
-  const state = await watched.live.transport.request({ method: 'GET', path: `/api/threads/${thread.id}/state`, reply: ThreadState });
-  if (state.kind !== 'ok') throw new Error(state.kind);
-  watched.live.transport.watchThread(thread.id, state.value.cursor);
-  unbroken.live.transport.watchThread(thread.id, state.value.cursor);
-
-  const first = await watched.live.transport.request({
-    method: 'POST',
-    path: `/api/threads/${thread.id}/messages`,
-    reply: SendMessageResponse,
-    body: { text: 'first' },
-  });
-  if (first.kind !== 'ok') throw new Error(first.kind);
-  await watched.until(finished(startedId(first.value)));
-
+  const { app, sockets, log, threadId } = await watchingApp(host);
   sockets.drop();
-  const second = startedId(SendMessageResponse.parse((await host.call('POST', `/api/threads/${thread.id}/messages`, { text: 'second' })).body));
-  await Promise.all([watched.until(finished(second)), unbroken.until(finished(second))]);
-
-  const seqs = watched.frames.flatMap((frame) => ('cursor' in frame ? [frame.cursor.seq] : []));
-  const ofSecond = (frames: readonly EventServerFrame[]) =>
-    frames.filter((frame) => 'generationId' in frame && frame.generationId === second).map((frame) => frame.kind);
-  expect({
-    statuses: watched.statuses,
-    secondGeneration: ofSecond(watched.frames),
-    sameAsUnbrokenSocket: JSON.stringify(ofSecond(watched.frames)) === JSON.stringify(ofSecond(unbroken.frames)),
-    seqsStrictlyIncrease: seqs.every((seq, index) => index === 0 || seq > (seqs[index - 1] ?? Infinity)),
-    firstSeqFollowsState: seqs[0] === state.value.cursor.seq + 1,
-  }).toMatchInlineSnapshot(`
+  await until(() => app.statuses.at(-1) === 'reconnecting');
+  await sendFromDesktop(host, threadId, 'while offline');
+  app.live.wake();
+  await until(() => freshCount(log) === 2);
+  expect({ statuses: app.statuses, afterFirstTurn: log.slice(log.indexOf('---') + 1) }).toMatchInlineSnapshot(`
     {
-      "firstSeqFollowsState": true,
-      "sameAsUnbrokenSocket": true,
-      "secondGeneration": [
-        "generation.started",
-        "generation.status",
-        "generation.delta",
-        "generation.delta",
-        "generation.finished",
+      "afterFirstTurn": [
+        "socket closed",
+        "stale",
+        "GET /state",
+        "subscribe since 10",
+        "fresh: 4 messages at seq 10",
       ],
-      "seqsStrictlyIncrease": true,
       "statuses": [
-        "connecting",
+        "connecting (attempt 0)",
         "online",
         "reconnecting",
-        "connecting",
+        "connecting (attempt 1)",
+        "online",
+      ],
+    }
+  `);
+});
+
+it('closes the socket in the background and, back in the foreground, reconnects at once and refetches before subscribing', async () => {
+  const host = await startHost();
+  const { app, log, threadId } = await watchingApp(host);
+  app.live.pause();
+  await until(() => log.includes('socket closed'));
+  await sendFromDesktop(host, threadId, 'while in the background');
+  app.live.wake();
+  await until(() => freshCount(log) === 2);
+  expect({ statuses: app.statuses, afterFirstTurn: log.slice(log.indexOf('---') + 1) }).toMatchInlineSnapshot(`
+    {
+      "afterFirstTurn": [
+        "stale",
+        "socket closed",
+        "GET /state",
+        "subscribe since 10",
+        "fresh: 4 messages at seq 10",
+      ],
+      "statuses": [
+        "connecting (attempt 0)",
+        "online",
+        "paused",
+        "connecting (attempt 0)",
         "online",
       ],
     }
@@ -198,8 +223,8 @@ it('resumes a thread from its cursor after the socket drops, delivering each mis
 it('stops for good once the desktop unpairs the device', async () => {
   const host = await startHost();
   const profile = await pair(host);
-  const watched = connect(profile, realSockets().open);
-  await watched.online();
+  const watched = connect(profile, realSockets([]).open);
+  await until(() => watched.statuses.at(-1) === 'online');
   const unpaired = await host.call('DELETE', `/api/pairing/devices/${profile.deviceId}`);
   while (watched.statuses.at(-1) !== 'revoked') await new Promise((resolve) => setTimeout(resolve, 10));
   const after = await watched.live.transport.request({ method: 'GET', path: '/api/agents', reply: ThreadState });
@@ -210,7 +235,7 @@ it('stops for good once the desktop unpairs the device', async () => {
         "kind": "revoked",
       },
       "statuses": [
-        "connecting",
+        "connecting (attempt 0)",
         "online",
         "revoked",
       ],

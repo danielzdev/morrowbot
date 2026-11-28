@@ -42,6 +42,7 @@ function stream(url: string, delays: number[], statuses: LinkStatus[], problems:
     report: (problem) => problems.push(problem),
   });
   cleanup.push(opened.close);
+  opened.wake();
   return opened;
 }
 
@@ -49,7 +50,7 @@ async function until(check: () => boolean): Promise<void> {
   while (!check()) await new Promise((resolve) => setTimeout(resolve, 5));
 }
 
-it('skips frames it does not know without dropping the socket, and sends only subscribe frames', async () => {
+it('skips frames it does not know without dropping the socket', async () => {
   const server = new WebSocketServer({ port: 0, host: '127.0.0.1' });
   await new Promise((resolve) => server.once('listening', resolve));
   cleanup.push(() => {
@@ -72,7 +73,8 @@ it('skips frames it does not know without dropping the socket, and sends only su
   const problems: string[] = [];
   const events = stream(`http://127.0.0.1:${String(port)}`, [], statuses, problems);
   events.listen((frame) => frames.push(frame));
-  events.watchThread('t1', { hostEpoch: 'e1', seq: 4 });
+  await until(() => events.session() !== null);
+  events.send(events.session() ?? -1, { kind: 'subscribe', threadId: 't1', since: { hostEpoch: 'e1', seq: 4 } });
   await until(() => frames.length === 1);
   expect({ fromClient, frames, problems, statuses: statuses.map((status) => status.kind) }).toMatchInlineSnapshot(`
     {
@@ -101,6 +103,57 @@ it('skips frames it does not know without dropping the socket, and sends only su
         "connecting",
         "online",
       ],
+    }
+  `);
+});
+
+it('closes the socket while paused, without retrying, and connects at once on wake', async () => {
+  const server = new WebSocketServer({ port: 0, host: '127.0.0.1' });
+  await new Promise((resolve) => server.once('listening', resolve));
+  cleanup.push(() => {
+    server.close();
+  });
+  const serverSide: string[] = [];
+  server.on('connection', (ws) => {
+    serverSide.push('opened');
+    ws.on('close', () => serverSide.push('closed'));
+  });
+  const address = server.address();
+  if (address === null || typeof address === 'string') throw new Error('not listening');
+  const delays: number[] = [];
+  const statuses: LinkStatus[] = [];
+  const events = stream(`http://127.0.0.1:${String(address.port)}`, delays, statuses, []);
+  await until(() => events.session() !== null);
+  events.pause();
+  await until(() => serverSide.length === 2);
+  const whilePaused = { session: events.session(), statuses: statuses.map((status) => status.kind) };
+  events.wake();
+  await until(() => serverSide.length === 3 && events.session() !== null);
+  expect({ whilePaused, afterWake: statuses.slice(whilePaused.statuses.length), serverSide, backoffs: delays }).toMatchInlineSnapshot(`
+    {
+      "afterWake": [
+        {
+          "attempt": 0,
+          "kind": "connecting",
+        },
+        {
+          "kind": "online",
+        },
+      ],
+      "backoffs": [],
+      "serverSide": [
+        "opened",
+        "closed",
+        "opened",
+      ],
+      "whilePaused": {
+        "session": null,
+        "statuses": [
+          "connecting",
+          "online",
+          "paused",
+        ],
+      },
     }
   `);
 });

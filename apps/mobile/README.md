@@ -23,8 +23,11 @@ Expo (dev client) + React Native app for iOS, built first for iPhone Duo folded 
 - Pairing: scan the desktop's QR (`morrowbot://pair?url=…&code=…`, in-app or with the system
   Camera) or type the host address and 6-digit code. Tokens live in the iOS Keychain, this device
   only.
-- `/api/events` reconnects with backoff (0.5 s doubling to 30 s) and resumes each watched thread
-  from its last cursor. Host replies are parsed with `lenient()`, so newer hosts can add fields.
+- `/api/events` closes when the app goes to the background and reconnects as soon as it is
+  active again; a dropped socket retries with backoff (0.5 s doubling to 30 s). On every
+  reconnect, and on `resync`, each watched thread fetches `/state` first and then subscribes
+  from that cursor. Until then the thread is stale and its actions are disabled.
+- Host replies are parsed with `lenient()`, so newer hosts can add fields.
 
 ## Run
 

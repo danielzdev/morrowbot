@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { radii, spacing, typography } from '../../lib/theme.ts';
 import { useTheme } from '../../lib/useTheme.ts';
 import { Group, GroupedScroll, LoadedNote, Row } from './grouped.tsx';
-import { useHostGet } from './use-host-request.ts';
+import { loadedValue, useHostGet } from './use-host-request.ts';
 
 const RANGES: readonly { readonly range: TokenRange; readonly label: string }[] = [
   { range: '24h', label: '24 h' },
@@ -18,7 +18,8 @@ export function UsageScreen() {
   const { colors } = useTheme();
   const [range, setRange] = useState<TokenRange>('7d');
   const usage = useHostGet(`/api/usage/tokens?range=${range}`, TokenUsageResponse);
-  const groups = usage.kind === 'ready' ? byModel(usage.value.totals) : [];
+  const value = loadedValue(usage);
+  const groups = value === null ? [] : byModel(value.totals);
   return (
     <GroupedScroll>
       <View style={[styles.segments, { backgroundColor: colors.selected }]}>

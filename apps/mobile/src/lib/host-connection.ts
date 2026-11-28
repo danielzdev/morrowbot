@@ -1,4 +1,4 @@
-import type { Cursor, EntityId, EventServerFrame } from '@morrowbot/contracts';
+import type { Cursor, EntityId, EventServerFrame, ThreadState } from '@morrowbot/contracts';
 import { createContext, useContext } from 'react';
 import type { z } from 'zod';
 import type { PairingTarget } from './pairing-link.ts';
@@ -22,6 +22,8 @@ export type LinkStatus =
   | { readonly kind: 'online' }
   /** The socket dropped; the next try is at `retryAt` (epoch ms). */
   | { readonly kind: 'reconnecting'; readonly attempt: number; readonly retryAt: number }
+  /** The app is in the background, so the socket is closed. It reconnects as soon as the app is active. */
+  | { readonly kind: 'paused' }
   /** The host unpaired this device. Nothing retries until it pairs again. */
   | { readonly kind: 'revoked' };
 
@@ -47,10 +49,27 @@ export interface HostRequest<T> {
   readonly body?: unknown;
 }
 
-/** A thread's events after `since`. On `resync`, refetch the thread's state and `resume` at its cursor. */
-export interface ThreadWatch {
-  readonly resume: (since: Cursor | null) => void;
-  readonly close: () => void;
+/** An event in a thread's history, carrying the thread's cursor. */
+export type ThreadEvent = Extract<EventServerFrame, { readonly cursor: Cursor }>;
+
+/** A frame outside any thread's history, such as `usage.updated`. */
+export type GlobalEvent = Exclude<EventServerFrame, ThreadEvent | { readonly kind: 'resync' }>;
+
+/**
+ * Follows one thread. Whenever the link opens again, and when the host asks for a resync, the
+ * transport fetches the thread's `/state` first and only then subscribes from that state's cursor,
+ * so every event applies to the state the watcher was given.
+ */
+export interface ThreadWatcher {
+  /** The thread as the host has it now. Events after it follow; actions may run again. */
+  readonly onFresh: (state: ThreadState) => void;
+  /** The next event after the last state or event. Each is delivered once. */
+  readonly onEvent: (event: ThreadEvent) => void;
+  /**
+   * The link dropped, the app went to the background, or the host asked for a resync. Keep
+   * showing the last state marked as stale, with actions disabled, until the next `onFresh`.
+   */
+  readonly onStale: () => void;
 }
 
 /**
@@ -60,9 +79,10 @@ export interface ThreadWatch {
 export interface HostTransport {
   readonly host: PairedHost;
   readonly request: <T>(request: HostRequest<T>) => Promise<HostResult<T>>;
-  /** Every frame from the host: global events, and events of threads being watched. */
-  readonly listen: (listener: (frame: EventServerFrame) => void) => () => void;
-  readonly watchThread: (threadId: EntityId, since: Cursor | null) => ThreadWatch;
+  /** Frames outside any thread. Thread events reach only that thread's watchers. */
+  readonly listen: (listener: (event: GlobalEvent) => void) => () => void;
+  /** Returns a function that stops watching. */
+  readonly watchThread: (threadId: EntityId, watcher: ThreadWatcher) => () => void;
 }
 
 export interface ActiveHost {

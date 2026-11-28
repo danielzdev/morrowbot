@@ -3,6 +3,7 @@ import type { HostRequest, HostResult, HostTransport, LinkStatus, UiCapability }
 import { openEventStream, type OpenSocket } from './event-stream.ts';
 import { sendRequest, type HttpFetch } from './host-http.ts';
 import type { HostProfile } from './saved-hosts.ts';
+import { createThreadSync } from './thread-sync.ts';
 
 export interface TransportDeps {
   readonly fetch: HttpFetch;
@@ -14,7 +15,10 @@ export interface TransportDeps {
 
 export interface LiveTransport {
   readonly transport: HostTransport;
-  readonly retryNow: () => void;
+  /** Closes the socket while the app is in the background; watched threads turn stale. */
+  readonly pause: () => void;
+  /** Connects now: after a pause, or instead of waiting out the backoff. */
+  readonly wake: () => void;
   readonly close: () => void;
 }
 
@@ -26,8 +30,8 @@ export interface TransportState {
 const UI_CAPABILITIES_PATH = '/api/ui/v1/capabilities';
 
 /**
- * The direct HTTP + WebSocket transport to one paired host. A 401 on any request, or the host
- * closing the socket as unpaired, stops it for good with status `revoked`.
+ * The direct HTTP + WebSocket transport to one paired host. It connects at once. A 401 on any
+ * request, or the host closing the socket as unpaired, stops it for good with status `revoked`.
  */
 export function connectHost(profile: HostProfile, deps: TransportDeps, onChange: (state: TransportState) => void): LiveTransport {
   let state: TransportState = { status: { kind: 'connecting', attempt: 0 }, ui: { kind: 'unknown' } };
@@ -56,6 +60,7 @@ export function connectHost(profile: HostProfile, deps: TransportDeps, onChange:
     report: deps.report,
     onStatus: (status) => {
       update({ status });
+      threads.linkChanged(status);
       if (status.kind === 'online') void probeUi();
     },
   });
@@ -65,17 +70,24 @@ export function connectHost(profile: HostProfile, deps: TransportDeps, onChange:
     if (reply.kind === 'unauthorized') stream.revoke();
     return reply;
   };
+  const threads = createThreadSync({ stream, request, delayFor: deps.delayFor, report: deps.report });
+  stream.wake();
 
   return {
     transport: {
       host: { deviceId: profile.deviceId, hostName: profile.hostName, url: profile.url },
       request,
-      listen: stream.listen,
-      watchThread: stream.watchThread,
+      listen: (listener) =>
+        stream.listen((frame) => {
+          if (frame.kind !== 'resync' && !('cursor' in frame)) listener(frame);
+        }),
+      watchThread: threads.watchThread,
     },
-    retryNow: stream.retryNow,
+    pause: stream.pause,
+    wake: stream.wake,
     close: () => {
       closed = true;
+      threads.close();
       stream.close();
     },
   };
