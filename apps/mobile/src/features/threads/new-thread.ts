@@ -1,13 +1,20 @@
 import type { EntityId } from '@morrowbot/contracts';
-import { ActionSheetIOS } from 'react-native';
+import { ActionSheetIOS, Alert } from 'react-native';
 import { ACTION_PRESETS } from '../../lib/symbols.ts';
 import type { SlotAction, WorkspaceNavigation } from '../../lib/workspace.ts';
 import type { DirectorySource } from './directory.ts';
 import { agentsIn, hostOfAgent } from './thread-groups.ts';
 
 function start(source: DirectorySource, navigation: WorkspaceNavigation, hostId: EntityId, agentId: EntityId): void {
-  const thread = source.createThread(hostId, agentId);
-  navigation.open({ kind: 'chat', agentId, threadId: thread.id });
+  void source.createThread(hostId, agentId).then((created) => {
+    switch (created.kind) {
+      case 'created':
+        navigation.open({ kind: 'chat', agentId, threadId: created.thread.id });
+        return;
+      case 'failed':
+        Alert.alert('Could not start a thread', created.message);
+    }
+  });
 }
 
 /** Asks which agent to start with, in a native action sheet, then opens the new thread. */
