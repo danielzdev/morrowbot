@@ -8,11 +8,12 @@ import { App } from './App.tsx';
 
 type Started = { readonly kind: 'loading' } | { readonly kind: 'choosing' } | { readonly kind: 'ready'; readonly server: Exclude<ServerModeType, { kind: 'choosing' }>; readonly role: ServerRole };
 
-/** Who this app is on a joined server; its own server's owner otherwise, or until the server answers. */
+/** Who this app is: its own server's owner, or on a joined server what the server says, and a scoped member when it can't say. */
 async function roleOn(bridge: MorrowbotBridge, server: Exclude<ServerModeType, { kind: 'choosing' }>): Promise<ServerRole> {
   if (server.kind === 'local') return 'owner';
   const me = await createApi(bridge).whoAmI();
-  if (me.kind === 'failed' || me.value.kind === 'owner') return 'owner';
+  if (me.kind === 'failed') return 'scoped';
+  if (me.value.kind === 'owner') return 'owner';
   return me.value.access.kind === 'co-owner' ? 'co-owner' : 'scoped';
 }
 

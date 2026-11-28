@@ -69,6 +69,7 @@ export function Pages(props: {
             onNewChat={() => { props.onNewChat(agent.id); }}
             inspectorOpen={props.inspectorOpen}
             onToggleInspector={props.onToggleInspector}
+            ownerEngines={props.onNewAgent !== null}
           />
         );
       }

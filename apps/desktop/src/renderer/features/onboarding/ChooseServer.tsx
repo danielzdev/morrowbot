@@ -17,6 +17,7 @@ export function ChooseServer(props: ChooseServerProps) {
   const [problem, setProblem] = useState<string | null>(null);
   return (
     <div class="welcome">
+      <div class="choose-drag drag" aria-hidden="true" />
       <header class="welcome-hero">
         <h2 class="welcome-title">Welcome to MorrowBot</h2>
         <p class="welcome-lede">Where should your agents live? You can change this later in Settings › Server.</p>

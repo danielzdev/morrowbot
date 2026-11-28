@@ -111,6 +111,7 @@ export function MembersSection(props: { readonly port: MembersPort; readonly now
                 class="btn secondary"
                 onClick={() => {
                   setInviting({ kind: 'idle' });
+                  void load();
                 }}
               >
                 Done
