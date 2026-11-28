@@ -282,6 +282,7 @@ export function App({ bridge, server, role }: AppProps) {
           link={settings}
           onClose={() => { setSettings(null); }}
           appearance={models.appearance}
+          {...(agent === undefined ? {} : { sampleAgent: { name: agent.name, color: agent.avatar.color } })}
           chatPrefs={models.chatPrefs}
           chatSettings={models.chatSettings}
           info={info}

@@ -1,6 +1,7 @@
 import type { Agent, SkillScope } from '@morrowbot/contracts';
 import type { ComponentChildren } from 'preact';
 import { useState } from 'preact/hooks';
+import type { AppearanceModel } from '../../shared/appearance.ts';
 import type { ProviderChoice } from '../../shared/binding-ui/selection.ts';
 import type { ChatSettingsModel } from '../../shared/chat-settings.ts';
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog.tsx';
@@ -66,6 +67,7 @@ export interface ExtensionsSlot {
 export function AgentSettingsDialog(props: {
   readonly model: AgentsModel;
   readonly notify: AgentNotifyModel;
+  readonly appearance: AppearanceModel;
   /** The chat settings the host owns, which can set Replies for every agent. */
   readonly chatSettings: ChatSettingsModel;
   readonly agent: Agent;
@@ -119,7 +121,7 @@ export function AgentSettingsDialog(props: {
         onClose={leave(props.onClose)}
       >
         <div hidden={props.section !== 'general'}>
-          <AgentGeneral model={model} agent={agent} avatarEditor={props.avatarEditor} redact={props.redact} onDirty={mark('general')} />
+          <AgentGeneral model={model} appearance={props.appearance} agent={agent} avatarEditor={props.avatarEditor} redact={props.redact} onDirty={mark('general')} />
         </div>
         <div hidden={props.section !== 'brain'}>
           <AgentBrain model={model} agent={agent} choices={props.choices} redact={props.redact} onOpenProviders={leave(props.onOpenProviders)} onDirty={mark('brain')} />

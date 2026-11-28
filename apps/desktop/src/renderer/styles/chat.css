@@ -99,7 +99,9 @@
 .message.user .bubble {
   max-width: 80%;
   padding: var(--s-2) var(--s-3);
-  background: var(--surface-user);
+  background: var(--user-bubble-bg, var(--surface-user));
+  border: 1px solid var(--user-bubble-border, transparent);
+  color: var(--user-bubble-fg, var(--text-1));
   border-radius: var(--r-lg);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -367,8 +369,10 @@
   align-items: center;
   gap: var(--s-1);
   padding: var(--s-1) var(--s-2);
+  border: 1px solid var(--user-bubble-border, transparent);
   border-radius: var(--r-md);
-  background: var(--surface-user);
+  background: var(--user-bubble-bg, var(--surface-user));
+  color: var(--user-bubble-fg, var(--text-1));
   font: var(--t-small);
 }
 .composer-sends {

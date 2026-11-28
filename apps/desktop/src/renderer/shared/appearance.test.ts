@@ -1,14 +1,38 @@
 import { expect, it } from 'vitest';
 import { AppearanceChoices } from './appearance.ts';
 
-it('keeps a theme saved before Chat width existed, and refuses unknown values', () => {
+it('upgrades older saved preferences cleanly to Match bot and refuses invalid values', () => {
   expect({
-    older: AppearanceChoices.safeParse({ theme: 'dark', reduceMotion: 'on' }).data,
-    current: AppearanceChoices.safeParse({ theme: 'light', reduceMotion: 'system', chatWidth: 'wide' }).data,
-    unknown: AppearanceChoices.safeParse({ theme: 'light', reduceMotion: 'system', chatWidth: 'huge' }).success,
+    oldest: AppearanceChoices.safeParse({ theme: 'dark', reduceMotion: 'on' }).data,
+    preMessageColor: AppearanceChoices.safeParse({ theme: 'light', reduceMotion: 'system', chatWidth: 'wide' }).data,
+    current: AppearanceChoices.safeParse({
+      theme: 'light',
+      reduceMotion: 'system',
+      chatWidth: 'wide',
+      messageColor: { kind: 'custom', color: '#0EA5E9' },
+      agentMessageColors: {
+        'agent-1': { kind: 'off' },
+        'agent-2': { kind: 'custom', color: '#10B981' },
+      },
+    }).data,
+    badWidth: AppearanceChoices.safeParse({ theme: 'light', reduceMotion: 'system', chatWidth: 'huge' }).success,
+    badHex: AppearanceChoices.safeParse({ theme: 'light', reduceMotion: 'system', messageColor: { kind: 'custom', color: 'not-a-color' } }).success,
+    badOverride: AppearanceChoices.safeParse({ theme: 'light', reduceMotion: 'system', agentMessageColors: { 'agent-1': { kind: 'bogus' } } }).success,
   }).toEqual({
-    older: { theme: 'dark', reduceMotion: 'on', chatWidth: 'normal' },
-    current: { theme: 'light', reduceMotion: 'system', chatWidth: 'wide' },
-    unknown: false,
+    oldest: { theme: 'dark', reduceMotion: 'on', chatWidth: 'normal', messageColor: { kind: 'match-bot' }, agentMessageColors: {} },
+    preMessageColor: { theme: 'light', reduceMotion: 'system', chatWidth: 'wide', messageColor: { kind: 'match-bot' }, agentMessageColors: {} },
+    current: {
+      theme: 'light',
+      reduceMotion: 'system',
+      chatWidth: 'wide',
+      messageColor: { kind: 'custom', color: '#0ea5e9' },
+      agentMessageColors: {
+        'agent-1': { kind: 'off' },
+        'agent-2': { kind: 'custom', color: '#10b981' },
+      },
+    },
+    badWidth: false,
+    badHex: false,
+    badOverride: false,
   });
 });
