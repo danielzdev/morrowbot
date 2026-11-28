@@ -1,4 +1,4 @@
-import { SendMessageResponse } from '@morrowbot/contracts';
+import { StartedSend } from '@morrowbot/contracts';
 import { afterEach, expect, it } from 'vitest';
 import { type CodexFixture, startCodexFixture, turnMethods } from '../../testing/codex-fixture.ts';
 import { until } from '../../testing/daemon-fixture.ts';
@@ -14,7 +14,7 @@ afterEach(async () => {
 });
 
 async function start(fixture: CodexFixture, thread: { readonly id: string }, text: string): Promise<string> {
-  return SendMessageResponse.parse((await fixture.post(thread, text)).body).generationId;
+  return StartedSend.parse((await fixture.post(thread, text)).body).generationId;
 }
 
 const turnsStarted = async (fixture: CodexFixture): Promise<number> => (await fixture.log()).filter((entry) => entry.method === 'turn/start').length;
@@ -74,7 +74,7 @@ it('a daemon that ignores interrupt is killed after turnStopMs, both its turns s
   await fixture.events.finished(second);
   const from = (await fixture.log()).length;
   const refused = (await fixture.post(sharing, 'after')).body;
-  const next = SendMessageResponse.parse((await fixture.post(sharing, 'after', { kind: 'continue-existing' })).body).generationId;
+  const next = StartedSend.parse((await fixture.post(sharing, 'after', { kind: 'continue-existing' })).body).generationId;
   await fixture.events.finished(next);
   const [replaced] = fixture.daemonPgids();
   expect({

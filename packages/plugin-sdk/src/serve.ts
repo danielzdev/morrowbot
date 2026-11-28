@@ -2,7 +2,7 @@ import { HostMessage, PROTOCOL_VERSION, type PluginMessage, type TurnChunk, type
 import { createTurnApprovals, type TurnApprovals } from './approvals.ts';
 import type { CommandRunner } from './command.ts';
 import { createGroupLink, type GroupLink } from './host-link.ts';
-import type { PluginDefinition, ProviderPlugin } from './plugin.ts';
+import type { PluginDefinition, ProviderPlugin, Steer } from './plugin.ts';
 import { createRuntime, type PluginFactory, type RuntimeOptions } from './runtime.ts';
 
 /** How a served plugin's messages reach the host: a worker's IPC channel, or a channel inside the host. */
@@ -26,6 +26,7 @@ export interface ServedPlugin {
 interface RunningTurn {
   readonly controller: AbortController;
   readonly approvals: TurnApprovals;
+  readonly steer: (steer: Steer) => void;
 }
 
 interface Served {
@@ -84,6 +85,9 @@ function handle(served: Served, message: HostMessage): void {
       return;
     case 'cancel':
       served.turns.get(message.turnId)?.controller.abort();
+      return;
+    case 'steer':
+      served.turns.get(message.turnId)?.steer({ steerId: message.steerId, text: message.text });
       return;
     case 'approval-reply':
       if (served.turns.get(message.turnId)?.approvals.reply(message.approvalId, message.choiceId) !== true) {
@@ -185,10 +189,23 @@ async function runTurn(served: Served, message: Extract<HostMessage, { kind: 'tu
     },
     { once: true },
   );
-  turns.set(turnId, { controller, approvals });
+  let onSteer: ((steer: Steer) => void) | undefined;
+  const steer = (incoming: Steer): void => {
+    if (onSteer === undefined) emit({ kind: 'steer-refused', steerId: incoming.steerId });
+    else onSteer(incoming);
+  };
+  turns.set(turnId, { controller, approvals, steer });
   let end: TurnEnd;
   try {
-    end = await provider(served.plugin).turn({ request, signal: controller.signal, emit, ask: (ask) => approvals.ask(ask) });
+    end = await provider(served.plugin).turn({
+      request,
+      signal: controller.signal,
+      emit,
+      ask: (ask) => approvals.ask(ask),
+      onSteer: (handler) => {
+        onSteer = handler;
+      },
+    });
   } catch (error) {
     end = {
       outcome: controller.signal.aborted

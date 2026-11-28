@@ -14,7 +14,9 @@ export interface Invocation {
 
 /**
  * `--input-format stream-json` keeps stdin open after the prompt, so the CLI can ask for approvals
- * there. `--no-session-persistence`: Claude is stateless in v1, and every turn sends the thread.
+ * there and take steers. `--replay-user-messages` echoes each stdin message once the CLI has taken
+ * it: that echo is a steer's delivery. `--no-session-persistence`: Claude is stateless in v1, and
+ * every turn sends the thread.
  */
 const BASE = [
   '-p',
@@ -24,6 +26,7 @@ const BASE = [
   'stream-json',
   '--verbose',
   '--include-partial-messages',
+  '--replay-user-messages',
   '--no-session-persistence',
 ] as const;
 
@@ -86,6 +89,14 @@ export function buildInvocation(
     frame: `${JSON.stringify({ type: 'user', message: { role: 'user', content: prompt(request.seed, request.prompt) } })}\n`,
     files: system === null ? [] : [system],
   };
+}
+
+/**
+ * A steer as a stream-json user frame. Claude Code takes it at the next tool result, or as a second
+ * reply in the same process when the first has already ended, and echoes it with this `uuid`.
+ */
+export function steerFrame(text: string, uuid: string): string {
+  return `${JSON.stringify({ type: 'user', uuid, message: { role: 'user', content: text } })}\n`;
 }
 
 /** The host renders `seed` as `<user>` / `<assistant>` blocks; the new prompt is the last user block. */

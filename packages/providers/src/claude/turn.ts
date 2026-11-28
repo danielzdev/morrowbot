@@ -1,7 +1,7 @@
-import type { PluginRuntime, ProviderError, TurnContext, TurnEnd } from '@morrowbot/plugin-sdk';
+import type { PluginRuntime, ProviderError, Steer, TurnContext, TurnEnd } from '@morrowbot/plugin-sdk';
 import { readAuth } from './auth.ts';
 import { effortOf, platformReason, type EffortLevel } from './info.ts';
-import { buildInvocation, type ClaudeAccess } from './invocation.ts';
+import { buildInvocation, steerFrame, type ClaudeAccess } from './invocation.ts';
 import { checkManagedPolicy, systemScope } from './policy.ts';
 import { failed } from './reader.ts';
 import { readVersion } from './version.ts';
@@ -21,6 +21,13 @@ type Preflight =
 
 /** Runs one stateless turn, after checking the CLI version, managed policy, account and access. */
 export async function runTurn(context: TurnContext, settings: TurnSettings): Promise<TurnEnd> {
+  const early: Steer[] = [];
+  let steer = (incoming: Steer): void => {
+    early.push(incoming);
+  };
+  context.onSteer((incoming) => {
+    steer(incoming);
+  });
   const checked = await preflight(context, settings.runtime, settings.cliPath);
   if (checked.kind === 'refused') return checked.end;
   const { request, signal } = context;
@@ -52,6 +59,12 @@ export async function runTurn(context: TurnContext, settings: TurnSettings): Pro
     },
   });
   command.write(frame);
+  /** A steer after the last `result` is left alone: the host sends it as the next turn. */
+  steer = (incoming) => {
+    const uuid = crypto.randomUUID();
+    if (reader.expect(uuid, incoming.steerId)) command.write(steerFrame(incoming.text, uuid));
+  };
+  for (const incoming of early.splice(0)) steer(incoming);
   const exit = await command.exited;
   return reader.finish(exit, { cliPath: settings.cliPath, accountKey, cancelled: signal.aborted });
 }

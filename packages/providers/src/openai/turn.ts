@@ -1,8 +1,8 @@
-import type { ProviderError, TurnContext, TurnEnd, TurnRequest, UsageWindow } from '@morrowbot/plugin-sdk';
+import type { ProviderError, Steer, TurnContext, TurnEnd, TurnRequest, UsageWindow } from '@morrowbot/plugin-sdk';
 import type { CodexDaemon } from './daemon.ts';
 import { READ_ONLY_SANDBOX } from './lockdown.ts';
 import { mismatch, preflight, type PreflightDeps } from './preflight.ts';
-import { Ignored, TurnStartResponse } from './protocol.ts';
+import { Ignored, TurnStartResponse, TurnSteerResponse } from './protocol.ts';
 import { resolve } from './route.ts';
 import { openThread, releaseThread } from './threads.ts';
 import { countTokens, type Baseline } from './tokens.ts';
@@ -11,6 +11,7 @@ import { readQuota } from './usage.ts';
 
 const START_MS = 30_000;
 const INTERRUPT_MS = 5_000;
+const STEER_MS = 10_000;
 /** How long turn-end waits for a usage read a rate-limit notification started. */
 const QUOTA_WAIT_MS = 3_000;
 
@@ -27,6 +28,13 @@ export interface TurnDeps extends PreflightDeps {
  */
 export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<TurnEnd> {
   const { request, signal } = context;
+  const early: Steer[] = [];
+  let steer = (incoming: Steer): void => {
+    early.push(incoming);
+  };
+  context.onSteer((incoming) => {
+    steer(incoming);
+  });
   const stopped = (): boolean => signal.aborted;
   const refuse = (error: ProviderError, sessionTouched = false): TurnEnd => ({
     outcome: stopped() ? { kind: 'cancelled' } : { kind: 'failed', error },
@@ -139,6 +147,20 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
       vendorTurn = turnId;
       stream.begin(turnId);
       if (stopped()) interrupt(turnId);
+      steer = (incoming) => {
+        const clientId = crypto.randomUUID();
+        stream.expectSteer(clientId, incoming.steerId);
+        const input = [{ type: 'text', text: incoming.text, text_elements: [] }];
+        daemon
+          .call('turn/steer', { threadId, expectedTurnId: turnId, clientUserMessageId: clientId, input }, TurnSteerResponse, STEER_MS)
+          .then((answer) => {
+            if (answer.kind !== 'ok' && stream.dropSteer(clientId)) context.emit({ kind: 'steer-refused', steerId: incoming.steerId });
+          })
+          .catch((error: unknown) => {
+            console.error('provider-openai: could not steer a turn', error);
+          });
+      };
+      for (const incoming of early.splice(0)) steer(incoming);
       const finish: Finish = await stream.finished;
       if (!stopped() && finish.kind !== 'exited' && quota.pending !== null) await settleWithin(quota.pending, QUOTA_WAIT_MS);
       return {

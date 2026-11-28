@@ -5,6 +5,7 @@ import { AssistantMessage, Message, UserMessage } from './messages.ts';
 import { PluginManifest } from './plugin-manifest.ts';
 import { PluginStatus } from './plugin-runtime.ts';
 import { PluginConfig } from './plugin-settings.ts';
+import { QueuedMessage, QueuedText } from './queue.ts';
 import { AccountKey, ApprovalChoice, ProviderInfo, UsageResult } from './provider.ts';
 import { Thread } from './threads.ts';
 
@@ -55,12 +56,19 @@ export const SessionChoice = z.discriminatedUnion('kind', [
 export type SessionChoice = z.infer<typeof SessionChoice>;
 
 export const SendMessageRequest = z.strictObject({
-  text: z.string().min(1).max(1_000_000),
+  text: QueuedText,
   sessionChoice: SessionChoice.default({ kind: 'auto' }),
 });
 export type SendMessageRequest = z.infer<typeof SendMessageRequest>;
 
-export const SendMessageResponse = z.strictObject({ generationId: EntityId, userMessage: UserMessage });
+export const StartedSend = z.strictObject({ kind: z.literal('started'), generationId: EntityId, userMessage: UserMessage });
+export type StartedSend = z.infer<typeof StartedSend>;
+
+/** A send while the thread is busy is queued: the agent sees it later, or now with Steer now. */
+export const QueuedSend = z.strictObject({ kind: z.literal('queued'), queued: QueuedMessage });
+export type QueuedSend = z.infer<typeof QueuedSend>;
+
+export const SendMessageResponse = z.discriminatedUnion('kind', [StartedSend, QueuedSend]);
 export type SendMessageResponse = z.infer<typeof SendMessageResponse>;
 
 /** Runs the failed or interrupted latest turn again with its saved input. */
@@ -123,6 +131,8 @@ export const ThreadState = z.strictObject({
   thread: Thread,
   messages: z.array(Message),
   activeTurn: ActiveTurn.nullable(),
+  /** Messages sent while a turn ran that the agent has not seen yet, oldest first. */
+  queue: z.array(QueuedMessage),
   blockedGroups: z.array(BlockedGroup),
   cursor: Cursor,
 });
@@ -209,7 +219,14 @@ export const ChatEvent = z.discriminatedUnion('kind', [
     approvalId: z.string().min(1),
     resolution: ApprovalResolution,
   }),
+  /**
+   * A queued message reached the running turn: the reply so far is saved as `segment` (outcome
+   * `steered`), then `userMessage`; the turn goes on with fresh text after them.
+   */
+  z.strictObject({ kind: z.literal('generation.steered'), ...ThreadEvent, segment: AssistantMessage, userMessage: UserMessage }),
   z.strictObject({ kind: z.literal('generation.finished'), ...ThreadEvent, message: AssistantMessage }),
+  /** The thread's whole queue as it is now. */
+  z.strictObject({ kind: z.literal('queue.changed'), threadId: EntityId, cursor: Cursor, queue: z.array(QueuedMessage) }),
   /** Global (not part of any thread's cursor): refetch `/api/plugins/:id/usage`. */
   z.strictObject({ kind: z.literal('usage.updated'), pluginId: PluginId, accountKey: AccountKey }),
 ]);

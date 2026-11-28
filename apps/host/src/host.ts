@@ -181,6 +181,7 @@ function chatStore(storage: Storage): Parameters<typeof createChatService>[0]['s
   return {
     threads: storage.threads,
     messages: storage.messages,
+    queued: storage.queued,
     generations: storage.generations,
     sessions: storage.sessions,
     usage: storage.usage,
@@ -208,6 +209,9 @@ function providerPlugins(plugins: PluginHost): ProviderPlugins {
     recheck: (pluginId) => plugins.recheck(pluginId),
     cancelTurn: (pluginId, turnId) => {
       plugins.cancelTurn(pluginId, turnId);
+    },
+    steerTurn: (pluginId, turnId, steerId, text) => {
+      plugins.steerTurn(pluginId, turnId, steerId, text);
     },
     replyApproval: (pluginId, turnId, approvalId, choiceId) => {
       plugins.replyApproval(pluginId, turnId, approvalId, choiceId);

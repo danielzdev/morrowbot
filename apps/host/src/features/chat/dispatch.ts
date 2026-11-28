@@ -2,6 +2,7 @@ import { realpath } from 'node:fs/promises';
 import type { ProviderInfo, TurnChunk, TurnEnd, TurnRequest, TurnSession, UsageWindow } from '@morrowbot/contracts';
 import { profileAllowed } from './admission-rules.ts';
 import type { TurnSink } from './ports.ts';
+import { steerDelivered, steerRefused } from './queue.ts';
 import { instructionsHash, renderSeed, SEEDED_SESSION_BUDGET, statelessBudget, type Seed } from './seed.ts';
 import { laneKey, laneOf, localSettlement, settle, type ChatCore, type LiveUsage, type Turn } from './turn.ts';
 
@@ -71,7 +72,7 @@ export async function dispatch(core: ChatCore, turn: Turn): Promise<void> {
     selection: turn.binding.selection,
     session,
     system: turn.binding.vendorSettings === 'isolated' ? instructions : null,
-    prompt: turn.sourceInput.text,
+    prompt: turn.prompt,
   };
   try {
     store.transaction(() => {
@@ -203,6 +204,12 @@ function onChunk(core: ChatCore, turn: Turn, chunk: TurnChunk): void {
       return;
     case 'model-options-changed':
       void core.options.plugins.info(turn.pluginId, true);
+      return;
+    case 'steer-delivered':
+      steerDelivered(core, turn, chunk.steerId);
+      return;
+    case 'steer-refused':
+      steerRefused(core, turn, chunk.steerId);
       return;
   }
 }

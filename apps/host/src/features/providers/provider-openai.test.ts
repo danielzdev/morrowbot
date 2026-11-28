@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { SendMessageResponse } from '@morrowbot/contracts';
+import { StartedSend } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { type CodexFixture, startCodexFixture, turnMethods } from '../../testing/codex-fixture.ts';
 
@@ -34,7 +34,7 @@ function usageOf(generationId: string): unknown {
 
 async function sendAndWait(thread: { readonly id: string }, text: string): Promise<string> {
   const reply = await codex.post(thread, text);
-  const { generationId } = SendMessageResponse.parse(reply.body);
+  const { generationId } = StartedSend.parse(reply.body);
   await codex.events.finished(generationId);
   return generationId;
 }

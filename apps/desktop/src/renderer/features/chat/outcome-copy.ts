@@ -1,4 +1,4 @@
-import type { FinishReason, ProviderError, ProviderUnavailableReason, SessionChoice, SessionChoiceReason, TurnOutcome } from '@morrowbot/contracts';
+import type { FinishReason, GenerationOutcome, ProviderError, ProviderUnavailableReason, SessionChoice, SessionChoiceReason } from '@morrowbot/contracts';
 import type { ApprovalEnding } from './thread-model.ts';
 
 export type Tone = 'normal' | 'muted' | 'warning' | 'error';
@@ -40,10 +40,14 @@ const WINDOW_NAMES: Readonly<Record<string, string>> = {
   'seven-day': 'weekly limit',
 };
 
-export function outcomeCopy(outcome: TurnOutcome, context: CopyContext): OutcomeCopy {
+export const STEERED = 'Paused here for your message.';
+
+export function outcomeCopy(outcome: GenerationOutcome, context: CopyContext): OutcomeCopy {
   switch (outcome.kind) {
     case 'completed':
       return finishCopy(outcome.finishReason);
+    case 'steered':
+      return note('muted', STEERED);
     case 'cancelled':
       return note('muted', 'Stopped.');
     case 'interrupted':

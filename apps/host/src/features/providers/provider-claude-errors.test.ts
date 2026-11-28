@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import {
   Agent,
   MessageList,
-  SendMessageResponse,
+  StartedSend,
   StopGenerationResponse,
   Thread,
   type ProviderBinding,
@@ -72,7 +72,7 @@ async function thread(on: TestHost): Promise<Thread> {
 
 async function start(on: TestHost, to: Thread, text: string): Promise<string> {
   const reply = await on.call('POST', `/api/threads/${to.id}/messages`, { text, sessionChoice: { kind: 'auto' } });
-  return SendMessageResponse.parse(reply.body).generationId;
+  return StartedSend.parse(reply.body).generationId;
 }
 
 async function send(on: TestHost, to: Thread, text: string): Promise<void> {

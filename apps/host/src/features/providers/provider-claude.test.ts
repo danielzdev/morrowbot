@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
-import { Agent, MessageList, SendMessageResponse, Thread, type ModelSelection, type ProviderBinding } from '@morrowbot/contracts';
+import { Agent, MessageList, StartedSend, Thread, type ModelSelection, type ProviderBinding } from '@morrowbot/contracts';
 import { z } from 'zod';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { startTestHost, type EventClient, type TestHost } from '../../testing/test-host.ts';
@@ -49,7 +49,7 @@ async function thread(provider: ProviderBinding = binding()): Promise<Thread> {
 /** Sends with `sessionChoice: auto` and waits for the turn to finish when it started. */
 async function send(to: Thread, text: string) {
   const reply = await host.call('POST', `/api/threads/${to.id}/messages`, { text, sessionChoice: { kind: 'auto' } });
-  const sent = SendMessageResponse.safeParse(reply.body);
+  const sent = StartedSend.safeParse(reply.body);
   if (sent.success) await events.finished(sent.data.generationId);
   return { ...reply, generationId: sent.data?.generationId ?? '' };
 }
@@ -333,6 +333,7 @@ it('keeps the CLI isolated from a hostile settings file in the Claude config fol
         "stream-json",
         "--verbose",
         "--include-partial-messages",
+        "--replay-user-messages",
         "--no-session-persistence",
         "--safe-mode",
         "--strict-mcp-config",

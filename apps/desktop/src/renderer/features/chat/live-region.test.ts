@@ -9,6 +9,7 @@ const BASE: ThreadState = {
   thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT },
   messages: [],
   activeTurn: null,
+  queue: [],
   blockedGroups: [],
   cursor: { hostEpoch: 'e1', seq: 0 },
 };

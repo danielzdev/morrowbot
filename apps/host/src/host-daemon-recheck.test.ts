@@ -1,4 +1,4 @@
-import { ApiError, PluginList, ProviderInfoResponse, SendMessageResponse } from '@morrowbot/contracts';
+import { ApiError, PluginList, ProviderInfoResponse, StartedSend } from '@morrowbot/contracts';
 import { afterEach, expect, it } from 'vitest';
 import { DEFAULT_PLUGIN_TIMEOUTS } from './features/plugins/index.ts';
 import type { Reply } from './testing/test-host.ts';
@@ -91,7 +91,7 @@ it('Recheck is refused while a turn is running or queued; once idle it retires t
   const fixture = chat;
   const agent = await fixture.agent();
   const threads = [await fixture.thread(agent, 'A'), await fixture.thread(agent, 'B'), await fixture.thread(agent, 'C')];
-  for (const thread of threads) SendMessageResponse.parse((await post(fixture, thread.id, 'stall')).body);
+  for (const thread of threads) StartedSend.parse((await post(fixture, thread.id, 'stall')).body);
   await until(async () => (await fixture.daemonEvents()).filter((line) => line.startsWith('turn')).length === 2);
   const busy = brief(await recheck(fixture));
   for (const thread of threads) await fixture.host.call('POST', `/api/threads/${thread.id}/stop`);

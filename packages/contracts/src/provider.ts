@@ -229,6 +229,10 @@ export const TurnChunk = z.discriminatedUnion('kind', [
   }),
   z.strictObject({ kind: z.literal('approval-expired'), approvalId: z.string().min(1) }),
   z.strictObject({ kind: z.literal('model-options-changed'), models: z.array(ProviderModel) }),
+  /** The vendor now has the user's mid-turn message (`steer`) in the turn's context. */
+  z.strictObject({ kind: z.literal('steer-delivered'), steerId: z.string().min(1) }),
+  /** The provider cannot take this mid-turn message now; none of it reached the vendor. */
+  z.strictObject({ kind: z.literal('steer-refused'), steerId: z.string().min(1) }),
 ]);
 export type TurnChunk = z.infer<typeof TurnChunk>;
 

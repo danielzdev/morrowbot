@@ -16,7 +16,9 @@ export type AdmitResult =
 
 export type AdmitInput =
   | { readonly kind: 'send'; readonly text: string }
-  | { readonly kind: 'continue'; readonly failedMessageId: string };
+  | { readonly kind: 'continue'; readonly failedMessageId: string }
+  /** A queued message, delivered as the user message with its own id; `prompt` is what the provider reads. */
+  | { readonly kind: 'queued'; readonly id: string; readonly text: string; readonly prompt: string };
 
 type Ready = {
   readonly binding: BoundProvider;
@@ -121,12 +123,16 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
   const at = core.options.now();
   const generationId = core.options.newId();
   const userMessage: UserMessage =
-    source.kind === 'existing' ? source.message : { kind: 'user', id: core.options.newId(), threadId, text: source.text, createdAt: at };
+    source.kind === 'existing'
+      ? source.message
+      : { kind: 'user', id: source.kind === 'queued' ? source.id : core.options.newId(), threadId, text: source.text, createdAt: at };
+  const written = source.kind !== 'existing';
   store.transaction(() => {
-    if (source.kind === 'new') {
+    if (written) {
       store.messages.insert(userMessage);
       store.threads.touch(threadId, at);
     }
+    if (source.kind === 'queued') store.queued.delete(source.id);
     store.generations.insert({
       id: generationId,
       threadId,
@@ -157,6 +163,7 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
     maxSeedBytes: capabilities.maxSeedBytes,
     plan,
     sourceInput: userMessage,
+    prompt: source.kind === 'queued' ? source.prompt : userMessage.text,
     history,
     state: 'queued',
     dispatched: false,
@@ -167,6 +174,7 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
     boundRow: null,
     fenced: false,
     stopRequested: false,
+    steer: null,
     approvals: new Map(),
     settled: Promise.withResolvers(),
     released: Promise.withResolvers(),
@@ -177,13 +185,13 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
     kind: 'generation.started',
     threadId,
     generationId,
-    userMessage: source.kind === 'new' ? userMessage : null,
+    userMessage: written ? userMessage : null,
     state: 'queued',
   });
   const lane = laneOf(core, turn);
   lane.queue.push(turn);
   pump(core, lane);
-  return { kind: 'started', generationId, userMessage: source.kind === 'new' ? userMessage : null };
+  return { kind: 'started', generationId, userMessage: written ? userMessage : null };
 }
 
 type Checked =
@@ -216,12 +224,20 @@ function check(core: ChatCore, threadId: string): Checked {
 
 type Source =
   | { readonly kind: 'new'; readonly text: string }
+  | { readonly kind: 'queued'; readonly id: string; readonly text: string; readonly prompt: string }
   | { readonly kind: 'existing'; readonly message: UserMessage }
   | { readonly kind: 'refused'; readonly reason: string };
 
-/** A send's new text, or the saved input of the failed or interrupted latest turn being continued. */
-function sourceOf(core: ChatCore, messages: readonly Message[], input: { readonly kind: 'send'; readonly text: string } | { readonly kind: 'continue'; readonly failedMessageId: string }): Source {
-  if (input.kind === 'send') return { kind: 'new', text: input.text };
+/** A send's or queued message's new text, or the saved input of the failed or interrupted latest turn being continued. */
+function sourceOf(core: ChatCore, messages: readonly Message[], input: AdmitInput): Source {
+  switch (input.kind) {
+    case 'send':
+      return { kind: 'new', text: input.text };
+    case 'queued':
+      return input;
+    case 'continue':
+      break;
+  }
   const latest = messages.at(-1);
   if (latest?.id !== input.failedMessageId) return { kind: 'refused', reason: 'Only the latest message can be continued.' };
   if (latest.kind !== 'assistant' || (latest.outcome.kind !== 'failed' && latest.outcome.kind !== 'interrupted')) {

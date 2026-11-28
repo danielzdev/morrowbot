@@ -45,11 +45,17 @@ function approvalFor(ctx: TimelineContext, answering: readonly string[], offline
 
 const NO_ANSWERS: readonly string[] = [];
 
+const STEERED_IN = 'Steered in · seen by the agent';
+
+const steered = (message: Message | undefined): boolean => message?.kind === 'assistant' && message.outcome.kind === 'steered';
+
 const MessageItem = memo(function MessageItem(props: {
   readonly message: Message;
   readonly finished: FinishedTurn | undefined;
   readonly latest: boolean;
   readonly busy: boolean;
+  /** A user message sent into the reply above it with Steer now. */
+  readonly steeredIn: boolean;
   readonly ctx: TimelineContext;
 }) {
   const { message, finished, ctx } = props;
@@ -57,6 +63,7 @@ const MessageItem = memo(function MessageItem(props: {
     return (
       <div class="message user" data-message-id={message.id}>
         <div class="bubble" data-find-id={message.id}>{message.text}</div>
+        {props.steeredIn && <div class="steered-in">{STEERED_IN}</div>}
       </div>
     );
   }
@@ -122,12 +129,13 @@ export function Timeline(props: {
         </button>
       )}
       {unwatched && <div class="note muted reload-note">{TOOLS_NOT_KEPT}</div>}
-      {messages.slice(start).map((message) => (
+      {messages.slice(start).map((message, index) => (
         <MessageItem
           key={message.id}
           message={message}
           finished={finished[message.id]}
           latest={message === last}
+          steeredIn={message.kind === 'user' && steered(messages[start + index - 1])}
           busy={message === last && (!props.idle || props.locked || props.offline)}
           ctx={ctx}
         />

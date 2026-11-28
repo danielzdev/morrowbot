@@ -5,6 +5,7 @@ import type { SendWith } from '../../shared/chat-prefs.ts';
 import { isSendPress, PLATFORM } from '../../shared/keys.ts';
 import { useStore } from '../../shared/use-store.ts';
 import { ComposerBanners } from './ComposerBanners.tsx';
+import { QueueList } from './QueueList.tsx';
 import type { ThreadSession } from './thread-session.ts';
 
 /** Why Send waits while the host can't be reached; the draft stays. */
@@ -44,7 +45,7 @@ export function Composer(props: {
   const running = view?.activeTurn != null;
   const blocked = (view?.blockedGroups.length ?? 0) > 0;
   const disabledReason = props.disabledReason ?? (screen.connection === 'reconnecting' ? RECONNECTING : null);
-  const canSend = view !== null && !running && !blocked && screen.busy === null && disabledReason === null && screen.draft.trim() !== '';
+  const canSend = view !== null && !blocked && screen.busy === null && disabledReason === null && screen.draft.trim() !== '';
   return (
     <div class="composer">
       <ComposerBanners
@@ -55,11 +56,12 @@ export function Composer(props: {
         safe={props.safe}
         onOpenProviders={props.onOpenProviders}
       />
+      {view !== null && <QueueList session={session} view={view} screen={screen} agentName={props.agentName} />}
       <div class="composer-box">
         <textarea
           ref={box}
           aria-label="Message"
-          placeholder={running ? 'Wait for the reply, or stop it…' : `Message ${props.agentName}…`}
+          placeholder={running ? `Queue a message: ${props.agentName} sees it after this reply, or when you Steer now…` : `Message ${props.agentName}…`}
           value={screen.draft}
           rows={1}
           onInput={(event) => {
@@ -74,16 +76,25 @@ export function Composer(props: {
         />
         <div class="composer-bar">
           <div class="toolbar">{props.toolbar}</div>
-          {disabledReason !== null && !running && <span class="composer-reason">{disabledReason}</span>}
-          {running ? (
-            <button class="round-btn stop" aria-label={screen.busy === 'stopping' ? 'Stopping…' : 'Stop'} title="Stop" disabled={screen.busy !== null || screen.connection !== 'live'} onClick={() => void session.stop()}>
-              <Icon name="stop" />
-            </button>
-          ) : (
-            <button class="round-btn send" aria-label={screen.busy === 'sending' ? 'Sending…' : 'Send'} title="Send" disabled={!canSend} onClick={() => void session.send()}>
-              <Icon name="send" />
-            </button>
-          )}
+          {disabledReason !== null && <span class="composer-reason">{disabledReason}</span>}
+          <div class="composer-sends">
+            {running && (
+              <button class="round-btn stop" aria-label={screen.busy === 'stopping' ? 'Stopping…' : 'Stop'} title="Stop" disabled={screen.busy !== null || screen.connection !== 'live'} onClick={() => void session.stop()}>
+                <Icon name="stop" />
+              </button>
+            )}
+            {(!running || screen.draft.trim() !== '') && (
+              <button
+                class="round-btn send"
+                aria-label={screen.busy === 'sending' ? 'Sending…' : running ? 'Queue' : 'Send'}
+                title={running ? 'Queue: sent after this reply' : 'Send'}
+                disabled={!canSend}
+                onClick={() => void session.send()}
+              >
+                <Icon name="send" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
       {props.notes}

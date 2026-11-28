@@ -10,3 +10,4 @@ export type { SessionKey, SessionRecord, SessionRepository } from './sessions-re
 export type { UsageSnapshot, UsageSnapshotRepository } from './usage-repo.ts';
 export type { TokenTotalsRepository } from './token-totals-repo.ts';
 export type { DeviceRepository } from './devices-repo.ts';
+export type { QueuedRecord, QueuedRepository } from './queued-repo.ts';

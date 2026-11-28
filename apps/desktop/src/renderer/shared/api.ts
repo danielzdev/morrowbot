@@ -61,6 +61,10 @@ export interface Api {
   send(threadId: string, text: string, sessionChoice: SessionChoice): Promise<ApiResult<SendMessageResponse>>;
   continueTurn(threadId: string, failedMessageId: string, sessionChoice: SessionChoice): Promise<ApiResult<ContinueResponse>>;
   stop(threadId: string): Promise<ApiResult<StopGenerationResponse>>;
+  /** Takes a message the agent has not seen out of the queue. */
+  cancelQueued(threadId: string, queuedId: string): Promise<ApiResult<null>>;
+  /** Steer now: into the running reply, or out as the next turn when nothing runs. */
+  steerQueued(threadId: string, queuedId: string): Promise<ApiResult<null>>;
   answerApproval(threadId: string, approvalId: string, generationId: string, choiceId: string): Promise<ApiResult<null>>;
   listPlugins(): Promise<ApiResult<PluginList>>;
   setPluginEnabled(id: string, enabled: boolean): Promise<ApiResult<PluginEntry>>;
@@ -114,6 +118,8 @@ export function createApi(bridge: MorrowbotBridge): Api {
     continueTurn: (threadId, failedMessageId, sessionChoice) =>
       call(ContinueResponse, 'POST', at('threads', threadId, 'continue'), { failedMessageId, sessionChoice }),
     stop: (threadId) => call(StopGenerationResponse, 'POST', at('threads', threadId, 'stop')),
+    cancelQueued: (threadId, queuedId) => call(NoContent, 'DELETE', at('threads', threadId, 'queue', queuedId)),
+    steerQueued: (threadId, queuedId) => call(NoContent, 'POST', at('threads', threadId, 'queue', queuedId, 'steer')),
     answerApproval: (threadId, approvalId, generationId, choiceId) =>
       call(NoContent, 'POST', at('threads', threadId, 'approvals', approvalId), { generationId, choiceId }),
     listPlugins: () => call(PluginList, 'GET', at('plugins')),
