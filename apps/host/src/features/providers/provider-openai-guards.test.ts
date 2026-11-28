@@ -32,7 +32,7 @@ it('refuses before the prompt when Codex opens the thread on another model provi
   await codex.setState({ openedProvider: 'elsewhere' });
   const thread = await codex.thread(await codex.agent());
   await sendAndWait(thread, 'hello');
-  expect({ methods: turnMethods(await codex.log()), history: await codex.history(thread) }).toMatchInlineSnapshot(`
+  expect({ methods: turnMethods(await codex.logged('thread/unsubscribe', 1)), history: await codex.history(thread) }).toMatchInlineSnapshot(`
     {
       "history": [
         "user: hello",
@@ -53,7 +53,8 @@ it('rechecks the route once the thread is open, and sends nothing when it change
   await codex.switchAfter(2, { account: { ...NATIVE.account, workspaceRouting: { ...NATIVE.account.workspaceRouting, backendOrigin: 'https://us.chatgpt.com' } } });
   const from = await logLength();
   await sendAndWait(other, 'hello');
-  expect({ methods: await methodsSince(from), history: await codex.history(other) }).toMatchInlineSnapshot(`
+  const methods = turnMethods((await codex.logged('thread/unsubscribe', 1)).slice(from));
+  expect({ methods, history: await codex.history(other) }).toMatchInlineSnapshot(`
     {
       "history": [
         "user: hello",

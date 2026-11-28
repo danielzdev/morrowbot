@@ -1,7 +1,6 @@
 import { StartedSend } from '@morrowbot/contracts';
 import { afterEach, expect, it } from 'vitest';
 import { type CodexFixture, startCodexFixture, turnMethods } from '../../testing/codex-fixture.ts';
-import { until } from '../../testing/daemon-fixture.ts';
 import { DEFAULT_PLUGIN_TIMEOUTS } from '../../testing/test-host.ts';
 
 let codex: CodexFixture | undefined;
@@ -17,7 +16,6 @@ async function start(fixture: CodexFixture, thread: { readonly id: string }, tex
   return StartedSend.parse((await fixture.post(thread, text)).body).generationId;
 }
 
-const turnsStarted = async (fixture: CodexFixture): Promise<number> => (await fixture.log()).filter((entry) => entry.method === 'turn/start').length;
 
 const finishedCount = (fixture: CodexFixture, generationId: string): number =>
   fixture.turnEvents(generationId).filter((event) => event.kind === 'generation.finished').length;
@@ -28,7 +26,7 @@ it('Stop sends turn/interrupt for that turn only, and the other turn keeps runni
   const [stopped, running] = [await fixture.thread(agent, 'A'), await fixture.thread(agent, 'B')];
   await start(fixture, stopped, 'stall');
   const other = await start(fixture, running, 'stall');
-  await until(async () => (await turnsStarted(fixture)) === 2);
+  await fixture.logged('turn/start', 2);
   const pgids = fixture.daemonPgids();
   const from = (await fixture.log()).length;
   const reply = await fixture.host.call('POST', `/api/threads/${stopped.id}/stop`);
@@ -67,7 +65,7 @@ it('a daemon that ignores interrupt is killed after turnStopMs, both its turns s
   const [ignoring, sharing] = [await fixture.thread(agent, 'A'), await fixture.thread(agent, 'B')];
   const first = await start(fixture, ignoring, 'ignore-interrupt');
   const second = await start(fixture, sharing, 'stall');
-  await until(async () => (await turnsStarted(fixture)) === 2);
+  await fixture.logged('turn/start', 2);
   const [pgid] = fixture.daemonPgids();
   await fixture.host.call('POST', `/api/threads/${ignoring.id}/stop`);
   await fixture.events.finished(first);

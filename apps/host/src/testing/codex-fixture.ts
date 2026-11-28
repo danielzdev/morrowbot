@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import type { ChatEvent, ProviderBinding } from '@morrowbot/contracts';
 import { z } from 'zod';
 import { startChatFixture, type ChatFixture } from './chat-fixture.ts';
+import { loggedTimes } from './logged.ts';
 import type { Reply, TestHostOptions } from './test-host.ts';
 
 const FAKE_CODEX = fileURLToPath(new URL('../features/providers/fixtures/fake-codex.ts', import.meta.url));
@@ -46,6 +47,8 @@ export interface CodexFixture extends ChatFixture {
   readonly home: string;
   /** Every request the fake daemons got, oldest first. */
   log(): Promise<Logged[]>;
+  /** The log once it holds `method` `count` times: the provider unsubscribes without waiting for it. */
+  logged(method: string, count: number): Promise<Logged[]>;
   /** Merges into the fake's `state.json` at once. */
   setState(patch: Readonly<Record<string, unknown>>): Promise<void>;
   /** Merges into `state.json` after `reads` more `account/read`s have been answered. */
@@ -72,15 +75,17 @@ export async function startCodexFixture(options: Partial<TestHostOptions> = {}):
   const chat = await startChatFixture({ platform: 'darwin', ...options, dataDir: path.join(home, 'data') });
   const configured = await chat.host.call('PUT', '/api/plugins/provider-openai/config', { config: { cliPath: FAKE_CODEX } });
   if (configured.status !== 200) throw new Error(`config refused: ${JSON.stringify(configured.body)}`);
+  const log = async (): Promise<Logged[]> => {
+    const text = await readFile(path.join(dir, 'log.jsonl'), 'utf8').catch(() => '');
+    return text.split('\n').filter((line) => line !== '').map((line) => Logged.parse(JSON.parse(line)));
+  };
   const readState = async (): Promise<Record<string, unknown>> => z.record(z.string(), z.unknown()).parse(JSON.parse(await readFile(stateFile, 'utf8')));
   return {
     ...chat,
     home,
     agent: (binding = CODEX) => chat.agent(binding),
-    log: async () => {
-      const text = await readFile(path.join(dir, 'log.jsonl'), 'utf8').catch(() => '');
-      return text.split('\n').filter((line) => line !== '').map((line) => Logged.parse(JSON.parse(line)));
-    },
+    log,
+    logged: (method, count) => loggedTimes(log, method, count),
     setState: async (patch) => {
       await writeFile(stateFile, JSON.stringify({ ...(await readState()), ...patch }));
     },
