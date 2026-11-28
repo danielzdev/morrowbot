@@ -199,6 +199,7 @@ export function chatStore(storage: Storage): ChatOptions['store'] {
     attachments: storage.attachments,
     threads: storage.threads,
     messages: storage.messages,
+    toolSteps: storage.toolSteps,
     reactions: storage.reactions,
     settings: storage.chatSettings,
     queued: storage.queued,

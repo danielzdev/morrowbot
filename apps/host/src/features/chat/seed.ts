@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { MAX_SEED_BYTES, type Message } from '@morrowbot/contracts';
+import { MAX_SEED_BYTES, type Message, type ToolStep } from '@morrowbot/contracts';
 
 export interface Seed {
   readonly text: string | null;
@@ -13,9 +13,14 @@ export const SEEDED_SESSION_BUDGET = { messages: 20, bytes: 32_768 };
 /**
  * Renders history as the plain-text seed a provider reads: role-labelled blocks, oldest first,
  * dropping the oldest messages until it fits. Empty messages are left out. Null when nothing is left.
+ * A reply lists the tools it called (`tools`, by message id), not what they read or wrote.
  */
-export function renderSeed(history: readonly Message[], budget: { readonly messages: number; readonly bytes: number }): Seed {
-  const blocks = history.map((message) => ({ kind: message.kind, body: bodyOf(message) })).filter(({ body }) => body !== '').map(({ kind, body }) => `<${kind}>\n${body}\n</${kind}>`);
+export function renderSeed(
+  history: readonly Message[],
+  budget: { readonly messages: number; readonly bytes: number },
+  tools: ReadonlyMap<string, readonly ToolStep[]> = new Map(),
+): Seed {
+  const blocks = history.map((message) => ({ kind: message.kind, body: bodyOf(message, tools.get(message.id) ?? []) })).filter(({ body }) => body !== '').map(({ kind, body }) => `<${kind}>\n${body}\n</${kind}>`);
   let kept = blocks.slice(-budget.messages);
   let truncated = kept.length < blocks.length;
   while (kept.length > 0 && Buffer.byteLength(kept.join('\n')) > budget.bytes) {
@@ -25,9 +30,16 @@ export function renderSeed(history: readonly Message[], budget: { readonly messa
   return { text: kept.length === 0 ? null : kept.join('\n'), truncated };
 }
 
-/** A message's text, with the names of the files a user message carried (their content is not resent). */
-function bodyOf(message: Message): string {
-  if (message.kind === 'assistant' || message.attachments.length === 0) return message.text;
+/**
+ * A message's text, with the names of the files a user message carried (their content is not resent), or the
+ * tools a reply called and how each ended.
+ */
+function bodyOf(message: Message, tools: readonly ToolStep[]): string {
+  if (message.kind === 'assistant') {
+    if (tools.length === 0) return message.text;
+    return `[Tools: ${tools.map(({ name, outcome }) => `${name} (${outcome})`).join(', ')}]\n${message.text}`.trim();
+  }
+  if (message.attachments.length === 0) return message.text;
   return `${message.text}\n[Attached: ${message.attachments.map(({ name }) => name).join(', ')}]`.trim();
 }
 

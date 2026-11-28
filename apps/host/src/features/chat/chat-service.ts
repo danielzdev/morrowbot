@@ -205,6 +205,7 @@ export function createChatService(options: ChatServiceOptions): ChatService {
       queueNote: turn.state === 'queued' ? queueNote(laneOf(core, turn)) : null,
       text: turn.text,
       pendingApprovals: [...turn.approvals.values()],
+      toolSteps: store.toolSteps.listOpen(turn.generationId),
     };
   };
 
@@ -256,6 +257,7 @@ export function createChatService(options: ChatServiceOptions): ChatService {
         thread,
         messages: store.messages.listByThread(threadId),
         reactions: store.reactions.listByThread(threadId),
+        toolSteps: store.toolSteps.listByThread(threadId),
         activeTurn: activeTurn(threadId),
         queue: queueOf(core, threadId),
         blockedGroups: options.plugins.blockedGroups(store.generations.idsByThread(threadId)),
@@ -359,7 +361,10 @@ function recover(options: ChatServiceOptions): void {
   store.subagents.deleteUnstarted();
   for (const generation of store.generations.unsettled()) {
     if (store.messages.get(generation.inputMessageId) === undefined) {
-      store.generations.settle(generation.id, null);
+      store.transaction(() => {
+        store.generations.settle(generation.id, null);
+        store.toolSteps.close(generation.id, null);
+      });
       continue;
     }
     const at = options.now();
@@ -375,6 +380,7 @@ function recover(options: ChatServiceOptions): void {
       store.messages.insert(message);
       store.threads.touch(generation.threadId, at);
       store.generations.settle(generation.id, message.id);
+      store.toolSteps.close(generation.id, message.id);
     });
   }
 }

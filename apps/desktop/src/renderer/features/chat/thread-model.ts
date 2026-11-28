@@ -16,10 +16,12 @@ import type {
   TurnTrigger,
 } from '@morrowbot/contracts';
 import { replaceReactions } from './reactions.ts';
+import { fromSaved, withSaved } from './saved-tools.ts';
 
 /**
- * A tool call seen live. Times are this window's own clock, in ms. `unfinished`: its turn ended with no
- * end event for it. `unknown`: its turn ended while this window was resyncing, so its result was never seen.
+ * A tool call seen live or saved by the host. Times are ms; only differences between them are shown. `unfinished`:
+ * its turn ended with no end for it. `unknown`: its turn ended while this window was resyncing and the host saved
+ * no result for it.
  */
 export interface ToolStep {
   readonly kind: 'tool';
@@ -58,13 +60,13 @@ export interface ActiveTurnView {
   /** The provider's latest status line, such as "Thinking". */
   readonly detail: string | null;
   readonly text: string;
-  /** Tool calls seen live and every approval; a reload shows only the pending approvals. */
+  /** Tool calls and approvals; a reload shows the tool calls the host saved and only the pending approvals. */
   readonly steps: readonly TurnStep[];
   /** When this window saw the turn start; null when it was already running at load. */
   readonly startedAt: number | null;
 }
 
-/** A turn that finished while this window watched it. */
+/** A turn that finished: watched by this window, or loaded from the host's saved tool calls (no duration). */
 export interface FinishedTurn {
   readonly steps: readonly TurnStep[];
   readonly durationMs: number | null;
@@ -77,7 +79,7 @@ export interface ThreadView {
   /** Every reaction on the messages, oldest first. */
   readonly reactions: readonly MessageReaction[];
   readonly activeTurn: ActiveTurnView | null;
-  /** Turns watched to the end, by their reply's message id. Replies from before this window have none. */
+  /** Finished turns by their reply's message id. A reply that called no tools, and was not watched, has none. */
   readonly finished: Readonly<Record<string, FinishedTurn>>;
   /** Messages the agent has not seen yet, oldest first. */
   readonly queue: readonly QueuedMessage[];
@@ -122,9 +124,9 @@ const settled = (steps: readonly TurnStep[], left: 'unfinished' | 'unknown'): Tu
   endPending(steps, CLEARED).map((step) => (step.kind === 'tool' && step.outcome === 'running' ? { ...step, outcome: left } : step));
 
 /**
- * The view of a `/state` snapshot. Given the view it replaces (a resync), it keeps what only this
- * window saw: tool steps, timings and approval endings. A request that vanished without a known
- * ending ends as cleared, and a watched turn that ended during the gap keeps its steps on its reply.
+ * The view of a `/state` snapshot, with the tool calls the host saved. Given the view it replaces (a resync), it
+ * keeps what only this window saw: timings and approval endings. A request that vanished without a known ending
+ * ends as cleared, and a watched turn that ended during the gap keeps its steps on its reply.
  */
 export function viewOf(
   state: ThreadState,
@@ -142,11 +144,16 @@ export function viewOf(
           queueNote: active.queueNote,
           detail: null,
           text: active.text,
-          steps: active.pendingApprovals.map(pendingStep),
+          steps: [...active.toolSteps.map(fromSaved), ...active.pendingApprovals.map(pendingStep)],
           startedAt: null,
         };
   const present = new Set(state.messages.map(({ id }) => id));
-  const kept = Object.fromEntries(Object.entries(previous?.finished ?? {}).filter(([id]) => present.has(id)));
+  const saved = new Map(state.toolSteps.map(({ messageId, steps }) => [messageId, steps]));
+  const loaded = Object.fromEntries(state.toolSteps.map(({ messageId, steps }): [string, FinishedTurn] => [messageId, { steps: steps.map(fromSaved), durationMs: null }]));
+  const watched = Object.entries(previous?.finished ?? {}).flatMap(([id, record]): [string, FinishedTurn][] =>
+    present.has(id) ? [[id, { ...record, steps: withSaved(record.steps, saved.get(id) ?? []) }]] : [],
+  );
+  const kept = { ...loaded, ...Object.fromEntries(watched) };
   const base = {
     thread: state.thread,
     messages: state.messages,
@@ -164,7 +171,7 @@ export function viewOf(
     const pending = new Map(active.pendingApprovals.map((approval) => [approval.approvalId, approval]));
     const known = new Set(before.steps.flatMap((step) => (step.kind === 'approval' ? [step.approval.approvalId] : [])));
     const steps = [
-      ...before.steps.map((step): TurnStep => {
+      ...withSaved(before.steps, active.toolSteps).map((step): TurnStep => {
         if (step.kind !== 'approval') return step;
         const current = pending.get(step.approval.approvalId);
         if (current !== undefined) return pendingStep(current);
@@ -176,7 +183,7 @@ export function viewOf(
   }
   const seen = new Set(previous.messages.map(({ id }) => id));
   const reply = state.messages.find(({ id, kind }) => kind === 'assistant' && !seen.has(id));
-  const finished = reply === undefined ? kept : { ...kept, [reply.id]: { steps: settled(before.steps, 'unknown'), durationMs: null } };
+  const finished = reply === undefined ? kept : { ...kept, [reply.id]: { steps: settled(withSaved(before.steps, saved.get(reply.id) ?? []), 'unknown'), durationMs: null } };
   return { ...base, activeTurn: fresh, finished };
 }
 

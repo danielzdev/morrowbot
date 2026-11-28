@@ -8,6 +8,7 @@ const STATE: ThreadState = {
   thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT },
   messages: [],
   reactions: [],
+  toolSteps: [],
   activeTurn: {
     generationId: 'g',
     trigger: { kind: 'chat' },
@@ -15,6 +16,7 @@ const STATE: ThreadState = {
     queueNote: null,
     text: 'Hel',
     pendingApprovals: [{ approvalId: 'p', summary: 'Write .git/x', choices: [{ id: 'allow', label: 'Allow' }] }],
+    toolSteps: [],
   },
   queue: [],
   blockedGroups: [],

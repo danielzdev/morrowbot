@@ -111,6 +111,7 @@ export function steerDelivered(core: ChatCore, turn: Turn, steerId: string): voi
   try {
     store.transaction(() => {
       store.messages.insert(segment);
+      store.toolSteps.close(turn.generationId, segment.id);
       store.messages.insert(userMessage);
       store.queued.delete(item.id);
       store.threads.touch(turn.threadId, at);
