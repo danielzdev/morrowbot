@@ -52,6 +52,11 @@ it('turns on safe mode from the flag or the env, and places data in the dev fold
           "pluginsDir": "/home/user/.morrowbot-dev/plugins",
           "port": 0,
           "safeMode": false,
+          "t3Watch": {
+            "bin": "/home/user/.t3/bin/t3",
+            "dir": "/home/user/.morrowbot-dev/t3-watch",
+            "projects": [],
+          },
         },
         "kind": "ok",
       },
@@ -63,6 +68,11 @@ it('turns on safe mode from the flag or the env, and places data in the dev fold
           "pluginsDir": "/home/user/.morrowbot-dev/plugins",
           "port": 0,
           "safeMode": true,
+          "t3Watch": {
+            "bin": "/home/user/.t3/bin/t3",
+            "dir": "/home/user/.morrowbot-dev/t3-watch",
+            "projects": [],
+          },
         },
         "kind": "ok",
       },
@@ -74,6 +84,11 @@ it('turns on safe mode from the flag or the env, and places data in the dev fold
           "pluginsDir": "/data/plugins",
           "port": 0,
           "safeMode": true,
+          "t3Watch": {
+            "bin": "/home/user/.t3/bin/t3",
+            "dir": "/data/t3-watch",
+            "projects": [],
+          },
         },
         "kind": "ok",
       },
@@ -117,5 +132,30 @@ it('binds to loopback unless MORROWBOT_HOST_BIND names an IP address, kept in on
         "MORROWBOT_HOST_BIND: Expected an IPv4 or IPv6 address, such as 100.64.0.1 or 0.0.0.0",
       ],
     }
+  `);
+});
+
+it('reads the T3 watcher settings, splitting the project list and refusing a relative watch folder', () => {
+  const watch = (env: NodeJS.ProcessEnv) => {
+    const result = parse(env);
+    return result.kind === 'ok' ? result.config.t3Watch : result.problems;
+  };
+  expect([
+    watch({ MORROWBOT_T3_WATCH_DIR: '/shared/t3-watch', MORROWBOT_T3_BIN: '/opt/t3', MORROWBOT_T3_PROJECTS: ' proj-a, /work/repo ,,' }),
+    watch({ MORROWBOT_T3_WATCH_DIR: 'relative' }),
+  ]).toMatchInlineSnapshot(`
+    [
+      {
+        "bin": "/opt/t3",
+        "dir": "/shared/t3-watch",
+        "projects": [
+          "proj-a",
+          "/work/repo",
+        ],
+      },
+      [
+        "MORROWBOT_T3_WATCH_DIR: Expected an absolute path",
+      ],
+    ]
   `);
 });

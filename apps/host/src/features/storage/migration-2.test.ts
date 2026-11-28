@@ -177,5 +177,5 @@ it('refuses a database newer than this host', () => {
   const db = new DatabaseSync(file);
   db.exec(`PRAGMA user_version = ${String(MIGRATIONS.length + 1)}`);
   db.close();
-  expect(() => openStorage(file, () => AT)).toThrowErrorMatchingInlineSnapshot(`[Error: Database schema version 10 is newer than this host supports]`);
+  expect(() => openStorage(file, () => AT)).toThrowErrorMatchingInlineSnapshot(`[Error: Database schema version 11 is newer than this host supports]`);
 });
