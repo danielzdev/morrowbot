@@ -107,6 +107,11 @@ const unreachable = (status: number): boolean => status === 0 || (status >= 502 
 const stillPending = (view: ThreadScreen['view'], approvalId: string): boolean =>
   view.kind === 'loaded' && view.value.activeTurn !== null && pendingApprovals(view.value.activeTurn).some((approval) => approval.approvalId === approvalId);
 
+/** This window already shows how the approval ended, so the host's 404 to another answer for it is no news. */
+const shownEnded = (view: ThreadScreen['view'], approvalId: string): boolean =>
+  view.kind === 'loaded' &&
+  (view.value.activeTurn?.steps.some((step) => step.kind === 'approval' && step.approval.approvalId === approvalId && step.ending !== null) ?? false);
+
 export function openThreadSession(options: ThreadSessionOptions): ThreadSession {
   const { api, bridge, threadId } = options;
   const drafts = options.drafts ?? memoryDrafts();
@@ -310,6 +315,7 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
       patch({ answering: screen.get().answering.filter((id) => id !== approvalId) });
       if (result.status === 404) {
         const view = screen.get().view;
+        if (shownEnded(view, approvalId)) return;
         if (view.kind === 'loaded') patch({ view: { kind: 'loaded', value: endApproval(view.value, approvalId, { kind: 'late' }) } });
         await load();
       }
