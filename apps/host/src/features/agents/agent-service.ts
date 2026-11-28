@@ -25,7 +25,7 @@ export interface AgentServiceOptions {
   readonly folderExists: (id: string) => boolean;
   /** Parent folder for dedicated workspaces: each agent gets `<workspacesDir>/<agentId>`. */
   readonly workspacesDir: string;
-  /** Where Save a copy keeps drafts: `<draftsDir>/<agentId>/<time>-<n>.md`, never in a workspace. */
+  /** Where Save a copy keeps drafts: `<draftsDir>/<agentId>/<time>-<n>.md`, never in a workspace. A new `SOUL.md` is staged in `<draftsDir>/.staging`. */
   readonly draftsDir: string;
   readonly newId: () => string;
   readonly now: () => string;
@@ -65,6 +65,7 @@ export interface AgentService {
 
 export function createAgentService(options: AgentServiceOptions): AgentService {
   const { records } = options;
+  const stagingDir = path.join(options.draftsDir, '.staging');
 
   function workspaceFor(id: string, request: AgentWorkspaceRequest): AgentWorkspace | undefined {
     switch (request.kind) {
@@ -108,7 +109,7 @@ export function createAgentService(options: AgentServiceOptions): AgentService {
       if (made !== null) return { kind: 'failed', message: `The workspace folder could not be made. ${made.message}` };
       if (unknownFolder(agent.folderId)) return { kind: 'invalid', reason: NO_SUCH_FOLDER };
       if (request.initialInstructions !== null) {
-        const written = await createInstructions(agent.workspace.dir, request.initialInstructions);
+        const written = await createInstructions(agent.workspace.dir, stagingDir, request.initialInstructions);
         switch (written.kind) {
           case 'created':
             break;
@@ -149,7 +150,7 @@ export function createAgentService(options: AgentServiceOptions): AgentService {
     },
     createInstructions: async (id, content) => {
       const agent = records.get(id);
-      return agent === undefined ? undefined : createInstructions(agent.workspace.dir, content);
+      return agent === undefined ? undefined : createInstructions(agent.workspace.dir, stagingDir, content);
     },
     saveInstructionsCopy: async (id, content) => {
       const agent = records.get(id);

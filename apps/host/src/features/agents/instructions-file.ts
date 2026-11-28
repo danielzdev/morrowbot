@@ -33,7 +33,7 @@ function readError(code: string | null): string {
     case 'ELOOP':
       return 'SOUL.md is a link. Ori Kami reads only a regular file in the workspace folder.';
     case 'hard-link':
-      return 'SOUL.md has more than one hard link, so Ori Kami does not read it. Remove the other link (a leftover .SOUL.md….tmp file beside it is one) or replace SOUL.md with a copy.';
+      return 'SOUL.md has more than one hard link, so Ori Kami does not read it. Replace SOUL.md with a copy of its text.';
     case 'EACCES':
     case 'EPERM':
       return "Ori Kami isn't allowed to read SOUL.md.";
@@ -57,17 +57,18 @@ const refusal = (code: string): Error => Object.assign(new Error(code), { code }
 
 /**
  * Reads `dir/SOUL.md` only when it is a regular file of its own right in `dir`, the same one `lstat` found
- * (`entry`): never through a symlink (`O_NOFOLLOW` fails with ELOOP) or a second hard link. The last check is
- * an `lstat` after the read, which must still name the opened file with one link, so a link removed mid-read
- * cannot hide another name the file keeps elsewhere. The host runs outside the Fence, so it must not read a
- * file the agent pointed it at, such as the vault or the database.
+ * (`entry`): never through a symlink (`O_NOFOLLOW` fails with ELOOP) or a second hard link. The file must have
+ * one link and the same `ctime` at the first `lstat`, when opened, and at an `lstat` after the read; adding or
+ * removing a link moves `ctime`, so a link made and removed between the checks is caught too. The host runs
+ * outside the Fence, so it must not read a file the agent pointed it at, such as the vault or the database.
  */
 async function readTarget(dir: string, entry: BigIntStats): Promise<Target> {
+  if (entry.nlink > 1n) throw refusal('hard-link');
   const root = await realpath(dir);
   const handle = await open(path.join(root, INSTRUCTIONS_FILE), constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
     const stats = await handle.stat({ bigint: true });
-    if (stats.ino !== entry.ino || stats.dev !== entry.dev) throw refusal('changed');
+    if (stats.ino !== entry.ino || stats.dev !== entry.dev || stats.ctimeNs !== entry.ctimeNs) throw refusal('changed');
     if (!stats.isFile()) throw refusal('not-a-file');
     if (stats.nlink > 1n) throw refusal('hard-link');
     const identity = identityOf(stats);
@@ -81,7 +82,7 @@ async function readTarget(dir: string, entry: BigIntStats): Promise<Target> {
       if (read === buffer.length) throw refusal('changed');
     }
     const after = await lstat(path.join(root, INSTRUCTIONS_FILE), { bigint: true });
-    if (after.ino !== stats.ino || after.dev !== stats.dev) throw refusal('changed');
+    if (after.ino !== stats.ino || after.dev !== stats.dev || after.ctimeNs !== stats.ctimeNs) throw refusal('changed');
     if (after.nlink > 1n) throw refusal('hard-link');
     return { kind: 'read', identity, bytes: buffer.subarray(0, read) };
   } finally {
@@ -185,11 +186,14 @@ async function writeExclusive(file: string, bytes: Buffer): Promise<Published> {
 
 /**
  * Publishes `bytes` as `dir/name` only if no entry has that name, not even a dangling link. The text is
- * written and synced to a staging file first, then hard-linked into place (atomic, fails on any
+ * written and synced to a file in `stagingDir` first, then hard-linked into place (atomic, fails on any
  * existing entry), so a crash never leaves a partial file and nothing else's file is ever removed.
+ * `stagingDir` must be a folder only the host writes: `link()` follows a symlink, so a staging name the
+ * agent could replace would let it publish any file the host can reach as `dir/name`.
  */
-async function publish(dir: string, name: string, bytes: Buffer): Promise<Published> {
-  const staging = path.join(dir, `.${name}.${randomUUID()}.tmp`);
+async function publish(stagingDir: string, dir: string, name: string, bytes: Buffer): Promise<Published> {
+  await mkdir(stagingDir, { recursive: true });
+  const staging = path.join(stagingDir, `${name}.${randomUUID()}.tmp`);
   const handle = await open(staging, 'wx');
   try {
     let identity: string;
@@ -228,16 +232,17 @@ async function present(file: string): Promise<boolean> {
 export type CreateInstructionsResult = { readonly kind: 'created'; readonly revision: string } | { readonly kind: 'occupied' } | WriteFailure;
 
 /**
- * Creates `dir/SOUL.md` only when no entry has that name, so an existing file or link is never replaced. A crash
- * between linking it into place and unlinking the staging name leaves `.SOUL.md.<uuid>.tmp` beside it; the
- * reader then refuses `SOUL.md` (two links) and says how to fix it, rather than guess which link is whose.
+ * Creates `dir/SOUL.md` only when no entry has that name, so an existing file or link is never replaced. It is
+ * staged in the host-only `stagingDir`; on another volume it is created in place instead, which a crash can
+ * leave partial. A crash between linking it into place and unlinking the staging name leaves `SOUL.md` with
+ * two links; the reader then refuses it and says how to fix it, rather than guess which link is whose.
  */
-export function createInstructions(dir: string, content: string): Promise<CreateInstructionsResult> {
+export function createInstructions(dir: string, stagingDir: string, content: string): Promise<CreateInstructionsResult> {
   return guarded(async () => {
     await mkdir(dir, { recursive: true });
     if (await present(path.join(dir, INSTRUCTIONS_FILE))) return { kind: 'occupied' };
     const bytes = Buffer.from(content, 'utf8');
-    const published = await publish(dir, INSTRUCTIONS_FILE, bytes);
+    const published = await publish(stagingDir, dir, INSTRUCTIONS_FILE, bytes);
     if (published.kind === 'exists') return { kind: 'occupied' };
     return { kind: 'created', revision: revisionOf(published.identity, published.identity, hashOf(bytes), null) };
   });
@@ -253,7 +258,7 @@ export function saveInstructionsCopy(dir: string, at: string, content: string): 
     const bytes = Buffer.from(content, 'utf8');
     for (let n = 1; n < 1_000_000; n++) {
       const name = `${stamp}-${String(n)}.md`;
-      if ((await publish(dir, name, bytes)).kind === 'published') return { kind: 'saved', name };
+      if ((await publish(dir, dir, name, bytes)).kind === 'published') return { kind: 'saved', name };
     }
     throw new Error('Too many copies saved at the same time');
   });

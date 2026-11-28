@@ -238,7 +238,7 @@ it('never reads SOUL.md through a symlink or a second hard link, even to a file 
       {
         "content": null,
         "present": true,
-        "readError": "SOUL.md has more than one hard link, so Ori Kami does not read it. Remove the other link (a leftover .SOUL.md….tmp file beside it is one) or replace SOUL.md with a copy.",
+        "readError": "SOUL.md has more than one hard link, so Ori Kami does not read it. Replace SOUL.md with a copy of its text.",
       },
     ]
   `);
@@ -246,21 +246,27 @@ it('never reads SOUL.md through a symlink or a second hard link, even to a file 
 
 it('refuses a SOUL.md a create cut short left linked to its staging file, says how to fix it, and reads it once that link is gone', async () => {
   const { agent, file } = await sharedAgent('cut-short');
-  const leftover = path.join(path.dirname(file), '.SOUL.md.00000000-0000-4000-8000-000000000000.tmp');
+  const staging = path.join(dataDir, 'instructions-drafts', '.staging');
+  const leftover = path.join(staging, 'SOUL.md.00000000-0000-4000-8000-000000000000.tmp');
+  await mkdir(staging, { recursive: true });
   await writeFile(file, 'kept');
   await link(file, leftover);
   const before = await view(agent);
-  const untouched = (await readdir(path.dirname(file))).sort();
+  const untouched = { workspace: (await readdir(path.dirname(file))).sort(), staging: await readdir(staging) };
   await rm(leftover);
   const after = await view(agent);
   expect({ before: before.readError, untouched, after: after.content }).toMatchInlineSnapshot(`
     {
       "after": "kept",
-      "before": "SOUL.md has more than one hard link, so Ori Kami does not read it. Remove the other link (a leftover .SOUL.md….tmp file beside it is one) or replace SOUL.md with a copy.",
-      "untouched": [
-        ".SOUL.md.00000000-0000-4000-8000-000000000000.tmp",
-        "SOUL.md",
-      ],
+      "before": "SOUL.md has more than one hard link, so Ori Kami does not read it. Replace SOUL.md with a copy of its text.",
+      "untouched": {
+        "staging": [
+          "SOUL.md.00000000-0000-4000-8000-000000000000.tmp",
+        ],
+        "workspace": [
+          "SOUL.md",
+        ],
+      },
     }
   `);
 });
