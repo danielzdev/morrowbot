@@ -6,7 +6,7 @@ export const VaultItemKind = z.enum(['login', 'api_key', 'header_secret']);
 export type VaultItemKind = z.infer<typeof VaultItemKind>;
 
 /** The longest secret value (password, key or header value) the vault keeps. */
-export const MAX_VAULT_SECRET = 2048;
+export const MAX_VAULT_SECRET = 16_384;
 
 /** The name agents see the item by. */
 const VaultLabel = z.string().trim().min(1).max(100);

@@ -38,7 +38,7 @@ it('manages vault items over HTTP and lists them to agents, without a secret in 
     badTwoStepKey: await call('PATCH', `/api/vault/${login.id}`, { kind: 'login', twoStepKey: 'bad-key-8c9d' }),
     secretInUnknownField: await call('POST', '/api/vault', { kind: 'api_key', label: 'X', key: 'key-value-4e5f', password: 'leaked-extra-0e1f' }),
     otherKind: await call('PATCH', `/api/vault/${header.id}`, { kind: 'api_key', key: 'leaked-extra-0e1f' }),
-    tooLong: await call('POST', '/api/vault', { kind: 'api_key', label: 'X', key: `leaked-extra-0e1f${'x'.repeat(2048)}` }),
+    tooLong: await call('POST', '/api/vault', { kind: 'api_key', label: 'X', key: `leaked-extra-0e1f${'x'.repeat(16_384)}` }),
   };
   await call('PATCH', `/api/vault/${login.id}`, { kind: 'login', password: 'pw-second-2c3d' });
   expect((await call('DELETE', `/api/vault/${header.id}`)).status).toBe(204);
@@ -122,7 +122,7 @@ it('manages vault items over HTTP and lists them to agents, without a secret in 
           "body": {
             "error": {
               "kind": "invalid_request",
-              "message": "key: Keep the secret under 2048 characters",
+              "message": "key: Keep the secret under 16384 characters",
             },
           },
           "status": 400,

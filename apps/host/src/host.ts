@@ -27,7 +27,7 @@ import { findSkills, skillList } from './features/skills/index.ts';
 import { createRoutineService, type RoutineClock } from './features/routines/index.ts';
 import { lockDataDir, openStorage } from './features/storage/index.ts';
 import { cliProbe, createT3WatchService, type T3Probe, type T3WatchClock } from './features/t3-watch/index.ts';
-import { defaultVaultStore, openVault, secretStore, type VaultStoreChoice } from './features/vault/index.ts';
+import { openVault, vaultBackend, type VaultKeyChoice } from './features/vault/index.ts';
 import { agentInbox, agentToolPorts, chatStore, providerPlugins } from './host-ports.ts';
 import { routineSink } from './t3-routine-sink.ts';
 
@@ -55,8 +55,8 @@ export interface HostOptions {
   readonly routineClock?: RoutineClock;
   /** What the T3 watcher reads T3 Code with, and its clock. Defaults to the `t3` CLI and the system clock. */
   readonly t3Watch?: { readonly probe: T3Probe; readonly clock: T3WatchClock };
-  /** Where vault secrets go. Defaults to the login Keychain on macOS and a sealed file in the data folder elsewhere. */
-  readonly vaultStore?: VaultStoreChoice;
+  /** Where the vault's master key lives: the OS keystore (the default), or a file in the data folder (tests). */
+  readonly vaultKeys?: VaultKeyChoice;
 }
 
 export interface Host {
@@ -154,9 +154,11 @@ export async function startHost(options: HostOptions): Promise<Host> {
       newId,
       now,
     });
+    const backend = await vaultBackend(options.vaultKeys ?? 'system', process.platform, dataDir);
+    if (backend.headless !== null) console.warn(`MorrowBot host: the vault key is kept in the data folder because ${backend.headless}`);
     const vault = await openVault({
       file: path.join(dataDir, 'vault.json'),
-      secrets: secretStore(options.vaultStore ?? defaultVaultStore(process.platform), dataDir),
+      secrets: backend.secrets,
       newId,
       now,
       report,

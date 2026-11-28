@@ -1,25 +1,31 @@
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { CreateVaultItemRequest, UpdateVaultItemRequest } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { encryptedFileStore } from './file-store.ts';
-import { keychainStore } from './keychain-store.ts';
+import { keyFileStore } from './master-key.ts';
 import type { SecretStore } from './secret-store.ts';
 import { openVault, type ResolvedVaultItem, type VaultSave, type VaultService } from './vault-service.ts';
 
 let dir: string;
+/** The sealed file sits in its own folder, so a test can make only that folder refuse writes. */
+let sealedDir: string;
 let secrets: SecretStore;
 let errors: unknown[];
 beforeEach(async () => {
   dir = await mkdtemp(path.join(tmpdir(), 'morrowbot-vault-'));
-  secrets = encryptedFileStore({ file: path.join(dir, 'vault-secrets.json'), keyFile: path.join(dir, 'vault.key') });
+  sealedDir = path.join(dir, 'sealed');
+  await mkdir(sealedDir);
+  secrets = sealedStore();
   errors = [];
 });
 afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
   expect(errors).toEqual([]);
 });
+
+const sealedStore = (): SecretStore => encryptedFileStore({ file: path.join(sealedDir, 'vault-secrets.json'), keys: keyFileStore(path.join(dir, 'vault.key')) });
 
 function open(store: SecretStore = secrets): Promise<VaultService> {
   let id = 0;
@@ -34,7 +40,6 @@ function open(store: SecretStore = secrets): Promise<VaultService> {
   });
 }
 
-const savedFile = async (): Promise<unknown> => JSON.parse(await readFile(path.join(dir, 'vault.json'), 'utf8'));
 const create = (vault: VaultService, request: unknown) => vault.create(CreateVaultItemRequest.parse(request));
 const update = (vault: VaultService, id: string, request: unknown) => vault.update(id, UpdateVaultItemRequest.parse(request));
 
@@ -81,7 +86,7 @@ it('creates, updates and deletes items, keeping names in vault.json and secrets 
     deleted,
     afterReopen: reopened.list(),
     resolvedAfter: [used(await reopened.resolve(login)), used(await reopened.resolve(header))],
-    headerSecretLeft: await secrets.read(header),
+    storedValues: (await sealedStore().list()).length,
   }).toMatchInlineSnapshot(`
     {
       "afterReopen": [
@@ -141,7 +146,6 @@ it('creates, updates and deletes items, keeping names in vault.json and secrets 
         true,
         false,
       ],
-      "headerSecretLeft": undefined,
       "resolvedAfter": [
         {
           "code": null,
@@ -165,6 +169,7 @@ it('creates, updates and deletes items, keeping names in vault.json and secrets 
           "label": "Search",
         },
       ],
+      "storedValues": 2,
     }
   `);
 });
@@ -178,59 +183,44 @@ it('saves every one of many concurrent writes whole, leaving no temporary file a
   expect({ count: names.length, distinct: new Set(names).size, files: files.toSorted(), secretInMetadata: metadata.includes('secret-value') }).toEqual({
     count: 25,
     distinct: 25,
-    files: ['vault-secrets.json', 'vault.json', 'vault.key'],
+    files: ['sealed', 'vault.json', 'vault.key'],
     secretInMetadata: false,
   });
 });
 
-it('refuses a secret too long for the Keychain before saving it', async () => {
-  const vault = await open(keychainStore('com.legendarykoi.morrowbot.vault.never-written'));
-  const tooLong = await create(vault, { kind: 'api_key', label: 'Huge', key: '✓'.repeat(2000) });
-  expect({ tooLong, items: vault.list(), saved: await savedFile() }).toEqual({
-    tooLong: { kind: 'invalid', reason: 'This secret is too long to save in the macOS Keychain. Shorten it and try again.' },
-    items: [],
-    saved: { version: 1, items: [], pending: [] },
-  });
-});
-
-it('erases the secret before dropping the item, so a failed erase leaves the item to delete again', async () => {
+it('drops a deleted item even when erasing its value fails, and erases that value on the next open', async () => {
   const vault = await open();
   const id = idOf(await create(vault, { kind: 'api_key', label: 'Weather', key: 'wx-1' }));
-  const secretsFile = path.join(dir, 'vault-secrets.json');
-  await rm(secretsFile);
-  await mkdir(secretsFile);
-  const failed = await vault.delete(id).then(
+  await chmod(sealedDir, 0o500);
+  const deleted = await vault.delete(id).then(
     () => 'deleted',
-    () => 'refused',
+    () => 'erase failed',
   );
-  const listedAfterFailure = vault.list().length;
-  await rm(secretsFile, { recursive: true });
-  expect({ failed, listedAfterFailure, retried: await vault.delete(id), secretLeft: await secrets.read(id), listed: (await open()).list() }).toEqual({
-    failed: 'refused',
-    listedAfterFailure: 1,
-    retried: true,
-    secretLeft: undefined,
-    listed: [],
+  const listed = vault.list().length;
+  const valuesLeft = (await sealedStore().list()).length;
+  await chmod(sealedDir, 0o700);
+  await open();
+  expect({ deleted, listed, valuesLeft, valuesAfterReopen: (await sealedStore().list()).length }).toEqual({
+    deleted: 'erase failed',
+    listed: 0,
+    valuesLeft: 1,
+    valuesAfterReopen: 0,
   });
 });
 
-it('erases, on the next open, a secret whose create was cut short before its item was saved', async () => {
-  await secrets.write('item-9', JSON.stringify({ kind: 'api_key', key: 'orphan' }));
-  await writeFile(path.join(dir, 'vault.json'), JSON.stringify({ version: 1, items: [], pending: ['item-9'] }));
+it('keeps the old secret when a change is cut short before vault.json is saved, and erases the new value on the next open', async () => {
   const vault = await open();
-  expect({ items: vault.list(), orphan: await secrets.read('item-9'), saved: await savedFile() }).toEqual({
-    items: [],
-    orphan: undefined,
-    saved: { version: 1, items: [], pending: [] },
-  });
+  const id = idOf(await create(vault, { kind: 'api_key', label: 'Weather', key: 'old' }));
+  await secrets.write('ref-of-a-change-cut-short', JSON.stringify({ kind: 'api_key', key: 'new' }));
+  const reopened = await open();
+  expect({ resolved: used(await reopened.resolve(id)), values: (await sealedStore().list()).length }).toEqual({ resolved: { label: 'Weather', key: 'old' }, values: 1 });
 });
 
 it('replaces a secret that can no longer be read, when the change names every part of it', async () => {
   const vault = await open();
   const login = idOf(await create(vault, { kind: 'login', label: 'Forge', username: 'robot', password: 'old', twoStepKey: 'JBSWY3DPEHPK3PXP' }));
   const key = idOf(await create(vault, { kind: 'api_key', label: 'Weather', key: 'old' }));
-  await secrets.remove(login);
-  await secrets.remove(key);
+  for (const ref of await secrets.list()) await secrets.remove(ref);
   expect({
     passwordOnly: await update(vault, login, { kind: 'login', password: 'new' }),
     wholeLogin: (await update(vault, login, { kind: 'login', password: 'new', twoStepKey: null })).kind,

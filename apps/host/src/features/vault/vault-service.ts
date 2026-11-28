@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { VaultItem, type CreateVaultItemRequest, type UpdateVaultItemRequest, type VaultItemKind } from '@morrowbot/contracts';
 import { z } from 'zod';
@@ -8,10 +9,13 @@ import { serial } from './serial.ts';
 import { base32Bytes, totp } from './totp.ts';
 
 /**
- * `<dataDir>/vault.json`: the items' names and kinds only; secret values live in the `SecretStore`. `pending` lists
- * ids whose secret may be saved without an item (a create cut short); opening the vault erases those secrets.
+ * `<dataDir>/vault.json`: each item's names, and the reference its secret value is saved under in the `SecretStore`.
+ * Every change to a secret saves the new value under a new reference first, so writing this file is the one moment a
+ * change happens; values no entry points at (left by a change cut short) are erased when the vault opens.
  */
-const VaultFile = z.strictObject({ version: z.literal(1), items: z.array(VaultItem), pending: z.array(z.string()).default([]) });
+const Entry = z.strictObject({ item: VaultItem, secretRef: z.string().min(1).max(128) });
+const VaultFile = z.strictObject({ version: z.literal(1), entries: z.array(Entry) });
+type Entry = z.infer<typeof Entry>;
 
 /** The secret part of an item, as the store keeps it (JSON). */
 const Secret = z.discriminatedUnion('kind', [
@@ -37,7 +41,7 @@ export interface VaultService {
   create(request: CreateVaultItemRequest): Promise<VaultSave>;
   update(id: string, request: UpdateVaultItemRequest): Promise<VaultSave>;
   delete(id: string): Promise<boolean>;
-  /** The item with its secret, read from the store right now; undefined for an unknown id. */
+  /** The item with its secret, read from the store right now; undefined for an unknown id. The host-only resolver port. */
   resolve(id: string): Promise<ResolvedVaultItem | undefined>;
 }
 
@@ -50,97 +54,86 @@ export interface VaultOptions {
   /** What one-time codes are made for. Defaults to the system clock. */
   readonly clock?: () => number;
   readonly report: (error: unknown) => void;
+  /** A new reference to save a secret value under. Defaults to a random UUID. */
+  readonly newRef?: () => string;
 }
 
-const TOO_LONG = 'This secret is too long to save in the macOS Keychain. Shorten it and try again.';
 const KIND_NAMES: Readonly<Record<VaultItemKind, string>> = { login: 'a login', api_key: 'an API key', header_secret: 'a header secret' };
 
-/** Loads the vault's names from `vault.json` (a missing file is an empty vault) and serves them. */
+/** Loads `vault.json` (a missing file is an empty vault), erases secret values no item points at, and serves the vault. */
 export async function openVault(options: VaultOptions): Promise<VaultService> {
-  const { secrets, newId, now } = options;
+  const { secrets, newId, now, report } = options;
   const clock = options.clock ?? Date.now;
-  let { items, pending } = await load(options.file);
+  const newRef = options.newRef ?? randomUUID;
+  let entries = await load(options.file);
   const inTurn = serial();
-  const persist = async (nextItems: VaultItem[], nextPending: readonly string[]): Promise<void> => {
-    await writeFileAtomic(options.file, `${JSON.stringify({ version: 1, items: nextItems, pending: nextPending }, null, 2)}\n`);
-    items = nextItems;
-    pending = [...nextPending];
+  const persist = async (next: Entry[]): Promise<void> => {
+    await writeFileAtomic(options.file, `${JSON.stringify({ version: 1, entries: next }, null, 2)}\n`);
+    entries = next;
   };
-  const settled = (id: string): string[] => pending.filter((each) => each !== id);
-  if (pending.length > 0) {
-    const left: string[] = [];
-    for (const id of pending) {
-      await secrets.remove(id).catch((error: unknown) => {
-        left.push(id);
-        options.report(error);
-      });
-    }
-    await persist(items, left).catch(options.report);
-  }
-  const readSecret = async (item: VaultItem): Promise<Secret> => {
-    const text = await secrets.read(item.id);
+  const entryOf = (id: string): Entry | undefined => entries.find(({ item }) => item.id === id);
+  const readSecret = async ({ item, secretRef }: Entry): Promise<Secret> => {
+    const text = await secrets.read(secretRef);
     const parsed = text === undefined ? undefined : Secret.safeParse(parseJson(text));
     if (parsed?.success !== true || parsed.data.kind !== item.kind) throw new SecretStoreError(`The vault has no readable secret for item ${item.id}`);
     return parsed.data;
   };
+  const erase = (ref: string): Promise<void> => secrets.remove(ref).catch(report);
+
+  try {
+    const live = new Set(entries.map(({ secretRef }) => secretRef));
+    for (const ref of await secrets.list()) if (!live.has(ref)) await erase(ref);
+  } catch (error) {
+    report(error);
+  }
 
   return {
-    list: () => [...items],
+    list: () => entries.map(({ item }) => item),
     create: (request) =>
       inTurn(async () => {
-        const at = now();
-        const { item, secret } = created(request, newId(), at);
-        await persist(items, [...pending, item.id]);
+        const { item, secret } = created(request, newId(), now());
+        const secretRef = newRef();
+        await secrets.write(secretRef, JSON.stringify(secret));
         try {
-          if ((await secrets.write(item.id, JSON.stringify(secret))).kind === 'too-long') {
-            await persist(items, settled(item.id));
-            return { kind: 'invalid', reason: TOO_LONG };
-          }
-          await persist([...items, item], settled(item.id));
-          return { kind: 'saved', item };
+          await persist([...entries, { item, secretRef }]);
         } catch (error) {
-          await secrets
-            .remove(item.id)
-            .then(() => persist(items, settled(item.id)))
-            .catch(options.report);
+          await erase(secretRef);
           throw error;
         }
+        return { kind: 'saved', item };
       }),
     update: (id, request) =>
       inTurn(async () => {
-        const current = items.find((item) => item.id === id);
+        const current = entryOf(id);
         if (current === undefined) return { kind: 'not-found' };
-        if (current.kind !== request.kind) return { kind: 'invalid', reason: `This item is ${KIND_NAMES[current.kind]} and stays one` };
-        const saved = changesSecret(request) ? await secrets.read(id).catch(() => undefined) : undefined;
-        const before = saved === undefined ? undefined : Secret.safeParse(parseJson(saved));
-        const change = updated(current, request, before?.success === true ? before.data : null, now());
+        if (current.item.kind !== request.kind) return { kind: 'invalid', reason: `This item is ${KIND_NAMES[current.item.kind]} and stays one` };
+        const before = changesSecret(request) ? await readSecret(current).catch(() => null) : null;
+        const change = updated(current.item, request, before, now());
         if (change.kind === 'invalid') return change;
-        if (change.secret !== null && (await secrets.write(id, JSON.stringify(change.secret))).kind === 'too-long') return { kind: 'invalid', reason: TOO_LONG };
+        const secretRef = change.secret === null ? current.secretRef : newRef();
+        if (change.secret !== null) await secrets.write(secretRef, JSON.stringify(change.secret));
         try {
-          await persist(
-            items.map((item) => (item.id === id ? change.item : item)),
-            pending,
-          );
+          await persist(entries.map((entry) => (entry === current ? { item: change.item, secretRef } : entry)));
         } catch (error) {
-          if (saved !== undefined) await secrets.write(id, saved).catch(options.report);
+          if (secretRef !== current.secretRef) await erase(secretRef);
           throw error;
         }
+        if (secretRef !== current.secretRef) await erase(current.secretRef);
         return { kind: 'saved', item: change.item };
       }),
     delete: (id) =>
       inTurn(async () => {
-        if (!items.some((item) => item.id === id)) return false;
-        await secrets.remove(id);
-        await persist(
-          items.filter((item) => item.id !== id),
-          pending,
-        );
+        const current = entryOf(id);
+        if (current === undefined) return false;
+        await persist(entries.filter((entry) => entry !== current));
+        await secrets.remove(current.secretRef);
         return true;
       }),
     resolve: async (id) => {
-      const item = items.find((each) => each.id === id);
-      if (item === undefined) return undefined;
-      const secret = await readSecret(item);
+      const entry = entryOf(id);
+      if (entry === undefined) return undefined;
+      const { item } = entry;
+      const secret = await readSecret(entry);
       switch (item.kind) {
         case 'login': {
           if (secret.kind !== 'login') return undefined;
@@ -222,17 +215,17 @@ const unreadable: Change = {
   reason: "This login's saved secret can't be read. Enter the password and the two-step key (or remove the key) to replace it.",
 };
 
-async function load(file: string): Promise<{ items: VaultItem[]; pending: string[] }> {
+async function load(file: string): Promise<Entry[]> {
   let text: string;
   try {
     text = await readFile(file, 'utf8');
   } catch (error) {
-    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return { items: [], pending: [] };
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return [];
     throw error;
   }
   const parsed = VaultFile.safeParse(parseJson(text));
   if (!parsed.success) throw new Error(`${file} is not a vault file MorrowBot wrote; move it aside to start with an empty vault`);
-  return parsed.data;
+  return parsed.data.entries;
 }
 
 function parseJson(text: string): unknown {

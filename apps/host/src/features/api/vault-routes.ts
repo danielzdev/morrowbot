@@ -3,8 +3,8 @@ import type { ApiServices, ApiVaultSave } from './ports.ts';
 import { failure, json, noContent, notFound, type Reply } from './reply.ts';
 import { parseBody, type Route } from './route.ts';
 
-/** A request carries at most a few short secrets. */
-const VAULT_BODY_BYTES = 64 * 1024;
+/** A request carries at most two secrets of 16 384 characters, each up to 4 bytes in UTF-8. */
+const VAULT_BODY_BYTES = 256 * 1024;
 
 /** Settings › Vault, for the owner only. Replies carry item names; a secret value goes in and never comes back out. */
 export function vaultRoutes({ vault }: ApiServices): Route[] {
