@@ -50,7 +50,7 @@ it('strips unknown fields from newer host event frames and skips unknown event k
       JSON.stringify({
         kind: 'thread.changed',
         summary: {
-          thread: { id: 't1', agentId: 'a1', title: 'Main', createdAt: NOW, updatedAt: NOW, archivedAt: null },
+          thread: { id: 't1', agentId: 'a1', title: 'Main', createdAt: NOW, updatedAt: NOW, archivedAt: null, pinned: true },
           activity: { kind: 'idle', since: NOW },
           lastMessage: null,
         },
@@ -113,7 +113,7 @@ it('strips unknown fields from newer host event frames and skips unknown event k
       {
         kind: 'thread.changed',
         summary: {
-          thread: { id: 't1', agentId: 'a1', title: 'Main', createdAt: NOW, updatedAt: NOW },
+          thread: { id: 't1', agentId: 'a1', title: 'Main', createdAt: NOW, updatedAt: NOW, archivedAt: null },
           activity: { kind: 'idle' },
           lastMessage: null,
         },

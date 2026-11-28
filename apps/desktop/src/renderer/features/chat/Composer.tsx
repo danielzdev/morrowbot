@@ -58,11 +58,9 @@ export function Composer(props: {
   const uploading = items.some((item) => item.kind === 'uploading');
   const files = items.some((item) => item.kind === 'ready');
   const hasContent = screen.draft.trim() !== '' || files;
-  /** Only text can wait in the queue; files go once the reply ends. */
-  const filesWait = running && files;
-  const canSend = view !== null && !blocked && screen.busy === null && disabledReason === null && hasContent && !uploading && !filesWait;
+  const canSend = view !== null && !blocked && screen.busy === null && disabledReason === null && hasContent && !uploading;
   const sendLabel =
-    screen.busy === 'sending' ? 'Sending…' : uploading ? 'Uploading files…' : filesWait ? 'Files can be sent once this reply ends' : running ? 'Queue: sent after this reply' : 'Send';
+    screen.busy === 'sending' ? 'Sending…' : uploading ? 'Uploading files…' : running ? 'Queue: sent after this reply' : 'Send';
   return (
     <div class="composer">
       <ComposerBanners

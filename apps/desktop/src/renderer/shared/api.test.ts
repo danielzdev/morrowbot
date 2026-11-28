@@ -42,7 +42,7 @@ describe('createApi lenient host reply parsing', () => {
       'GET /api/agents/a1/threads': {
         status: 200,
         body: {
-          threads: [{ id: 't1', agentId: 'a1', title: 'Main', createdAt: NOW, updatedAt: NOW, archivedAt: null }],
+          threads: [{ id: 't1', agentId: 'a1', title: 'Main', createdAt: NOW, updatedAt: NOW, archivedAt: null, pinned: true }],
           nextCursor: null,
         },
       },
@@ -78,7 +78,7 @@ describe('createApi lenient host reply parsing', () => {
       threads: {
         kind: 'ok',
         value: {
-          threads: [{ id: 't1', agentId: 'a1', title: 'Main', createdAt: NOW, updatedAt: NOW }],
+          threads: [{ id: 't1', agentId: 'a1', title: 'Main', createdAt: NOW, updatedAt: NOW, archivedAt: null }],
         },
       },
       deleted: { kind: 'ok', value: null },
@@ -90,7 +90,7 @@ describe('createApi lenient host reply parsing', () => {
       'GET /api/threads/t1/state': {
         status: 200,
         body: {
-          thread: { id: 't1', agentId: 'a1', title: 'Main', createdAt: NOW, updatedAt: NOW, archivedAt: null },
+          thread: { id: 't1', agentId: 'a1', title: 'Main', createdAt: NOW, updatedAt: NOW, archivedAt: null, pinned: true },
           messages: [
             { kind: 'user', id: 'm1', threadId: 't1', text: 'hi', createdAt: NOW, attachments: [], locale: 'en' },
             {
@@ -124,7 +124,7 @@ describe('createApi lenient host reply parsing', () => {
     expect(await api.threadState('t1')).toEqual({
       kind: 'ok',
       value: {
-        thread: { id: 't1', agentId: 'a1', title: 'Main', createdAt: NOW, updatedAt: NOW },
+        thread: { id: 't1', agentId: 'a1', title: 'Main', createdAt: NOW, updatedAt: NOW, archivedAt: null },
         messages: [
           { kind: 'user', id: 'm1', threadId: 't1', text: 'hi', createdAt: NOW, attachments: [] },
           {

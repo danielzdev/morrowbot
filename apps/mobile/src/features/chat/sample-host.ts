@@ -65,7 +65,7 @@ export function createSampleChatHost(now: () => string = () => new Date().toISOS
     for (const watcher of watchers.get(threadId) ?? []) watcher.onEvent({ kind: 'queue.changed', threadId, cursor: { hostEpoch: EPOCH, seq }, queue: [...queue] });
   };
   const queueOf = (threadId: string): QueuedMessage[] => queues.get(threadId) ?? [];
-  const delivered = (item: QueuedMessage): UserMessage => ({ kind: 'user', id: item.id, threadId: item.threadId, text: item.text, createdAt: now(), attachments: [] });
+  const delivered = (item: QueuedMessage): UserMessage => ({ kind: 'user', id: item.id, threadId: item.threadId, text: item.text, createdAt: now(), attachments: item.attachments });
 
   /** Ends the turn. A finished reply sends the next queued message; a stopped one holds the queue. */
   const finish = (threadId: string, turn: Active, outcome: TurnOutcome): AssistantMessage => {
@@ -199,7 +199,7 @@ export function createSampleChatHost(now: () => string = () => new Date().toISOS
     agents: () => ok({ agents, folders: [], lastMessages: [] }),
     threads: (agentId) => ok({ threads: threads.filter((each) => each.agentId === agentId) }),
     createThread: (agentId) => {
-      const created: Thread = { id: nextId('thread'), agentId, title: 'New chat', createdAt: now(), updatedAt: now() };
+      const created: Thread = { id: nextId('thread'), agentId, title: 'New chat', createdAt: now(), updatedAt: now(), archivedAt: null };
       threads = [...threads, created];
       return ok(created);
     },
@@ -213,16 +213,13 @@ export function createSampleChatHost(now: () => string = () => new Date().toISOS
       return ok(attachment);
     },
     send: (threadId, text, attachmentIds) => {
+      const attachments = attachmentIds.flatMap((id) => uploads.get(id) ?? []);
+      for (const id of attachmentIds) uploads.delete(id);
       if (active.has(threadId)) {
-        if (attachmentIds.length > 0) {
-          return Promise.resolve({ kind: 'failed', status: 409, error: { kind: 'conflict', message: 'Files can be sent once this reply ends. Send the text alone to queue it.' } });
-        }
-        const queued: QueuedMessage = { id: nextId('msg'), threadId, text, createdAt: now(), state: { kind: 'queued' } };
+        const queued: QueuedMessage = { id: nextId('msg'), threadId, text, attachments, createdAt: now(), state: { kind: 'queued' } };
         setQueue(threadId, [...queueOf(threadId), queued]);
         return ok({ kind: 'queued', queued });
       }
-      const attachments = attachmentIds.flatMap((id) => uploads.get(id) ?? []);
-      for (const id of attachmentIds) uploads.delete(id);
       const userMessage: UserMessage = { kind: 'user', id: nextId('msg'), threadId, text, createdAt: now(), attachments };
       return ok({ kind: 'started', generationId: start(threadId, userMessage, text === '' ? 'your files' : text), userMessage });
     },

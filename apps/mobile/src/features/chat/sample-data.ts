@@ -44,6 +44,7 @@ const thread = (id: string, agentId: string, title: string, createdAt: string): 
   title,
   createdAt,
   updatedAt: LATER,
+  archivedAt: null,
 });
 
 export const SAMPLE_THREADS: readonly Thread[] = [

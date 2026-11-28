@@ -8,5 +8,6 @@ export function steerPrompt(text: string): string {
 
 /** The prompt of the turn that follows a reply stopped for a steer, on a provider that cannot take one mid-turn. */
 export function interruptedPrompt(text: string): string {
-  return `[The user interrupted your work with this message. Reply to it visibly first, and answer it if it is a question; then carry on with the task you were doing, with it taken into account.]\n\n${text}`;
+  const body = text.trim() === '' ? '(No message: see the attached files.)' : text;
+  return `[The user interrupted your work with this message. Reply to it visibly first, and answer it if it is a question; then carry on with the task you were doing, with it taken into account.]\n\n${body}`;
 }
