@@ -204,3 +204,113 @@ it('cannot tell which run is ours when more than one ran since the prior run, so
     ]
   `);
 });
+
+it('survives a T3 Code restart when the watched thread resumes under a new run id and finishes it', async () => {
+  kit.t3.thread('mcp:restart');
+  kit.register({ threadId: 'mcp:restart', runId: runOf('mcp:restart', 1), label: 'Restarted task' });
+  await kit.run(5000);
+  kit.t3.down = true;
+  await kit.run(60_000);
+  kit.t3.down = false;
+  kit.t3.startRun('mcp:restart', 2);
+  await kit.run(20_000);
+  const afterRestart = { watches: kit.watches(), events: kit.events() };
+  kit.t3.finish('mcp:restart');
+  await kit.run(30_000);
+  expect({ afterRestart, watches: kit.watches(), events: kit.events() }).toMatchInlineSnapshot(`
+    {
+      "afterRestart": {
+        "events": [],
+        "watches": [
+          {
+            "reason": null,
+            "run": "#2",
+            "settled": false,
+            "source": "registered",
+            "state": "running",
+            "thread": "mcp:restart",
+          },
+        ],
+      },
+      "events": [
+        {
+          "at": "+111s",
+          "kind": "finished",
+          "reason": null,
+          "run": "#2",
+          "thread": "mcp:restart",
+        },
+      ],
+      "watches": [
+        {
+          "reason": null,
+          "run": "#2",
+          "settled": false,
+          "source": "registered",
+          "state": "finished",
+          "thread": "mcp:restart",
+        },
+      ],
+    }
+  `);
+});
+
+it('switches to a newer run id on same-thread resumption and reports needs_you, failed, and finished on the new run', async () => {
+  kit.t3.thread('mcp:resumed-ok');
+  kit.t3.thread('mcp:resumed-fail');
+  kit.register({ threadId: 'mcp:resumed-ok', runId: runOf('mcp:resumed-ok', 1) });
+  kit.register({ threadId: 'mcp:resumed-fail', runId: runOf('mcp:resumed-fail', 1) });
+  await kit.run(5000);
+  kit.t3.startRun('mcp:resumed-ok', 2);
+  Object.assign(kit.t3.get('mcp:resumed-ok'), { status: 'waiting', pendingRequestCount: 1 });
+  kit.t3.startRun('mcp:resumed-fail', 2);
+  kit.t3.finish('mcp:resumed-fail', 'failed', 'Provider exited with code 1');
+  await kit.run(15_000);
+  Object.assign(kit.t3.get('mcp:resumed-ok'), { status: 'completed', activeRunId: null, pendingRequestCount: 0, itemCount: 8 });
+  await kit.run(30_000);
+  expect({ watches: kit.watches(), events: kit.events() }).toMatchInlineSnapshot(`
+    {
+      "events": [
+        {
+          "at": "+11s",
+          "kind": "needs_you",
+          "reason": "1 pending request(s)",
+          "run": "#2",
+          "thread": "mcp:resumed-ok",
+        },
+        {
+          "at": "+11s",
+          "kind": "failed",
+          "reason": "Provider exited with code 1",
+          "run": "#2",
+          "thread": "mcp:resumed-fail",
+        },
+        {
+          "at": "+41s",
+          "kind": "finished",
+          "reason": null,
+          "run": "#2",
+          "thread": "mcp:resumed-ok",
+        },
+      ],
+      "watches": [
+        {
+          "reason": null,
+          "run": "#2",
+          "settled": false,
+          "source": "registered",
+          "state": "finished",
+          "thread": "mcp:resumed-ok",
+        },
+        {
+          "reason": "Provider exited with code 1",
+          "run": "#2",
+          "settled": false,
+          "source": "registered",
+          "state": "failed",
+          "thread": "mcp:resumed-fail",
+        },
+      ],
+    }
+  `);
+});

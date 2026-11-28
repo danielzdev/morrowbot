@@ -13,6 +13,7 @@ export function receiverRules(dir: string): string[] {
     'Act on needs_you only if the same request is still pending; otherwise record stale.',
     'Two NotFound reads at least 5 s apart: record gone and list the eventId in goneEventIds. Any other failed or incomplete read: defer it (no done record) and list it in deferredEventIds.',
     'An event marked unverified: show it to the user as unconfirmed, take no action, record done (disposition unverified). Never revalidate or defer it.',
+    'For idle_unverified events, report clearly that tracking stopped without confirming the thread finished (include the thread and reason); never close silently or call routine_no_update.',
     `Append {"eventId","phase":"start"} to ${path.join(dir, HANDLED_FILE)} before acting, and {"eventId","batchId","phase":"done","disposition":"handled|stale|gone|unverified"} once the outcome is durable. A start without a done means a crash: check whether the action already happened before doing it again.`,
     'Make every action retry-safe by eventId: a thread you start carries it in its title (`t3 thread start --title "<label> [<eventId>]"`, never --generate-title).',
     'Keep handling under 5 min: start long work as new T3 threads and register them.',

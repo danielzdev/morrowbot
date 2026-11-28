@@ -44,10 +44,17 @@ export const WatchMemory = z.strictObject({
   recovery: z.enum(['needs_you', 'finished']).nullable().default(null),
   /** Optional routine bound when the watch was registered via agent tools. */
   routineId: EntityId.nullable().default(null),
+  /** Optional Ori Bot chat thread where the watch was created, for delivering reports. */
+  chatThreadId: EntityId.nullable().default(null),
 });
 export type WatchMemory = z.infer<typeof WatchMemory>;
 
-export function freshMemory(binding: Binding, stallAfterMs: number, routineId: string | null = null): WatchMemory {
+export function freshMemory(
+  binding: Binding,
+  stallAfterMs: number,
+  routineId: string | null = null,
+  chatThreadId: string | null = null,
+): WatchMemory {
   return {
     binding,
     stallAfterMs,
@@ -60,6 +67,7 @@ export function freshMemory(binding: Binding, stallAfterMs: number, routineId: s
     requests: null,
     recovery: null,
     routineId,
+    chatThreadId,
   };
 }
 
@@ -118,8 +126,6 @@ function idleOutcome(identity: Identity, observation: Observation): Pick<z.infer
     }
     case 'pending':
       return { kind: 'watch_missing', reason: 'no_run' };
-    case 'newer':
-      return { kind: 'idle_unverified', reason: 'a newer run replaced the watched one' };
     case 'ambiguous':
       return { kind: 'idle_unverified', reason: identity.reason };
   }
@@ -128,8 +134,7 @@ function idleOutcome(identity: Identity, observation: Observation): Pick<z.infer
 function observe(watch: MachineWatch, observation: Observation, at: number): Step {
   const before = watch.memory;
   const identity = resolveIdentity(before.binding, observation);
-  const adopted = identity.kind === 'ours' && before.binding.kind !== 'run';
-  const binding: Binding = adopted ? { kind: 'run', runId: identity.runId } : before.binding;
+  const binding: Binding = identity.kind === 'ours' ? { kind: 'run', runId: identity.runId } : before.binding;
   const runId = identity.kind === 'ours' ? identity.runId : watch.runId;
   const progress = progressOf(observation);
   const step = before.lastReadAt === null ? 0 : Math.min(Math.max(at - before.lastReadAt, 0), MAX_AWAKE_STEP_MS);

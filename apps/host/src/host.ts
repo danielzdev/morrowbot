@@ -235,7 +235,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
     const t3Watches = createT3WatchService({
       store: { watches: storage.t3Watches, outbox: storage.t3Outbox, batches: storage.t3Batches, transaction: (work) => storage.transaction(work) },
       probe: options.t3Watch?.probe ?? cliProbe(config.t3Watch.bin),
-      sink: routineSink(routines, config.t3Watch.routineId, (agentId) => chat.agentBusy(agentId)),
+      sink: routineSink(routines, storage, chat, config.t3Watch.routineId),
       clock: t3Clock,
       dir: config.t3Watch.dir,
       projects: config.t3Watch.projects,

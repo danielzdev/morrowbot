@@ -21,12 +21,10 @@ export type Binding = z.infer<typeof Binding>;
 
 /** What one read says about the watched run. */
 export type Identity =
-  /** The thread's latest run is ours, so the thread's status is our run's status. */
+  /** The thread's latest run is ours (including a newer run after a T3 restart or same-thread resumption). */
   | { readonly kind: 'ours'; readonly runId: string }
   /** Our run has not shown up yet: the latest run is older (or there is none). */
   | { readonly kind: 'pending' }
-  /** A run after ours is the latest; ours can no longer be read. */
-  | { readonly kind: 'newer' }
   | { readonly kind: 'ambiguous'; readonly reason: string };
 
 /** Compares run ordinals; undefined when either id has none. */
@@ -44,7 +42,7 @@ export function resolveIdentity(binding: Binding, observation: Observation): Ide
       if (latest === binding.runId) return { kind: 'ours', runId: latest };
       const order = compare(latest, binding.runId);
       if (order === undefined || order === 0) return { kind: 'ambiguous', reason: 'run ids without ordinals' };
-      return order < 0 ? { kind: 'pending' } : { kind: 'newer' };
+      return order < 0 ? { kind: 'pending' } : { kind: 'ours', runId: latest };
     }
     case 'first': {
       if (observation.createdAt.kind === 'missing') return { kind: 'ambiguous', reason: 'thread start time unknown' };

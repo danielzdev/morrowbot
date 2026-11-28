@@ -2,7 +2,7 @@ import type { T3StatusRow, T3WatchAck, T3WatchEvent } from '@morrowbot/contracts
 import { batchPayload } from './batch-payload.ts';
 import { deferred, flushAt, IDLE_MS, kindOrder, LEASE_MS, SEND_RETRY_MS } from './delivery-policy.ts';
 import type { ProbeResult } from './observation.ts';
-import type { T3BatchRecord, T3DeliverySink, T3OutboxEntry, T3WatchClock, T3WatchStore } from './ports.ts';
+import type { T3BatchRecord, T3DeliverySink, T3DeliveryTarget, T3OutboxEntry, T3WatchClock, T3WatchStore } from './ports.ts';
 import type { Registry } from './registry.ts';
 
 export type AckResult = { readonly kind: 'acked' } | { readonly kind: 'already_acked' } | { readonly kind: 'unknown_batch' };
@@ -54,43 +54,52 @@ export function createDeliveryLane(options: DeliveryOptions): DeliveryLane {
   let sending = false;
   let failedSends = 0;
 
-  const watchRoutineOf = (event: T3WatchEvent): string | null => (event.scope === 'watch' ? registry.routineOf(event.watchId) : null);
+  const UNBOUND_TARGET: T3DeliveryTarget = { routineId: null, chatThreadId: null };
 
-  const resolveTarget = (watchRoutineId: string | null): { readonly kind: 'deliver'; readonly routineId: string | null } | { readonly kind: 'hold' } => {
+  const watchTargetOf = (event: T3WatchEvent): T3DeliveryTarget =>
+    event.scope === 'watch'
+      ? { routineId: registry.routineOf(event.watchId), chatThreadId: registry.chatThreadOf(event.watchId) }
+      : UNBOUND_TARGET;
+
+  const resolveTarget = (
+    watch: T3DeliveryTarget,
+  ): { readonly kind: 'deliver'; readonly target: T3DeliveryTarget } | { readonly kind: 'hold' } => {
     if (sink === null) return { kind: 'hold' };
-    if (sink.targetFor === undefined) return { kind: 'deliver', routineId: null };
-    const routineId = sink.targetFor(watchRoutineId);
-    return routineId === null ? { kind: 'hold' } : { kind: 'deliver', routineId };
+    if (sink.targetFor === undefined) return { kind: 'deliver', target: UNBOUND_TARGET };
+    const target = sink.targetFor(watch);
+    return target === null ? { kind: 'hold' } : { kind: 'deliver', target };
   };
 
-  const trackIdle = (targets: ReadonlySet<string | null>, now: number): void => {
+  const idleKey = (target: T3DeliveryTarget): string => target.routineId ?? '';
+  const sameTarget = (a: T3DeliveryTarget, b: T3DeliveryTarget): boolean =>
+    a.routineId === b.routineId && a.chatThreadId === b.chatThreadId;
+
+  const trackIdle = (targets: ReadonlyMap<string, T3DeliveryTarget>, now: number): void => {
     if (sink === null) return;
-    const activeKeys = new Set<string>();
-    for (const target of targets) {
-      const key = target ?? '';
-      activeKeys.add(key);
+    for (const [key, target] of targets) {
       if (sink.busy(target)) idleSince.delete(key);
       else if (!idleSince.has(key)) idleSince.set(key, now);
     }
-    for (const key of idleSince.keys()) if (!activeKeys.has(key)) idleSince.delete(key);
+    for (const key of idleSince.keys()) if (!targets.has(key)) idleSince.delete(key);
   };
 
-  const isIdle = (routineId: string | null, now: number): boolean => {
-    const since = idleSince.get(routineId ?? '');
+  const isIdle = (target: T3DeliveryTarget, now: number): boolean => {
+    const since = idleSince.get(idleKey(target));
     return since !== undefined && now - since >= IDLE_MS;
   };
 
-  const status = (targetRoutineId: string | null): T3StatusRow[] =>
+  const status = (target: T3DeliveryTarget): T3StatusRow[] =>
     store.watches
       .currentAll()
       .filter((watch) => watch.settledAt === null && watch.state !== 'superseded')
       .filter((watch) => {
         if (sink?.targetFor === undefined) return true;
-        return sink.targetFor(registry.routineOf(watch.watchId)) === targetRoutineId;
+        const resolved = sink.targetFor({ routineId: registry.routineOf(watch.watchId), chatThreadId: registry.chatThreadOf(watch.watchId) });
+        return resolved !== null && resolved.routineId === target.routineId;
       })
       .map(({ watchId, threadId, label, state, reason, runId }) => ({ watchId, threadId, label, state, reason, runId }));
 
-  const send = (target: T3DeliverySink, batch: T3BatchRecord, targetRoutineId: string | null, now: number): void => {
+  const send = (targetSink: T3DeliverySink, batch: T3BatchRecord, target: T3DeliveryTarget, now: number): void => {
     if (batch.entries.length === 0) {
       store.batches.acknowledge(batch.batchId, iso(now));
       return;
@@ -99,7 +108,7 @@ export function createDeliveryLane(options: DeliveryOptions): DeliveryLane {
     const attempt = batch.attempts + 1;
     options.track(
       Promise.resolve()
-        .then(() => target.deliver(batchPayload(batch, attempt, now, status(targetRoutineId), options.dir), targetRoutineId))
+        .then(() => targetSink.deliver(batchPayload(batch, attempt, now, status(target), options.dir), target))
         .then((answer) => {
           const at = clock.now();
           switch (answer.kind) {
@@ -108,7 +117,7 @@ export function createDeliveryLane(options: DeliveryOptions): DeliveryLane {
               store.batches.reschedule(batch.batchId, attempt, iso(at + LEASE_MS));
               return;
             case 'busy':
-              idleSince.delete(targetRoutineId ?? '');
+              idleSince.delete(idleKey(target));
               return;
             case 'failed':
               failedSends += 1;
@@ -181,59 +190,59 @@ export function createDeliveryLane(options: DeliveryOptions): DeliveryLane {
       const now = clock.now();
       const open = store.batches.open();
       const undelivered = store.outbox.undelivered();
-      const activeTargets = new Set<string | null>();
+      const activeTargets = new Map<string, T3DeliveryTarget>();
+      const trackTarget = (target: T3DeliveryTarget | null): void => {
+        if (target === null) return;
+        const key = idleKey(target);
+        if (!activeTargets.has(key)) activeTargets.set(key, target);
+      };
       if (sink.targetFor === undefined) {
-        activeTargets.add(null);
+        trackTarget(UNBOUND_TARGET);
       } else {
-        const defaultTarget = sink.targetFor(null);
-        if (defaultTarget !== null) activeTargets.add(defaultTarget);
+        trackTarget(sink.targetFor(UNBOUND_TARGET));
         for (const watch of store.watches.open()) {
-          const target = sink.targetFor(registry.routineOf(watch.watchId));
-          if (target !== null) activeTargets.add(target);
+          trackTarget(sink.targetFor({ routineId: registry.routineOf(watch.watchId), chatThreadId: registry.chatThreadOf(watch.watchId) }));
         }
         if (open !== undefined) {
-          for (const { event } of open.entries) {
-            const target = sink.targetFor(watchRoutineOf(event));
-            if (target !== null) activeTargets.add(target);
-          }
+          for (const { event } of open.entries) trackTarget(sink.targetFor(watchTargetOf(event)));
         }
-        for (const entry of undelivered) {
-          const target = sink.targetFor(watchRoutineOf(entry.event));
-          if (target !== null) activeTargets.add(target);
-        }
+        for (const entry of undelivered) trackTarget(sink.targetFor(watchTargetOf(entry.event)));
       }
       trackIdle(activeTargets, now);
       if (sending) return;
       if (open !== undefined) {
         checks.clear();
         const firstWatch = open.entries.find(({ event }) => event.scope === 'watch')?.event;
-        const target = resolveTarget(firstWatch === undefined ? null : watchRoutineOf(firstWatch));
-        if (target.kind === 'deliver' && isIdle(target.routineId, now) && now >= Date.parse(open.resendAt)) {
-          send(sink, open, target.routineId, now);
+        const resolved = resolveTarget(firstWatch === undefined ? UNBOUND_TARGET : watchTargetOf(firstWatch));
+        if (resolved.kind === 'deliver' && isIdle(resolved.target, now) && now >= Date.parse(open.resendAt)) {
+          send(sink, open, resolved.target, now);
         }
         return;
       }
       const ready = undelivered.filter((entry) => Date.parse(entry.dueAt) <= now);
       const firstDeliverable = ready
-        .map((entry) => ({ entry, target: resolveTarget(watchRoutineOf(entry.event)) }))
-        .find((each): each is { readonly entry: T3OutboxEntry; readonly target: { readonly kind: 'deliver'; readonly routineId: string | null } } => each.target.kind === 'deliver');
+        .map((entry) => ({ entry, resolved: resolveTarget(watchTargetOf(entry.event)) }))
+        .find(
+          (each): each is { readonly entry: T3OutboxEntry; readonly resolved: { readonly kind: 'deliver'; readonly target: T3DeliveryTarget } } =>
+            each.resolved.kind === 'deliver',
+        );
       if (firstDeliverable === undefined) {
         checks.clear();
         return;
       }
-      const targetRoutineId = firstDeliverable.target.routineId;
+      const deliveryTarget = firstDeliverable.resolved.target;
       const group = ready.filter((entry) => {
-        const target = resolveTarget(watchRoutineOf(entry.event));
-        return target.kind === 'deliver' && target.routineId === targetRoutineId;
+        const resolved = resolveTarget(watchTargetOf(entry.event));
+        return resolved.kind === 'deliver' && sameTarget(resolved.target, deliveryTarget);
       });
-      if (group.length === 0 || now < flushAt(group) || !isIdle(targetRoutineId, now)) {
+      if (group.length === 0 || now < flushAt(group) || !isIdle(deliveryTarget, now)) {
         checks.clear();
         return;
       }
       if (!checked(group.filter(needsCheck))) return;
       const batch = compose(group, now);
       checks.clear();
-      if (batch !== undefined) send(sink, batch, targetRoutineId, now);
+      if (batch !== undefined) send(sink, batch, deliveryTarget, now);
     },
     ack: (ack) => {
       const batch = store.batches.get(ack.batchId);

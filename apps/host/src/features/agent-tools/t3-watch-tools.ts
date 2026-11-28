@@ -62,7 +62,7 @@ export function t3WatchTools({ t3Watches }: ToolPorts): Tool[] {
           ...(input.launchedAt === undefined ? {} : { launchedAt: input.launchedAt }),
           ...(input.stallAfterMin === undefined ? {} : { stallAfterMin: input.stallAfterMin }),
         };
-        const outcome = t3Watches.watch(grant.agentId, request);
+        const outcome = t3Watches.watch(grant.agentId, request, grant.threadId);
         switch (outcome.kind) {
           case 'watched':
             return done({ watch: outcome.watch });

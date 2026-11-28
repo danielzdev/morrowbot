@@ -197,3 +197,23 @@ it('restores saved background read outcomes on cold load and resync for incoming
     }
   `);
 });
+
+it('appends a message.posted assistant message without disturbing an active turn and deduplicates repeats', () => {
+  const posted = {
+    kind: 'assistant' as const,
+    id: 'm-report',
+    threadId: 't',
+    text: 'Build finished.',
+    outcome: { kind: 'completed' as const, finishReason: 'stop' as const },
+    attachments: [],
+    createdAt: AT,
+  };
+  const first = applyEvent(viewOf(STATE), { kind: 'message.posted', threadId: 't', cursor: { hostEpoch: 'e1', seq: 5 }, message: posted }, 0);
+  if (first.kind !== 'applied') throw new Error(first.kind);
+  const repeat = applyEvent(first.view, { kind: 'message.posted', threadId: 't', cursor: { hostEpoch: 'e1', seq: 6 }, message: posted }, 0);
+  if (repeat.kind !== 'applied') throw new Error(repeat.kind);
+  expect({
+    activeTurnId: repeat.view.activeTurn?.generationId,
+    messages: repeat.view.messages.map(({ id, text }) => `${id}: ${text}`),
+  }).toEqual({ activeTurnId: 'g', messages: ['m-report: Build finished.'] });
+});

@@ -165,6 +165,9 @@ function change(view: ThreadView, event: ThreadEvent): ThreadView | undefined {
   if (event.kind === 'reactions.changed') return view;
   if (event.kind === 'subagent.changed') return view;
   if (event.kind === 'card.changed') return view;
+  if (event.kind === 'message.posted') {
+    return view.messages.some(({ id }) => id === event.message.id) ? view : { ...view, messages: [...view.messages, event.message] };
+  }
   if (event.kind === 'generation.started' || event.kind === 'generation.background-started') {
     const userMessage = event.kind === 'generation.started' ? event.userMessage : null;
     const messages =

@@ -47,7 +47,7 @@ export class EventLog {
     const stamped = withCursor(event, { hostEpoch: this.hostEpoch, seq: log.seq });
     log.events.push(stamped);
     if (log.events.length > KEEP_PER_THREAD) log.events.shift();
-    const lateChild = idle && event.kind === 'subagent.changed';
+    const lateChild = idle && (event.kind === 'subagent.changed' || event.kind === 'message.posted');
     if (lateChild || event.kind === 'generation.finished' || event.kind === 'generation.background-finished') {
       log.trim = setTimeout(() => {
         log.events = [];
@@ -116,6 +116,7 @@ function withCursor(event: NewThreadEvent, cursor: Cursor): ChatEvent {
       return { ...event, cursor };
     case 'reactions.changed':
     case 'card.changed':
+    case 'message.posted':
     case 'subagent.changed':
       return { ...event, cursor };
   }

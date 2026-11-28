@@ -220,9 +220,9 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
         return;
       case 'applied':
         patch({ view: { kind: 'loaded', value: applied.view } });
-        if (frame.kind === 'generation.finished') {
+        if (frame.kind === 'generation.finished' || frame.kind === 'message.posted') {
           options.onFinished?.(frame.message);
-          if (frame.message.outcome.kind === 'interrupted') void load();
+          if (frame.kind === 'generation.finished' && frame.message.outcome.kind === 'interrupted') void load();
         }
         return;
     }
