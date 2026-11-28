@@ -63,13 +63,22 @@ it('starts one opencode acp daemon with its own folders and read-only config, re
               "readsOutsideCwd": true,
               "vendorSettings": "isolated",
             },
+            {
+              "access": "full",
+              "modes": [
+                "interactive",
+                "background",
+              ],
+              "readsOutsideCwd": true,
+              "vendorSettings": "isolated",
+            },
           ],
           "sessions": false,
           "usage": "none",
           "withheld": [
             {
               "access": "workspace-write",
-              "reason": "MorrowBot runs OpenCode read-only in this version: it cannot yet confine each file write to the workspace, and opencode runs commands outside any sandbox.",
+              "reason": "MorrowBot cannot yet confine OpenCode file writes to the workspace, and opencode runs commands outside any sandbox.",
               "vendorSettings": "isolated",
             },
             {
@@ -81,11 +90,6 @@ it('starts one opencode acp daemon with its own folders and read-only config, re
               "access": "workspace-write",
               "reason": "MorrowBot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's AGENTS.md is sent by MorrowBot instead.",
               "vendorSettings": "personal",
-            },
-            {
-              "access": "full",
-              "reason": "MorrowBot has not yet checked with a fixture that Stop ends every command opencode starts, so OpenCode has no full access.",
-              "vendorSettings": "isolated",
             },
           ],
         },
@@ -106,8 +110,33 @@ it('starts one opencode acp daemon with its own folders and read-only config, re
           "OPENCODE_CONFIG_CONTENT": {
             "$schema": "https://opencode.ai/config.json",
             "agent": {
+              "build": {
+                "permission": {
+                  "*": "deny",
+                  "codesearch": "deny",
+                  "external_directory": "ask",
+                  "glob": "allow",
+                  "grep": "allow",
+                  "list": "allow",
+                  "morrowbot_*": "allow",
+                  "read": {
+                    "*": "allow",
+                    "*.env": "ask",
+                    "*.env.*": "ask",
+                    "*.env.example": "allow",
+                  },
+                  "webfetch": "ask",
+                  "websearch": "deny",
+                },
+              },
               "explore": {
                 "disable": true,
+              },
+              "full": {
+                "mode": "primary",
+                "permission": {
+                  "*": "allow",
+                },
               },
               "general": {
                 "disable": true,
@@ -162,13 +191,22 @@ it('starts one opencode acp daemon with its own folders and read-only config, re
               "readsOutsideCwd": true,
               "vendorSettings": "isolated",
             },
+            {
+              "access": "full",
+              "modes": [
+                "interactive",
+                "background",
+              ],
+              "readsOutsideCwd": true,
+              "vendorSettings": "isolated",
+            },
           ],
           "sessions": false,
           "usage": "none",
           "withheld": [
             {
               "access": "workspace-write",
-              "reason": "MorrowBot runs OpenCode read-only in this version: it cannot yet confine each file write to the workspace, and opencode runs commands outside any sandbox.",
+              "reason": "MorrowBot cannot yet confine OpenCode file writes to the workspace, and opencode runs commands outside any sandbox.",
               "vendorSettings": "isolated",
             },
             {
@@ -180,11 +218,6 @@ it('starts one opencode acp daemon with its own folders and read-only config, re
               "access": "workspace-write",
               "reason": "MorrowBot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's AGENTS.md is sent by MorrowBot instead.",
               "vendorSettings": "personal",
-            },
-            {
-              "access": "full",
-              "reason": "MorrowBot has not yet checked with a fixture that Stop ends every command opencode starts, so OpenCode has no full access.",
-              "vendorSettings": "isolated",
             },
           ],
         },

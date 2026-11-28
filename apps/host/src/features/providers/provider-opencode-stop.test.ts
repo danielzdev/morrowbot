@@ -2,7 +2,7 @@ import path from 'node:path';
 import { afterEach, expect, it } from 'vitest';
 import type { AcpFixture } from '../../testing/acp-fixture.ts';
 import { isRunning, until } from '../../testing/daemon-fixture.ts';
-import { startOpenCodeFixture } from '../../testing/opencode-fixture.ts';
+import { startOpenCodeFixture, OPENCODE } from '../../testing/opencode-fixture.ts';
 import { DEFAULT_PLUGIN_TIMEOUTS } from '../../testing/test-host.ts';
 
 let opencode: AcpFixture | undefined;
@@ -129,8 +129,13 @@ it('an edit opencode reports finished without asking fails the turn, ends the da
             "vendorSettings": "isolated",
           },
           {
+            "access": "full",
+            "reason": "OpenCode (opencode 2.4.1) ran "Edit write" without asking. MorrowBot ended it and offers no OpenCode turns until the provider restarts.",
+            "vendorSettings": "isolated",
+          },
+          {
             "access": "workspace-write",
-            "reason": "MorrowBot runs OpenCode read-only in this version: it cannot yet confine each file write to the workspace, and opencode runs commands outside any sandbox.",
+            "reason": "MorrowBot cannot yet confine OpenCode file writes to the workspace, and opencode runs commands outside any sandbox.",
             "vendorSettings": "isolated",
           },
           {
@@ -142,11 +147,6 @@ it('an edit opencode reports finished without asking fails the turn, ends the da
             "access": "workspace-write",
             "reason": "MorrowBot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's AGENTS.md is sent by MorrowBot instead.",
             "vendorSettings": "personal",
-          },
-          {
-            "access": "full",
-            "reason": "MorrowBot has not yet checked with a fixture that Stop ends every command opencode starts, so OpenCode has no full access.",
-            "vendorSettings": "isolated",
           },
         ],
       },
@@ -226,8 +226,13 @@ it('on a system other than macOS, provider-info withholds read-only and starts n
             "vendorSettings": "isolated",
           },
           {
+            "access": "full",
+            "reason": "OpenCode in MorrowBot has been checked only on macOS so far, not on linux.",
+            "vendorSettings": "isolated",
+          },
+          {
             "access": "workspace-write",
-            "reason": "MorrowBot runs OpenCode read-only in this version: it cannot yet confine each file write to the workspace, and opencode runs commands outside any sandbox.",
+            "reason": "MorrowBot cannot yet confine OpenCode file writes to the workspace, and opencode runs commands outside any sandbox.",
             "vendorSettings": "isolated",
           },
           {
@@ -240,14 +245,45 @@ it('on a system other than macOS, provider-info withholds read-only and starts n
             "reason": "MorrowBot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's AGENTS.md is sent by MorrowBot instead.",
             "vendorSettings": "personal",
           },
-          {
-            "access": "full",
-            "reason": "MorrowBot has not yet checked with a fixture that Stop ends every command opencode starts, so OpenCode has no full access.",
-            "vendorSettings": "isolated",
-          },
         ],
       },
       "reply": 409,
+    }
+  `);
+});
+
+it('Stop cancels a full-access turn cleanly via session/cancel and keeps the daemon serving', async () => {
+  const fixture = (opencode = await startOpenCodeFixture());
+  const thread = await fixture.thread(await fixture.agent({ ...OPENCODE, access: 'full' }));
+  const generationId = await fixture.start(thread, 'stall');
+  await fixture.logged('session/prompt', 1);
+  const [pgid] = fixture.daemonPgids();
+  const stop = await fixture.host.call('POST', `/api/threads/${thread.id}/stop`);
+  await fixture.events.finished(generationId);
+  await fixture.logged('session/close', 1);
+  await fixture.send(thread, 'hello');
+  const sent = (await fixture.log()).filter((entry) => entry.method.startsWith('session/')).map((entry) => entry.method);
+  expect({ stop: stop.status, sameDaemon: fixture.daemonPgids()[0] === pgid, sent, history: await fixture.history(thread) }).toMatchInlineSnapshot(`
+    {
+      "history": [
+        "user: stall",
+        "assistant(cancelled): ",
+        "user: hello",
+        "assistant(completed): Echo: hello",
+      ],
+      "sameDaemon": true,
+      "sent": [
+        "session/new",
+        "session/set_config_option",
+        "session/prompt",
+        "session/cancel",
+        "session/close",
+        "session/new",
+        "session/set_config_option",
+        "session/prompt",
+        "session/close",
+      ],
+      "stop": 200,
     }
   `);
 });

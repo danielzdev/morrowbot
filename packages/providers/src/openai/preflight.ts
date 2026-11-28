@@ -26,10 +26,10 @@ export type Checked =
  * account and route from one snapshot (signed out, then account changed, then route changed).
  */
 export async function preflight(request: TurnRequest, deps: PreflightDeps, daemon: CodexDaemon | undefined): Promise<Checked> {
-  if (request.access !== 'read-only' || request.vendorSettings !== 'personal') {
+  if ((request.access !== 'read-only' && request.access !== 'full') || request.vendorSettings !== 'personal') {
     return refused({
       kind: 'access-not-supported',
-      reason: `provider-openai runs read-only turns with your own Codex instructions in v1, not ${request.access} with ${request.vendorSettings} settings.`,
+      reason: `provider-openai runs read-only or full turns with your own Codex instructions, not ${request.access} with ${request.vendorSettings} settings.`,
     });
   }
   if (deps.platformReason !== null) return refused({ kind: 'access-not-supported', reason: deps.platformReason });
@@ -47,7 +47,7 @@ export async function preflight(request: TurnRequest, deps: PreflightDeps, daemo
     accountKey: resolution.accountKey,
     routeKey: resolution.routeKey,
     subscription: resolution.route.kind === 'subscription',
-    policy: threadPolicy(resolution.config, resolution.modelProvider, request.hostTools),
+    policy: threadPolicy(resolution.config, resolution.modelProvider, request.hostTools, request.access),
   };
 }
 

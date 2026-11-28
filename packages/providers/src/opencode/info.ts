@@ -3,26 +3,28 @@ import type { AccessProfile, ProviderInfo, ProviderModel, WithheldProfile } from
 import type { Version } from './version.ts';
 
 /**
- * The one profile the opencode 2.4.1 fixtures prove: no write or shell tool offered at all, and the
- * agent's AGENTS.md sent by MorrowBot, as opencode loads none of the workspace's own config. A read
- * opencode sees as outside the workspace goes to an approval card; it judges that by the path as
- * written, so reads outside the workspace are declared. Interactive only: a background turn could
- * not show that card.
+ * The profiles OpenCode offers, both isolated (MorrowBot sends the agent's AGENTS.md and opencode
+ * loads no workspace config):
+ * - `read-only`: `build` mode with no write or shell tool offered; outside reads go to an approval
+ *   card, so interactive only.
+ * - `full`: `full` primary agent with every tool allowed without prompting, in interactive or
+ *   background mode.
  */
 const READ_ONLY: AccessProfile = { access: 'read-only', vendorSettings: 'isolated', modes: ['interactive'], readsOutsideCwd: true };
+const FULL: AccessProfile = { access: 'full', vendorSettings: 'isolated', modes: ['interactive', 'background'], readsOutsideCwd: true };
+const PROFILES: readonly AccessProfile[] = [READ_ONLY, FULL];
 
 const PERSONAL_REASON =
   "MorrowBot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's AGENTS.md is sent by MorrowBot instead.";
-const WRITE_REASON = 'MorrowBot runs OpenCode read-only in this version: it cannot yet confine each file write to the workspace, and opencode runs commands outside any sandbox.';
+const WRITE_REASON = 'MorrowBot cannot yet confine OpenCode file writes to the workspace, and opencode runs commands outside any sandbox.';
 
 const STATIC_WITHHELD: readonly WithheldProfile[] = [
   { access: 'workspace-write', vendorSettings: 'isolated', reason: WRITE_REASON },
   { access: 'read-only', vendorSettings: 'personal', reason: PERSONAL_REASON },
   { access: 'workspace-write', vendorSettings: 'personal', reason: PERSONAL_REASON },
-  { access: 'full', vendorSettings: 'isolated', reason: 'MorrowBot has not yet checked with a fixture that Stop ends every command opencode starts, so OpenCode has no full access.' },
 ];
 
-/** Why read-only is held back on `platform`, or null. */
+/** Why OpenCode profiles are held back on `platform`, or null. */
 export function platformReason(platform: string): string | null {
   return platform === 'darwin' ? null : `OpenCode in MorrowBot has been checked only on macOS so far, not on ${platform}.`;
 }
@@ -45,10 +47,10 @@ type Runnable = Extract<Version, { kind: 'supported' | 'above' }>;
 export function readyInfo(version: Runnable, seen: Seen, platform: string): ProviderInfo {
   const held = [version.kind === 'above' ? version.reason : null, platformReason(platform), seen.held].filter((reason) => reason !== null);
   const withheld: WithheldProfile[] = [
-    ...(held.length === 0 ? [] : [{ access: READ_ONLY.access, vendorSettings: READ_ONLY.vendorSettings, reason: held.join(' ') }]),
+    ...(held.length === 0 ? [] : PROFILES.map(({ access, vendorSettings }) => ({ access, vendorSettings, reason: held.join(' ') }))),
     ...STATIC_WITHHELD,
   ];
-  const capabilities: ProviderCapabilities = { profiles: held.length === 0 ? [READ_ONLY] : [], approvals: true, sessions: false, usage: 'none', withheld };
+  const capabilities: ProviderCapabilities = { profiles: held.length === 0 ? [...PROFILES] : [], approvals: true, sessions: false, usage: 'none', withheld };
   const ready = {
     version: version.version,
     accountKey: '',

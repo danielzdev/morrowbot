@@ -1,6 +1,6 @@
 import type { ProviderError, Steer, TurnContext, TurnEnd, TurnRequest, UsageWindow } from '@morrowbot/plugin-sdk';
 import type { CodexDaemon } from './daemon.ts';
-import { READ_ONLY_SANDBOX } from './lockdown.ts';
+import { turnSandboxPolicy, type ThreadPolicy } from './lockdown.ts';
 import { mismatch, preflight, type PreflightDeps } from './preflight.ts';
 import { Ignored, TurnStartResponse, TurnSteerResponse } from './protocol.ts';
 import { resolve } from './route.ts';
@@ -54,10 +54,10 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
   const checked = await unlessStopped(preflight(request, deps, deps.daemon()));
   if (checked === 'stopped') return cancelled();
   if (checked.kind === 'refused') return refuse(checked.error);
-  const { daemon, accountKey, routeKey, subscription } = checked;
+  const { daemon, accountKey, routeKey, subscription, policy } = checked;
   const ephemeral = accountKey === '';
   if (ephemeral && request.session.kind === 'resume') return refuse({ kind: 'session-lost' });
-  const opening = openThread(daemon, { cwd: request.cwd, session: request.session, ephemeral, routeKey, policy: checked.policy });
+  const opening = openThread(daemon, { cwd: request.cwd, session: request.session, ephemeral, routeKey, policy });
   const opened = await unlessStopped(opening);
   if (opened === 'stopped') {
     opening
@@ -91,6 +91,7 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
     const stream = createTurnStream({
       threadId,
       home: deps.home,
+      access: policy.kind,
       emit: context.emit,
       tokens,
       onAnnounced: (id) => {
@@ -131,7 +132,7 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
     try {
       session.bound = true;
       if (isNew && !ephemeral) context.emit({ kind: 'session-bound', ref: threadId, accountKey, routeKey });
-      const started = await daemon.call('turn/start', turnStart(request, threadId), TurnStartResponse, START_MS);
+      const started = await daemon.call('turn/start', turnStart(request, threadId, policy), TurnStartResponse, START_MS);
       if (started.kind === 'error') {
         daemon.loaded.delete(threadId);
         return refuse({ kind: 'other', message: `Codex did not start the turn: ${started.message}` });
@@ -182,7 +183,7 @@ async function settleWithin(work: Promise<void>, ms: number): Promise<void> {
   clearTimeout(timer);
 }
 
-function turnStart(request: TurnRequest, threadId: string): Readonly<Record<string, unknown>> {
+function turnStart(request: TurnRequest, threadId: string, policy: ThreadPolicy): Readonly<Record<string, unknown>> {
   const { selection } = request;
   const effort = selection.kind === 'model' ? selection.choices.reasoningEffort : undefined;
   return {
@@ -191,7 +192,7 @@ function turnStart(request: TurnRequest, threadId: string): Readonly<Record<stri
       ...request.images.map(({ mimeType, data }) => ({ type: 'image', url: `data:${mimeType};base64,${data}` })),
       { type: 'text', text: promptText(request), text_elements: [] },
     ],
-    sandboxPolicy: READ_ONLY_SANDBOX,
+    sandboxPolicy: turnSandboxPolicy(policy),
     approvalPolicy: 'never',
     ...(selection.kind === 'model' ? { model: selection.id } : {}),
     ...(effort === undefined ? {} : { effort }),
