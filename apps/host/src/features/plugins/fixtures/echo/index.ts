@@ -1,11 +1,13 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { QUIET_MARKER } from '@morrowbot/contracts';
 import { defineProvider, runPlugin, type AccessProfile, type PluginConfig, type TurnEnd } from '@morrowbot/plugin-sdk';
 
 /**
  * A test provider. It answers with its greeting and the prompt; some prompts pick a behavior.
  * The `account` file in its data folder, when present, overrides the account it is signed in to.
  * With `sessions` on it keeps fake vendor sessions, so the host's session rules can be exercised.
+ * A prompt whose first line is `nothing-new` gets only the stay-quiet marker back, as a routine's agent would send.
  */
 let config: PluginConfig = {};
 let dataDir = '';
@@ -68,6 +70,7 @@ runPlugin((runtime) =>
       if (keepsSessions() && request.session.kind === 'new' && request.expectedAccountKey !== '') {
         emit({ kind: 'session-bound', ref: `ref-${request.turnId}`, accountKey: current, routeKey: request.expectedRouteKey });
       }
+      if (prompt.split('\n')[0] === 'nothing-new') return end({ kind: 'completed', finishReason: 'stop' }, current, { finalText: QUIET_MARKER });
       emit({ kind: 'text', text: `${String(config.greeting)} from pid ${String(process.pid)}:` });
       if (prompt.endsWith('describe-input')) {
         const images = request.images.map(({ mimeType, data }) => ({ mimeType, bytes: Buffer.from(data, 'base64').length }));

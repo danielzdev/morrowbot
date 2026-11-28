@@ -22,6 +22,7 @@ import {
 } from './features/plugins/index.ts';
 import { builtinProviders } from './features/providers/index.ts';
 import { findSkills, skillList } from './features/skills/index.ts';
+import { createRoutineService, type RoutineClock } from './features/routines/index.ts';
 import { lockDataDir, openStorage, type Storage } from './features/storage/index.ts';
 
 export { DataDirLockedError as HostLockedError } from './features/storage/index.ts';
@@ -44,6 +45,8 @@ export interface HostOptions {
   readonly platform?: NodeJS.Platform;
   /** The name paired devices show for this host. Defaults to the computer's name. */
   readonly hostName?: string;
+  /** Real time and the timer for routine schedules. Defaults to the system clock. */
+  readonly routineClock?: RoutineClock;
 }
 
 export interface Host {
@@ -143,6 +146,24 @@ export async function startHost(options: HostOptions): Promise<Host> {
       report,
     });
     undo.push(() => chat.close());
+    const routines = createRoutineService({
+      store: { routines: storage.routines, runs: storage.routineRuns, waits: storage.waits, transaction: (work) => storage.transaction(work) },
+      chat: {
+        agentExists: (id) => agents.get(id) !== undefined,
+        createThread: (agentId, request) => chat.createThread(agentId, request),
+        send: (threadId, text, choice, mode) => chat.send(threadId, text, [], choice, mode),
+        deleteThread: (id) => chat.deleteThread(id),
+        subscribe: (listener) => chat.subscribe(listener),
+      },
+      clock: options.routineClock ?? systemClock,
+      newId,
+      now,
+      report,
+    });
+    undo.push(() => {
+      routines.close();
+    });
+    routines.tick();
     const token = randomBytes(32).toString('base64url');
     const api = await startApiServer({
       address: { hostname: config.hostname, port: config.port },
@@ -198,6 +219,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
           newId,
           now,
         }),
+        routines,
       },
       fallback: healthListener(options.version),
       report,
@@ -236,6 +258,15 @@ function turnContext(skillsDir: string, memories: MemoryService, attachments: At
     readAttachment: (attachment) => attachments.read(attachment),
   };
 }
+const systemClock: RoutineClock = {
+  now: () => Date.now(),
+  every: (ms, tick) => {
+    const timer = setInterval(tick, ms).unref();
+    return () => {
+      clearInterval(timer);
+    };
+  },
+};
 
 function chatStore(storage: Storage): Parameters<typeof createChatService>[0]['store'] {
   return {

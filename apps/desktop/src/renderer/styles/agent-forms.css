@@ -279,3 +279,49 @@ pre.instructions.disk {
   justify-content: flex-end;
   gap: var(--s-1);
 }
+
+/* Agent Settings › Routines */
+.routine-list {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--hairline);
+}
+.routine-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid var(--hairline);
+}
+.routine-row .setting-control {
+  gap: var(--s-1);
+}
+.routine-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--s-1);
+  color: var(--text-2);
+  font: var(--t-small);
+  overflow-wrap: anywhere;
+}
+.routine-status.danger {
+  color: var(--danger);
+}
+.routine-form .segmented {
+  align-self: flex-start;
+}
+.routine-cron {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--s-3);
+}
+.routine-cron .binding-note {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+@media (max-width: 600px) {
+  .routine-cron {
+    grid-template-columns: 1fr;
+  }
+}

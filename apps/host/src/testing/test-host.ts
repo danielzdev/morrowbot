@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { EventServerFrame, ThreadState, type AgentMessage, type ChatEvent, type Cursor } from '@morrowbot/contracts';
 import WebSocket, { type RawData } from 'ws';
 import type { ChildGroupClock, PluginTimeouts, ProcessProbe } from '../features/plugins/index.ts';
+import type { RoutineClock } from '../features/routines/index.ts';
 import { startHost, type Host } from '../host.ts';
 
 export { DEFAULT_PLUGIN_TIMEOUTS } from '../features/plugins/index.ts';
@@ -39,6 +40,7 @@ export interface TestHostOptions {
   readonly clock?: ChildGroupClock;
   /** The OS the built-in providers act on. Defaults to this one. */
   readonly platform?: NodeJS.Platform;
+  readonly routineClock?: RoutineClock;
 }
 
 export interface Reply {
@@ -78,6 +80,7 @@ export async function startTestHost(options: TestHostOptions): Promise<TestHost>
     ...(options.probe === undefined ? {} : { probe: options.probe }),
     ...(options.clock === undefined ? {} : { clock: options.clock }),
     ...(options.platform === undefined ? {} : { platform: options.platform }),
+    ...(options.routineClock === undefined ? {} : { routineClock: options.routineClock }),
   });
   const call = async (method: string, route: string, body?: unknown): Promise<Reply> => {
     const headers: Record<string, string> = { authorization: `Bearer ${host.token}` };
