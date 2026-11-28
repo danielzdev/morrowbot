@@ -2,11 +2,17 @@ import type {
   Agent,
   AgentMessage,
   CreateMemoryRequest,
+  CreateRoutineRequest,
   Memory,
   PluginToolDefinition,
   PluginToolResult,
+  Routine,
   SendAgentMessageRequest,
+  T3Watch,
+  T3WatchAck,
+  T3WatchEvent,
   UpdateMemoryRequest,
+  UpdateRoutineRequest,
   VaultItem,
 } from '@morrowbot/contracts';
 
@@ -61,7 +67,75 @@ export type ConnectorCall =
     }
   | { readonly kind: 'refused'; readonly reason: string };
 
-/** What the tools act on (the agents, agent-messages, memories, vault, connectors and plugins features provide it). */
+export type RoutineSaveResult =
+  | { readonly kind: 'saved'; readonly routine: Routine }
+  | { readonly kind: 'not-found' }
+  | { readonly kind: 'invalid'; readonly reason: string };
+
+export type RoutineNoUpdateResult =
+  | { readonly kind: 'marked'; readonly routineId: string; readonly runId: string }
+  | { readonly kind: 'not-a-routine-run' };
+
+/** Routines scoped to the calling agent (provided by the routines feature). */
+export interface RoutineToolsPort {
+  sharedWithMembers(agentId: string): boolean;
+  list(agentId: string): Routine[] | undefined;
+  create(request: CreateRoutineRequest): RoutineSaveResult;
+  update(agentId: string, routineId: string, request: UpdateRoutineRequest): RoutineSaveResult;
+  delete(agentId: string, routineId: string): boolean;
+  markNoUpdate(agentId: string, threadId: string): RoutineNoUpdateResult;
+}
+
+export type T3WatchView = T3Watch & { readonly routineId: string | null };
+
+export interface T3PendingBatchView {
+  readonly batchId: string;
+  readonly createdAt: string;
+  readonly attempts: number;
+  readonly resendAt: string;
+  readonly events: readonly { readonly event: T3WatchEvent; readonly unverified: boolean }[];
+}
+
+export interface T3WatchListView {
+  readonly watches: readonly T3WatchView[];
+  readonly pendingBatches: readonly T3PendingBatchView[];
+  readonly pendingEvents: readonly T3WatchEvent[];
+}
+
+export interface WatchT3Request {
+  readonly threadId: string;
+  readonly routineId: string;
+  readonly runId?: string;
+  readonly priorRunId?: string;
+  readonly exclusive: boolean;
+  readonly label?: string;
+  readonly launchedAt?: string;
+  readonly stallAfterMin?: number;
+}
+
+export type WatchT3Result =
+  | { readonly kind: 'watched'; readonly watch: T3WatchView }
+  | { readonly kind: 'refused'; readonly reason: string };
+
+export type UnwatchT3Result =
+  | { readonly kind: 'unwatched'; readonly threadId: string; readonly removedWatchIds: readonly string[] }
+  | { readonly kind: 'not-found' };
+
+export type T3AckResult =
+  | { readonly kind: 'acked' }
+  | { readonly kind: 'already_acked' }
+  | { readonly kind: 'unknown_batch' };
+
+/** T3 Code watches scoped to the calling agent (provided by the t3-watch feature). */
+export interface T3WatchToolsPort {
+  sharedWithMembers(agentId: string): boolean;
+  list(agentId: string, includeSettled: boolean): T3WatchListView;
+  watch(agentId: string, request: WatchT3Request): WatchT3Result;
+  unwatch(agentId: string, target: { readonly threadId?: string; readonly watchId?: string }): UnwatchT3Result;
+  ack(agentId: string, ack: T3WatchAck): T3AckResult;
+}
+
+/** What the tools act on (the agents, agent-messages, memories, vault, routines, t3-watch, connectors and plugins features provide it). */
 export interface ToolPorts {
   readonly agents: { list(): readonly Agent[] };
   readonly messages: {
@@ -83,6 +157,10 @@ export interface ToolPorts {
     tools(agentId: string): readonly ConnectorTool[];
     call(agentId: string, name: string, args: unknown, signal: AbortSignal): Promise<ConnectorCall>;
   };
+  /** Optional routines bridge (absent in focused tests without routines). */
+  readonly routines?: RoutineToolsPort;
+  /** Optional T3 Code watches bridge (absent in focused tests without T3 watches). */
+  readonly t3Watches?: T3WatchToolsPort;
   /** Optional tool plugins bridge (absent in hosts/tests without tool plugins). */
   readonly pluginTools?: PluginToolsPort;
 }

@@ -50,17 +50,47 @@ function needsCheck(entry: T3OutboxEntry): entry is T3OutboxEntry & { readonly e
 export function createDeliveryLane(options: DeliveryOptions): DeliveryLane {
   const { store, registry, sink, clock } = options;
   const checks = new Map<string, Check>();
-  let idleSince: number | null = null;
+  const idleSince = new Map<string, number>();
   let sending = false;
   let failedSends = 0;
 
-  const status = (): T3StatusRow[] =>
+  const watchRoutineOf = (event: T3WatchEvent): string | null => (event.scope === 'watch' ? registry.routineOf(event.watchId) : null);
+
+  const resolveTarget = (watchRoutineId: string | null): { readonly kind: 'deliver'; readonly routineId: string | null } | { readonly kind: 'hold' } => {
+    if (sink === null) return { kind: 'hold' };
+    if (sink.targetFor === undefined) return { kind: 'deliver', routineId: null };
+    const routineId = sink.targetFor(watchRoutineId);
+    return routineId === null ? { kind: 'hold' } : { kind: 'deliver', routineId };
+  };
+
+  const trackIdle = (targets: ReadonlySet<string | null>, now: number): void => {
+    if (sink === null) return;
+    const activeKeys = new Set<string>();
+    for (const target of targets) {
+      const key = target ?? '';
+      activeKeys.add(key);
+      if (sink.busy(target)) idleSince.delete(key);
+      else if (!idleSince.has(key)) idleSince.set(key, now);
+    }
+    for (const key of idleSince.keys()) if (!activeKeys.has(key)) idleSince.delete(key);
+  };
+
+  const isIdle = (routineId: string | null, now: number): boolean => {
+    const since = idleSince.get(routineId ?? '');
+    return since !== undefined && now - since >= IDLE_MS;
+  };
+
+  const status = (targetRoutineId: string | null): T3StatusRow[] =>
     store.watches
       .currentAll()
       .filter((watch) => watch.settledAt === null && watch.state !== 'superseded')
+      .filter((watch) => {
+        if (sink?.targetFor === undefined) return true;
+        return sink.targetFor(registry.routineOf(watch.watchId)) === targetRoutineId;
+      })
       .map(({ watchId, threadId, label, state, reason, runId }) => ({ watchId, threadId, label, state, reason, runId }));
 
-  const send = (target: T3DeliverySink, batch: T3BatchRecord, now: number): void => {
+  const send = (target: T3DeliverySink, batch: T3BatchRecord, targetRoutineId: string | null, now: number): void => {
     if (batch.entries.length === 0) {
       store.batches.acknowledge(batch.batchId, iso(now));
       return;
@@ -69,7 +99,7 @@ export function createDeliveryLane(options: DeliveryOptions): DeliveryLane {
     const attempt = batch.attempts + 1;
     options.track(
       Promise.resolve()
-        .then(() => target.deliver(batchPayload(batch, attempt, now, status(), options.dir)))
+        .then(() => target.deliver(batchPayload(batch, attempt, now, status(targetRoutineId), options.dir), targetRoutineId))
         .then((answer) => {
           const at = clock.now();
           switch (answer.kind) {
@@ -78,7 +108,7 @@ export function createDeliveryLane(options: DeliveryOptions): DeliveryLane {
               store.batches.reschedule(batch.batchId, attempt, iso(at + LEASE_MS));
               return;
             case 'busy':
-              idleSince = null;
+              idleSince.delete(targetRoutineId ?? '');
               return;
             case 'failed':
               failedSends += 1;
@@ -149,25 +179,61 @@ export function createDeliveryLane(options: DeliveryOptions): DeliveryLane {
     tick: () => {
       if (sink === null) return;
       const now = clock.now();
-      if (sink.busy()) idleSince = null;
-      else idleSince ??= now;
-      const idle = idleSince !== null && now - idleSince >= IDLE_MS;
-      if (sending) return;
       const open = store.batches.open();
+      const undelivered = store.outbox.undelivered();
+      const activeTargets = new Set<string | null>();
+      if (sink.targetFor === undefined) {
+        activeTargets.add(null);
+      } else {
+        const defaultTarget = sink.targetFor(null);
+        if (defaultTarget !== null) activeTargets.add(defaultTarget);
+        for (const watch of store.watches.open()) {
+          const target = sink.targetFor(registry.routineOf(watch.watchId));
+          if (target !== null) activeTargets.add(target);
+        }
+        if (open !== undefined) {
+          for (const { event } of open.entries) {
+            const target = sink.targetFor(watchRoutineOf(event));
+            if (target !== null) activeTargets.add(target);
+          }
+        }
+        for (const entry of undelivered) {
+          const target = sink.targetFor(watchRoutineOf(entry.event));
+          if (target !== null) activeTargets.add(target);
+        }
+      }
+      trackIdle(activeTargets, now);
+      if (sending) return;
       if (open !== undefined) {
         checks.clear();
-        if (idle && now >= Date.parse(open.resendAt)) send(sink, open, now);
+        const firstWatch = open.entries.find(({ event }) => event.scope === 'watch')?.event;
+        const target = resolveTarget(firstWatch === undefined ? null : watchRoutineOf(firstWatch));
+        if (target.kind === 'deliver' && isIdle(target.routineId, now) && now >= Date.parse(open.resendAt)) {
+          send(sink, open, target.routineId, now);
+        }
         return;
       }
-      const ready = store.outbox.undelivered().filter((entry) => Date.parse(entry.dueAt) <= now);
-      if (ready.length === 0 || now < flushAt(ready) || !idle) {
+      const ready = undelivered.filter((entry) => Date.parse(entry.dueAt) <= now);
+      const firstDeliverable = ready
+        .map((entry) => ({ entry, target: resolveTarget(watchRoutineOf(entry.event)) }))
+        .find((each): each is { readonly entry: T3OutboxEntry; readonly target: { readonly kind: 'deliver'; readonly routineId: string | null } } => each.target.kind === 'deliver');
+      if (firstDeliverable === undefined) {
         checks.clear();
         return;
       }
-      if (!checked(ready.filter(needsCheck))) return;
-      const batch = compose(ready, now);
+      const targetRoutineId = firstDeliverable.target.routineId;
+      const group = ready.filter((entry) => {
+        const target = resolveTarget(watchRoutineOf(entry.event));
+        return target.kind === 'deliver' && target.routineId === targetRoutineId;
+      });
+      if (group.length === 0 || now < flushAt(group) || !isIdle(targetRoutineId, now)) {
+        checks.clear();
+        return;
+      }
+      if (!checked(group.filter(needsCheck))) return;
+      const batch = compose(group, now);
       checks.clear();
-      if (batch !== undefined) send(sink, batch, now);
+      if (batch !== undefined) send(sink, batch, targetRoutineId, now);
     },
     ack: (ack) => {
       const batch = store.batches.get(ack.batchId);

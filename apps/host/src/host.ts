@@ -4,7 +4,7 @@ import { hostname } from 'node:os';
 import path from 'node:path';
 import type { PluginStatusEvent } from '@morrowbot/contracts';
 import { createAgentMessageService } from './features/agent-messages/index.ts';
-import { startToolServer } from './features/agent-tools/index.ts';
+import { startToolServer, type ToolGrant, type ToolServer } from './features/agent-tools/index.ts';
 import { createAgentService, createFolderService } from './features/agents/index.ts';
 import { startApiServer } from './features/api/index.ts';
 import { createAttachmentService, type AttachmentService } from './features/attachments/index.ts';
@@ -182,17 +182,20 @@ export async function startHost(options: HostOptions): Promise<Host> {
     });
     undo.push(() => connectors.close());
     connectors.start();
-    const tools = await startToolServer({
-      ports: agentToolPorts(storage, agents, agentMessages, memories, vault, connectors, plugins, options.isPluginAllowedForAgent),
-      version: options.version,
-      report,
-    });
-    undo.push(() => tools.stop());
+    let toolServer: ToolServer | undefined;
     const chat = createChatService({
       store: chatStore(storage),
       agents,
       inbox: agentInbox(storage, agentMessages),
-      tools,
+      tools: {
+        open: (grant: ToolGrant) => {
+          if (toolServer === undefined) throw new Error('The tool server is not running');
+          return toolServer.open(grant);
+        },
+        close: (turnId: string) => {
+          toolServer?.close(turnId);
+        },
+      },
       context: turnContext(skillsDir, memories, attachments),
       plugins: providerPlugins(plugins),
       newId,
@@ -200,14 +203,6 @@ export async function startHost(options: HostOptions): Promise<Host> {
       hostEpoch: randomUUID(),
       report,
     });
-    undo.push(() => chat.close());
-    const stopReading = agentMessages.subscribe((message) => {
-      chat.readAgentMessages(message.to.threadId);
-    });
-    undo.push(() => {
-      stopReading();
-    });
-    chat.readAgentMessages(null);
     const routines = createRoutineService({
       store: { routines: storage.routines, runs: storage.routineRuns, waits: storage.waits, transaction: (work) => storage.transaction(work) },
       chat: {
@@ -222,15 +217,12 @@ export async function startHost(options: HostOptions): Promise<Host> {
       now,
       report,
     });
-    undo.push(() => {
-      routines.close();
-    });
-    routines.tick();
+    const t3Clock = options.t3Watch?.clock ?? systemClock;
     const t3Watches = createT3WatchService({
       store: { watches: storage.t3Watches, outbox: storage.t3Outbox, batches: storage.t3Batches, transaction: (work) => storage.transaction(work) },
       probe: options.t3Watch?.probe ?? cliProbe(config.t3Watch.bin),
-      sink: config.t3Watch.routineId === null ? null : routineSink(routines, config.t3Watch.routineId, (agentId) => chat.agentBusy(agentId)),
-      clock: options.t3Watch?.clock ?? systemClock,
+      sink: routineSink(routines, config.t3Watch.routineId, (agentId) => chat.agentBusy(agentId)),
+      clock: t3Clock,
       dir: config.t3Watch.dir,
       projects: config.t3Watch.projects,
       newId,
@@ -239,9 +231,48 @@ export async function startHost(options: HostOptions): Promise<Host> {
         console.warn(`MorrowBot host: ${message}`);
       },
     });
+    try {
+      toolServer = await startToolServer({
+        ports: agentToolPorts({
+          storage,
+          agents,
+          agentMessages,
+          memories,
+          vault,
+          connectors,
+          plugins,
+          routines,
+          t3Watches,
+          t3Clock,
+          defaultT3RoutineId: config.t3Watch.routineId,
+          ...(options.isPluginAllowedForAgent === undefined ? {} : { isPluginAllowedForAgent: options.isPluginAllowedForAgent }),
+        }),
+        version: options.version,
+        report,
+      });
+    } catch (error) {
+      t3Watches.close();
+      routines.close();
+      await chat.close();
+      throw error;
+    }
+    const tools = toolServer;
+    undo.push(() => tools.stop());
+    undo.push(() => chat.close());
+    const stopReading = agentMessages.subscribe((message) => {
+      chat.readAgentMessages(message.to.threadId);
+    });
+    undo.push(() => {
+      stopReading();
+    });
+    undo.push(() => {
+      routines.close();
+    });
     undo.push(() => {
       t3Watches.close();
     });
+    chat.readAgentMessages(null);
+    routines.tick();
     const token = randomBytes(32).toString('base64url');
     const api = await startApiServer({
       address: { hostname: config.hostname, port: config.port },

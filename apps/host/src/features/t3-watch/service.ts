@@ -4,7 +4,7 @@ import { RegisterT3WatchRequest, T3WatchAck, type T3Watch, type T3WatchEvent } f
 import type { z } from 'zod';
 import { createDeliveryLane, type AckResult } from './delivery.ts';
 import type { ListResult, ProbeResult } from './observation.ts';
-import type { T3DeliverySink, T3Probe, T3WatchClock, T3WatchStore } from './ports.ts';
+import type { T3BatchRecord, T3DeliverySink, T3Probe, T3WatchClock, T3WatchStore } from './ports.ts';
 import { createRegistry, view } from './registry.ts';
 import { ACKS_FILE, readNewLines, REQUESTS_FILE, writeCurrentWatches } from './watch-files.ts';
 
@@ -33,12 +33,18 @@ export interface T3WatchServiceOptions {
 }
 
 export interface T3WatchService {
-  register(request: RegisterT3WatchRequest): T3Watch;
+  register(request: RegisterT3WatchRequest, routineId?: string | null): T3Watch;
   list(): T3Watch[];
+  /** The routine bound to `watchId` when registered via agent tools, or null. */
+  routineOf(watchId: string): string | null;
   /** Stops and forgets a watch and its queued events. False when no such watch exists. */
   remove(watchId: string): boolean;
   /** Events waiting for an ack, oldest first. */
   pending(): T3WatchEvent[];
+  /** The unacknowledged batch currently in flight, if any. */
+  openBatch(): T3BatchRecord | undefined;
+  /** Looks up any stored batch by id. */
+  getBatch(batchId: string): T3BatchRecord | undefined;
   /** The orchestrator's ack for one batch (from the API; `acks.jsonl` lines take the same path). */
   ack(ack: T3WatchAck): AckResult;
   /** Reads new registrations, then starts the reads and discovery that are due, within the read limits. */
@@ -284,18 +290,21 @@ export function createT3WatchService(options: T3WatchServiceOptions): T3WatchSer
   });
 
   return {
-    register: (request) => {
-      const watch = store.transaction(() => registry.register(request, clock.now()));
+    register: (request, routineId = null) => {
+      const watch = store.transaction(() => registry.register(request, clock.now(), routineId));
       publish();
       return view(watch);
     },
     list: () => store.watches.list().map(view),
+    routineOf: (watchId) => registry.routineOf(watchId),
     remove: (watchId) => {
       const removed = store.watches.delete(watchId);
       if (removed) publish();
       return removed;
     },
     pending: () => store.outbox.pending(),
+    openBatch: () => store.batches.open(),
+    getBatch: (batchId) => store.batches.get(batchId),
     ack: (ack) => store.transaction(() => lane.ack(ack)),
     tick,
     idle: async () => {
