@@ -21,6 +21,8 @@ it('hides the named entries and pins the folder and every parent in a Seatbelt p
     (allow default)
     (deny file-read* file-write* (prefix "/Users/someone/My \\"Data\\"/vault") (prefix "/Users/someone/My \\"Data\\"/morrowbot.sqlite"))
     (deny file-write* (literal "/Users/someone/My \\"Data\\"") (literal "/Users/someone") (literal "/Users") (literal "/"))
+    (deny lsopen)
+    (deny appleevent-send)
     (allow process-exec (literal "/bin/ps") (literal "/usr/bin/top") (with no-sandbox))",
       },
     }
@@ -41,11 +43,15 @@ try 'rename it' mv "$F/vault-secrets.json" "$F/renamed"
 try 'create vault.json' sh -c 'echo {} > "$1/vault.json"' _ "$F"
 try 'move the folder' mv "$F" "$R/moved"
 try 'move the folder above it' mv "$R" "$R-moved"
+try 'open an app, which macOS would start outside the fence' open -g -j "$R/Probe.app"
 try 'read notes.txt' cat "$F/notes.txt"
 try 'write a new file in the folder' sh -c 'echo hi > "$1/new.txt"' _ "$F"
 try 'list processes' /bin/ps -p $$
 try 'sudo' /usr/bin/sudo -n true
 `;
+
+const PROBE_PLIST =
+  '<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>CFBundleExecutable</key><string>probe</string><key>CFBundleIdentifier</key><string>com.legendarykoi.morrowbot.fence-probe</string></dict></plist>';
 
 describe.runIf(process.platform === 'darwin')('a fenced command on this Mac', () => {
   let root = '';
@@ -55,6 +61,10 @@ describe.runIf(process.platform === 'darwin')('a fenced command on this Mac', ()
     folder = path.join(root, 'data "dir"');
     await mkdir(folder);
     for (const name of ['vault-secrets.json', 'vault.key', 'morrowbot.sqlite', 'notes.txt']) await writeFile(path.join(folder, name), `${name} contents\n`);
+    const app = path.join(root, 'Probe.app', 'Contents');
+    await mkdir(path.join(app, 'MacOS'), { recursive: true });
+    await writeFile(path.join(app, 'MacOS', 'probe'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+    await writeFile(path.join(app, 'Info.plist'), PROBE_PLIST);
   });
   afterEach(async () => {
     await rm(root, { recursive: true, force: true });
@@ -90,6 +100,7 @@ describe.runIf(process.platform === 'darwin')('a fenced command on this Mac', ()
         'create vault.json: denied',
         'move the folder: denied',
         'move the folder above it: denied',
+        'open an app, which macOS would start outside the fence: denied',
         'read notes.txt: ok',
         'write a new file in the folder: ok',
         'list processes: ok',

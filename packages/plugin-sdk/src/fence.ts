@@ -21,7 +21,9 @@ const PROCESS_VIEWERS = ['/bin/ps', '/usr/bin/top'];
 /**
  * Hides every entry of `folder` whose name starts with one of `prefixes`: it cannot be read, written, linked,
  * renamed or created. `folder` and every folder above it cannot be renamed or removed, so nothing moves out from
- * under the rule. Other setuid tools (`sudo`, `crontab`, `at`) cannot start at all. Only macOS has a fence.
+ * under the rule. Nothing inside may ask macOS to start a program outside the fence: no opening apps, files or links
+ * (`open`), no Apple Events to other apps, and no other setuid tool (`sudo`, `crontab`, `at`); macOS already refuses
+ * `launchctl` jobs from inside a sandbox. Only macOS has a fence.
  */
 export function hiddenFilesFence(platform: NodeJS.Platform, folder: string, prefixes: readonly string[]): Fence {
   if (platform !== 'darwin') return OPEN;
@@ -34,6 +36,8 @@ export function hiddenFilesFence(platform: NodeJS.Platform, folder: string, pref
       '(allow default)',
       `(deny file-read* file-write* ${any('prefix', prefixes.map((prefix) => path.join(folder, prefix)))})`,
       `(deny file-write* ${any('literal', ancestors(folder))})`,
+      '(deny lsopen)',
+      '(deny appleevent-send)',
       `(allow process-exec ${any('literal', PROCESS_VIEWERS)} (with no-sandbox))`,
     ].join('\n'),
   };

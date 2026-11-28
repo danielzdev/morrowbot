@@ -239,10 +239,10 @@ async function load(file: string): Promise<Loaded> {
   return parsed.success ? { kind: 'read', entries: parsed.data.entries } : unreadable;
 }
 
-/** The vault while `vault.json` cannot be read: no items, and every change refused with `reason`. */
+/** The vault while `vault.json` cannot be read: no items, every change refused with `reason`, and no secret to read. */
 function closedVault(reason: string): VaultService {
   const refused = (): Promise<VaultSave> => Promise.resolve({ kind: 'invalid', reason });
-  return { list: () => [], create: refused, update: refused, delete: () => Promise.resolve(false), resolve: () => Promise.resolve(undefined) };
+  return { list: () => [], create: refused, update: refused, delete: () => Promise.resolve(false), resolve: () => Promise.reject(new SecretStoreError(reason)) };
 }
 
 function parseJson(text: string): unknown {

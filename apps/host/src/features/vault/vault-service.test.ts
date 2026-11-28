@@ -249,7 +249,7 @@ it('lists nothing and changes nothing while vault.json cannot be read, and keeps
     create: await create(closed, { kind: 'api_key', label: 'New', key: 'new' }),
     update: await update(closed, id, { kind: 'api_key', key: 'new' }),
     delete: await closed.delete(id),
-    resolve: await closed.resolve(id),
+    resolve: await closed.resolve(id).catch((error: unknown) => (error instanceof Error ? error.message : String(error))),
   };
   const reported = errors.splice(0).map((error) => (error instanceof Error ? error.message : String(error)));
   const untouched = (await readFile(file, 'utf8')) === broken;
@@ -257,7 +257,7 @@ it('lists nothing and changes nothing while vault.json cannot be read, and keeps
   const fixed = await open(sealedStore());
   const reason = `${file} is not a vault file MorrowBot can read; fix it or move it aside to start with an empty vault`;
   expect({ meanwhile, reported, untouched, afterFix: used(await fixed.resolve(id)) }).toEqual({
-    meanwhile: { list: [], create: { kind: 'invalid', reason }, update: { kind: 'invalid', reason }, delete: false, resolve: undefined },
+    meanwhile: { list: [], create: { kind: 'invalid', reason }, update: { kind: 'invalid', reason }, delete: false, resolve: reason },
     reported: [reason],
     untouched: true,
     afterFix: { label: 'Weather', key: 'kept' },
