@@ -18,7 +18,13 @@ const CallParams = z.looseObject({ name: z.string(), arguments: z.unknown().opti
 export type McpAnswer = { readonly kind: 'respond'; readonly body: object } | { readonly kind: 'accepted' };
 
 /** Answers one MCP message for a turn's grant: `initialize`, `ping`, `tools/list` and `tools/call`. */
-export function answerMcp(message: unknown, grant: ToolGrant, tools: readonly Tool[], version: string): McpAnswer {
+export async function answerMcp(
+  message: unknown,
+  grant: ToolGrant,
+  tools: readonly Tool[],
+  version: string,
+  signal: AbortSignal,
+): Promise<McpAnswer> {
   const parsed = ClientRequest.safeParse(message);
   if (!parsed.success) return ClientOther.safeParse(message).success ? { kind: 'accepted' } : error(null, -32600, 'Invalid Request: send one JSON-RPC 2.0 message');
   const { id, method, params } = parsed.data;
@@ -38,21 +44,29 @@ export function answerMcp(message: unknown, grant: ToolGrant, tools: readonly To
     case 'tools/list':
       return result(id, { tools: tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })) });
     case 'tools/call':
-      return callTool(id, params, grant, tools);
+      return callTool(id, params, grant, tools, signal);
     default:
       return error(id, -32601, `Method not found: ${method}`);
   }
 }
 
-function callTool(id: RequestId, params: unknown, grant: ToolGrant, tools: readonly Tool[]): McpAnswer {
+async function callTool(
+  id: RequestId,
+  params: unknown,
+  grant: ToolGrant,
+  tools: readonly Tool[],
+  signal: AbortSignal,
+): Promise<McpAnswer> {
   const call = CallParams.safeParse(params);
   if (!call.success) return error(id, -32602, 'Invalid params: name the tool to call');
   const found = tools.find(({ name }) => name === call.data.name);
   if (found === undefined) return error(id, -32602, `Unknown tool: ${call.data.name}`);
-  const outcome = found.call(grant, call.data.arguments);
+  const outcome = await found.call(grant, call.data.arguments, signal);
   switch (outcome.kind) {
     case 'done':
       return result(id, { content: [{ type: 'text', text: JSON.stringify(outcome.value) }], structuredContent: outcome.value, isError: false });
+    case 'content':
+      return result(id, { content: outcome.blocks, isError: false });
     case 'refused':
       return result(id, { content: [{ type: 'text', text: outcome.reason }], isError: true });
   }

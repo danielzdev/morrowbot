@@ -5,9 +5,10 @@ import {
   type HostMessage,
   type OpenPluginChannel,
   type PluginConfig,
-  type PluginErrorCode,
   type PluginHealth,
   type PluginKind,
+  type PluginToolDefinition,
+  type PluginToolResult,
   type ProviderInfo,
   type RouteInfo,
   type TurnChunk,
@@ -16,48 +17,17 @@ import {
   type UsageResult,
 } from '@morrowbot/contracts';
 import { describeIssues } from './issues.ts';
+import {
+  PluginCancelledError,
+  PluginGoneError,
+  PluginRequestError,
+  PluginTimeoutError,
+  type PluginExit,
+  type PluginTimeouts,
+} from './plugin-errors.ts';
 
-export interface PluginTimeouts {
-  readonly initMs: number;
-  readonly healthMs: number;
-  readonly shutdownMs: number;
-  /** The first `provider-info` of a worker may install or update things; later ones are shorter. */
-  readonly firstInfoMs: number;
-  readonly infoMs: number;
-  readonly usageMs: number;
-  readonly routeInfoMs: number;
-  /** How long Stop waits for `turn-end` before the host kills the worker. */
-  readonly turnStopMs: number;
-}
-
-export type PluginExit = { readonly kind: 'expected' } | { readonly kind: 'crashed'; readonly reason: CrashReason };
-
-/** The plugin answered a request with an error. Its process is still running. */
-export class PluginRequestError extends Error {
-  readonly code: PluginErrorCode;
-
-  constructor(code: PluginErrorCode, message: string) {
-    super(message);
-    this.name = 'PluginRequestError';
-    this.code = code;
-  }
-}
-
-/** The plugin did not answer one request in time. Only that request fails; the process keeps running. */
-export class PluginTimeoutError extends Error {
-  constructor(request: string) {
-    super(`The plugin did not answer "${request}" in time`);
-    this.name = 'PluginTimeoutError';
-  }
-}
-
-/** The plugin process stopped before it answered. */
-export class PluginGoneError extends Error {
-  constructor() {
-    super('The plugin process stopped before it answered');
-    this.name = 'PluginGoneError';
-  }
-}
+export { PluginCancelledError, PluginGoneError, PluginRequestError, PluginTimeoutError } from './plugin-errors.ts';
+export type { PluginExit, PluginTimeouts } from './plugin-errors.ts';
 
 export interface TurnHandlers {
   onChunk(chunk: TurnChunk): void;
@@ -78,6 +48,8 @@ export interface PluginProcess {
   providerInfo(refresh: boolean): Promise<ProviderInfo>;
   usage(refresh: boolean): Promise<UsageResult>;
   routeInfo(cwd: string): Promise<RouteInfo>;
+  listTools(): Promise<readonly PluginToolDefinition[]>;
+  callTool(turnId: string, name: string, input: unknown, signal: AbortSignal): Promise<PluginToolResult>;
   /** Sends a turn. Its chunks and `turn-end` are routed by `turnId`, never through the request map. */
   startTurn(request: TurnRequest, handlers: TurnHandlers): void;
   cancelTurn(turnId: string): void;
@@ -100,6 +72,7 @@ interface Waiter {
   readonly name: string;
   readonly reject: (error: Error) => void;
   readonly timer: NodeJS.Timeout | undefined;
+  readonly cleanup: (() => void) | undefined;
   readonly accept: (message: PluginMessage) => boolean;
 }
 
@@ -146,6 +119,7 @@ export function connectPlugin(open: OpenPluginChannel, { timeouts, groups, log }
     gone = true;
     for (const waiter of pending.values()) {
       clearTimeout(waiter.timer);
+      waiter.cleanup?.();
       waiter.reject(new PluginGoneError());
     }
     pending.clear();
@@ -197,6 +171,8 @@ export function connectPlugin(open: OpenPluginChannel, { timeouts, groups, log }
       case 'usage-result':
       case 'route-info-result':
       case 'route-info-failed':
+      case 'tools-list-result':
+      case 'tool-call-result':
       case 'error':
         answer(message);
         return;
@@ -210,6 +186,7 @@ export function connectPlugin(open: OpenPluginChannel, { timeouts, groups, log }
       return;
     }
     clearTimeout(waiter.timer);
+    waiter.cleanup?.();
     pending.delete(message.id);
     if (message.kind === 'error') {
       waiter.reject(new PluginRequestError(message.code, message.message));
@@ -242,6 +219,7 @@ export function connectPlugin(open: OpenPluginChannel, { timeouts, groups, log }
     timeoutMs: number | undefined,
     message: (id: number) => HostMessage,
     read: (message: PluginMessage) => T | undefined,
+    cancel?: { readonly signal: AbortSignal; readonly onCancel: (id: number) => void },
   ): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       const id = nextId++;
@@ -249,18 +227,38 @@ export function connectPlugin(open: OpenPluginChannel, { timeouts, groups, log }
         reject(new PluginGoneError());
         return;
       }
+      if (cancel?.signal.aborted === true) {
+        reject(new PluginCancelledError());
+        return;
+      }
+      let cleanup: (() => void) | undefined;
       const timer =
         timeoutMs === undefined
           ? undefined
           : setTimeout(() => {
               pending.delete(id);
+              cleanup?.();
+              cancel?.onCancel(id);
               if (name === 'init') fail({ kind: 'timeout', request: name });
               reject(new PluginTimeoutError(name));
             }, timeoutMs);
+      if (cancel !== undefined) {
+        const onAbort = (): void => {
+          if (!pending.delete(id)) return;
+          clearTimeout(timer);
+          cancel.onCancel(id);
+          reject(new PluginCancelledError());
+        };
+        cancel.signal.addEventListener('abort', onAbort, { once: true });
+        cleanup = () => {
+          cancel.signal.removeEventListener('abort', onAbort);
+        };
+      }
       pending.set(id, {
         name,
         reject,
         timer,
+        cleanup,
         accept: (reply) => {
           const value = read(reply);
           if (value === undefined) return false;
@@ -311,6 +309,26 @@ export function connectPlugin(open: OpenPluginChannel, { timeouts, groups, log }
           if (reply.kind === 'route-info-result') return { kind: 'known', accountKey: reply.accountKey, routeKey: reply.routeKey };
           if (reply.kind === 'route-info-failed') return { kind: 'failed', reason: reply.reason };
           return undefined;
+        },
+      ),
+    listTools: () =>
+      request(
+        'tools-list',
+        timeouts.toolsListMs,
+        (id) => ({ kind: 'tools-list', id }),
+        (reply) => (reply.kind === 'tools-list-result' ? reply.tools : undefined),
+      ),
+    callTool: (turnId, name, input, signal) =>
+      request(
+        'tool-call',
+        timeouts.toolCallMs,
+        (id) => ({ kind: 'tool-call', id, turnId, name, input }),
+        (reply) => (reply.kind === 'tool-call-result' ? reply.result : undefined),
+        {
+          signal,
+          onCancel: (callId) => {
+            send({ kind: 'tool-cancel', callId });
+          },
         },
       ),
     startTurn: (turn, handlers) => {

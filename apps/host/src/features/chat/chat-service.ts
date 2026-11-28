@@ -126,6 +126,7 @@ export function createChatService(options: ChatServiceOptions): ChatService {
         break;
       case 'running':
         turn.stopRequested = true;
+        options.tools.close(turn.generationId);
         options.plugins.cancelTurn(turn.pluginId, turn.generationId);
         break;
       case 'settled':

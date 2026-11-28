@@ -105,3 +105,69 @@ it('refuses a pending approval as soon as its turn is cancelled, and ignores a r
     answer: JSON.stringify({ kind: 'refused', reason: 'turn-ended' }),
   });
 });
+
+it('serves tools-list, tool-call and tool-cancel on tool plugins and rejects them on provider plugins', async () => {
+  const tool = start('tool');
+  const provider = start('provider');
+  tool.send({ kind: 'tools-list', id: 1 });
+  provider.send({ kind: 'tools-list', id: 2 });
+  tool.send({ kind: 'tool-call', id: 3, turnId: 'turn-1', name: 'ping', input: { text: 'hi' } });
+  tool.send({ kind: 'tool-call', id: 4, turnId: 'turn-1', name: 'wait', input: {} });
+  tool.send({ kind: 'tool-cancel', callId: 4 });
+  tool.send({ kind: 'tool-call', id: 5, turnId: 'turn-1', name: 'boom', input: {} });
+
+  const listed = await tool.next('tools-list-result');
+  const providerErr = await provider.next('error');
+  const ping = await tool.next('tool-call-result');
+  const cancelled = await tool.next('tool-call-result');
+  const boom = await tool.next('error');
+
+  expect({
+    listedTools: listed.tools.map((item) => item.name),
+    providerErr,
+    ping,
+    cancelled,
+    boom,
+  }).toMatchInlineSnapshot(`
+    {
+      "boom": {
+        "code": "failed",
+        "id": 5,
+        "kind": "error",
+        "message": "tool exploded",
+      },
+      "cancelled": {
+        "id": 4,
+        "kind": "tool-call-result",
+        "result": {
+          "kind": "error",
+          "message": "aborted",
+        },
+      },
+      "listedTools": [
+        "ping",
+        "wait",
+        "boom",
+      ],
+      "ping": {
+        "id": 3,
+        "kind": "tool-call-result",
+        "result": {
+          "content": [
+            {
+              "kind": "text",
+              "text": "pong:{"text":"hi"}",
+            },
+          ],
+          "kind": "ok",
+        },
+      },
+      "providerErr": {
+        "code": "unsupported",
+        "id": 2,
+        "kind": "error",
+        "message": "Provider plugins do not run tool requests",
+      },
+    }
+  `);
+});

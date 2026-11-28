@@ -25,12 +25,14 @@ export function agentInbox(storage: Storage, agentMessages: AgentMessageService)
   };
 }
 
-/** What the agent tools act on: every agent, the agent-messages service and the memories service. */
+/** What the agent tools act on: every agent, the agent-messages service, the memories service and enabled tool plugins. */
 export function agentToolPorts(
   storage: Storage,
   agents: ToolPorts['agents'],
   agentMessages: AgentMessageService,
   memories: MemoryService,
+  plugins: PluginHost,
+  isPluginAllowedForAgent?: (agentId: string, pluginId: string) => boolean,
 ): ToolPorts {
   return {
     agents,
@@ -42,6 +44,11 @@ export function agentToolPorts(
       },
     },
     memories,
+    pluginTools: {
+      list: () => plugins.listPluginTools(),
+      ...(isPluginAllowedForAgent === undefined ? {} : { isAllowedForAgent: isPluginAllowedForAgent }),
+      call: (request) => plugins.callPluginTool(request),
+    },
   };
 }
 

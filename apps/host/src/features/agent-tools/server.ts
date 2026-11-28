@@ -5,6 +5,7 @@ import { createToolGrants, type ToolGrant } from './grants.ts';
 import { answerMcp } from './mcp.ts';
 import { memoryTools } from './memory-tools.ts';
 import { messageTools } from './message-tools.ts';
+import { resolveTools } from './plugin-tools.ts';
 import type { ToolPorts } from './ports.ts';
 
 export const MCP_PATH = '/mcp';
@@ -16,6 +17,7 @@ export interface ToolServerOptions {
   /** The host's version, as the MCP server reports it. */
   readonly version: string;
   readonly report: (error: unknown) => void;
+  readonly warn?: (message: string) => void;
 }
 
 /** The host's MCP server: loopback only, each request acting as the running turn its bearer token was issued to. */
@@ -36,9 +38,14 @@ type Answer = { readonly status: number; readonly body: object | null; readonly 
  */
 export async function startToolServer(options: ToolServerOptions): Promise<ToolServer> {
   const grants = createToolGrants();
-  const tools = [...messageTools(options.ports), ...memoryTools(options.ports)];
+  const builtins = [...messageTools(options.ports), ...memoryTools(options.ports)];
+  const warn =
+    options.warn ??
+    ((message: string) => {
+      console.warn(`MorrowBot host: ${message}`);
+    });
   let authority = '';
-  const handle = async (request: IncomingMessage): Promise<Answer> => {
+  const handle = async (request: IncomingMessage, response: ServerResponse): Promise<Answer> => {
     if (request.headers.host !== authority || request.headers.origin !== undefined) return { status: 403, body: { error: 'Forbidden' } };
     if (new URL(request.url ?? '/', 'http://local').pathname !== MCP_PATH) return { status: 404, body: { error: 'Not found' } };
     const token = /^Bearer (\S+)$/.exec(request.headers.authorization ?? '')?.[1];
@@ -50,13 +57,24 @@ export async function startToolServer(options: ToolServerOptions): Promise<ToolS
       case 'rejected':
         return body.answer;
       case 'read': {
-        const answer = answerMcp(body.value, grant, tools, options.version);
-        return answer.kind === 'accepted' ? { status: 202, body: null } : { status: 200, body: answer.body };
+        const requestAbort = new AbortController();
+        const onClose = (): void => {
+          if (!response.writableEnded) requestAbort.abort();
+        };
+        response.on('close', onClose);
+        try {
+          const signal = AbortSignal.any([grant.signal, requestAbort.signal]);
+          const tools = resolveTools(builtins, options.ports.pluginTools, grant.agentId, warn);
+          const answer = await answerMcp(body.value, grant, tools, options.version, signal);
+          return answer.kind === 'accepted' ? { status: 202, body: null } : { status: 200, body: answer.body };
+        } finally {
+          response.off('close', onClose);
+        }
       }
     }
   };
   const server = createServer((request, response) => {
-    handle(request).then(
+    handle(request, response).then(
       (answer) => {
         reply(response, answer);
       },
@@ -84,6 +102,7 @@ export async function startToolServer(options: ToolServerOptions): Promise<ToolS
       grants.revoke(turnId);
     },
     stop: async () => {
+      grants.revokeAll();
       server.closeAllConnections();
       await new Promise<void>((resolve) => {
         server.close(() => {
@@ -95,6 +114,7 @@ export async function startToolServer(options: ToolServerOptions): Promise<ToolS
 }
 
 function reply(response: ServerResponse, { status, body, headers = {} }: Answer): void {
+  if (response.writableEnded || response.destroyed) return;
   if (body === null) {
     response.writeHead(status, headers).end();
     return;

@@ -54,6 +54,8 @@ export interface HostOptions {
   readonly routineClock?: RoutineClock;
   /** What the T3 watcher reads T3 Code with, and its clock. Defaults to the `t3` CLI and the system clock. */
   readonly t3Watch?: { readonly probe: T3Probe; readonly clock: T3WatchClock };
+  /** Hook for per-agent tool plugin scoping (#36). Defaults to allowing all enabled tool plugins. */
+  readonly isPluginAllowedForAgent?: (agentId: string, pluginId: string) => boolean;
 }
 
 export interface Host {
@@ -151,7 +153,11 @@ export async function startHost(options: HostOptions): Promise<Host> {
       newId,
       now,
     });
-    const tools = await startToolServer({ ports: agentToolPorts(storage, agents, agentMessages, memories), version: options.version, report });
+    const tools = await startToolServer({
+      ports: agentToolPorts(storage, agents, agentMessages, memories, plugins, options.isPluginAllowedForAgent),
+      version: options.version,
+      report,
+    });
     undo.push(() => tools.stop());
     const chat = createChatService({
       store: chatStore(storage),
