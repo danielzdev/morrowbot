@@ -25,7 +25,7 @@ export function pairingRoutes(options: PairingRouteOptions): Route[] {
     {
       method: 'POST',
       path: '/api/pairing/codes',
-      access: 'host',
+      access: { kind: 'host' },
       handle: async (context) => {
         const request = await parseBody(context, CreatePairingCodeRequest);
         if (request.kind === 'rejected') return request.reply;
@@ -41,7 +41,7 @@ export function pairingRoutes(options: PairingRouteOptions): Route[] {
     {
       method: 'POST',
       path: '/api/pairing/claim',
-      access: 'public',
+      access: { kind: 'public' },
       handle: async (context) => {
         if (context.source === '') return failure('invalid_request', 'The connection closed before the claim was read');
         const request = await parseBody(context, ClaimPairingRequest);
@@ -67,7 +67,7 @@ export function pairingRoutes(options: PairingRouteOptions): Route[] {
     {
       method: 'GET',
       path: '/api/pairing/devices',
-      access: 'host',
+      access: { kind: 'host' },
       handle: () => {
         const body: PairedDeviceList = { devices: pairing.list() };
         return json(200, body);
@@ -76,7 +76,7 @@ export function pairingRoutes(options: PairingRouteOptions): Route[] {
     {
       method: 'DELETE',
       path: '/api/pairing/devices/:id',
-      access: 'host',
+      access: { kind: 'host' },
       handle: ({ params }) => {
         const deviceId = params.get('id');
         if (!pairing.revoke(deviceId)) return notFound('Device');

@@ -7,6 +7,7 @@ export function skillRoutes({ skills }: ApiServices): Route[] {
     {
       method: 'GET',
       path: '/api/agents/:id/skills',
+      access: { kind: 'agent', need: 'view' },
       handle: async ({ params }) => {
         const list = await skills.list(params.get('id'));
         return list === undefined ? notFound('Agent') : json(200, list);

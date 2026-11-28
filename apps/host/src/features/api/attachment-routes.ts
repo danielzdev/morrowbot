@@ -11,6 +11,7 @@ export function attachmentRoutes({ attachments }: ApiServices): Route[] {
     {
       method: 'POST',
       path: '/api/threads/:id/attachments',
+      access: { kind: 'thread', need: 'view' },
       bodyBytes: UPLOAD_BODY_BYTES,
       handle: async (context) => {
         const request = await parseBody(context, UploadAttachmentRequest);
@@ -29,6 +30,7 @@ export function attachmentRoutes({ attachments }: ApiServices): Route[] {
     {
       method: 'GET',
       path: '/api/attachments/:id',
+      access: { kind: 'attachment' },
       handle: async ({ params }) => {
         const content = await attachments.content(params.get('id'));
         return content === undefined ? notFound('Attachment') : json(200, content);

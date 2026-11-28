@@ -9,7 +9,10 @@ import type {
   UploadAttachmentRequest,
   AgentMessage,
   AgentInstructionsView,
+  ClaimInviteRequest,
   ClaimPairingRequest,
+  CreateInviteRequest,
+  Member,
   CreateRoutineRequest,
   BlockedGroup,
   ChatEvent,
@@ -191,12 +194,26 @@ export interface ApiPairing {
   revoke(deviceId: string): boolean;
 }
 
+/** People the owner invited to this server. */
+export interface ApiMembers {
+  invite(
+    request: Omit<CreateInviteRequest, 'url'>,
+  ): { readonly kind: 'invited'; readonly member: Member; readonly code: string } | { readonly kind: 'invalid'; readonly reason: string };
+  claim(request: ClaimInviteRequest): { readonly kind: 'claimed'; readonly memberId: string; readonly token: string } | { readonly kind: 'wrong-code' };
+  /** The joined, unrevoked member holding `token`, with its access as stored now. */
+  authenticate(token: string): Member | undefined;
+  list(): Member[];
+  revoke(memberId: string): boolean;
+}
+
 export interface ApiAttachments {
   upload(
     threadId: string,
     request: UploadAttachmentRequest,
   ): Promise<{ readonly kind: 'saved'; readonly attachment: Attachment } | { readonly kind: 'not-found' } | { readonly kind: 'invalid'; readonly reason: string }>;
   content(id: string): Promise<AttachmentContent | undefined>;
+  /** The thread an attachment was uploaded to, or undefined for an unknown id. */
+  threadOf(id: string): string | undefined;
 }
 
 /** Each call is undefined for an unknown agent (or memory). */
@@ -269,6 +286,7 @@ export interface ApiServices {
   readonly plugins: ApiPlugins;
   readonly usage: ApiUsage;
   readonly pairing: ApiPairing;
+  readonly members: ApiMembers;
   readonly agentMessages: ApiAgentMessages;
   readonly routines: ApiRoutines;
   readonly t3Watches: ApiT3Watches;
