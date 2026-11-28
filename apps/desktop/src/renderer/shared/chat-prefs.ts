@@ -10,7 +10,11 @@ export type SendWith = z.infer<typeof SendWith>;
 export const Notify = z.enum(['on', 'off']);
 export type Notify = z.infer<typeof Notify>;
 
-const ChatPrefs = z.strictObject({ sendWith: SendWith, notify: Notify.default('on') });
+/** Whether the chat shows each tool call ("Ran …", "Read …") or only the status beside the avatar. Approvals always show. */
+export const ToolActivity = z.enum(['on', 'off']);
+export type ToolActivity = z.infer<typeof ToolActivity>;
+
+const ChatPrefs = z.strictObject({ sendWith: SendWith, notify: Notify.default('on'), toolActivity: ToolActivity.default('off') });
 export type ChatPrefs = z.infer<typeof ChatPrefs>;
 const KEY = 'morrowbot.chat';
 
@@ -21,7 +25,7 @@ export interface ChatPrefsModel {
 
 /** Owns Settings › Chat. */
 export function createChatPrefs(): ChatPrefsModel {
-  const state = new Store<ChatPrefs>(readPref<ChatPrefs>(KEY, ChatPrefs, { sendWith: 'enter', notify: 'on' }));
+  const state = new Store<ChatPrefs>(readPref<ChatPrefs>(KEY, ChatPrefs, { sendWith: 'enter', notify: 'on', toolActivity: 'off' }));
   return {
     state,
     set: (patch) => {

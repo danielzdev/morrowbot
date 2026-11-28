@@ -16,7 +16,7 @@ import { InspectorPane } from './InspectorPane.tsx';
 import type { Models } from './models.ts';
 
 /** The agent's avatar beside its running turn and brief completion beat, in CSS pixels. */
-const CHAT_AVATAR_SIZE = 32;
+const CHAT_AVATAR_SIZE = 48;
 
 export interface Chrome {
   readonly sidebarButton: boolean;
@@ -57,7 +57,7 @@ export function ChatPane(props: {
   const cards = useStore(models.providers.cards);
   const activity = useStore(models.chats.activity);
   const appearance = useStore(models.appearance.state);
-  const { sendWith } = useStore(models.chatPrefs.state);
+  const { sendWith, toolActivity } = useStore(models.chatPrefs.state);
   const bubbleStyle = useMemo(
     () =>
       bubbleStyleVars({
@@ -167,6 +167,7 @@ export function ChatPane(props: {
             owner={props.ownerEngines}
             onOpenPlugin={props.onOpenPlugin}
             onAgentChanged={(agentId) => void refetchAgent(models, agentId)}
+            tools={toolActivity === 'on'}
             hero={
               <>
                 <BotAvatar avatar={agent.avatar} motion={motion} size={64} reducedMotion={props.reducedMotion} />

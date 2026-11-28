@@ -1,7 +1,7 @@
 import type { AgentMessage, Message, MessageReaction, ThreadCard } from '@morrowbot/contracts';
 import type { ComponentChildren } from 'preact';
 import { memo } from 'preact/compat';
-import { useEffect, useId, useMemo, useState } from 'preact/hooks';
+import { useId, useMemo, useState } from 'preact/hooks';
 import { Icon } from '../../shared/ui/Icon.tsx';
 import type { ChatActivity } from './activity.ts';
 import { backgroundVerb } from './agent-exchange.ts';
@@ -22,8 +22,9 @@ import { ThreadCards, type CardContext } from './ThreadCards.tsx';
 import type { ActiveTurnView, ApprovalStep, FinishedTurn, ThreadView, TurnStep } from './thread-model.ts';
 import { TurnSteps } from './ToolGroup.tsx';
 import { timelineItems } from './timeline-items.ts';
-import { extraDetail, phaseOf } from './turn-phase.ts';
-import { elapsed } from './tool-rows.ts';
+import { turnSummary } from './tool-rows.ts';
+import { finishedLine } from './turn-phase.ts';
+import { Since, TurnStatus } from './TurnStatus.tsx';
 
 /** Everything a message needs that does not change while a reply streams, so history can skip re-rendering. */
 export interface TimelineContext {
@@ -45,15 +46,8 @@ export interface TimelineContext {
   /** This chat's agent's avatar, moving as `activity` shows. */
   readonly avatar: (activity: ChatActivity) => ComponentChildren;
   readonly cards: CardContext;
-}
-
-function Since({ startedAt }: { readonly startedAt: number }) {
-  const [now, setNow] = useState(Date.now);
-  useEffect(() => {
-    const timer = setInterval(() => { setNow(Date.now()); }, 1_000);
-    return () => { clearInterval(timer); };
-  }, []);
-  return <>{elapsed(now - startedAt)}</>;
+  /** Settings › Chat › Show tool activity: each tool call as a row. Off leaves only approvals, and a summary beside the turn's time. */
+  readonly tools: boolean;
 }
 
 function approvalFor(ctx: TimelineContext, answering: readonly string[], offline: boolean) {
@@ -109,15 +103,16 @@ const MessageItem = memo(function MessageItem(props: {
     );
   }
   const copy = outcomeCopy(message.outcome, ctx.copy);
+  const time = finished === undefined ? null : finishedLine(finished.durationMs, props.avatar !== null, ctx.tools ? null : turnSummary(finished.steps, ctx.display));
   return (
     <div class={`message assistant tone-${copy.tone}`} data-message-id={message.id}>
-      {finished !== undefined && (finished.durationMs !== null || props.avatar !== null) && (
+      {time !== null && (
         <div class={`turn-time${props.avatar === null ? '' : ` turn-phase ${props.avatar}`}`}>
           {props.avatar !== null && <span class="turn-avatar" aria-hidden="true">{ctx.avatar(props.avatar)}</span>}
-          {finished.durationMs === null ? 'Done' : `Worked for ${elapsed(finished.durationMs)}`}
+          {time}
         </div>
       )}
-      {finished !== undefined && <TurnSteps steps={finished.steps} display={ctx.display} approval={approvalFor(ctx, NO_ANSWERS, false)} />}
+      {finished !== undefined && <TurnSteps steps={finished.steps} tools={ctx.tools} display={ctx.display} approval={approvalFor(ctx, NO_ANSWERS, false)} />}
       {message.text !== '' && <div data-find-id={message.id}><Markdown text={message.text} actions={ctx.actions} /></div>}
       {message.attachments.length > 0 && <ReplyAttachments attachments={message.attachments} files={ctx.files} />}
       <ThreadCards cards={props.cards} staged={false} acting={props.cardActing} offline={props.offline} ctx={ctx.cards} />
@@ -146,17 +141,10 @@ function ActiveTurn(props: {
   readonly ctx: TimelineContext;
 }) {
   const { turn, ctx } = props;
-  const { phase, label } = phaseOf(turn, ctx.display);
-  const detail = turn.state === 'queued' ? (turn.queueNote ?? 'Waiting for a free slot') : extraDetail(turn.detail, label);
   return (
     <div class="message assistant active">
-      <div class={`turn-time turn-phase ${phase}`}>
-        <span class="turn-avatar" aria-hidden="true">{ctx.avatar(phase)}</span>
-        <span key={label} class="turn-label">{label}</span>
-        {turn.state !== 'queued' && turn.startedAt !== null && <span> · <Since startedAt={turn.startedAt} /></span>}
-        {detail !== null && <span class="turn-detail"> · {ctx.display.safe(detail) ?? ''}</span>}
-      </div>
-      <TurnSteps steps={turn.steps} display={ctx.display} approval={approvalFor(ctx, props.answering, props.offline)} />
+      <TurnStatus turn={turn} display={ctx.display} avatar={ctx.avatar} tools={ctx.tools} />
+      <TurnSteps steps={turn.steps} tools={ctx.tools} display={ctx.display} approval={approvalFor(ctx, props.answering, props.offline)} />
       {turn.text !== '' && <div data-find-id={ACTIVE_ID}><Markdown text={turn.text} actions={ctx.actions} /></div>}
       <ThreadCards cards={props.cards} staged acting={NO_ANSWERS} offline={props.offline} ctx={ctx.cards} />
     </div>
@@ -197,7 +185,7 @@ function BackgroundTurn(props: {
       {open && (
         <div id={bodyId} class="exchange-cards">
           <div class="exchange-body background-draft">
-            <TurnSteps steps={turn.steps.filter((step) => !isPending(step))} display={ctx.display} approval={approval} />
+            <TurnSteps steps={turn.steps.filter((step) => !isPending(step))} tools={ctx.tools} display={ctx.display} approval={approval} />
             {turn.text === '' ? <div class="exchange-meta">Nothing written yet.</div> : <Markdown text={turn.text} actions={ctx.actions} />}
           </div>
         </div>

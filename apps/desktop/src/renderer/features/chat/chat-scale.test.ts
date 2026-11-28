@@ -34,6 +34,7 @@ const CTX: TimelineContext = {
   peers: { name: () => 'Peer', color: () => '#6b7280', avatar: () => null },
   engine: ({ pluginId }) => pluginId,
   avatar: () => null,
+  tools: false,
   cards: { peers: { name: () => 'Peer', color: () => '#6b7280', avatar: () => null }, owner: true, onAct: () => undefined, onOpenPlugin: null },
 };
 

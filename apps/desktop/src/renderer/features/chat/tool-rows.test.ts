@@ -4,7 +4,8 @@ import { expect, it } from 'vitest';
 import { chatDisplay } from './display.ts';
 import type { ToolStep, TurnStep } from './thread-model.ts';
 import { ToolDetails, ToolGroup, ToolRow } from './ToolGroup.tsx';
-import { describeTool, groupSteps, groupSummary } from './tool-rows.ts';
+import { commandDoing } from './command-kind.ts';
+import { describeTool, groupSteps, groupSummary, turnSummary } from './tool-rows.ts';
 
 const INFO = { appVersion: '1.0.0', homeDir: '/Users/sam', userName: 'sam', dataDir: '/Users/sam/.oribot' };
 const WORKSPACE = '/Users/sam/.oribot/workspaces/agent-1';
@@ -56,6 +57,107 @@ it('words each provider’s tool calls as one line, with paths shown privacy-saf
       "Thought it through",
       "Read a file",
     ]
+  `);
+});
+
+it('words a running call short for the status beside the avatar: a file name, a host or a clipped query, never a command', () => {
+  const calls: [string, unknown][] = [
+    ['Read', { file_path: '~/.oribot/workspaces/agent-1/SOUL.md' }],
+    ['Edit', { file_path: '~/.oribot/workspaces/agent-1/src/features/chat/Composer.tsx' }],
+    ['Write', { file_path: '/Users/sam/Documents/taxes/2026/receipts.csv' }],
+    ['Edit', { files: ['~/.oribot/workspaces/agent-1/a.md', '~/.oribot/workspaces/agent-1/b.md'] }],
+    ['Bash', { command: 'cd app && npm test -- --run' }],
+    ['Bash', { command: 'curl -H "Authorization: Bearer sk-secret" https://api.example.com' }],
+    ['Grep', { pattern: 'mail sam@example.com about the very long pattern here' }],
+    ['WebSearch', { query: 'opening hours' }],
+    ['WebFetch', { url: 'https://github.com/org/repo/pull/1?token=abc' }],
+    ['Glob', { pattern: '**/*.md' }],
+    ['Read', {}],
+    ['mcp__oribot__remember', { text: 'Sam likes tea' }],
+  ];
+  expect(calls.map(([name, input]) => describeTool(name, input, display).doing)).toMatchInlineSnapshot(`
+    [
+      "Reading SOUL.md",
+      "Editing Composer.tsx",
+      "Writing receipts.csv",
+      "Editing 2 files",
+      "Running tests",
+      "Fetching from the web",
+      "Searching for “mail <email> about the very lon…”",
+      "Searching the web for “opening hours”",
+      "Browsing github.com",
+      "Finding files",
+      "Reading a file",
+      "Using a tool",
+    ]
+  `);
+});
+
+it('names the kind of work a shell command does, looking past setup steps, prefixes and shell wrappers', () => {
+  const commands = [
+    'npm test',
+    'cd apps/desktop && npx vitest run',
+    'CI=1 pnpm run test:unit',
+    'cargo test --all',
+    'git status --short',
+    'git commit -m "wip"',
+    'git push origin HEAD',
+    'gh pr view 12',
+    'npm install zod',
+    'pip install -r requirements.txt',
+    'npm run lint',
+    'npx tsc -p .',
+    'npm run build',
+    'make',
+    'ls -la ~/Downloads | head',
+    'rm -rf build',
+    "bash -lc 'npm ci'",
+    'python3 scripts/report.py',
+    'date',
+    'cd somewhere',
+  ];
+  expect(Object.fromEntries(commands.map((command) => [command, commandDoing(command)]))).toMatchInlineSnapshot(`
+    {
+      "CI=1 pnpm run test:unit": "Running tests",
+      "bash -lc 'npm ci'": "Installing packages",
+      "cargo test --all": "Running tests",
+      "cd apps/desktop && npx vitest run": "Running tests",
+      "cd somewhere": "Running a command",
+      "date": "Running a command",
+      "gh pr view 12": "Checking GitHub",
+      "git commit -m "wip"": "Committing changes",
+      "git push origin HEAD": "Pushing changes",
+      "git status --short": "Checking git",
+      "ls -la ~/Downloads | head": "Looking through files",
+      "make": "Building",
+      "npm install zod": "Installing packages",
+      "npm run build": "Building",
+      "npm run lint": "Checking the code",
+      "npm test": "Running tests",
+      "npx tsc -p .": "Checking the code",
+      "pip install -r requirements.txt": "Installing packages",
+      "python3 scripts/report.py": "Running a script",
+      "rm -rf build": "Changing files",
+    }
+  `);
+});
+
+it('sums a finished turn’s calls in one phrase, leaving out a noun the phrase before named; null with no calls', () => {
+  const steps: TurnStep[] = [
+    tool('1', 'Read', { file_path: 'a.md' }),
+    tool('2', 'Read', { file_path: 'b.md' }),
+    tool('3', 'Edit', { files: ['c.md', 'd.md'] }),
+    tool('4', 'Bash', { command: 'make' }, 'error'),
+    { kind: 'approval', approval: { approvalId: 'p', summary: 'Allow?', choices: [{ id: 'allow', label: 'Allow' }] }, ending: { kind: 'chosen', label: 'Allow' } },
+    tool('5', 'Read', { file_path: 'e.md' }),
+    tool('6', 'Bash', { command: 'npm test' }),
+    tool('7', 'Write', { file_path: 'f.md' }),
+  ];
+  expect({ turn: turnSummary(steps, display), approvalsOnly: turnSummary(steps.filter(({ kind }) => kind === 'approval'), display) }).toMatchInlineSnapshot(`
+    {
+      "approvalsOnly": null,
+      "turn": "read 3 files, edited 2, ran 2 commands, wrote 1 file",
+    }
   `);
 });
 
