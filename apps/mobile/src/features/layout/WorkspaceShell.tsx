@@ -4,7 +4,7 @@ import { Tabs } from 'react-native-screens';
 import { MorrowLayoutMetricsView } from '../../../modules/morrow-native-controls/index.ts';
 import { parseNativeLayoutMetrics, type NativeLayoutMetrics } from '../../lib/reserved-regions.ts';
 import { useTheme } from '../../lib/useTheme.ts';
-import { detailSlotFor, type WorkspaceNavigation, type WorkspaceRegistry } from '../../lib/workspace.ts';
+import { detailSlotFor, type TabKey, type WorkspaceNavigation, type WorkspaceRegistry } from '../../lib/workspace.ts';
 import { TabContent } from './TabContent.tsx';
 import { TAB_ITEMS, tabKeyOf } from './tabs.ts';
 import { initialWorkspaceState, workspaceReducer } from './workspace-state.ts';
@@ -19,6 +19,7 @@ export function WorkspaceShell(props: { readonly registry: WorkspaceRegistry }) 
   const [metrics, setMetrics] = useState<NativeLayoutMetrics | null>(null);
   const [state, dispatch] = useReducer(workspaceReducer, initialWorkspaceState);
   const [provenance, setProvenance] = useState(0);
+  const [onScreen, setOnScreen] = useState<TabKey | null>(null);
 
   const navigation = useMemo<WorkspaceNavigation>(
     () => ({
@@ -59,9 +60,16 @@ export function WorkspaceShell(props: { readonly registry: WorkspaceRegistry }) 
             screenKey={item.key}
             title={item.title}
             ios={{ icon: { type: 'sfSymbol', name: item.symbol } }}
+            onDidAppear={() => {
+              setOnScreen(item.key);
+            }}
+            onDidDisappear={() => {
+              setOnScreen((current) => (current === item.key ? null : current));
+            }}
           >
             <TabContent
               tabKey={item.key}
+              onScreen={onScreen === item.key}
               state={state}
               metrics={metrics}
               registry={registry}
