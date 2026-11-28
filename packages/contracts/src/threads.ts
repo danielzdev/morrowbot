@@ -9,6 +9,8 @@ export const Thread = z.strictObject({
   title: ThreadTitle,
   createdAt: Timestamp,
   updatedAt: Timestamp,
+  /** Host-assigned creation order (`threads.rowid`), breaking same-millisecond ties deterministically. */
+  createdSeq: z.number().int().positive().optional(),
 });
 export type Thread = z.infer<typeof Thread>;
 
@@ -18,9 +20,18 @@ export type CreateThreadRequest = z.infer<typeof CreateThreadRequest>;
 export const UpdateThreadRequest = z.strictObject({ title: ThreadTitle });
 export type UpdateThreadRequest = z.infer<typeof UpdateThreadRequest>;
 
-const earlier = (a: Thread, b: Thread): boolean => a.createdAt < b.createdAt || (a.createdAt === b.createdAt && a.id < b.id);
+/** True when `a` was created before `b`, matching the host's `ORDER BY created_at, rowid`. */
+export function createdBefore(a: Thread, b: Thread): boolean {
+  if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt;
+  if (a.createdSeq !== b.createdSeq) {
+    if (a.createdSeq === undefined) return false;
+    if (b.createdSeq === undefined) return true;
+    return a.createdSeq < b.createdSeq;
+  }
+  return false;
+}
 
-/** An agent's main chat: its first by creation time (then id, so ties never flip). It receives new messages from other agents. */
+/** An agent's main chat: its first by host creation order (`createdAt`, then `createdSeq`). It receives new messages from other agents. */
 export function mainThread(threads: readonly Thread[]): Thread | null {
-  return threads.reduce<Thread | null>((first, thread) => (first === null || earlier(thread, first) ? thread : first), null);
+  return threads.reduce<Thread | null>((first, thread) => (first === null || createdBefore(thread, first) ? thread : first), null);
 }

@@ -19,7 +19,10 @@ export function BindingControl(props: {
   /** The bound provider's entry; undefined when it is not installed. */
   readonly choice: ProviderChoice | undefined;
   readonly binding: ProviderBinding;
+  /** Changes on ⇧⌘M: open the binding popover. */
   readonly openRequest: number;
+  /** False for server members (including co-owners), who may not grant full access. */
+  readonly allowFull: boolean;
   readonly onCommit: (next: BoundProvider) => Promise<string | null>;
   readonly redact: (text: string) => string;
   readonly onOpenProviders: () => void;
@@ -92,6 +95,7 @@ export function BindingControl(props: {
           binding={binding}
           anchor={open === 'access' ? accessButton : modelButton}
           focus={open}
+          allowFull={props.allowFull}
           redact={props.redact}
           onOpenProviders={() => {
             setOpen(null);

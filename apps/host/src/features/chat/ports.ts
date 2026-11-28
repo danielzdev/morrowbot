@@ -1,6 +1,7 @@
 import type {
   Agent,
   AgentMessage,
+  AgentMessageReadOutcome,
   Attachment,
   AttachmentContent,
   BlockedGroup,
@@ -21,6 +22,7 @@ import type {
   TurnUsage,
   ToolStep,
   ReactionActor,
+  ReplyAttachment,
   UsageResult,
   UsageWindow,
   VendorSettings,
@@ -67,7 +69,7 @@ export interface SubagentRecord {
 /** The storage the chat feature needs (the storage feature provides it). */
 export interface ChatStore {
   readonly threads: {
-    insert(thread: Thread): void;
+    insert(thread: Omit<Thread, 'createdSeq'>): Thread;
     update(thread: Thread): void;
     touch(id: string, at: string): void;
     delete(id: string): boolean;
@@ -97,6 +99,12 @@ export interface ChatStore {
     listOpen(generationId: string): ToolStep[];
     close(generationId: string, messageId: string | null): void;
     listByThread(threadId: string): MessageToolSteps[];
+  };
+  /** Files each turn's agent attached with `attach_files`, kept with the turn until its reply is saved. */
+  readonly replyAttachments: {
+    listOpen(generationId: string): readonly { readonly attachment: ReplyAttachment }[];
+    /** Puts the turn's open files on its reply `messageId`; with no reply they are dropped. */
+    close(generationId: string, messageId: string | null): void;
   };
   readonly reactions: {
     /** False when the actor already has this emoji on the message. */
@@ -166,6 +174,9 @@ export interface ChatStore {
   };
   readonly attachments: {
     pending(threadId: string, ids: readonly string[]): Attachment[] | undefined;
+  };
+  readonly agentMessages: {
+    setReadOutcome(id: string, outcome: AgentMessageReadOutcome): void;
   };
   readonly subagents: {
     get(threadId: string): SubagentRecord | undefined;

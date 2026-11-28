@@ -11,7 +11,7 @@ const AT = '2026-01-01T00:00:00.000Z';
 const reaction = (messageId: string, actor: 'user' | 'agent', emoji: string): MessageReaction => ({ messageId, actor, emoji, createdAt: AT });
 const MESSAGES: Message[] = [
   { kind: 'user', id: 'u1', threadId: 't', text: 'Sounds good', createdAt: AT, attachments: [] },
-  { kind: 'assistant', id: 'a1', threadId: 't', text: 'Done.', createdAt: AT, outcome: { kind: 'completed', finishReason: 'stop' } },
+  { kind: 'assistant', attachments: [], id: 'a1', threadId: 't', text: 'Done.', createdAt: AT, outcome: { kind: 'completed', finishReason: 'stop' } },
 ];
 const CTX: TimelineContext = {
   display: chatDisplay(null, null),
@@ -23,6 +23,7 @@ const CTX: TimelineContext = {
   agentName: 'Helper',
   engine: ({ pluginId }) => pluginId,
   image: () => Promise.resolve(null),
+  files: { url: (id) => id, act: () => Promise.resolve({ kind: 'cancelled' }) },
   peers: { name: () => 'Peer', color: () => '#6b7280', avatar: () => null },
   avatar: () => null,
 };

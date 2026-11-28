@@ -20,6 +20,8 @@ export { commandFilePath } from './command.ts';
 export type { CommandExit, CommandOptions, OpenCommand, RunCommandOptions } from './command.ts';
 export type { JsonRpcProcess, JsonRpcProcessOptions, JsonRpcReply, StartJsonRpcProcess } from './json-rpc-process.ts';
 export { confinePath } from './confine.ts';
+export { dataFolderFence, OPEN } from './fence.ts';
+export type { Fence, FencedFolders } from './fence.ts';
 export type { Confined } from './confine.ts';
 export { listDirectory, readOptionalFile } from './files.ts';
 export type { Executable } from './files.ts';

@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess, type StdioOptions } from 'node:child_process';
 import { FIRST_FILE_FD, OwnerMessage, type GuardMessage } from './command-protocol.ts';
+import { fencedProgram, type Fence } from './fence.ts';
 import { readProcessStart } from './process-start.ts';
 
 /**
@@ -15,6 +16,7 @@ const [fileCount = '0', command = '', ...args] = process.argv.slice(2);
 const files = Array.from({ length: Number(fileCount) }, (_, index) => FIRST_FILE_FD + index);
 const stdio: StdioOptions = ['inherit', 'inherit', 'inherit', 'ignore', ...files];
 let child: ChildProcess | undefined;
+let starting = false;
 let stopping = false;
 
 function sweep(): void {
@@ -47,21 +49,48 @@ function report(message: GuardMessage, done: () => void): void {
   }
 }
 
-function start(own: Readonly<Record<string, string>>): void {
-  if (child !== undefined || stopping) return;
-  const env = { ...process.env, ...own };
-  delete env.ELECTRON_RUN_AS_NODE;
+function failed(code: string, message: string): void {
+  report({ kind: 'spawn-error', code, message }, sweep);
+}
+
+function launch(file: string, programArgs: readonly string[], env: NodeJS.ProcessEnv): void {
   try {
-    child = spawn(command, args, { stdio, env });
+    child = spawn(file, programArgs, { stdio, env });
     child.on('error', (error) => {
-      report({ kind: 'spawn-error', code: 'code' in error ? String(error.code) : '', message: error.message }, sweep);
+      failed('code' in error ? String(error.code) : '', error.message);
     });
     child.on('exit', (code, signal) => {
       report({ kind: 'exit', code, signal }, sweep);
     });
   } catch (error) {
-    report({ kind: 'spawn-error', code: '', message: error instanceof Error ? error.message : String(error) }, sweep);
+    failed('', error instanceof Error ? error.message : String(error));
   }
+}
+
+function start(own: Readonly<Record<string, string>>, fence: Fence): void {
+  if (starting || stopping) return;
+  starting = true;
+  const env = { ...process.env, ...own };
+  delete env.ELECTRON_RUN_AS_NODE;
+  fencedProgram(fence, command, args, env.PATH).then(
+    (program) => {
+      if (stopping) return;
+      switch (program.kind) {
+        case 'program':
+          launch(program.file, program.args, env);
+          return;
+        case 'missing':
+          failed('ENOENT', `${command} was not found on PATH`);
+          return;
+        case 'not-executable':
+          failed('EACCES', `${command} is not executable`);
+          return;
+      }
+    },
+    (error: unknown) => {
+      failed('', error instanceof Error ? error.message : String(error));
+    },
+  );
 }
 
 process.on('SIGTERM', () => undefined);
@@ -71,7 +100,7 @@ process.on('message', (raw: unknown) => {
   if (!parsed.success) return;
   switch (parsed.data.kind) {
     case 'spawn':
-      start(parsed.data.env);
+      start(parsed.data.env, parsed.data.fence);
       return;
     case 'kill':
       stop();

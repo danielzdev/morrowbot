@@ -3,11 +3,11 @@ import type { RefObject } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { AccessSegment } from '../../shared/binding-ui/AccessSegment.tsx';
 import { profileName } from '../../shared/binding-ui/access-copy.ts';
-import { accessState, changeCheck, confirmLabel, modelState, needsConfirm, type ChangeCheck, type ModelState } from '../../shared/binding-ui/binding-state.ts';
+import { accessState, changeCheck, confirmLabel, modelState, needsConfirm, unrunnableReason, type ChangeCheck, type ModelState } from '../../shared/binding-ui/binding-state.ts';
 import { ModelList } from '../../shared/binding-ui/ModelList.tsx';
 import { OptionColumn } from '../../shared/binding-ui/OptionColumn.tsx';
 import { ProviderRail } from '../../shared/binding-ui/ProviderRail.tsx';
-import { isRunnable, newBinding, pinModel, readinessOf, statusLine, withChoice, type ProviderChoice } from '../../shared/binding-ui/selection.ts';
+import { isRunnable, pinModel, switchBinding, withChoice, type ProviderChoice } from '../../shared/binding-ui/selection.ts';
 import { Icon } from '../../shared/ui/Icon.tsx';
 import { Popover } from '../../shared/ui/Popover.tsx';
 import type { BoundProvider } from './binding-display.ts';
@@ -32,6 +32,8 @@ export function BindingPopover(props: {
   readonly binding: BoundProvider;
   readonly anchor: RefObject<HTMLElement | null>;
   readonly focus: 'model' | 'access';
+  /** False for server members (including co-owners), who may not grant full access. */
+  readonly allowFull: boolean;
   /** Saves the binding; resolves with why it was refused, or null once the host has it. */
   readonly onCommit: (next: BoundProvider) => Promise<string | null>;
   readonly redact: (text: string) => string;
@@ -74,7 +76,7 @@ export function BindingPopover(props: {
     if (refused !== null) setProblem(props.redact(refused));
   };
   const switchTo = (choice: ProviderChoice, model: ProviderModel | null): void => {
-    const fresh = newBinding(choice);
+    const fresh = switchBinding(choice, binding, { allowFull: props.allowFull });
     if (fresh.kind !== 'bound') return;
     const next = model === null ? fresh : { ...fresh, selection: pinModel(model) };
     setConfirm({ next, check: changeCheck(choices, binding, next), name: choice.name });
@@ -104,7 +106,7 @@ export function BindingPopover(props: {
           <div class="binding-models">
             {browsed === undefined || !runnable ? (
               <div class="binding-unrunnable">
-                <p class="binding-note">{browsed === undefined ? "This agent's provider isn't installed." : `${browsed.name}: ${statusLine(readinessOf(browsed))}`}</p>
+                <p class="binding-note">{unrunnableReason(browsed, own ? binding : null, props.redact)}</p>
                 <button type="button" class="btn secondary" onClick={props.onOpenProviders}>Open Providers</button>
               </div>
             ) : (

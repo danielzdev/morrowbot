@@ -30,6 +30,7 @@ export * from './host-ipc.ts';
 export * from './usage.ts';
 export * from './pairing.ts';
 export * from './attachments.ts';
+export * from './reply-attachments.ts';
 export * from './memories.ts';
 export * from './skills.ts';
 export * from './agent-messages.ts';

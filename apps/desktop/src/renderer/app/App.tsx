@@ -255,6 +255,7 @@ export function App({ bridge, server, role }: AppProps) {
               onApprovalFocused={() => { setApprovalFocus(null); }}
               onAgentSettings={(agentId, section) => { setDialog({ kind: 'agent-settings', agentId, section }); }}
               onNewAgent={newAgent}
+              allowFull={role === 'owner'}
               onCopy={copyChat}
               onNewChat={newChat}
               onOpenSettings={openSettings}
@@ -272,6 +273,7 @@ export function App({ bridge, server, role }: AppProps) {
         bridge={bridge}
         info={info}
         reducedMotion={appearance.reducedMotion}
+        allowFull={role === 'owner'}
         onOpenProviders={() => { openSettings('providers'); }}
         onOpenConnectors={owner ? (target) => { setPage({ kind: 'extensions', jump: { id: ++jumps.current, target } }); } : null}
         onCreated={(created) => { newChat(created.id); }}

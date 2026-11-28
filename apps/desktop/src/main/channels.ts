@@ -28,4 +28,5 @@ export const CHANNELS: BridgeChannels = {
   runReset: 'morrowbot:run-reset',
   serverMode: 'morrowbot:server-mode',
   chooseServer: 'morrowbot:choose-server',
+  fileAction: 'morrowbot:file-action',
 };

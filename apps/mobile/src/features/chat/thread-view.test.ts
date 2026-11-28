@@ -77,7 +77,7 @@ it('streams a turn: user message, status, deltas, a tool call, then the reply wi
   const done = play(view, [
     {
       kind: 'generation.finished',
-      message: { kind: 'assistant', id: 'r1', threadId: 't', text: 'Tram 28 runs east.', createdAt: AT, outcome: { kind: 'completed', finishReason: 'stop' } },
+      message: { kind: 'assistant', attachments: [], id: 'r1', threadId: 't', text: 'Tram 28 runs east.', createdAt: AT, outcome: { kind: 'completed', finishReason: 'stop' } },
     },
   ]);
   expect({ messages: done.messages.map(({ id, kind }) => `${kind}:${id}`), activeTurn: done.activeTurn, finished: done.finished }).toMatchInlineSnapshot(`
@@ -180,7 +180,7 @@ it('splits a steered turn: the reply so far is saved, the queued message joins t
     { kind: 'generation.delta', text: 'Looking' },
     {
       kind: 'generation.steered',
-      segment: { kind: 'assistant', id: 's1', threadId: 't', text: 'Looking', createdAt: AT, outcome: { kind: 'steered' } },
+      segment: { kind: 'assistant', attachments: [], id: 's1', threadId: 't', text: 'Looking', createdAt: AT, outcome: { kind: 'steered' } },
       userMessage: { kind: 'user', id: 'q1', threadId: 't', text: 'Only trams, please', createdAt: AT, attachments: [] },
     },
     { kind: 'generation.delta', text: 'Tram 28.' },
