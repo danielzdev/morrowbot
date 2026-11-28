@@ -41,7 +41,7 @@ export interface VaultService {
   create(request: CreateVaultItemRequest): Promise<VaultSave>;
   update(id: string, request: UpdateVaultItemRequest): Promise<VaultSave>;
   delete(id: string): Promise<boolean>;
-  /** The item with its secret, read from the store right now; undefined for an unknown id. The host-only resolver port. */
+  /** The item with its secret, read from the store between changes; undefined for an unknown id. The host-only resolver port. */
   resolve(id: string): Promise<ResolvedVaultItem | undefined>;
 }
 
@@ -129,23 +129,24 @@ export async function openVault(options: VaultOptions): Promise<VaultService> {
         await secrets.remove(current.secretRef);
         return true;
       }),
-    resolve: async (id) => {
-      const entry = entryOf(id);
-      if (entry === undefined) return undefined;
-      const { item } = entry;
-      const secret = await readSecret(entry);
-      switch (item.kind) {
-        case 'login': {
-          if (secret.kind !== 'login') return undefined;
-          const key = secret.twoStepKey === null ? null : base32Bytes(secret.twoStepKey);
-          return { kind: 'login', item, password: secret.password, oneTimeCode: key === null ? null : () => totp(key, clock()) };
+    resolve: (id) =>
+      inTurn(async (): Promise<ResolvedVaultItem | undefined> => {
+        const entry = entryOf(id);
+        if (entry === undefined) return undefined;
+        const { item } = entry;
+        const secret = await readSecret(entry);
+        switch (item.kind) {
+          case 'login': {
+            if (secret.kind !== 'login') return undefined;
+            const key = secret.twoStepKey === null ? null : base32Bytes(secret.twoStepKey);
+            return { kind: 'login', item, password: secret.password, oneTimeCode: key === null ? null : () => totp(key, clock()) };
+          }
+          case 'api_key':
+            return secret.kind === 'api_key' ? { kind: 'api_key', item, key: secret.key } : undefined;
+          case 'header_secret':
+            return secret.kind === 'header_secret' ? { kind: 'header_secret', item, value: secret.value } : undefined;
         }
-        case 'api_key':
-          return secret.kind === 'api_key' ? { kind: 'api_key', item, key: secret.key } : undefined;
-        case 'header_secret':
-          return secret.kind === 'header_secret' ? { kind: 'header_secret', item, value: secret.value } : undefined;
-      }
-    },
+      }),
   };
 }
 

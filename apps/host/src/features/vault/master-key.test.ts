@@ -43,11 +43,13 @@ const failure = (work: Promise<unknown>): Promise<string> =>
     (error: unknown) => (error instanceof Error ? error.message : String(error)),
   );
 
-it('keeps the macOS master key in one Keychain item, passing it only on stdin', async () => {
+it('keeps the macOS master key in one Keychain item, passing it only on stdin and never replacing it', async () => {
   const key = newMasterKey();
+  const later = newMasterKey();
   let saved: string | undefined;
   const security = fakeProgram(({ args, input }) => {
     if (args[0] === '-i') {
+      if (saved !== undefined) return exited(45);
       saved = /-w (\S+)\n$/.exec(input)?.[1];
       return exited(0);
     }
@@ -55,21 +57,24 @@ it('keeps the macOS master key in one Keychain item, passing it only on stdin', 
   });
   const store = keychainKeyStore('com.legendarykoi.morrowbot.vault', security.run);
   const before = await store.load();
-  await store.save(key);
-  const loaded = await store.load();
-  const keyText = key.toString('base64');
+  const created = await store.create(key);
+  const createdLater = await store.create(later);
+  const texts = [key.toString('base64'), later.toString('base64')];
   expect({
     before,
-    roundTrip: loaded?.equals(key),
-    keyInArguments: security.calls.some(({ args }) => args.some((arg) => arg.includes(keyText))),
-    calls: security.calls.map(({ command, args, input }) => `${command} ${args.join(' ')}${input === '' ? '' : ` <<< ${input.replace(keyText, '<key>').trim()}`}`),
+    created: created.equals(key),
+    laterGetsFirstKey: createdLater.equals(key),
+    keyInArguments: security.calls.some(({ args }) => args.some((arg) => texts.some((text) => arg.includes(text)))),
+    calls: security.calls.map(({ command, args, input }) => `${command} ${args.join(' ')}${input === '' ? '' : ` <<< ${input.replace(/-w \S+/, '-w <key>').trim()}`}`),
   }).toEqual({
     before: undefined,
-    roundTrip: true,
+    created: true,
+    laterGetsFirstKey: true,
     keyInArguments: false,
     calls: [
       '/usr/bin/security find-generic-password -s com.legendarykoi.morrowbot.vault -a master-key -w',
-      '/usr/bin/security -i <<< add-generic-password -U -s com.legendarykoi.morrowbot.vault -a master-key -w <key>',
+      '/usr/bin/security -i <<< add-generic-password -s com.legendarykoi.morrowbot.vault -a master-key -w <key>',
+      '/usr/bin/security -i <<< add-generic-password -s com.legendarykoi.morrowbot.vault -a master-key -w <key>',
       '/usr/bin/security find-generic-password -s com.legendarykoi.morrowbot.vault -a master-key -w',
     ],
   });
@@ -83,7 +88,7 @@ it('wraps the Windows master key with DPAPI for the current user, keeping only t
   const file = path.join(dir, 'vault.key.dpapi');
   const store = dpapiKeyStore(file, powershell.run);
   const before = await store.load();
-  await store.save(key);
+  await store.create(key);
   const onDisk = await readFile(file, 'utf8');
   const loaded = await store.load();
   const scriptOf = (args: readonly string[]): string => Buffer.from(args.at(-1) ?? '', 'base64').toString('utf16le');
@@ -109,7 +114,7 @@ it('wraps the Windows master key with DPAPI for the current user, keeping only t
   `);
 });
 
-it('uses the Linux Secret Service when secret-tool reaches it, and says why it falls back to a key file otherwise', async () => {
+it('uses the Linux Secret Service when secret-tool reaches it, never makes a key while it is locked, and says why it falls back to a key file', async () => {
   const key = newMasterKey();
   let stored: string | undefined;
   const reachable = fakeProgram(({ args, input }) => {
@@ -120,8 +125,9 @@ it('uses the Linux Secret Service when secret-tool reaches it, and says why it f
     return exited(stored === undefined ? 1 : 0, stored ?? '');
   });
   const linux = await linuxKeys(path.join(dir, 'vault.key'), reachable.run);
-  await linux.store.save(key);
+  await linux.store.create(key);
   const roundTrip = (await linux.store.load())?.equals(key);
+  const timedOut = await linuxKeys(path.join(dir, 'vault.key'), fakeProgram(() => ({ kind: 'exited', code: null, stdout: '', stderr: '' })).run);
   const keyFile = path.join(dir, 'existing.key');
   await writeFile(keyFile, `${newMasterKey().toString('base64')}\n`);
   const why = async (run: Run, file = path.join(dir, 'vault.key')) => {
@@ -132,6 +138,7 @@ it('uses the Linux Secret Service when secret-tool reaches it, and says why it f
     reachable: linux.kind,
     roundTrip,
     calls: reachable.calls.map(({ args, input }) => `secret-tool ${args.join(' ')}${input === '' ? '' : ' <<< <key>'}`),
+    lockedKeyring: `${timedOut.kind}: ${await failure(timedOut.store.create(key))}`,
     notInstalled: await why(fakeProgram(() => ({ kind: 'missing' })).run),
     noSession: await why(fakeProgram(() => exited(1, '', 'Cannot autolaunch D-Bus without X11 $DISPLAY')).run),
     keyFileAlreadyThere: await why(reachable.run, keyFile),
@@ -140,9 +147,12 @@ it('uses the Linux Secret Service when secret-tool reaches it, and says why it f
     roundTrip: true,
     calls: [
       'secret-tool lookup service com.legendarykoi.morrowbot.vault account master-key',
+      'secret-tool lookup service com.legendarykoi.morrowbot.vault account master-key',
       'secret-tool store --label=MorrowBot vault key service com.legendarykoi.morrowbot.vault account master-key <<< <key>',
       'secret-tool lookup service com.legendarykoi.morrowbot.vault account master-key',
+      'secret-tool lookup service com.legendarykoi.morrowbot.vault account master-key',
     ],
+    lockedKeyring: 'secret-service: The Secret Service could not read the vault key (secret-tool was stopped before it finished)',
     notInstalled: 'key-file: secret-tool is not installed',
     noSession: 'key-file: the Secret Service is not reachable from this session',
     keyFileAlreadyThere: 'key-file: the vault key is in the data folder from an earlier run without a Secret Service',
@@ -153,9 +163,9 @@ it('names the failing tool, never the key, when a keystore refuses', async () =>
   const refuse = fakeProgram(() => exited(1, '', 'some secret-looking stderr'));
   const key = newMasterKey();
   const messages = [
-    await failure(keychainKeyStore(undefined, refuse.run).save(key)),
-    await failure(dpapiKeyStore(path.join(dir, 'k.dpapi'), refuse.run).save(key)),
-    await failure((await linuxKeys(path.join(dir, 'none.key'), fakeProgram(({ args }) => (args[0] === 'lookup' ? exited(1) : exited(1, '', 'stderr'))).run)).store.save(key)),
+    await failure(keychainKeyStore(undefined, refuse.run).create(key)),
+    await failure(dpapiKeyStore(path.join(dir, 'k.dpapi'), refuse.run).create(key)),
+    await failure((await linuxKeys(path.join(dir, 'none.key'), fakeProgram(({ args }) => (args[0] === 'lookup' ? exited(1) : exited(1, '', 'stderr'))).run)).store.create(key)),
   ];
   expect(messages).toEqual([
     'The macOS Keychain could not save the vault key (security exited with 1)',
@@ -168,14 +178,20 @@ it('names the failing tool, never the key, when a keystore refuses', async () =>
 const LIVE = process.platform === 'darwin' && process.env.MORROWBOT_LIVE_KEYCHAIN === '1';
 
 describe.runIf(LIVE)('the master key in this Mac’s login Keychain', () => {
-  it('saves one key under a throwaway service and reads it back', async () => {
+  it('saves one key under a throwaway service, keeps it when a second key is offered, and reads it back', async () => {
     const service = `com.legendarykoi.morrowbot.vault.test-${randomUUID()}`;
     const store = keychainKeyStore(service);
     const key = newMasterKey();
     try {
       const before = await store.load();
-      await store.save(key);
-      expect({ before, roundTrip: (await store.load())?.equals(key) }).toEqual({ before: undefined, roundTrip: true });
+      const created = await store.create(key);
+      const createdLater = await store.create(newMasterKey());
+      expect({ before, created: created.equals(key), laterGetsFirstKey: createdLater.equals(key), roundTrip: (await store.load())?.equals(key) }).toEqual({
+        before: undefined,
+        created: true,
+        laterGetsFirstKey: true,
+        roundTrip: true,
+      });
     } finally {
       await runProgram('/usr/bin/security', ['delete-generic-password', '-s', service, '-a', 'master-key'], '');
     }

@@ -1,26 +1,40 @@
 import { access } from 'node:fs/promises';
-import { keyFileStore, keyFromText, VAULT_KEY_ACCOUNT, VAULT_KEY_SERVICE, type MasterKeyStore } from './master-key.ts';
-import { runProgram, type Run } from './run.ts';
+import { keyFileStore, keyFromText, savedFirst, VAULT_KEY_ACCOUNT, VAULT_KEY_SERVICE, type MasterKeyStore } from './master-key.ts';
+import { runProgram, type Run, type RunResult } from './run.ts';
 import { SecretStoreError } from './secret-store.ts';
 
 const SECRET_TOOL = 'secret-tool';
 const ATTRIBUTES = ['service', VAULT_KEY_SERVICE, 'account', VAULT_KEY_ACCOUNT] as const;
 
-/** The master key in the freedesktop Secret Service (GNOME Keyring, KWallet), through `secret-tool`. */
+/** `secret-tool lookup` ended cleanly without printing a key: nothing is saved under the attributes. */
+const notFound = (result: RunResult): boolean =>
+  result.kind === 'exited' && (result.code === 0 || result.code === 1) && result.stdout.trim() === '' && result.stderr.trim() === '';
+
+const exitedWith = (code: number | null): string => (code === null ? 'was stopped before it finished' : `exited with ${String(code)}`);
+
+/**
+ * The master key in the freedesktop Secret Service (GNOME Keyring, KWallet), through `secret-tool`. Only a clean
+ * "nothing saved" counts as no key; a lookup that times out (an unanswered unlock prompt) or fails is an error, so a
+ * locked keyring never leads to a new key replacing the one other data folders use.
+ */
 export function secretServiceKeyStore(run: Run = runProgram): MasterKeyStore {
+  const load = async (): Promise<Buffer | undefined> => {
+    const result = await run(SECRET_TOOL, ['lookup', ...ATTRIBUTES], '');
+    if (result.kind === 'missing') throw new SecretStoreError('secret-tool could not be started to read the vault key');
+    if (notFound(result)) return undefined;
+    if (result.code === 0) return keyFromText(result.stdout, 'The Secret Service item');
+    throw new SecretStoreError(`The Secret Service could not read the vault key (secret-tool ${exitedWith(result.code)})`);
+  };
   return {
     kind: 'secret-service',
-    load: async () => {
-      const result = await run(SECRET_TOOL, ['lookup', ...ATTRIBUTES], '');
-      if (result.kind === 'missing') throw new SecretStoreError('secret-tool could not be started to read the vault key');
-      if (result.code === 0 && result.stdout.trim() !== '') return keyFromText(result.stdout, 'The Secret Service item');
-      if (result.stderr.trim() === '') return undefined;
-      throw new SecretStoreError(`The Secret Service could not read the vault key (secret-tool exited with ${String(result.code)})`);
-    },
-    save: async (key) => {
+    load,
+    create: async (key) => {
+      const saved = await load();
+      if (saved !== undefined) return saved;
       const result = await run(SECRET_TOOL, ['store', '--label=MorrowBot vault key', ...ATTRIBUTES], key.toString('base64'));
       if (result.kind === 'missing') throw new SecretStoreError('secret-tool could not be started to save the vault key');
-      if (result.code !== 0) throw new SecretStoreError(`The Secret Service could not save the vault key (secret-tool exited with ${String(result.code)})`);
+      if (result.code !== 0) throw new SecretStoreError(`The Secret Service could not save the vault key (secret-tool ${exitedWith(result.code)})`);
+      return savedFirst({ load });
     },
   };
 }
@@ -39,7 +53,7 @@ export async function linuxKeys(keyFile: string, run: Run = runProgram): Promise
   if (await exists(keyFile)) return fallback('the vault key is in the data folder from an earlier run without a Secret Service');
   const probe = await run(SECRET_TOOL, ['lookup', ...ATTRIBUTES], '');
   if (probe.kind === 'missing') return fallback('secret-tool is not installed');
-  if (probe.code === 0 || probe.stderr.trim() === '') return { kind: 'secret-service', store: secretServiceKeyStore(run) };
+  if (probe.code === null || probe.code === 0 || notFound(probe)) return { kind: 'secret-service', store: secretServiceKeyStore(run) };
   return fallback('the Secret Service is not reachable from this session');
 }
 

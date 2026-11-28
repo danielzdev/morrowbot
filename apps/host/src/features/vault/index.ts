@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { removeStaleTemps } from './atomic-file.ts';
 import { dpapiKeyStore } from './dpapi-key.ts';
 import { encryptedFileStore } from './file-store.ts';
 import { keychainKeyStore } from './keychain-key.ts';
@@ -28,6 +29,7 @@ export interface VaultBackend {
  * wrapped with Windows DPAPI in `vault.key.dpapi`, in the Linux Secret Service, or else in `vault.key`.
  */
 export async function vaultBackend(choice: VaultKeyChoice, platform: NodeJS.Platform, dataDir: string): Promise<VaultBackend> {
+  await removeStaleTemps(dataDir);
   const backend = (keys: MasterKeyStore, headless: string | null): VaultBackend => ({
     secrets: encryptedFileStore({ file: path.join(dataDir, 'vault-secrets.json'), keys }),
     keys: keys.kind,

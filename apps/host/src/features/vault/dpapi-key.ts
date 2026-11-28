@@ -1,5 +1,5 @@
-import { writeFileAtomic } from './atomic-file.ts';
-import { keyFromText, readIfThere, type MasterKeyStore } from './master-key.ts';
+import { writeFileOnce } from './atomic-file.ts';
+import { keyFromText, readIfThere, savedFirst, type MasterKeyStore } from './master-key.ts';
 import { runProgram, type Run } from './run.ts';
 import { SecretStoreError } from './secret-store.ts';
 
@@ -35,16 +35,17 @@ export function dpapiKeyStore(file: string, run: Run = runProgram): MasterKeySto
     if (result.code !== 0) throw new SecretStoreError(`Windows DPAPI could not ${action.toLowerCase()} the vault key (PowerShell exited with ${String(result.code)})`);
     return result.stdout.trim();
   };
+  const load = async (): Promise<Buffer | undefined> => {
+    const wrapped = await readIfThere(file);
+    return wrapped === undefined ? undefined : keyFromText(await powershell('Unprotect', wrapped.trim()), 'The DPAPI-wrapped key');
+  };
   return {
     kind: 'dpapi',
-    load: async () => {
-      const wrapped = await readIfThere(file);
-      return wrapped === undefined ? undefined : keyFromText(await powershell('Unprotect', wrapped.trim()), 'The DPAPI-wrapped key');
-    },
-    save: async (key) => {
+    load,
+    create: async (key) => {
       const wrapped = await powershell('Protect', key.toString('base64'));
       if (wrapped === '') throw new SecretStoreError('Windows DPAPI returned no wrapped key');
-      await writeFileAtomic(file, `${wrapped}\n`);
+      return (await writeFileOnce(file, `${wrapped}\n`)) ? key : savedFirst({ load });
     },
   };
 }

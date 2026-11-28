@@ -16,7 +16,7 @@ type Sealed = z.infer<typeof Sealed>;
 export interface FileStoreOptions {
   /** The sealed secrets: `<dataDir>/vault-secrets.json`. */
   readonly file: string;
-  /** Keeps the one master key every value is sealed with; a key is made and saved on first use. */
+  /** Keeps the one master key every value is sealed with; a key is made on first use unless one is saved already. */
   readonly keys: MasterKeyStore;
 }
 
@@ -39,9 +39,7 @@ export function encryptedFileStore(options: FileStoreOptions): SecretStore {
     const saved = await options.keys.load();
     if (saved !== undefined) return saved;
     if ((await entries()).size > 0) throw new SecretStoreError('The vault key is missing, so the saved secrets cannot be opened');
-    const made = newMasterKey();
-    await options.keys.save(made);
-    return made;
+    return options.keys.create(newMasterKey());
   });
   const inTurn = serial();
   const save = (secrets: ReadonlyMap<string, Sealed>): Promise<void> =>

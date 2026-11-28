@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { writeFileAtomic } from './atomic-file.ts';
+import { writeFileOnce } from './atomic-file.ts';
 import { SecretStoreError } from './secret-store.ts';
 
 export const MASTER_KEY_BYTES = 32;
@@ -17,10 +17,21 @@ export interface MasterKeyStore {
   readonly kind: MasterKeyKind;
   /** The saved key, or undefined when none has been saved yet. */
   load(): Promise<Buffer | undefined>;
-  save(key: Buffer): Promise<void>;
+  /**
+   * Saves `key` unless a key is saved already, and returns the key that is saved now. It never replaces a saved key:
+   * every data folder on this account shares the keystore entry, and replacing it would strand their secrets.
+   */
+  create(key: Buffer): Promise<Buffer>;
 }
 
 export const newMasterKey = (): Buffer => randomBytes(MASTER_KEY_BYTES);
+
+/** The key another process saved first, read back after `create` found one in place. */
+export async function savedFirst(store: Pick<MasterKeyStore, 'load'>): Promise<Buffer> {
+  const saved = await store.load();
+  if (saved === undefined) throw new SecretStoreError('The vault key was saved by another process but cannot be read back');
+  return saved;
+}
 
 /** The key written as base64 text, checked to be exactly 256 bits. */
 export function keyFromText(text: string, where: string): Buffer {
@@ -34,13 +45,14 @@ export function keyFromText(text: string, where: string): Buffer {
  * someone who can read the data folder: the fallback for Linux without a Secret Service, and for tests.
  */
 export function keyFileStore(file: string): MasterKeyStore {
+  const load = async (): Promise<Buffer | undefined> => {
+    const text = await readIfThere(file);
+    return text === undefined ? undefined : keyFromText(text, 'The vault key file');
+  };
   return {
     kind: 'key-file',
-    load: async () => {
-      const text = await readIfThere(file);
-      return text === undefined ? undefined : keyFromText(text, 'The vault key file');
-    },
-    save: (key) => writeFileAtomic(file, `${key.toString('base64')}\n`),
+    load,
+    create: async (key) => ((await writeFileOnce(file, `${key.toString('base64')}\n`)) ? key : savedFirst({ load })),
   };
 }
 

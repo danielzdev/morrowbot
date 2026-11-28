@@ -1,9 +1,10 @@
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { z } from 'zod';
 import { encryptedFileStore } from './file-store.ts';
+import { vaultBackend } from './index.ts';
 import { keyFileStore, type MasterKeyStore } from './master-key.ts';
 
 const SECRET = 'correct horse battery staple ✓';
@@ -77,9 +78,9 @@ it('lists and removes saved values without the key, and makes one key on first w
   const keys: MasterKeyStore = {
     kind: 'key-file',
     load: () => Promise.resolve(saved[0]),
-    save: (key) => {
+    create: (key) => {
       saved.push(key);
-      return Promise.resolve();
+      return Promise.resolve(key);
     },
   };
   const store = encryptedFileStore({ file: options.file, keys });
@@ -91,4 +92,20 @@ it('lists and removes saved values without the key, and makes one key on first w
   const listed = await keyless.list();
   await keyless.remove('item-1');
   expect({ keysMadeFirst, listed, after: await keyless.list(), keysMadeSince: saved.length }).toEqual({ keysMadeFirst: 1, listed: ['item-1', 'item-2'], after: ['item-2'], keysMadeSince: 0 });
+});
+
+it('gives two data folders opening at once the same key, so neither replaces the one the other sealed with', async () => {
+  const shared = keyFileStore(keyFile);
+  const folders = [path.join(dir, 'a.json'), path.join(dir, 'b.json')];
+  await Promise.all(folders.map((file, n) => encryptedFileStore({ file, keys: shared }).write('item-1', `secret ${String(n)}`)));
+  const reads = await Promise.all(folders.map((file) => encryptedFileStore({ file, keys: keyFileStore(keyFile) }).read('item-1')));
+  expect(reads).toEqual(['secret 0', 'secret 1']);
+});
+
+it('deletes the temporary files a crash mid-write left beside the vault files, and nothing else', async () => {
+  const left = ['vault-secrets.json.0123456789ab.tmp', 'vault.key.ba9876543210.tmp', 'vault.json.abcdefabcdef.tmp'];
+  const kept = ['notes.0123456789ab.tmp', 'vault.json'];
+  await Promise.all([...left, ...kept].map((name) => writeFile(path.join(dir, name), 'x')));
+  await vaultBackend('file', process.platform, dir);
+  expect((await readdir(dir)).toSorted()).toEqual(kept.toSorted());
 });
