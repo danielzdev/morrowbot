@@ -1,14 +1,29 @@
-import { runPlugin } from '@morrowbot/plugin-sdk';
+import { defineToolPlugin, runPlugin, type PluginToolResult } from '@morrowbot/plugin-sdk';
 import { startBridge, type Bridge } from './bridge.ts';
+import { noSecretSource } from './secrets.ts';
 import { readSettings } from './settings.ts';
+import type { BrowserTool, ToolOutput } from './tool.ts';
+import { browserTools, callTool } from './tools.ts';
+
+function toPluginResult(output: ToolOutput): PluginToolResult {
+  switch (output.kind) {
+    case 'text':
+      return { kind: 'ok', content: [{ kind: 'text', text: output.text }] };
+    case 'image':
+      return { kind: 'ok', content: [{ kind: 'image', mimeType: output.mimeType, data: output.base64 }] };
+    case 'error':
+      return { kind: 'error', message: output.text };
+  }
+}
 
 runPlugin((runtime) => {
   let bridge: Bridge | null = null;
-  return {
-    kind: 'tool',
+  let tools: readonly BrowserTool[] = [];
+  return defineToolPlugin({
     init: async ({ config }) => {
       const settings = readSettings(config);
       bridge = await startBridge({ serve: runtime.serveLoopback, port: settings.port, pairingToken: settings.pairingToken });
+      tools = browserTools({ bridge, secrets: noSecretSource, uploads: settings.uploads });
     },
     health: () => {
       const connected = bridge?.browsers() ?? [];
@@ -17,8 +32,12 @@ runPlugin((runtime) => {
       }
       return { kind: 'ok' };
     },
+    listTools: () => tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema: { ...inputSchema } })),
+    callTool: async ({ name, input, signal }) => toPluginResult(await callTool(tools, name, input, signal)),
     shutdown: async () => {
+      tools = [];
       await bridge?.close();
+      bridge = null;
     },
-  };
+  });
 });
