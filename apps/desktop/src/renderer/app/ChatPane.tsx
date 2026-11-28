@@ -3,8 +3,8 @@ import { useMemo, useRef, useState } from 'preact/hooks';
 import type { MorrowbotBridge } from '../bridge.ts';
 import { BotAvatar, combineActivity, motionOf } from '../features/avatar/index.ts';
 import type { AgentSection } from '../features/agents/index.ts';
-import { BindingControl, BindingWarnings, sendBlock, type BoundProvider } from '../features/binding/index.ts';
-import { chatDisplay, ChatView, Composer, type PeerDirectory } from '../features/chat/index.ts';
+import { bindingPill, BindingControl, BindingWarnings, sendBlock, type BoundProvider } from '../features/binding/index.ts';
+import { chatDisplay, ChatView, Composer, type EngineLabel, type PeerDirectory } from '../features/chat/index.ts';
 import { INSPECTOR_TOGGLE } from '../features/inspector/index.ts';
 import { ThreadHeader } from '../features/thread/index.ts';
 import { profileName } from '../shared/binding-ui/access-copy.ts';
@@ -76,6 +76,14 @@ export function ChatPane(props: {
       avatar: (id, size) => <BotAvatar avatar={avatarOf(id)} size={size} reducedMotion={props.reducedMotion} />,
     };
   }, [everyone, props.reducedMotion]);
+  const engine = useMemo<EngineLabel>(() => {
+    const known = providerChoicesOf(cards);
+    return (binding) => {
+      const each = choiceFor(cards, known, binding.pluginId);
+      if (each === undefined) return binding.pluginId;
+      return binding.selection.kind === 'default' ? each.name : `${each.name} · ${bindingPill(each, binding).label}`;
+    };
+  }, [cards]);
   const motion = motionOf(combineActivity(Object.values(activity).filter((each) => each.agentId === agent.id).map((each) => each.activity)));
   return (
     <div class="main-row">
@@ -126,6 +134,7 @@ export function ChatPane(props: {
             announce="status"
             onOpenProviders={props.onOpenProviders}
             peers={peers}
+            engine={engine}
             hero={
               <>
                 <BotAvatar avatar={agent.avatar} motion={motion} size={64} reducedMotion={props.reducedMotion} />

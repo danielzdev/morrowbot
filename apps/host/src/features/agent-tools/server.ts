@@ -7,11 +7,19 @@ import { memoryTools } from './memory-tools.ts';
 import { messageTools } from './message-tools.ts';
 import { resolveTools } from './plugin-tools.ts';
 import type { ToolPorts } from './ports.ts';
+import { subagentTools } from './subagent-tools.ts';
+import type { Tool } from './tool.ts';
 import { routineTools } from './routine-tools.ts';
 import { t3WatchTools } from './t3-watch-tools.ts';
 import { vaultTools } from './vault-tools.ts';
 
 export const MCP_PATH = '/mcp';
+/** The tools a sub-agent's turn gets: it only reads, starts no sub-agents of its own and uses no connectors or tool plugins. */
+const SUBAGENT_TOOLS: ReadonlySet<string> = new Set(['search_memories']);
+const NO_CONNECTORS: ToolPorts['connectors'] = {
+  tools: () => [],
+  call: () => Promise.resolve({ kind: 'refused', reason: 'A sub-agent cannot use connectors.' }),
+};
 /** A `send_message` text is at most 100 000 characters, which JSON-escaped stays well under this. */
 const MAX_BODY_BYTES = 1024 * 1024;
 
@@ -41,18 +49,20 @@ type Answer = { readonly status: number; readonly body: object | null; readonly 
  */
 export async function startToolServer(options: ToolServerOptions): Promise<ToolServer> {
   const grants = createToolGrants();
-  const builtins = [
+  const builtins: readonly Tool[] = [
     ...messageTools(options.ports),
     ...memoryTools(options.ports),
     ...vaultTools(options.ports),
     ...routineTools(options.ports),
     ...t3WatchTools(options.ports),
+    ...subagentTools(options.ports),
   ];
   const warn =
     options.warn ??
     ((message: string) => {
       console.warn(`MorrowBot host: ${message}`);
     });
+  const forSubagents = builtins.filter(({ name }) => SUBAGENT_TOOLS.has(name));
   let authority = '';
   const handle = async (request: IncomingMessage, response: ServerResponse): Promise<Answer> => {
     if (request.headers.host !== authority || request.headers.origin !== undefined) return { status: 403, body: { error: 'Forbidden' } };
@@ -73,8 +83,10 @@ export async function startToolServer(options: ToolServerOptions): Promise<ToolS
         response.on('close', onClose);
         try {
           const signal = AbortSignal.any([grant.signal, dropped.signal]);
-          const tools = resolveTools(builtins, options.ports.pluginTools, grant.agentId, warn);
-          const answer = await answerMcp(body.value, { grant, tools, connectors: options.ports.connectors, signal }, options.version);
+          const scope = options.ports.subagents.isSubagent(grant.threadId)
+            ? { grant, tools: forSubagents, connectors: NO_CONNECTORS, signal }
+            : { grant, tools: resolveTools(builtins, options.ports.pluginTools, grant.agentId, warn), connectors: options.ports.connectors, signal };
+          const answer = await answerMcp(body.value, scope, options.version);
           return answer.kind === 'accepted' ? { status: 202, body: null } : { status: 200, body: answer.body };
         } finally {
           response.off('close', onClose);

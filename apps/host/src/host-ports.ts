@@ -1,12 +1,13 @@
 import { SendAgentMessageRequest } from '@morrowbot/contracts';
 import type { AgentMessageService, SendRefusal } from './features/agent-messages/index.ts';
 import type { RoutineToolsPort, T3WatchToolsPort, ToolPorts } from './features/agent-tools/index.ts';
-import type { createChatService, ProviderPlugins } from './features/chat/index.ts';
+import type { ChatService, createChatService, ProviderPlugins } from './features/chat/index.ts';
 import type { ConnectorService } from './features/connectors/index.ts';
 import type { MemoryService } from './features/memories/index.ts';
 import type { PluginHost } from './features/plugins/index.ts';
 import type { RoutineService } from './features/routines/index.ts';
 import type { Storage } from './features/storage/index.ts';
+import { createSubagentService, type SubagentService } from './features/subagents/index.ts';
 import type { T3BatchRecord, T3WatchClock, T3WatchService } from './features/t3-watch/index.ts';
 
 type ChatOptions = Parameters<typeof createChatService>[0];
@@ -28,13 +29,14 @@ export function agentInbox(storage: Storage, agentMessages: AgentMessageService)
   };
 }
 
-/** What the agent tools act on: agents, agent-messages, memories, the vault's names, routines, T3 watches, connectors and enabled tool plugins. */
+/** What the agent tools act on: agents, agent-messages, memories, the vault's names, routines, T3 watches, sub-agents, connectors and enabled tool plugins. */
 export function agentToolPorts(options: {
   readonly storage: Storage;
   readonly agents: ToolPorts['agents'];
   readonly agentMessages: AgentMessageService;
   readonly memories: MemoryService;
   readonly vault: ToolPorts['vault'];
+  readonly subagents: SubagentService;
   readonly connectors: ConnectorService;
   readonly plugins: PluginHost;
   readonly routines: RoutineService;
@@ -43,7 +45,7 @@ export function agentToolPorts(options: {
   readonly defaultT3RoutineId: string | null;
   readonly isPluginAllowedForAgent?: (agentId: string, pluginId: string) => boolean;
 }): ToolPorts {
-  const { storage, agents, agentMessages, memories, vault, connectors, plugins, routines, t3Watches, t3Clock, defaultT3RoutineId, isPluginAllowedForAgent } =
+  const { storage, agents, agentMessages, memories, vault, subagents, connectors, plugins, routines, t3Watches, t3Clock, defaultT3RoutineId, isPluginAllowedForAgent } =
     options;
   const sharedWithMembers = (agentId: string): boolean => storage.members.allowlistsOf(agentId).length > 0;
   return {
@@ -59,6 +61,12 @@ export function agentToolPorts(options: {
     vault,
     routines: routineToolPort(storage, routines, sharedWithMembers),
     t3Watches: t3WatchToolPort(storage, t3Watches, t3Clock, defaultT3RoutineId, sharedWithMembers),
+    subagents: {
+      isSubagent: (threadId) => storage.subagents.get(threadId) !== undefined,
+      spawn: (grant, input) => subagents.spawn(grant, input),
+      wait: (grant, runIds, timeoutMs) => subagents.wait(grant, runIds, timeoutMs),
+      list: (grant) => subagents.list(grant),
+    },
     connectors: { tools: (agentId) => connectors.toolsFor(agentId), call: (agentId, name, args, signal) => connectors.call(agentId, name, args, signal) },
     pluginTools: {
       list: () => plugins.listPluginTools(),
@@ -193,6 +201,7 @@ export function chatStore(storage: Storage): ChatOptions['store'] {
     generations: storage.generations,
     sessions: storage.sessions,
     usage: storage.usage,
+    subagents: storage.subagents,
     heldThreads: () => storage.childGroups.heldThreads(),
     transaction: (work) => storage.transaction(work),
   };
@@ -239,4 +248,37 @@ export function providerPlugins(plugins: PluginHost): ProviderPlugins {
         listener(row.generationIds);
       }),
   };
+}
+
+/** Sub-agents of the chat service's turns: their records in storage, on any provider plugin that is loaded. */
+export function subagentService(storage: Storage, chat: ChatService, plugins: PluginHost, newId: () => string, now: () => string): SubagentService {
+  return createSubagentService({
+    chat: {
+      parentTurn: (generationId) => chat.parentTurn(generationId),
+      start: (threadId, text) => chat.startSubagent(threadId, text),
+      run: (threadId) => chat.subagent(threadId),
+      runs: (parentThreadId) => chat.subagents(parentThreadId),
+      subscribe: (listener) => chat.subscribe(listener),
+    },
+    records: {
+      insert: (thread, record) => {
+        storage.transaction(() => {
+          storage.subagents.insert(thread, record);
+        });
+      },
+      isSubagent: (threadId) => storage.subagents.get(threadId) !== undefined,
+      deleteThread: (threadId) => {
+        storage.threads.delete(threadId);
+      },
+    },
+    providers: {
+      ids: () => plugins.list().flatMap(({ manifest }) => (manifest.kind === 'provider' ? [manifest.id] : [])),
+      info: async (pluginId) => {
+        const result = await plugins.info(pluginId, false);
+        return result.kind === 'ok' ? result.info : undefined;
+      },
+    },
+    newId,
+    now,
+  });
 }

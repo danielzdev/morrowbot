@@ -162,6 +162,7 @@ function endingOf(resolution: ApprovalResolution, approval: PendingApproval): Ap
 
 function change(view: ThreadView, event: ThreadEvent): ThreadView | undefined {
   if (event.kind === 'queue.changed') return { ...view, queue: event.queue };
+  if (event.kind === 'subagent.changed') return view;
   if (event.kind === 'generation.started' || event.kind === 'generation.background-started') {
     const userMessage = event.kind === 'generation.started' ? event.userMessage : null;
     const messages =

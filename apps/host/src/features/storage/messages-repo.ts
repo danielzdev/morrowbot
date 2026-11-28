@@ -48,7 +48,7 @@ export interface MessageRepository {
   insert(message: Message): void;
   get(id: string): Message | undefined;
   listByThread(threadId: string): Message[];
-  /** Each agent's newest message with text and no NUL, across all its threads, newest first. */
+  /** Each agent's newest message with text and no NUL, across all its chats (no sub-agent's), newest first. */
   lastByAgent(): LastMessage[];
 }
 
@@ -65,7 +65,7 @@ export function messageRepository(db: DatabaseSync): MessageRepository {
        SELECT t.agent_id, m.thread_id, m.kind, trim(m.text, ${BLANKS}) AS body, m.created_at, m.seq,
          row_number() OVER (PARTITION BY t.agent_id ORDER BY m.seq DESC) AS rank
        FROM messages m JOIN threads t ON t.id = m.thread_id
-       WHERE trim(m.text, ${BLANKS}) <> '' AND instr(CAST(m.text AS BLOB), x'00') = 0
+       WHERE t.parent_thread_id IS NULL AND trim(m.text, ${BLANKS}) <> '' AND instr(CAST(m.text AS BLOB), x'00') = 0
      ) WHERE rank = 1 ORDER BY seq DESC`,
   );
   return {

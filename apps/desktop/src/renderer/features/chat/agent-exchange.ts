@@ -1,37 +1,4 @@
-import { MAX_EXCHANGE_MESSAGES, type AgentMessage, type Message, type TurnOutcome } from '@morrowbot/contracts';
-
-/** One row of the timeline: a chat message, or the agent messages that arrived between two chat messages. */
-export type TimelineItem =
-  | { readonly kind: 'message'; readonly message: Message }
-  | { readonly kind: 'exchange'; readonly messages: readonly AgentMessage[] };
-
-/**
- * The chat messages from `start` on, each run of agent messages between them grouped into one exchange.
- * Agent messages from before the first shown chat message stay hidden with it until "Show earlier".
- */
-export function timelineItems(messages: readonly Message[], agentMessages: readonly AgentMessage[], start: number): TimelineItem[] {
-  const shown = messages.slice(start);
-  const from = start > 0 ? shown[0]?.createdAt : undefined;
-  const pending = agentMessages.filter(({ createdAt }) => from === undefined || createdAt >= from);
-  const items: TimelineItem[] = [];
-  let next = 0;
-  const flushUntil = (before: string | undefined): void => {
-    const run: AgentMessage[] = [];
-    while (next < pending.length) {
-      const candidate = pending[next];
-      if (candidate === undefined || (before !== undefined && candidate.createdAt >= before)) break;
-      run.push(candidate);
-      next += 1;
-    }
-    if (run.length > 0) items.push({ kind: 'exchange', messages: run });
-  };
-  for (const message of shown) {
-    flushUntil(message.createdAt);
-    items.push({ kind: 'message', message });
-  }
-  flushUntil(undefined);
-  return items;
-}
+import { MAX_EXCHANGE_MESSAGES, type AgentMessage, type TurnOutcome } from '@morrowbot/contracts';
 
 export type Direction = 'outgoing' | 'incoming';
 

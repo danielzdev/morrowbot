@@ -324,6 +324,9 @@ it('hides routine tools from agents shared with scoped members and refuses direc
         "remember",
         "forget_memory",
         "list_vault_items",
+        "spawn_subagent",
+        "wait_subagents",
+        "list_subagents",
       ],
     }
   `);
