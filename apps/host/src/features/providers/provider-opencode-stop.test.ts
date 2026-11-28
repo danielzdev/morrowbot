@@ -14,7 +14,6 @@ afterEach(async () => {
   opencode = undefined;
 });
 
-const prompts = async (fixture: AcpFixture): Promise<number> => (await fixture.log()).filter((entry) => entry.method === 'session/prompt').length;
 
 function redact(fixture: AcpFixture, value: unknown): unknown {
   return JSON.parse(JSON.stringify(value).replaceAll(fixture.home, '$HOME'));
@@ -24,11 +23,10 @@ it('Stop sends session/cancel and the turn ends cancelled; closing the host leav
   const fixture = (opencode = await startOpenCodeFixture());
   const thread = await fixture.thread(await fixture.agent());
   const generationId = await fixture.start(thread, 'spawn then stall');
-  await until(async () => (await prompts(fixture)) === 1);
+  await fixture.logged('session/prompt', 1);
   const stop = await fixture.host.call('POST', `/api/threads/${thread.id}/stop`);
   await fixture.events.finished(generationId);
-  await until(async () => (await fixture.log()).some((entry) => entry.method === 'session/close'));
-  const log = await fixture.log();
+  const log = await fixture.logged('session/close', 1);
   const pids = [...(await fixture.launches()).map((launch) => launch.pid), ...log.flatMap((entry) => (entry.method === 'spawned' && typeof entry.params === 'object' && entry.params !== null && 'pid' in entry.params && typeof entry.params.pid === 'number' ? [entry.params.pid] : []))];
   const history = await fixture.history(thread);
   const runningBefore = pids.map(isRunning);
@@ -66,7 +64,7 @@ it('a daemon that ignores session/cancel is killed after turnStopMs, the turn en
   const fixture = (opencode = await startOpenCodeFixture({ timeouts: { ...DEFAULT_PLUGIN_TIMEOUTS, turnStopMs: 300 } }));
   const thread = await fixture.thread(await fixture.agent());
   const first = await fixture.start(thread, 'ignore-cancel');
-  await until(async () => (await prompts(fixture)) === 1);
+  await fixture.logged('session/prompt', 1);
   const [pgid] = fixture.daemonPgids();
   const [launch] = await fixture.launches();
   await fixture.host.call('POST', `/api/threads/${thread.id}/stop`);
