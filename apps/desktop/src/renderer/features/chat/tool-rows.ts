@@ -6,7 +6,7 @@ export type ToolVerb = 'read' | 'edit' | 'write' | 'delete' | 'move' | 'run' | '
 
 export interface ToolLine {
   readonly verb: ToolVerb;
-  /** One line such as "Read AGENTS.md" or "Edited notes/plan.md". */
+  /** One line such as "Read SOUL.md" or "Edited notes/plan.md". */
   readonly text: string;
   /** How many files or calls the row counts as in a group summary. */
   readonly count: number;

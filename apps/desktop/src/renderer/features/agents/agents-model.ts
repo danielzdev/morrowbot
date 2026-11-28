@@ -58,7 +58,7 @@ export interface AgentsModel {
   markFinished(agentId: string, threadId: string): void;
   /** Moves the chat to the front after activity, and names an untitled chat after its first message. */
   touchThread(agentId: string, threadId: string, firstText: string | null): Promise<void>;
-  /** The AGENTS.md editor of one agent; each call starts a fresh one. */
+  /** The SOUL.md editor of one agent; each call starts a fresh one. */
   instructionsEditor(agentId: string): InstructionsEditor;
   /** The memories editor of one agent; each call starts a fresh one. */
   memoriesEditor(agentId: string): MemoriesEditor;

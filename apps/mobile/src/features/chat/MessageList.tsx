@@ -1,6 +1,7 @@
-import type { AssistantMessage, Message, QueuedMessage } from '@morrowbot/contracts';
+import type { AgentAvatar, AssistantMessage, Message, QueuedMessage } from '@morrowbot/contracts';
 import { useRef } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
+import type { AvatarActivity } from '../../lib/bot-avatar/index.ts';
 import { radii, spacing, typography } from '../../lib/theme.ts';
 import { useTheme } from '../../lib/useTheme.ts';
 import { ApprovalCard } from './ApprovalCard.tsx';
@@ -12,6 +13,8 @@ import { ReplyFileChips } from './ReplyFileChips.tsx';
 import { SentAttachments } from './SentAttachments.tsx';
 import type { ActiveTurnView, ToolStep, TurnStep } from './thread-view.ts';
 import { ToolTimeline } from './ToolTimeline.tsx';
+import { turnLine, turnPhase } from './turn-activity.ts';
+import { TurnHeader } from './TurnHeader.tsx';
 
 const tools = (steps: readonly TurnStep[]): ToolStep[] => steps.flatMap((step) => (step.kind === 'tool' ? [step] : []));
 
@@ -65,6 +68,9 @@ export function MessageList(props: {
   readonly activeTurn: ActiveTurnView | null;
   readonly queue: readonly QueuedMessage[];
   readonly agentName: string;
+  readonly avatar: AgentAvatar;
+  /** The chat's activity: the running turn's phase, or `completed` during the latest reply's brief celebration. */
+  readonly activity: AvatarActivity;
   readonly queueControls: (message: QueuedMessage) => QueuedControls;
   readonly onQueued: (action: 'now' | 'edit' | 'cancel', queuedId: string) => void;
   readonly answering: readonly string[];
@@ -111,6 +117,9 @@ export function MessageList(props: {
           </View>
         ) : (
           <View key={message.id} style={styles.assistant}>
+            {message === last && activeTurn === null && props.activity === 'completed' ? (
+              <TurnHeader avatar={props.avatar} activity="completed" label="Done" detail={null} />
+            ) : null}
             <ToolTimeline steps={tools(props.finished[message.id] ?? [])} />
             {message.text === '' ? null : <Markdown text={message.text} />}
             {message.attachments.length === 0 ? null : <ReplyFileChips attachments={message.attachments} />}
@@ -127,14 +136,13 @@ export function MessageList(props: {
       )}
       {activeTurn === null ? null : (
         <View style={styles.assistant}>
+          {activeTurn.trigger.kind === 'agent-message' ? null : (
+            <TurnHeader avatar={props.avatar} activity={turnPhase(activeTurn)} {...turnLine(activeTurn)} />
+          )}
           <ToolTimeline steps={tools(activeTurn.steps)} />
           {activeTurn.trigger.kind === 'agent-message' ? (
             <Text style={[typography.ui, { color: colors.text3 }]}>Answering a message from another agent…</Text>
-          ) : activeTurn.text === '' ? (
-            <Text style={[typography.ui, { color: colors.text3 }]}>
-              {activeTurn.state === 'queued' ? (activeTurn.queueNote ?? 'Waiting to start…') : `${activeTurn.detail ?? 'Thinking'}…`}
-            </Text>
-          ) : (
+          ) : activeTurn.text === '' ? null : (
             <Markdown text={activeTurn.text} />
           )}
           {activeTurn.steps.map((step) =>

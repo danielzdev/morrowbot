@@ -29,7 +29,7 @@ daemon only: the real opencode has not run them yet.
 picked model (`session/set_config_option`), checks it runs in the `build` mode, and sends
 `session/prompt`; the session is closed at the end. opencode reports no account, so the account
 key is `''`: every turn is stateless, and the host seeds it with the conversation
-(`capabilities.sessions` is false). As opencode loads no workspace config, the agent's `AGENTS.md`
+(`capabilities.sessions` is false). As opencode loads no workspace config, the agent's `SOUL.md`
 comes from Ori Bot (`isolated`), sent ahead of the prompt in an `<instructions>` block. One
 exception opencode 2.4.1 has no switch for: after reading a file, it adds any `AGENTS.md` in the
 folders between that file and the workspace root to the model's context, as workspace content

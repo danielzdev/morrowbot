@@ -7,7 +7,7 @@ import { EntityId, Timestamp } from './ids.ts';
 export const AccessLevel = z.enum(['read-only', 'workspace-write', 'full']);
 export type AccessLevel = z.infer<typeof AccessLevel>;
 
-/** Who owns the CLI's instructions: Ori Bot (`isolated`) or the user's own CLI setup (`personal`). */
+/** Whether the CLI also loads the user's own CLI setup (`personal`) or only Ori Bot's (`isolated`); the agent's SOUL.md goes with both. */
 export const VendorSettings = z.enum(['isolated', 'personal']);
 export type VendorSettings = z.infer<typeof VendorSettings>;
 
@@ -254,8 +254,11 @@ export const TurnRequest = z.strictObject({
   expectedRouteKey: RouteKey,
   selection: ModelSelection,
   session: TurnSession,
-  /** The agent's AGENTS.md when the host owns the instructions; null when the CLI loads them itself. */
-  system: z.string().nullable(),
+  /**
+   * The agent's SOUL.md ('' when it has none). Every provider delivers it, with either `vendorSettings`:
+   * no CLI loads SOUL.md from the workspace by itself.
+   */
+  system: z.string(),
   prompt: z.string().min(1),
   /** Images the user attached to the prompt, for providers whose models can see them. */
   images: z.array(TurnImage).max(MAX_ATTACHMENTS).default([]),

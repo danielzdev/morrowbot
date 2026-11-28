@@ -1,6 +1,6 @@
-import { writeFile } from 'node:fs/promises';
+import { mkdir, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { MessageList, StartedSend, type Thread } from '@morrowbot/contracts';
+import { AgentInstructionsView, MessageList, StartedSend, type Thread } from '@morrowbot/contracts';
 import { afterEach, expect, it } from 'vitest';
 import { DEFAULT_PLUGIN_TIMEOUTS } from './features/plugins/index.ts';
 import { ECHO, hidePid, startChatFixture, type ChatFixture } from './testing/chat-fixture.ts';
@@ -93,7 +93,7 @@ it('fails a queued turn whose agent was unbound meanwhile, sends nothing, and Co
   `);
 });
 
-it('reads AGENTS.md at dispatch: a queued stateless turn gets the new text, a queued resume is refused', async () => {
+it('reads SOUL.md at dispatch: a queued stateless turn gets the new text, a queued resume is refused', async () => {
   chat = await startChatFixture();
   const busy = await chat.agent();
   const one = await chat.thread(busy, 'One');
@@ -104,14 +104,14 @@ it('reads AGENTS.md at dispatch: a queued stateless turn gets the new text, a qu
   const second = await start(chat, two, 'stall-polite');
   await chat.events.until((event) => event.kind === 'generation.delta' && event.generationId === second);
   const queued = await start(chat, thread, 'describe');
-  await writeFile(path.join(agent.workspace.dir, 'AGENTS.md'), 'Edited while queued.');
+  await writeFile(path.join(agent.workspace.dir, 'SOUL.md'), 'Edited while queued.');
   await chat.host.call('POST', `/api/threads/${one.id}/stop`);
   await chat.events.finished(queued);
   await chat.host.call('POST', `/api/threads/${two.id}/stop`);
   expect((await chat.history(thread)).at(-1)).toMatchInlineSnapshot(`"assistant(completed): hello from pid <pid>: {"session":{"kind":"new","seed":null},"system":"Edited while queued.","selection":{"kind":"default"},"expectedAccountKey":"acct-a"}"`);
 });
 
-it('fails a queued resume at dispatch when AGENTS.md changed, sending nothing', async () => {
+it('fails a queued resume at dispatch when SOUL.md changed, sending nothing', async () => {
   chat = await startChatFixture();
   await chat.configure({ sessions: true });
   const busy = await chat.agent();
@@ -124,7 +124,7 @@ it('fails a queued resume at dispatch when AGENTS.md changed, sending nothing', 
   const second = await start(chat, two, 'stall-polite');
   await chat.events.until((event) => event.kind === 'generation.delta' && event.generationId === second);
   const queued = await start(chat, thread, 'describe');
-  await writeFile(path.join(agent.workspace.dir, 'AGENTS.md'), 'Edited while queued.');
+  await writeFile(path.join(agent.workspace.dir, 'SOUL.md'), 'Edited while queued.');
   await chat.host.call('POST', `/api/threads/${one.id}/stop`);
   await chat.events.finished(queued);
   await chat.host.call('POST', `/api/threads/${two.id}/stop`);
@@ -194,6 +194,36 @@ it('cuts a new seeded session to its last 20 messages and marks the reply', asyn
       "firstSeeded": "1",
       "status": 202,
       "truncated": true,
+    }
+  `);
+});
+
+it('never follows a SOUL.md link out of the workspace: the editor and the turn refuse it, and the provider gets nothing', async () => {
+  chat = await startChatFixture();
+  const agent = await chat.agent();
+  const thread = await chat.thread(agent);
+  const secret = path.join(agent.workspace.dir, '..', '..', 'outside.txt');
+  await writeFile(secret, 'kept outside the workspace');
+  await mkdir(agent.workspace.dir, { recursive: true });
+  await symlink(secret, path.join(agent.workspace.dir, 'SOUL.md'));
+  const { revision, ...view } = AgentInstructionsView.parse((await chat.host.call('GET', `/api/agents/${agent.id}/instructions`)).body);
+  await chat.send(thread, 'describe');
+  const errors = chat.host.errors.splice(0).map((error) => (error instanceof Error ? error.message : String(error)));
+  expect({ view, present: revision !== null, errors, history: await chat.history(thread) }).toMatchInlineSnapshot(`
+    {
+      "errors": [
+        "SOUL.md is a link. Ori Bot reads only a regular file in the workspace folder.",
+      ],
+      "history": [
+        "user: describe",
+        "assistant(failed other): ",
+      ],
+      "present": true,
+      "view": {
+        "canReplace": false,
+        "content": null,
+        "readError": "SOUL.md is a link. Ori Bot reads only a regular file in the workspace folder.",
+      },
     }
   `);
 });

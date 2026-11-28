@@ -7,8 +7,8 @@ type Ready = Extract<ProviderInfo, { kind: 'ready' | 'ready-models-later' }>;
 
 const MODES: Readonly<Record<TurnMode, string>> = { interactive: 'chats', background: 'background work' };
 const INSTRUCTIONS: Readonly<Record<VendorSettings, string>> = {
-  isolated: "Instructions: only the agent's AGENTS.md",
-  personal: 'Instructions: also your personal CLI setup',
+  isolated: "Instructions: only the agent's SOUL.md",
+  personal: "Instructions: the agent's SOUL.md and your personal CLI setup",
 };
 
 /** Models and their options (effort and the like), as the provider reports them. */

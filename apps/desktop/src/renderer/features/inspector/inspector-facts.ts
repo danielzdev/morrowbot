@@ -31,7 +31,7 @@ export type InstructionsPreview =
 
 const PREVIEW_LINES = 6;
 
-/** The first six lines of AGENTS.md as the Instructions card shows them, from the host's `AgentInstructionsView`. */
+/** The first six lines of SOUL.md as the Instructions card shows them, from the host's `AgentInstructionsView`. */
 export function previewOf(view: { readonly content: string | null; readonly revision: string | null }, redact: (text: string) => string): InstructionsPreview {
   if (view.content === null) return view.revision === null ? { kind: 'missing' } : { kind: 'unreadable' };
   const text = view.content.trimEnd();

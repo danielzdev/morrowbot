@@ -3,7 +3,7 @@ import type { AccessProfile, ProviderInfo, ProviderModel, WithheldProfile } from
 import type { Version } from './version.ts';
 
 /**
- * The profiles OpenCode offers, both isolated (Ori Bot sends the agent's AGENTS.md and opencode
+ * The profiles OpenCode offers, both isolated (Ori Bot sends the agent's SOUL.md and opencode
  * loads no workspace config):
  * - `read-only`: `build` mode with no write or shell tool offered; outside reads go to an approval
  *   card, so interactive only.
@@ -15,7 +15,7 @@ const FULL: AccessProfile = { access: 'full', vendorSettings: 'isolated', modes:
 const PROFILES: readonly AccessProfile[] = [READ_ONLY, FULL];
 
 const PERSONAL_REASON =
-  "Ori Bot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's AGENTS.md is sent by Ori Bot instead.";
+  "Ori Bot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's SOUL.md is sent by Ori Bot instead.";
 const WRITE_REASON = 'Ori Bot cannot yet confine OpenCode file writes to the workspace, and opencode runs commands outside any sandbox.';
 
 const STATIC_WITHHELD: readonly WithheldProfile[] = [

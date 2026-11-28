@@ -35,7 +35,7 @@ export const ApiError = z.strictObject({
     z.strictObject({ kind: z.literal('binding-changed'), message: z.string() }),
     /** The provider session needs the user's choice before this send. Nothing was written. */
     z.strictObject({ kind: z.literal('session-choice-required'), reason: SessionChoiceReason, message: z.string() }),
-    /** `AGENTS.md` was not written: it is there already, or replacing it is not available. `current` is what is on disk. */
+    /** `SOUL.md` was not written: it is there already, or replacing it is not available. `current` is what is on disk. */
     z.strictObject({
       kind: z.literal('instructions-conflict'),
       reason: z.enum(['occupied', 'replace-unavailable']),

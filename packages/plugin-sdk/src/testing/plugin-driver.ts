@@ -100,7 +100,7 @@ export function turnFrame(turnId: string, cwd: string, spec: TurnSpec): HostMess
     expectedRouteKey: '',
     selection: { kind: 'default' },
     session: { kind: 'new', seed: null },
-    system: null,
+    system: '',
     prompt: JSON.stringify(spec),
     images: [],
     hostTools: { kind: 'none' },

@@ -1,10 +1,10 @@
 import type { Agent, AgentInstructionsView } from '@morrowbot/contracts';
 import { useEffect, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
-import { radii, spacing, typography } from '../../lib/theme.ts';
+import { BotAvatar } from '../../lib/bot-avatar/index.ts';
+import { AVATAR_SIZE, radii, spacing, typography } from '../../lib/theme.ts';
 import { useTheme } from '../../lib/useTheme.ts';
 import { useChatHub } from './chat-context.tsx';
-import { AgentAvatar } from './ChatTitle.tsx';
 import { useAgentModel } from './ModelEffortPill.tsx';
 import { Row, Section } from './sheet-parts.tsx';
 import { useStore, type Loadable } from './store.ts';
@@ -23,7 +23,7 @@ function withoutKey<T>(record: Readonly<Record<string, T>>, key: string): Readon
   return Object.fromEntries(Object.entries(record).filter(([each]) => each !== key));
 }
 
-/** The first few lines of the agent's `AGENTS.md`, as a summary. */
+/** The first few lines of the agent's `SOUL.md`, as a summary. */
 function summary(view: Loadable<AgentInstructionsView>): string {
   switch (view.kind) {
     case 'loading':
@@ -212,7 +212,7 @@ export function AgentSettingsSheet(props: {
     <Modal visible={props.visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={props.onClose}>
       <View style={[styles.sheet, { backgroundColor: colors.surface1 }]}>
         <View style={styles.header}>
-          <AgentAvatar agent={agent} />
+          <BotAvatar avatar={agent.avatar} size={AVATAR_SIZE} />
           <Text numberOfLines={1} style={[typography.title, styles.grow, { color: colors.text1 }]}>Agent Settings</Text>
           <Pressable accessibilityRole="button" onPress={props.onClose} hitSlop={8}>
             <Text style={[typography.body, styles.done, { color: colors.accent }]}>Done</Text>

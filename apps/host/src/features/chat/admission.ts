@@ -39,7 +39,7 @@ type Ready = {
 };
 
 /**
- * Admits a send, a Continue or a background turn. Preflight (provider-info, route-info, AGENTS.md) runs first; then one
+ * Admits a send, a Continue or a background turn. Preflight (provider-info, route-info, SOUL.md) runs first; then one
  * synchronous step re-checks everything preflight relied on and, in one transaction, writes the user
  * message (send only), the generation and the Continue receipt. Anything refused writes nothing.
  */
@@ -97,7 +97,7 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
   try {
     if (capabilities.sessions) instructions = (await agents.readInstructions(first.thread.agentId)) ?? '';
   } catch {
-    return { kind: 'no_provider', reason: "Could not read the agent's AGENTS.md" };
+    return { kind: 'no_provider', reason: "Could not read the agent's SOUL.md" };
   }
 
   // Everything below is synchronous: nothing can change between the re-check and the write.

@@ -29,7 +29,8 @@ provider-info answers `ready-models-later`.
 **Turns.** Each turn opens a new ACP session (`session/new`) in the agent's workspace. It puts
 the session in agy's Default mode, which asks before every edit and command, and sets the picked
 model and thinking level (`session/set_config_option`). Then it sends `session/prompt`, and
-closes the session at the end. Stop sends `session/cancel`. If agy ignores it, the host ends the
+closes the session at the end. agy loads the workspace's `AGENTS.md` by itself but not the agent's
+`SOUL.md`, so Ori Bot sends `SOUL.md` ahead of every prompt in an `<instructions>` block. Stop sends `session/cancel`. If agy ignores it, the host ends the
 daemon and the next turn gets a new one.
 
 agy reports a plan (`_meta.antigravity.tier`, shown as the account label) but no account, so the

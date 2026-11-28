@@ -4,7 +4,7 @@ Plain-English terms used across Ori Bot (used by the `wait-what` skill and contr
 
 - **Host (Core Host):** The always-on background Node/TypeScript service that runs agents, routines, plugins, and SQLite storage even when the desktop window is closed.
 - **Renderer (Window):** The Electron desktop UI that connects to the Host as a client. Never imports Host code directly.
-- **Agent:** A persistent AI assistant with its own workspace folder, `AGENTS.md` instructions, skills, memories, and multi-chat tabs.
+- **Agent:** A persistent AI assistant with its own workspace folder, `SOUL.md` instructions, skills, memories, and multi-chat tabs.
 - **Background Turn:** A turn an agent runs, in the chat a message arrived in, to read a message from another agent. It adds no chat bubble and no unread badge: its answer goes back to the asking agent as a reply, and the chat shows it only inside the collapsible agent-message exchange. The agent tells the user something only by writing a line that says `[[notify-user]]`; what follows becomes a normal reply.
 - **Plugin:** A free, open-source add-on that runs in its own isolated worker process and keeps all its settings on its own plugin page.
 - **Built-in Provider:** A provider that ships inside Ori Bot (Claude, Codex, Antigravity and OpenCode, in `packages/providers`). It runs inside the host with no worker process and needs no plugins folder, but speaks the same protocol as a provider plugin, keeps its settings and on/off switch on its own page, and still starts each CLI in its own guarded process group.

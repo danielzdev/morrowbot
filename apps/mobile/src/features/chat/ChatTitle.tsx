@@ -1,24 +1,12 @@
 import type { Agent } from '@morrowbot/contracts';
 import { StyleSheet, Text, View } from 'react-native';
+import { BotAvatar } from '../../lib/bot-avatar/index.ts';
 import { AVATAR_SIZE, spacing, typography } from '../../lib/theme.ts';
 import { useTheme } from '../../lib/useTheme.ts';
 import type { DetailRoute } from '../../lib/workspace.ts';
 import { useChatHub } from './chat-context.tsx';
 import { useAgentModel } from './ModelEffortPill.tsx';
 import { useStore } from './store.ts';
-
-export function AgentAvatar(props: { readonly agent: Agent; readonly size?: number }) {
-  const size = props.size ?? AVATAR_SIZE;
-  const { avatar } = props.agent;
-  return (
-    <View
-      accessibilityElementsHidden
-      style={[styles.avatar, { width: size, height: size, borderRadius: size / 2, backgroundColor: avatar.color }]}
-    >
-      <Text style={[styles.initial, { fontSize: size * 0.42 }]}>{props.agent.name.slice(0, 1).toLocaleUpperCase()}</Text>
-    </View>
-  );
-}
 
 /** "Studio Host · Claude / Opus · Medium". */
 function Subtitle(props: { readonly agent: Agent }) {
@@ -49,7 +37,7 @@ export function ChatTitle(props: { readonly route: DetailRoute<'chat'> }) {
   }
   return (
     <View style={styles.row}>
-      <AgentAvatar agent={agent} />
+      <BotAvatar avatar={agent.avatar} size={AVATAR_SIZE} />
       <View style={styles.text}>
         <Text numberOfLines={1} style={[typography.title, { color: colors.text1 }]}>{agent.name}</Text>
         <Subtitle agent={agent} />
@@ -61,6 +49,4 @@ export function ChatTitle(props: { readonly route: DetailRoute<'chat'> }) {
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
   text: { flex: 1 },
-  avatar: { alignItems: 'center', justifyContent: 'center' },
-  initial: { color: '#FFFFFF', fontWeight: '700' },
 });

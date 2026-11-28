@@ -13,7 +13,7 @@ const FULL: AccessProfile = { access: 'full', vendorSettings: 'personal', modes:
 const PROFILES: readonly AccessProfile[] = [READ_ONLY, FULL];
 
 const INSTRUCTIONS_REASON =
-  'Codex always loads your own ~/.codex/AGENTS.md (checked on Codex 0.171), so Ori Bot cannot replace its instructions. Use your Codex instructions instead.';
+  "Codex always loads your own ~/.codex/AGENTS.md (checked on Codex 0.171), so Ori Bot cannot replace its instructions. Ori Bot still sends the agent's SOUL.md.";
 const SHELL_REASON =
   'Codex runs each shell command in its own process group, and Ori Bot cannot yet confine workspace-write commands to the workspace. Use read-only or full access instead.';
 

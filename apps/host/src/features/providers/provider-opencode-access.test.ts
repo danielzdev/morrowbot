@@ -124,7 +124,7 @@ it('refuses personal settings and workspace-write with their reasons before open
           "body": {
             "error": {
               "kind": "conflict",
-              "message": "Ori Bot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's AGENTS.md is sent by Ori Bot instead.",
+              "message": "Ori Bot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's SOUL.md is sent by Ori Bot instead.",
             },
           },
           "status": 409,

@@ -305,9 +305,17 @@ export function usageOf(response: acp.PromptResponse): TurnUsage {
   };
 }
 
-/** A seeded new session gets the earlier conversation (the host's `<user>` / `<assistant>` blocks) before the prompt. */
-function promptText(request: TurnRequest): string {
+/**
+ * The prompt agy gets: the agent's SOUL.md (agy loads only the workspace's AGENTS.md by itself), then, in a
+ * seeded session, the earlier conversation (the host's `<user>` / `<assistant>` blocks). Every turn is a new
+ * session, so each one carries the instructions.
+ */
+function promptText(request: Pick<TurnRequest, 'system' | 'session' | 'prompt'>): string {
   const seed = request.session.kind === 'new' ? request.session.seed : null;
-  if (seed === null || seed === '') return request.prompt;
-  return `Continue this conversation. Reply to the last user message.\n\n<conversation>\n${seed}\n<user>\n${request.prompt}\n</user>\n</conversation>`;
+  const body =
+    seed === null || seed === ''
+      ? request.prompt
+      : `Continue this conversation. Reply to the last user message.\n\n<conversation>\n${seed}\n<user>\n${request.prompt}\n</user>\n</conversation>`;
+  const system = request.system.trim();
+  return system === '' ? body : `<instructions>\n${system}\n</instructions>\n\n${body}`;
 }
