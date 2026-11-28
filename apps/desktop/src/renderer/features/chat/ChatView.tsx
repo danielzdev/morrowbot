@@ -70,10 +70,12 @@ export function ChatView(props: ChatViewProps) {
         else latest.current.onOpenProviders();
       },
       onAnswer: (approvalId, choiceId) => void session.answer(approvalId, choiceId),
+      onReact: (messageId, emoji) => void session.react(messageId, emoji),
+      agentName: props.agentName,
       image: session.image,
       peers: props.peers,
     }),
-    [session, props.display, props.providerName, props.peers],
+    [session, props.display, props.providerName, props.peers, props.agentName],
   );
 
   const announce = (text: string): void => { setSaid((before) => ({ text, n: before.n + 1 })); };

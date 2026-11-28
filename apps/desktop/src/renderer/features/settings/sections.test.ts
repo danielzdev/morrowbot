@@ -1,9 +1,11 @@
+import type { ChatSettings } from '@morrowbot/contracts';
 import { h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
 import { expect, it } from 'vitest';
 import type { Appearance } from '../../shared/appearance.ts';
 import type { ChatPrefs } from '../../shared/chat-prefs.ts';
-import { Store } from '../../shared/store.ts';
+import type { ChatSettingsModel } from '../../shared/chat-settings.ts';
+import { Store, type Loadable } from '../../shared/store.ts';
 import type { UpdateStatus } from '../../bridge.ts';
 import type { UpdatesModel } from '../../shared/updates.ts';
 import { AboutSection } from './AboutSection.tsx';
@@ -40,12 +42,18 @@ const MEMBERS: MembersPort = {
   listAgents: () => Promise.resolve({ kind: 'ok', value: { agents: [], folders: [], lastMessages: [] } }),
   copy: () => Promise.resolve(),
 };
+const CHAT_SETTINGS: ChatSettingsModel = {
+  state: new Store<Loadable<ChatSettings>>({ kind: 'loaded', value: { emojiReplies: 'per_agent' } }),
+  load: () => Promise.resolve(),
+  setEmojiReplies: () => Promise.resolve(null),
+};
 const UPDATES: UpdatesModel = { status: new Store<UpdateStatus>({ kind: 'up-to-date' }), check: ignore, restart: ignore, close: ignore };
 const MODAL: SettingsModalProps = {
   link: 'general',
   onClose: ignore,
   appearance: { state: new Store(APPEARANCE), set: ignore, close: ignore },
   chatPrefs: { state: new Store(PREFS), set: ignore },
+  chatSettings: CHAT_SETTINGS,
   info: INFO,
   updates: UPDATES,
   bridge: BRIDGE,
@@ -69,7 +77,7 @@ function rowsOf(html: string): string[] {
 const SECTIONS: Readonly<Record<SettingsSection, () => string>> = {
   general: () => renderToString(h(GeneralSection, { bridge: BRIDGE })),
   appearance: () => renderToString(h(AppearanceSection, { appearance: APPEARANCE, onChange: ignore })),
-  chat: () => renderToString(h(ChatSection, { prefs: PREFS, onChange: ignore, platform: 'mac' })),
+  chat: () => renderToString(h(ChatSection, { prefs: PREFS, onChange: ignore, platform: 'mac', chatSettings: CHAT_SETTINGS })),
   keyboard: () => renderToString(h(KeyboardSection, { platform: 'mac', sendWith: 'enter' })),
   providers: () => renderToString(h(SettingsModal, { ...MODAL, link: 'providers' })),
   usage: () => '',

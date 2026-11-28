@@ -6,6 +6,7 @@ import { answerMcp } from './mcp.ts';
 import { memoryTools } from './memory-tools.ts';
 import { messageTools } from './message-tools.ts';
 import type { ToolPorts } from './ports.ts';
+import { replyTools } from './reply-tools.ts';
 
 export const MCP_PATH = '/mcp';
 /** A `send_message` text is at most 100 000 characters, which JSON-escaped stays well under this. */
@@ -36,7 +37,7 @@ type Answer = { readonly status: number; readonly body: object | null; readonly 
  */
 export async function startToolServer(options: ToolServerOptions): Promise<ToolServer> {
   const grants = createToolGrants();
-  const tools = [...messageTools(options.ports), ...memoryTools(options.ports)];
+  const tools = [...messageTools(options.ports), ...memoryTools(options.ports), ...replyTools(options.ports)];
   let authority = '';
   const handle = async (request: IncomingMessage): Promise<Answer> => {
     if (request.headers.host !== authority || request.headers.origin !== undefined) return { status: 403, body: { error: 'Forbidden' } };

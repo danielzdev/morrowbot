@@ -207,3 +207,16 @@ textarea.instructions {
   overflow: hidden;
   pointer-events: none;
 }
+
+/* Emoji-only / silent replies: its three options are long, so the control may sit under the text. */
+.setting-row[data-setting='emoji-replies'] {
+  flex-wrap: wrap;
+}
+.setting-row[data-setting='emoji-replies'] .setting-text {
+  flex-basis: 16rem;
+}
+.setting-row[data-setting='emoji-replies'] .setting-control {
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: 100%;
+}

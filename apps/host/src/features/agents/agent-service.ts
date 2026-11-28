@@ -87,6 +87,7 @@ export function createAgentService(options: AgentServiceOptions): AgentService {
         avatar: request.avatar,
         provider: request.provider,
         folderId: request.folderId,
+        emojiReplies: request.emojiReplies,
         createdAt: at,
         updatedAt: at,
       };
@@ -122,6 +123,7 @@ export function createAgentService(options: AgentServiceOptions): AgentService {
         avatar: request.avatar ?? current.avatar,
         provider: request.provider ?? current.provider,
         folderId: request.folderId === undefined ? current.folderId : request.folderId,
+        emojiReplies: request.emojiReplies ?? current.emojiReplies,
         updatedAt: options.now(),
       };
       records.update(next);

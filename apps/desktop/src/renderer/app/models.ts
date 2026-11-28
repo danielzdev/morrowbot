@@ -8,6 +8,7 @@ import { createRoutinesModel, type RoutinesModel } from '../features/routines/in
 import { createApi, type Api } from '../shared/api.ts';
 import { createAppearance, type AppearanceModel } from '../shared/appearance.ts';
 import { createChatPrefs, type ChatPrefsModel } from '../shared/chat-prefs.ts';
+import { createChatSettings, type ChatSettingsModel } from '../shared/chat-settings.ts';
 import { createUpdates, type UpdatesModel } from '../shared/updates.ts';
 
 export interface Models {
@@ -19,6 +20,7 @@ export interface Models {
   readonly chats: ChatHub;
   readonly appearance: AppearanceModel;
   readonly chatPrefs: ChatPrefsModel;
+  readonly chatSettings: ChatSettingsModel;
   readonly updates: UpdatesModel;
   readonly routines: RoutinesModel;
 }
@@ -73,5 +75,5 @@ export function createModels(bridge: MorrowbotBridge): Models {
     },
   });
   const routines = createRoutinesModel({ api, bridge, onPosted: (agentId) => void agents.reloadThreads(agentId) });
-  return { api, agents, agentNotify: createAgentNotify(), providers, plugins, chats, appearance: createAppearance(document.documentElement), chatPrefs: createChatPrefs(), updates: createUpdates(bridge), routines };
+  return { api, agents, agentNotify: createAgentNotify(), providers, plugins, chats, appearance: createAppearance(document.documentElement), chatPrefs: createChatPrefs(), chatSettings: createChatSettings(api), updates: createUpdates(bridge), routines };
 }

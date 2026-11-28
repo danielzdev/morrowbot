@@ -24,6 +24,7 @@ it('matches every word anywhere in a row, groups matches by section in nav order
     {
       "acrossSections": [
         "notifications",
+        "emoji-replies",
         "key-palette",
         "key-new-chat",
         "key-new-agent",

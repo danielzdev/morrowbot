@@ -11,6 +11,7 @@ import { defineProvider, runPlugin, z, type AccessProfile, type PluginConfig, ty
  * A prompt whose first line is `nothing-new` gets only the stay-quiet marker back, as a routine's agent would send.
  * Each prompt line `host-tool <name> <json arguments>` calls that MorrowBot tool over the turn's MCP endpoint
  * and answers with the results; `{{message}}` in the arguments is the id of the agent message being read.
+ * In the turn a user's reaction starts, each quoted line ending `on-reaction <name> <json arguments>` is such a call.
  * Every turn saves its `hostTools` as `host-tools.json` in the data folder.
  */
 let config: PluginConfig = {};
@@ -92,8 +93,9 @@ runPlugin((runtime) =>
       if (keepsSessions() && request.session.kind === 'new' && request.expectedAccountKey !== '') {
         emit({ kind: 'session-bound', ref: `ref-${request.turnId}`, accountKey: current, routeKey: request.expectedRouteKey });
       }
+      const pattern = /^The user reacted /m.test(prompt) ? / on-reaction (\S+) (\{.*\})$/ : /^host-tool (\S+) (\{.*\})$/;
       const toolCalls = prompt.split('\n').flatMap((line) => {
-        const [, name, args] = /^host-tool (\S+) (\{.*\})$/.exec(line.trim()) ?? [];
+        const [, name, args] = pattern.exec(line.trim()) ?? [];
         return name === undefined || args === undefined ? [] : [{ name, args }];
       });
       if (toolCalls.length > 0) {

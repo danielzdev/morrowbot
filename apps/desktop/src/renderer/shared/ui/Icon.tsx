@@ -42,13 +42,22 @@ export type IconName =
   | 'provider'
   | 'clock'
   | 'people'
-  | 'server';
+  | 'server'
+  | 'smile';
 
 const dot = (cx: number, cy: number, r = 1.1) => <circle cx={cx} cy={cy} r={r} fill="currentColor" stroke="none" />;
 
 /** Each icon on a 16px grid, drawn with a 1.5px stroke in `currentColor`. */
 const SHAPES: Readonly<Record<IconName, ComponentChildren>> = {
   plus: <path d="M8 3v10M3 8h10" />,
+  smile: (
+    <>
+      <circle cx="8" cy="8" r="6" />
+      <path d="M5.5 9.5a3 3 0 0 0 5 0" />
+      {dot(6, 6.5, 0.8)}
+      {dot(10, 6.5, 0.8)}
+    </>
+  ),
   people: (
     <>
       <circle cx="6" cy="5.5" r="2.25" />

@@ -20,6 +20,7 @@ beforeEach(async () => {
     avatar: { kind: 'bot', shape: 'mug', color: '#112233', finish: 'metallic' },
     provider: { kind: 'unbound' },
     folderId: null,
+    emojiReplies: 'allowed',
     createdAt: AT,
     updatedAt: AT,
   });

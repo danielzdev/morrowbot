@@ -25,12 +25,13 @@ export function agentInbox(storage: Storage, agentMessages: AgentMessageService)
   };
 }
 
-/** What the agent tools act on: every agent, the agent-messages service and the memories service. */
+/** What the agent tools act on: every agent, the agent-messages service, the memories service and the turn's chat. */
 export function agentToolPorts(
   storage: Storage,
   agents: ToolPorts['agents'],
   agentMessages: AgentMessageService,
   memories: MemoryService,
+  replies: ToolPorts['replies'],
 ): ToolPorts {
   return {
     agents,
@@ -42,6 +43,7 @@ export function agentToolPorts(
       },
     },
     memories,
+    replies,
   };
 }
 
@@ -54,6 +56,8 @@ export function chatStore(storage: Storage): ChatOptions['store'] {
     attachments: storage.attachments,
     threads: storage.threads,
     messages: storage.messages,
+    reactions: storage.reactions,
+    settings: storage.chatSettings,
     queued: storage.queued,
     generations: storage.generations,
     sessions: storage.sessions,

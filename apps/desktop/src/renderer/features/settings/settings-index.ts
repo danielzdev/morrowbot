@@ -80,6 +80,12 @@ export const ROWS = {
   reduceMotion: row('appearance', 'reduce-motion', 'Reduce motion', "On stills avatars and slide-ins. Your system's reduce-motion setting always applies."),
   sendWith: row('chat', 'send-with', 'Send with', 'Which key sends your message. Shift+Enter always starts a new line.'),
   notifications: row('chat', 'notifications', 'Notifications', 'While MorrowBot is in the background, a system notification says when an agent needs approval or finishes.'),
+  emojiReplies: row(
+    'chat',
+    'emoji-replies',
+    'Emoji-only / silent replies',
+    "Whether agents may answer with just an emoji reaction, or with nothing, instead of a text reply. Per agent leaves it to each agent's own settings.",
+  ),
   providers: row('providers', 'providers', 'AI providers', 'Claude, Codex, Antigravity, OpenCode and community engines: set up, sign in, check status and change settings.'),
   server: row('server', 'server', 'Server', 'Where your agents run: on this computer, or on a server you joined. Joining starts no server here.'),
   invite: row('members', 'invite', 'Invite someone', 'Make a one-time link for a co-owner, or for someone who may use only the agents you choose.'),

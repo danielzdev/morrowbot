@@ -1,4 +1,4 @@
-import type { AgentMessage, Message } from '@morrowbot/contracts';
+import type { AgentMessage, Message, MessageReaction } from '@morrowbot/contracts';
 import { memo } from 'preact/compat';
 import { useEffect, useId, useMemo, useState } from 'preact/hooks';
 import { Icon } from '../../shared/ui/Icon.tsx';
@@ -10,6 +10,8 @@ import { ACTIVE_ID } from './find.ts';
 import { Markdown, type MarkdownActions } from './Markdown.tsx';
 import { outcomeCopy, type CopyContext, type OutcomeAction } from './outcome-copy.ts';
 import { OutcomeNote } from './OutcomeNote.tsx';
+import { reactionsByMessage } from './reactions.ts';
+import { ReactionPicker, ReactionPills } from './Reactions.tsx';
 import { SentAttachments } from './SentAttachments.tsx';
 import type { ActiveTurnView, ApprovalStep, FinishedTurn, ThreadView, TurnStep } from './thread-model.ts';
 import { TurnSteps } from './ToolGroup.tsx';
@@ -22,6 +24,10 @@ export interface TimelineContext {
   readonly actions: MarkdownActions;
   readonly onAction: (messageId: string, action: OutcomeAction) => void;
   readonly onAnswer: (approvalId: string, choiceId: string) => void;
+  /** Puts the user's emoji on an agent reply, or takes it off. */
+  readonly onReact: (messageId: string, emoji: string) => void;
+  /** The chat's agent, named on its reactions. */
+  readonly agentName: string;
   /** A sent image as a data URL; null when it can't be loaded. */
   readonly image: (id: string) => Promise<string | null>;
   readonly peers: PeerDirectory;
@@ -51,6 +57,7 @@ function approvalFor(ctx: TimelineContext, answering: readonly string[], offline
 }
 
 const NO_ANSWERS: readonly string[] = [];
+const NO_REACTIONS: readonly MessageReaction[] = [];
 
 const STEERED_IN = 'Steered in · seen by the agent';
 
@@ -63,6 +70,8 @@ const MessageItem = memo(function MessageItem(props: {
   readonly busy: boolean;
   /** A user message sent into the reply above it with Steer now. */
   readonly steeredIn: boolean;
+  /** The emoji on this message. */
+  readonly reactions: readonly MessageReaction[];
   readonly ctx: TimelineContext;
 }) {
   const { message, finished, ctx } = props;
@@ -72,6 +81,11 @@ const MessageItem = memo(function MessageItem(props: {
         {message.attachments.length > 0 && <SentAttachments attachments={message.attachments} image={ctx.image} />}
         {message.text !== '' && <div class="bubble" data-find-id={message.id}>{message.text}</div>}
         {props.steeredIn && <div class="steered-in">{STEERED_IN}</div>}
+        {props.reactions.length > 0 && (
+          <div class="reaction-row">
+            <ReactionPills reactions={props.reactions} agentName={ctx.agentName} onToggle={null} />
+          </div>
+        )}
       </div>
     );
   }
@@ -88,6 +102,12 @@ const MessageItem = memo(function MessageItem(props: {
         busy={props.busy}
         onAction={(action) => { ctx.onAction(message.id, action); }}
       />
+      {(message.outcome.kind === 'completed' || props.reactions.length > 0) && (
+        <div class={`reaction-row${props.reactions.length === 0 ? ' bare' : ''}`}>
+          <ReactionPills reactions={props.reactions} agentName={ctx.agentName} onToggle={(emoji) => { ctx.onReact(message.id, emoji); }} />
+          {message.outcome.kind === 'completed' && <ReactionPicker reactions={props.reactions} onPick={(emoji) => { ctx.onReact(message.id, emoji); }} />}
+        </div>
+      )}
     </div>
   );
 });
@@ -173,6 +193,7 @@ export function Timeline(props: {
   const unwatched = useMemo(() => messages.some((message) => message.kind === 'assistant' && !(message.id in finished)), [messages, finished]);
   const last = messages.at(-1);
   const steeredIn = useMemo(() => new Set(messages.flatMap((message, index) => (message.kind === 'user' && steered(messages[index - 1]) ? [message.id] : []))), [messages]);
+  const reactions = useMemo(() => reactionsByMessage(view.reactions), [view.reactions]);
   const items = useMemo(() => timelineItems(messages, view.agentMessages, start), [messages, view.agentMessages, start]);
   const active = view.activeTurn;
   const reading = active?.trigger.kind === 'agent-message' ? active.trigger.agentMessageId : null;
@@ -202,6 +223,7 @@ export function Timeline(props: {
             finished={finished[item.message.id]}
             latest={item.message === last}
             steeredIn={steeredIn.has(item.message.id)}
+            reactions={reactions.get(item.message.id) ?? NO_REACTIONS}
             busy={item.message === last && (!props.idle || props.locked || props.offline)}
             ctx={ctx}
           />

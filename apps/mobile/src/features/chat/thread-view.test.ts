@@ -16,6 +16,7 @@ function state(seq: number, pending: readonly PendingApproval[] | null): ThreadS
   return {
     thread: { id: 't', agentId: 'a', title: 'Main', createdAt: AT, updatedAt: AT },
     messages: [],
+    reactions: [],
     activeTurn: pending === null ? null : { generationId: 'g', trigger: { kind: 'chat' }, state: 'running', queueNote: null, text: '', pendingApprovals: [...pending] },
     blockedGroups: [],
     queue: [],

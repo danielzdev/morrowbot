@@ -127,9 +127,15 @@ async function readTurnInputs(core: ChatCore, turn: Turn): Promise<TurnInputs> {
   }
 }
 
-/** The files sent with a chat message; a message from another agent has none. */
+/** The files sent with a chat message; a message from another agent, or a reaction, has none. */
 function sentAttachments(turn: Turn): readonly Attachment[] {
-  return turn.source.kind === 'chat' ? turn.source.message.attachments : [];
+  switch (turn.source.kind) {
+    case 'chat':
+      return turn.source.message.attachments;
+    case 'agent-message':
+    case 'reaction':
+      return [];
+  }
 }
 
 /** A stateless turn whose account the plugin now reports differently: it would be refused, so it is not sent. */

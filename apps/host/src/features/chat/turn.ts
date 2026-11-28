@@ -15,6 +15,7 @@ import type {
 import { answersSender, splitAnswer } from './background.ts';
 import type { EventLog } from './event-log.ts';
 import type { ChatServiceOptions, SessionState } from './ports.ts';
+import type { ReactionNote } from './reactions.ts';
 
 export type BoundProvider = Extract<ProviderBinding, { kind: 'bound' }>;
 
@@ -33,11 +34,14 @@ export type SessionPlan =
 /**
  * What a turn answers. `chat`: the user's message, answered in the chat. `agent-message`: another agent's
  * message, read in the background with `prompt`; the chat shows nothing unless the agent tells the user.
+ * `reaction`: the user's reaction to one of the agent's replies.
  */
 export type TurnSource =
   /** `prompt` is what the provider reads: the message's text, or it with a steer note (see steer-prompt.ts). */
   | { readonly kind: 'chat'; readonly message: UserMessage; readonly prompt: string }
-  | { readonly kind: 'agent-message'; readonly message: AgentMessage; readonly prompt: string };
+  | { readonly kind: 'agent-message'; readonly message: AgentMessage; readonly prompt: string }
+  /** The user reacted `emoji` to the agent's reply `message`; what the agent writes is shown as a reply. */
+  | { readonly kind: 'reaction'; readonly message: AssistantMessage; readonly emoji: string; readonly prompt: string };
 
 /** One admitted turn, from the admission transaction until its outcome is stored and its processes are gone. */
 export interface Turn {
@@ -75,6 +79,8 @@ export interface Turn {
   /** Set when the account changed under the turn: its later output is dropped. */
   fenced: boolean;
   stopRequested: boolean;
+  /** Set by the `stay_quiet` tool: a completed turn adds no message to the chat. */
+  silent: boolean;
   /** The queued message being steered into this turn, and how: sent to the plugin, or by stopping the turn. */
   steer: { readonly id: string; readonly via: 'native' | 'interrupt' } | null;
   readonly approvals: Map<string, PendingApproval>;
@@ -86,7 +92,8 @@ export interface Turn {
 }
 
 /**
- * A settled turn's reply; `quiet` for a background turn that told the user nothing; `not-stored` when the
+ * A settled turn's reply; `quiet` for a turn that added no message (a background turn that told the user
+ * nothing, or a turn the agent ended with `stay_quiet`); `not-stored` when the
  * database refused it (the next boot settles it as interrupted).
  */
 export type StoredReply =
@@ -121,14 +128,16 @@ export interface ChatCore {
   readonly queueStates: Map<string, QueuedMessageState>;
   /** Threads whose next queued message is being admitted, with that message's id. */
   readonly draining: Map<string, string>;
+  /** Each thread's reactions of the user's that the agent has not read yet, oldest first (kept this host run only). */
+  readonly reactionNotes: Map<string, ReactionNote[]>;
   /** Sends a turn that got a slot (see dispatch.ts). */
   readonly dispatch: (turn: Turn) => Promise<void>;
   /**
    * A settled turn freed its thread: the user's queue goes first (see queue.ts), then the next message
-   * waiting from another agent.
+   * waiting from another agent, then the user's next reaction.
    */
   readonly afterTurn: (turn: Turn, outcome: GenerationOutcome) => void;
-  /** Starts a turn on the next message waiting from another agent, if the thread is free. */
+  /** Starts a turn on the next message waiting from another agent, or the next reaction, if the thread is free. */
   readonly readNext: (threadId: string) => void;
   closed: boolean;
 }
@@ -205,13 +214,17 @@ export function settle(core: ChatCore, turn: Turn, result: Settlement): Assistan
 /**
  * What the chat shows for a settled turn: a chat turn's reply, or a background turn's notice to the user
  * (null for none). A completed background turn's answer is sent to the agent that asked; an answer that
- * cannot be sent is shown to the user instead, so it is never lost.
+ * cannot be sent is shown to the user instead, so it is never lost. A completed turn the agent ended with
+ * `stay_quiet`, or a reaction's turn that wrote nothing, shows nothing; a failed or stopped one still does.
  */
 function shownText(core: ChatCore, turn: Turn, text: string, outcome: TurnOutcome): string | null {
   const { source } = turn;
+  const completed = outcome.kind === 'completed';
   switch (source.kind) {
     case 'chat':
-      return text;
+      return completed && turn.silent ? null : text;
+    case 'reaction':
+      return completed && (turn.silent || text.trim() === '') ? null : text;
     case 'agent-message': {
       if (outcome.kind !== 'completed') return null;
       const { reply, notice } = splitAnswer(text);

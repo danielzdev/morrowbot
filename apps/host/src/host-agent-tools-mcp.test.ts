@@ -65,7 +65,7 @@ it('speaks MCP on loopback only to the running turn’s token', async () => {
                 "listChanged": false,
               },
             },
-            "instructions": "MorrowBot tools: message your teammate agents and keep your own memories. They act only as you, and only during this turn.",
+            "instructions": "MorrowBot tools: message your teammate agents, keep your own memories, and answer the user with an emoji reaction or no message instead of filler text. They act only as you, and only during this turn.",
             "protocolVersion": "2025-06-18",
             "serverInfo": {
               "name": "morrowbot",
@@ -214,6 +214,33 @@ it('speaks MCP on loopback only to the running turn’s token', async () => {
                   "type": "object",
                 },
                 "name": "forget_memory",
+              },
+              {
+                "description": "Reacts with one emoji (such as 👍, ❤️ or 🎉) to the user’s message you are answering; the user sees it under their message. Use it for a short acknowledgement or go-ahead ("sounds good", "thanks"). Then carry on with the work, or end with stay_quiet when the reaction says it all.",
+                "inputSchema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "emoji": {
+                      "description": "One complete emoji, such as 👍 or ❤️.",
+                      "maxLength": 64,
+                      "type": "string",
+                    },
+                  },
+                  "required": [
+                    "emoji",
+                  ],
+                  "type": "object",
+                },
+                "name": "react_to_message",
+              },
+              {
+                "description": "Ends this turn with no message in the chat: no reply bubble and no unread badge for the user. Use it when a text reply would only be filler, such as after react_to_message, or when the user’s reaction to your message needs no answer. Write nothing after calling it: nothing you write in this turn is shown. Refused when the user turned emoji-only and silent replies off for you; then answer with text.",
+                "inputSchema": {
+                  "additionalProperties": false,
+                  "properties": {},
+                  "type": "object",
+                },
+                "name": "stay_quiet",
               },
             ],
           },

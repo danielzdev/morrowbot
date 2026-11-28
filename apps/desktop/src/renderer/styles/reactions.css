@@ -1,0 +1,101 @@
+/* Emoji reactions under a message, and the quick picker on an agent's reply. */
+.reaction-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1);
+  min-height: 1.5rem;
+}
+/*
+ * A reply with no reactions yet keeps its spacing: the picker shows at its top-right corner on hover, and its
+ * choices open leftwards. A hovered or focused message is on screen, so it stops clipping (`content-visibility`)
+ * and the picker may hang below a one-line reply.
+ */
+.message:has(> .reaction-row.bare) {
+  position: relative;
+}
+.message:has(> .reaction-row.bare):is(:hover, :focus-within) {
+  content-visibility: visible;
+}
+.reaction-row.bare {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+  min-height: 0;
+}
+.reaction-row.bare .reaction-picker {
+  flex-direction: row-reverse;
+}
+.reaction-row.bare .reaction-add {
+  background: var(--surface-3);
+  border: 1px solid var(--hairline-strong);
+}
+.message.user .reaction-row {
+  justify-content: flex-end;
+  min-height: 0;
+}
+.reaction-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.75rem;
+  height: 1.5rem;
+  padding: 0 var(--s-2);
+  background: var(--surface-1);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-pill);
+  font: var(--t-ui);
+  line-height: 1;
+}
+button.reaction-pill.mine {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+button.reaction-pill.mine:hover {
+  background: var(--selected);
+}
+.reaction-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+}
+.reaction-add {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--r-pill);
+  opacity: 0;
+}
+.message:hover .reaction-add,
+.reaction-picker:focus-within .reaction-add,
+.reaction-picker.open .reaction-add,
+.reaction-add:focus-visible {
+  opacity: 1;
+}
+.reaction-choices {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--surface-3);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-pill);
+  box-shadow: var(--shadow-pop);
+}
+.reaction-choice {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--r-pill);
+  font: var(--t-body);
+  line-height: 1;
+}
+.reaction-choice:hover {
+  background: var(--hover);
+}
+.reaction-choice[aria-pressed='true'] {
+  background: var(--accent-soft);
+}
+@media (pointer: coarse) {
+  .reaction-add {
+    opacity: 1;
+  }
+}

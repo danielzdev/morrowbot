@@ -165,14 +165,15 @@ export class EventClient {
     return new Promise((resolve) => this.waiters.push({ match, resolve }));
   }
 
+  /** Resolves once the turn has ended, with a reply or (`generation.background-finished`) without one. */
   finished(generationId: string): Promise<void> {
-    return this.until((event) => event.kind === 'generation.finished' && event.generationId === generationId);
+    return this.until((event) => (event.kind === 'generation.finished' || event.kind === 'generation.background-finished') && event.generationId === generationId);
   }
 
   /** The thread events of one generation, without cursors. */
   of(generationId: string): unknown[] {
     return this.received
-      .filter((event) => event.kind !== 'usage.updated' && event.kind !== 'queue.changed' && event.generationId === generationId)
+      .filter((event) => 'generationId' in event && event.generationId === generationId)
       .map((event) => {
         if (event.kind === 'usage.updated') return event;
         return Object.fromEntries(Object.entries(event).filter(([key]) => key !== 'cursor'));

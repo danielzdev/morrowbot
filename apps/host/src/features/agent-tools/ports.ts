@@ -1,8 +1,13 @@
 import type { Agent, AgentMessage, CreateMemoryRequest, Memory, SendAgentMessageRequest, UpdateMemoryRequest } from '@morrowbot/contracts';
 
+import type { ToolGrant } from './grants.ts';
+
 export type SendAnswer = { readonly kind: 'sent'; readonly message: AgentMessage } | { readonly kind: 'refused'; readonly reason: string };
 
-/** What the tools act on (the agents, agent-messages and memories features provide it). */
+/** A reply tool's outcome: a JSON value for the model, or why nothing was done. */
+export type ReplyAnswer = { readonly kind: 'done'; readonly value: object } | { readonly kind: 'refused'; readonly reason: string };
+
+/** What the tools act on (the agents, agent-messages, memories and chat features provide it). */
 export interface ToolPorts {
   readonly agents: { list(): readonly Agent[] };
   readonly messages: {
@@ -16,5 +21,10 @@ export interface ToolPorts {
     create(agentId: string, request: CreateMemoryRequest): Memory | undefined;
     update(agentId: string, id: string, request: UpdateMemoryRequest): Memory | undefined;
     delete(agentId: string, id: string): boolean;
+  };
+  /** The running turn `grant` stands for, in its chat. */
+  readonly replies: {
+    react(grant: ToolGrant, emoji: string): ReplyAnswer;
+    stayQuiet(grant: ToolGrant): ReplyAnswer;
   };
 }

@@ -4,7 +4,7 @@ import { hostname } from 'node:os';
 import path from 'node:path';
 import type { PluginStatusEvent } from '@morrowbot/contracts';
 import { createAgentMessageService } from './features/agent-messages/index.ts';
-import { startToolServer } from './features/agent-tools/index.ts';
+import { startToolServer, type ToolPorts } from './features/agent-tools/index.ts';
 import { createAgentService, createFolderService } from './features/agents/index.ts';
 import { startApiServer } from './features/api/index.ts';
 import { createAttachmentService, type AttachmentService } from './features/attachments/index.ts';
@@ -151,7 +151,8 @@ export async function startHost(options: HostOptions): Promise<Host> {
       newId,
       now,
     });
-    const tools = await startToolServer({ ports: agentToolPorts(storage, agents, agentMessages, memories), version: options.version, report });
+    const replies: ToolPorts['replies'] = { react: (grant, emoji) => chat.agentReact(grant, emoji), stayQuiet: (grant) => chat.stayQuiet(grant) };
+    const tools = await startToolServer({ ports: agentToolPorts(storage, agents, agentMessages, memories, replies), version: options.version, report });
     undo.push(() => tools.stop());
     const chat = createChatService({
       store: chatStore(storage),
@@ -259,6 +260,13 @@ export async function startHost(options: HostOptions): Promise<Host> {
         agentMessages,
         routines,
         t3Watches,
+        settings: {
+          chat: () => storage.chatSettings.get(),
+          setChat: (settings) => {
+            storage.chatSettings.set(settings);
+            return storage.chatSettings.get();
+          },
+        },
       },
       fallback: healthListener(options.version),
       report,

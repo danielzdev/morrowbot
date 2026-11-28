@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { EntityId, PluginId, Timestamp } from './ids.ts';
 import { AccessLevel, ModelSelection, VendorSettings } from './provider.ts';
+import { AgentEmojiReplies } from './reactions.ts';
 
 /** A saved copy's file name: its UTC time with `-` for `:`, then a counter. */
 export const INSTRUCTIONS_COPY_NAME = /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.\d{3}Z-\d{1,6}\.md$/;
@@ -79,6 +80,8 @@ export const Agent = z.strictObject({
   avatar: AgentAvatar,
   provider: ProviderBinding,
   folderId: EntityId.nullable(),
+  /** Whether the agent may answer with only an emoji or nothing; Settings › Chat may override it. */
+  emojiReplies: AgentEmojiReplies.default('allowed'),
   createdAt: Timestamp,
   updatedAt: Timestamp,
 });
@@ -91,6 +94,7 @@ export const CreateAgentRequest = z.strictObject({
   avatar: AgentAvatar.default(DEFAULT_AVATAR),
   provider: ProviderBinding.default({ kind: 'unbound' }),
   folderId: EntityId.nullable().default(null),
+  emojiReplies: AgentEmojiReplies.default('allowed'),
   /** Written to the new workspace's `AGENTS.md` only if no file or symlink is there yet. */
   initialInstructions: InstructionsText.nullable().default(null),
 });
@@ -103,6 +107,7 @@ export const UpdateAgentRequest = z.strictObject({
   provider: ProviderBinding.optional(),
   /** `null` moves the agent out of its folder; left out, the folder is unchanged. */
   folderId: EntityId.nullable().optional(),
+  emojiReplies: AgentEmojiReplies.optional(),
 });
 export type UpdateAgentRequest = z.infer<typeof UpdateAgentRequest>;
 

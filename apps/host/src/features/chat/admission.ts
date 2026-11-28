@@ -1,5 +1,5 @@
 import { realpath } from 'node:fs/promises';
-import type { AgentMessage, Message, ProviderUnavailableReason, SessionChoice, SessionChoiceReason, TurnMode, UserMessage } from '@morrowbot/contracts';
+import type { AgentMessage, AssistantMessage, Message, ProviderUnavailableReason, SessionChoice, SessionChoiceReason, TurnMode, UserMessage } from '@morrowbot/contracts';
 import { decideBackgroundSession, decideSession, profileAllowed, type SessionDecision } from './admission-rules.ts';
 import { instructionsHash } from './seed.ts';
 import { laneKey, laneOf, pump, type BoundProvider, type ChatCore, type Turn, type TurnSource } from './turn.ts';
@@ -16,13 +16,15 @@ export type AdmitResult =
   /** An attachment the send names is not an unsent upload of this thread. */
   | { readonly kind: 'attachments_missing' };
 
-/** A user's send or Continue, or another agent's message read in the background (with the prompt it is read with). */
+/** A user's send, Continue or reaction, or another agent's message read in the background (each with the prompt it is read with). */
 export type AdmitInput =
   | { readonly kind: 'send'; readonly text: string; readonly attachmentIds: readonly string[]; readonly mode: TurnMode }
   | { readonly kind: 'continue'; readonly failedMessageId: string }
   /** A queued message, delivered as the user message with its own id; `prompt` is what the provider reads. */
   | { readonly kind: 'queued'; readonly id: string; readonly text: string; readonly prompt: string }
-  | { readonly kind: 'agent-message'; readonly message: AgentMessage; readonly prompt: string };
+  | { readonly kind: 'agent-message'; readonly message: AgentMessage; readonly prompt: string }
+  /** The user's reaction to the agent's reply `message`, read with `prompt`. */
+  | { readonly kind: 'reaction'; readonly message: AssistantMessage; readonly emoji: string; readonly prompt: string };
 
 type Ready = {
   readonly binding: BoundProvider;
@@ -125,7 +127,9 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
     history,
   };
   const decision: SessionDecision =
-    source.kind === 'background' ? { kind: 'plan', plan: decideBackgroundSession(sessionInputs) } : decideSession({ ...sessionInputs, choice });
+    source.kind === 'background' || source.kind === 'reaction'
+      ? { kind: 'plan', plan: decideBackgroundSession(sessionInputs) }
+      : decideSession({ ...sessionInputs, choice });
   if (decision.kind === 'choice-required') return { kind: 'session_choice_required', reason: decision.reason };
   const { plan } = decision;
   const at = core.options.now();
@@ -179,6 +183,7 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
     boundRow: null,
     fenced: false,
     stopRequested: false,
+    silent: false,
     steer: null,
     approvals: new Map(),
     settled: Promise.withResolvers(),
@@ -188,6 +193,7 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
   core.active.set(threadId, turn);
   switch (turnSource.kind) {
     case 'chat':
+    case 'reaction':
       core.events.publish({ kind: 'generation.started', threadId, generationId, userMessage, state: 'queued' });
       break;
     case 'agent-message':
@@ -233,6 +239,7 @@ type Source =
   | { readonly kind: 'queued'; readonly id: string; readonly text: string; readonly prompt: string }
   | { readonly kind: 'existing'; readonly message: UserMessage }
   | { readonly kind: 'background'; readonly message: AgentMessage; readonly prompt: string }
+  | { readonly kind: 'reaction'; readonly message: AssistantMessage; readonly emoji: string; readonly prompt: string }
   | { readonly kind: 'refused'; readonly reason: string };
 
 /** What the turn answers: a send's or queued message's new message (made by `fresh`), a Continue's saved one, or the agent message. */
@@ -246,6 +253,8 @@ function sourceFor(source: Exclude<Source, { kind: 'refused' }>, fresh: (text: s
       return { kind: 'chat', message: source.message, prompt: source.message.text };
     case 'background':
       return { kind: 'agent-message', message: source.message, prompt: source.prompt };
+    case 'reaction':
+      return source;
   }
 }
 
@@ -263,6 +272,8 @@ function sourceOf(core: ChatCore, messages: readonly Message[], input: AdmitInpu
       return core.options.store.generations.hasInput(input.message.id)
         ? { kind: 'refused', reason: 'This message was already read.' }
         : { kind: 'background', message: input.message, prompt: input.prompt };
+    case 'reaction':
+      return messages.some(({ id }) => id === input.message.id) ? input : { kind: 'refused', reason: 'The reply was deleted.' };
     case 'continue':
       break;
   }

@@ -30,7 +30,8 @@ export function answerMcp(message: unknown, grant: ToolGrant, tools: readonly To
         protocolVersion,
         capabilities: { tools: { listChanged: false } },
         serverInfo: { name: HOST_TOOLS_SERVER, title: 'MorrowBot', version },
-        instructions: 'MorrowBot tools: message your teammate agents and keep your own memories. They act only as you, and only during this turn.',
+        instructions:
+          'MorrowBot tools: message your teammate agents, keep your own memories, and answer the user with an emoji reaction or no message instead of filler text. They act only as you, and only during this turn.',
       });
     }
     case 'ping':
