@@ -60,12 +60,22 @@ export interface VaultOptions {
 
 const KIND_NAMES: Readonly<Record<VaultItemKind, string>> = { login: 'a login', api_key: 'an API key', header_secret: 'a header secret' };
 
-/** Loads `vault.json` (a missing file is an empty vault), erases secret values no item points at, and serves the vault. */
+/**
+ * Loads `vault.json`, erases secret values no item points at, and serves the vault. A missing `vault.json` is an empty
+ * vault that erases nothing, so values sealed for a file moved aside are still there when it is put back. A
+ * `vault.json` that cannot be read is reported and left as it is: the vault then lists no items and refuses every
+ * change, so no secret is erased or overwritten until the file is fixed or moved aside.
+ */
 export async function openVault(options: VaultOptions): Promise<VaultService> {
   const { secrets, newId, now, report } = options;
   const clock = options.clock ?? Date.now;
   const newRef = options.newRef ?? randomUUID;
-  let entries = await load(options.file);
+  const loaded = await load(options.file);
+  if (loaded.kind === 'unreadable') {
+    report(new Error(`${options.file}: ${UNREADABLE}`));
+    return closedVault(UNREADABLE);
+  }
+  let entries: Entry[] = loaded.kind === 'read' ? loaded.entries : [];
   const inTurn = serial();
   const persist = async (next: Entry[]): Promise<void> => {
     await writeFileAtomic(options.file, `${JSON.stringify({ version: 1, entries: next }, null, 2)}\n`);
@@ -80,11 +90,13 @@ export async function openVault(options: VaultOptions): Promise<VaultService> {
   };
   const erase = (ref: string): Promise<void> => secrets.remove(ref).catch(report);
 
-  try {
-    const live = new Set(entries.map(({ secretRef }) => secretRef));
-    for (const ref of await secrets.list()) if (!live.has(ref)) await erase(ref);
-  } catch (error) {
-    report(error);
+  if (loaded.kind === 'read') {
+    try {
+      const live = new Set(entries.map(({ secretRef }) => secretRef));
+      for (const ref of await secrets.list()) if (!live.has(ref)) await erase(ref);
+    } catch (error) {
+      report(error);
+    }
   }
 
   return {
@@ -216,17 +228,25 @@ const unreadable: Change = {
   reason: "This login's saved secret can't be read. Enter the password and the two-step key (or remove the key) to replace it.",
 };
 
-async function load(file: string): Promise<Entry[]> {
+const UNREADABLE = 'vault.json in the data folder is not a vault file MorrowBot can read; fix it or move it aside to start with an empty vault';
+
+type Loaded = { readonly kind: 'read'; readonly entries: Entry[] } | { readonly kind: 'missing' } | { readonly kind: 'unreadable' };
+
+async function load(file: string): Promise<Loaded> {
   let text: string;
   try {
     text = await readFile(file, 'utf8');
   } catch (error) {
-    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return [];
-    throw error;
+    return error instanceof Error && 'code' in error && error.code === 'ENOENT' ? { kind: 'missing' } : { kind: 'unreadable' };
   }
   const parsed = VaultFile.safeParse(parseJson(text));
-  if (!parsed.success) throw new Error(`${file} is not a vault file MorrowBot wrote; move it aside to start with an empty vault`);
-  return parsed.data.entries;
+  return parsed.success ? { kind: 'read', entries: parsed.data.entries } : { kind: 'unreadable' };
+}
+
+/** The vault while `vault.json` cannot be read: no items, every change refused with `reason`, and no secret to read. */
+function closedVault(reason: string): VaultService {
+  const refused = (): Promise<VaultSave> => Promise.resolve({ kind: 'invalid', reason });
+  return { list: () => [], create: refused, update: refused, delete: () => Promise.resolve(false), resolve: () => Promise.reject(new SecretStoreError(reason)) };
 }
 
 function parseJson(text: string): unknown {

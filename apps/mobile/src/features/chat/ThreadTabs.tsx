@@ -1,4 +1,4 @@
-import { mainThread, type Thread } from '@morrowbot/contracts';
+import { createdBefore, mainThread, type Thread } from '@morrowbot/contracts';
 import { SymbolView } from 'expo-symbols';
 import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import { radii, spacing, typography } from '../../lib/theme.ts';
@@ -7,7 +7,7 @@ import { useTheme } from '../../lib/useTheme.ts';
 /** The pinned main chat first, then the agent's other threads, newest first. */
 export function threadTabs(threads: readonly Thread[]): readonly Thread[] {
   const main = mainThread(threads);
-  const rest = threads.filter((thread) => thread !== main).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  const rest = threads.filter((thread) => thread !== main).sort((a, b) => (createdBefore(a, b) ? 1 : createdBefore(b, a) ? -1 : 0));
   return main === null ? rest : [main, ...rest];
 }
 

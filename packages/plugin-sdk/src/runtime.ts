@@ -1,4 +1,5 @@
 import { createCommandRunner, type CommandExit, type CommandOptions, type CommandRunner, type OpenCommand, type RunCommandOptions } from './command.ts';
+import { OPEN, type Fence } from './fence.ts';
 import { statExecutable, type Executable } from './files.ts';
 import { createGroupLink, type GroupLink } from './host-link.ts';
 import { jsonRpcProcessOver, type StartJsonRpcProcess } from './json-rpc-process.ts';
@@ -40,6 +41,8 @@ export type PluginFactory = (runtime: PluginRuntime) => PluginDefinition;
 export interface RuntimeOptions {
   readonly env: RuntimeEnv;
   readonly platform: NodeJS.Platform;
+  /** What every program the plugin starts runs behind. */
+  readonly fence: Fence;
 }
 
 /** A runtime and the commands behind it, for the code that serves the plugin. */
@@ -49,7 +52,7 @@ export interface OwnedRuntime {
 }
 
 export function createRuntime(options: RuntimeOptions, link: GroupLink): OwnedRuntime {
-  const commands = createCommandRunner(link, options.env);
+  const commands = createCommandRunner(link, options.env, options.fence);
   const stat = (command: string): Promise<Executable> => statExecutable(command, options.env.PATH ?? '');
   const versions = { stat, run: commands.run, cache: new Map<string, string>() };
   const runtime: PluginRuntime = {
@@ -70,5 +73,5 @@ export function createRuntime(options: RuntimeOptions, link: GroupLink): OwnedRu
  * group is acknowledged at once. Defaults to this process's environment and OS.
  */
 export function standaloneRuntime(options: Partial<RuntimeOptions> = {}): PluginRuntime {
-  return createRuntime({ env: options.env ?? process.env, platform: options.platform ?? process.platform }, createGroupLink()).runtime;
+  return createRuntime({ env: options.env ?? process.env, platform: options.platform ?? process.platform, fence: options.fence ?? OPEN }, createGroupLink()).runtime;
 }

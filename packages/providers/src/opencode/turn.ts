@@ -1,7 +1,7 @@
 import { acp, type ProviderError, type TurnContext, type TurnEnd, type TurnOutcome, type TurnRequest, type TurnUsage } from '@morrowbot/plugin-sdk';
-import { BUILD_MODE } from './config.ts';
+import { BUILD_MODE, FULL_MODE } from './config.ts';
 import type { ModelCatalog } from './models.ts';
-import { closeSession, configureSession, openSession, vendorError } from './session.ts';
+import { closeSession, configureSession, openSession, vendorError, type OpenCodeAccess } from './session.ts';
 
 /** A prompt has no deadline of its own: Stop cancels it, and the host ends a daemon that ignores that. */
 const PROMPT_MS = 24 * 60 * 60_000;
@@ -28,10 +28,11 @@ export interface Live {
 }
 
 /**
- * Runs one read-only turn on the shared daemon: checks, a session in the build mode with the picked
- * model, then the prompt with the agent's instructions. opencode is offered no write or shell tool;
- * a read, search or fetch it asks for goes to an approval card, and anything else it asks for is
- * denied. If it changes something without asking or leaves the build mode, the daemon ends at once.
+ * Runs one turn on the shared daemon: checks, a session in `build` (read-only) or `full` mode with
+ * the picked model, then the prompt with the agent's instructions. Read-only turns offer no write or
+ * shell tool, ask via approval card for reads/searches/fetches outside the workspace, deny anything
+ * else, and end the daemon on any unasked change or mode switch. Full turns run in `full` mode with
+ * permission prompts auto-allowed and without tripping the read-only fence.
  */
 export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<TurnEnd> {
   const { request, signal, emit } = context;
@@ -69,8 +70,10 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
     const checked = await unlessStopped(preflight(request, deps));
     if (checked === 'stopped') return ended({ kind: 'cancelled' }, { sessionTouched: false });
     if (checked.kind === 'refused') return refuse(checked.error);
-    const { live } = checked;
+    const { live, access } = checked;
     const { client } = live;
+    const full = access === 'full';
+    const targetMode = full ? FULL_MODE : BUILD_MODE;
 
     let armed = false;
     let over = false;
@@ -96,15 +99,19 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
     const turnFencedNull = turnFenced.promise.then(() => null);
     const stream = acp.createSessionStream({
       home: deps.home,
-      mode: BUILD_MODE,
+      mode: targetMode,
       emit,
       onBreach: (found) => {
-        if (armed) client.breach(found);
+        if (!full && armed) client.breach(found);
       },
     });
     /** No answer allows anything once opencode broke the rules, or after Stop. */
     const refusing = (): boolean => stopped() || deps.fence.reason() !== null;
     const answer = async (asked: acp.PermissionRequest): Promise<unknown> => {
+      if (full) {
+        if (refusing()) return acp.permissionResult(asked.options, null, true);
+        return acp.permissionResult(asked.options, { kind: 'chosen', choiceId: 'allow' }, false);
+      }
       const decision = acp.decide(asked, deps.home, NAME);
       if (decision.kind === 'deny') {
         denied = true;
@@ -123,9 +130,13 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
       },
       onPermission: answer,
       onRefused: (method) => {
-        emit({ kind: 'status', text: `Refused OpenCode's ${method}: MorrowBot runs it read-only.` });
+        emit({
+          kind: 'status',
+          text: full ? `Refused OpenCode's ${method}: MorrowBot does not answer ${method}.` : `Refused OpenCode's ${method}: MorrowBot runs it read-only.`,
+        });
       },
       replaying: () => false,
+      allowChanges: full,
     };
 
     try {
@@ -153,14 +164,20 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
           return refuse({ kind: 'access-not-supported', reason: earlyBreach });
         }
         const before = live.catalog.models();
-        const configured = await unlessStopped(configureSession(client, opened.sessionId, opened.options, { selection: request.selection, catalog: live.catalog }));
+        const configured = await unlessStopped(
+          configureSession(client, opened.sessionId, opened.options, {
+            access,
+            selection: request.selection,
+            catalog: live.catalog,
+          }),
+        );
         const after = live.catalog.models();
         if (after !== null && after !== before) emit({ kind: 'model-options-changed', models: [...after] });
         if (configured === 'stopped') return ended({ kind: 'cancelled' }, { sessionTouched: false });
         if (configured.kind === 'refused') return refuse(configured.error);
         armed = true;
         const mode = stream.mode();
-        if (mode !== null && mode !== BUILD_MODE) client.breach({ kind: 'mode-changed', mode });
+        if (!full && mode !== null && mode !== BUILD_MODE) client.breach({ kind: 'mode-changed', mode });
         const fenceBefore = fence();
         if (fenceBefore !== null) return refuse(fenceBefore);
         return await prompt(opened.sessionId, configured.model);
@@ -183,7 +200,8 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
         const fenceNow = fence();
         if (reply === null || fenceNow !== null) {
           const usage: TurnUsage = reply?.kind === 'ok' ? usageOf(reply.value) : { kind: 'unavailable' };
-          return ended({ kind: 'failed', error: fenceNow ?? { kind: 'access-not-supported', reason: 'OpenCode broke the read-only rules.' } }, { ...touched, usage });
+          const fallback = full ? 'The OpenCode daemon stopped after a session broke the read-only rules.' : 'OpenCode broke the read-only rules.';
+          return ended({ kind: 'failed', error: fenceNow ?? { kind: 'access-not-supported', reason: fallback } }, { ...touched, usage });
         }
         switch (reply.kind) {
           case 'ok':
@@ -203,7 +221,7 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
   }
 }
 
-type Checked = { readonly kind: 'ok'; readonly live: Live } | { readonly kind: 'refused'; readonly error: ProviderError };
+type Checked = { readonly kind: 'ok'; readonly live: Live; readonly access: OpenCodeAccess } | { readonly kind: 'refused'; readonly error: ProviderError };
 
 /**
  * Checks a turn before any session opens: the access it asks for, the OS, the CLI, managed config,
@@ -212,13 +230,13 @@ type Checked = { readonly kind: 'ok'; readonly live: Live } | { readonly kind: '
  */
 async function preflight(request: TurnRequest, deps: TurnDeps): Promise<Checked> {
   const refused = (error: ProviderError): Checked => ({ kind: 'refused', error });
-  if (request.access !== 'read-only' || request.vendorSettings !== 'isolated') {
+  if ((request.access !== 'read-only' && request.access !== 'full') || request.vendorSettings !== 'isolated') {
     return refused({
       kind: 'access-not-supported',
-      reason: `provider-opencode runs read-only turns with MorrowBot's instructions in v1, not ${request.access} with ${request.vendorSettings} settings.`,
+      reason: `provider-opencode runs read-only or full turns with MorrowBot's instructions, not ${request.access} with ${request.vendorSettings} settings.`,
     });
   }
-  if (request.mode !== 'interactive') return refused({ kind: 'background-not-allowed' });
+  if (request.access === 'read-only' && request.mode !== 'interactive') return refused({ kind: 'background-not-allowed' });
   if (deps.platformReason !== null) return refused({ kind: 'access-not-supported', reason: deps.platformReason });
   const breach = deps.fence.reason();
   if (breach !== null) return refused({ kind: 'access-not-supported', reason: breach });
@@ -231,7 +249,7 @@ async function preflight(request: TurnRequest, deps: TurnDeps): Promise<Checked>
   if (request.expectedAccountKey !== '') return refused(request.expectedRouteKey === '' ? { kind: 'account-changed' } : { kind: 'route-changed' });
   if (request.expectedRouteKey !== '') return refused({ kind: 'route-changed' });
   if (request.session.kind !== 'new') return refused({ kind: 'session-lost' });
-  return { kind: 'ok', live };
+  return { kind: 'ok', live, access: request.access };
 }
 
 /**

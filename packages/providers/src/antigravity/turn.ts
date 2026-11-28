@@ -1,8 +1,11 @@
-import { acp, type ProviderError, type TurnContext, type TurnEnd, type TurnOutcome, type TurnRequest, type TurnUsage } from '@morrowbot/plugin-sdk';
+import { acp, type ApprovalAnswer, type ProviderError, type TurnContext, type TurnEnd, type TurnOutcome, type TurnRequest, type TurnUsage } from '@morrowbot/plugin-sdk';
 import type { AcpDaemon } from './daemon.ts';
 import type { ModelCatalog } from './models.ts';
 import { ASKING_MODE, closeSession, configureSession, openSession, vendorError } from './session.ts';
 import type { WorkspaceCheck } from './workspace.ts';
+
+/** What a full-access turn answers every permission request with: allowed once, never always, so no grant outlives the turn. */
+const ALLOW: ApprovalAnswer = { kind: 'chosen', choiceId: 'allow' };
 
 /** A prompt has no deadline of its own: Stop cancels it, and the host ends a daemon that ignores that. */
 const PROMPT_MS = 24 * 60 * 60_000;
@@ -27,13 +30,16 @@ export interface Live {
   readonly catalog: ModelCatalog;
   tier: string | null;
   signedOut: boolean;
+  /** Whether a probe has tried every model, so each one's thinking levels are known. */
+  probed: boolean;
 }
 
 /**
- * Runs one read-only turn on the shared daemon: checks, a session in Default mode with the picked
- * model, then the prompt. Every write and command agy asks for is denied; a read, search or fetch
- * it asks for goes to an approval card. If agy changes something without asking or leaves Default
- * mode, the daemon ends at once, so nothing on it runs on.
+ * Runs one turn on the shared daemon: checks, a session in Default mode with the picked model, then
+ * the prompt. Read-only: every write and command agy asks for is denied; a read, search or fetch it
+ * asks for goes to an approval card. If agy changes something without asking or leaves Default
+ * mode, the daemon ends at once, so nothing on it runs on. Full: everything agy asks for is allowed
+ * once, without a card, and its session is not fenced. Stop sends `session/cancel` either way.
  */
 export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<TurnEnd> {
   const { request, signal, emit } = context;
@@ -73,6 +79,7 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
     if (checked.kind === 'refused') return refuse(checked.error);
     const { live } = checked;
     const { daemon } = live;
+    const full = request.access === 'full';
 
     let armed = false;
     let over = false;
@@ -99,12 +106,13 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
       mode: ASKING_MODE,
       emit,
       onBreach: (found) => {
-        if (armed) daemon.breach(found);
+        if (armed && !full) daemon.breach(found);
       },
     });
     /** No answer allows anything once agy broke the rules, or after Stop. */
     const refusing = (): boolean => stopped() || deps.fence.reason() !== null;
     const answer = async (asked: acp.PermissionRequest): Promise<unknown> => {
+      if (full) return refusing() ? acp.permissionResult(asked.options, null, true) : acp.permissionResult(asked.options, ALLOW, false);
       const decision = acp.decide(asked, deps.home, 'Antigravity');
       if (decision.kind === 'deny') {
         emit({ kind: 'status', text: decision.status });
@@ -120,9 +128,10 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
       },
       onPermission: answer,
       onRefused: (method) => {
-        emit({ kind: 'status', text: `Refused Antigravity's ${method}: MorrowBot runs it read-only.` });
+        emit({ kind: 'status', text: full ? `Refused Antigravity's ${method}: MorrowBot offers it no file or terminal access of its own.` : `Refused Antigravity's ${method}: MorrowBot runs it read-only.` });
       },
       replaying: () => false,
+      allowChanges: full,
     };
 
     try {
@@ -166,13 +175,15 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
         }
         armed = true;
         const mode = stream.mode();
-        if (mode !== null && mode !== ASKING_MODE) daemon.breach({ kind: 'mode-changed', mode });
+        if (!full && mode !== null && mode !== ASKING_MODE) daemon.breach({ kind: 'mode-changed', mode });
         const fenceBefore = fence();
         if (fenceBefore !== null) return refuse(fenceBefore);
-        const again = await unlessStopped(deps.checkWorkspace(request.cwd, signal));
-        if (again === 'stopped') return ended({ kind: 'cancelled' }, { sessionTouched: false });
-        const changed = workspaceError(again, deps.home) ?? fence();
-        if (changed !== null) return refuse(changed);
+        if (!full) {
+          const again = await unlessStopped(deps.checkWorkspace(request.cwd, signal));
+          if (again === 'stopped') return ended({ kind: 'cancelled' }, { sessionTouched: false });
+          const changed = workspaceError(again, deps.home) ?? fence();
+          if (changed !== null) return refuse(changed);
+        }
         return await prompt(opened.sessionId, configured.model);
       } finally {
         opened.detach();
@@ -218,25 +229,28 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
 type Checked = { readonly kind: 'ok'; readonly live: Live } | { readonly kind: 'refused'; readonly error: ProviderError };
 
 /**
- * Checks a turn before any session opens: the access it asks for, the OS, the CLI, the workspace,
- * the daemon, and the account. agy reports no account, so the key is '' and only a turn admitted for '' runs.
+ * Checks a turn before any session opens: the access it asks for, the OS, the CLI, the workspace
+ * (read-only only: full access may run the workspace's own hooks), the daemon, and the account. agy
+ * reports no account, so the key is '' and only a turn admitted for '' runs.
  */
 async function preflight(request: TurnRequest, deps: TurnDeps, signal: AbortSignal): Promise<Checked> {
   const refused = (error: ProviderError): Checked => ({ kind: 'refused', error });
-  if (request.access !== 'read-only' || request.vendorSettings !== 'personal') {
+  if (request.access === 'workspace-write' || request.vendorSettings !== 'personal') {
     return refused({
       kind: 'access-not-supported',
-      reason: `provider-antigravity runs read-only turns with the workspace's own instructions in v1, not ${request.access} with ${request.vendorSettings} settings.`,
+      reason: `provider-antigravity runs read-only and full turns with the workspace's own instructions in v1, not ${request.access} with ${request.vendorSettings} settings.`,
     });
   }
-  if (request.mode !== 'interactive') return refused({ kind: 'background-not-allowed' });
+  if (request.access === 'read-only' && request.mode !== 'interactive') return refused({ kind: 'background-not-allowed' });
   if (deps.platformReason !== null) return refused({ kind: 'access-not-supported', reason: deps.platformReason });
   const breach = deps.fence.reason();
   if (breach !== null) return refused({ kind: 'access-not-supported', reason: breach });
   const cli = await deps.checkCli(request.cwd);
   if (cli !== null) return refused(cli);
-  const workspace = workspaceError(await deps.checkWorkspace(request.cwd, signal), deps.home);
-  if (workspace !== null) return refused(workspace);
+  if (request.access === 'read-only') {
+    const workspace = workspaceError(await deps.checkWorkspace(request.cwd, signal), deps.home);
+    if (workspace !== null) return refused(workspace);
+  }
   const late = deps.fence.reason();
   if (late !== null) return refused({ kind: 'access-not-supported', reason: late });
   const live = deps.live();

@@ -39,6 +39,7 @@ const INFO: Readonly<Record<string, ProviderInfo>> = {
     { id: 'sonnet', label: 'Sonnet', isDefault: true, options: [efforts('effort', 'low', 'high')] },
   ], [profile('read-only', 'isolated'), profile('workspace-write', 'isolated')]),
   codex: ready([{ id: 'gpt-5.5', label: 'GPT-5.5', isDefault: true, options: [efforts('reasoningEffort', 'low', 'medium', 'xhigh')] }], [profile('read-only', 'personal')]),
+  antigravity: ready([{ id: 'gemini-4-neon', label: 'Gemini 4 Neon', isDefault: true, options: [efforts('thought_level', 'low', 'high', 'xhigh')] }], [profile('read-only', 'personal')]),
 };
 
 const askAs = (parent: BoundProvider, request: Partial<SpawnRequest>) => {
@@ -51,6 +52,23 @@ const askAs = (parent: BoundProvider, request: Partial<SpawnRequest>) => {
 const ask = (request: Partial<SpawnRequest>) => askAs(PARENT, request);
 
 const CODEX_PARENT: BoundProvider = { kind: 'bound', pluginId: 'codex', selection: { kind: 'default' }, access: 'read-only', vendorSettings: 'personal' };
+
+it("sets Antigravity's thinking level as a sub-agent's effort", () => {
+  expect(askAs(CODEX_PARENT, { provider: 'antigravity', model: 'gemini-4-neon', effort: 'xhigh' })).toMatchInlineSnapshot(`
+    {
+      "access": "read-only",
+      "pluginId": "antigravity",
+      "selection": {
+        "choices": {
+          "thought_level": "xhigh",
+        },
+        "id": "gemini-4-neon",
+        "kind": "model",
+      },
+      "vendorSettings": "personal",
+    }
+  `);
+});
 
 it('inherits the parent binding, and changes only the model, effort, provider or access asked for', () => {
   expect({

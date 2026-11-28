@@ -39,6 +39,21 @@ describe('tabsOf', () => {
       }
     `);
   });
+
+  it('pins the first-created chat by createdSeq when two chats share a millisecond and the second has a smaller id', () => {
+    const sameMs: Thread[] = [
+      { id: 'a-second', agentId: 'a', title: 'Second', createdAt: '2026-11-01T10:00:00.000Z', updatedAt: '2026-11-02T10:00:00.000Z', createdSeq: 2 },
+      { id: 'z-first', agentId: 'a', title: 'First', createdAt: '2026-11-01T10:00:00.000Z', updatedAt: '2026-11-01T10:00:00.000Z', createdSeq: 1 },
+    ];
+    expect(ids(tabsOf(sameMs, ['a-second'], null))).toMatchInlineSnapshot(`
+      {
+        "main": "z-first",
+        "others": [
+          "a-second",
+        ],
+      }
+    `);
+  });
 });
 
 describe('afterClose', () => {

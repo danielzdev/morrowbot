@@ -13,18 +13,24 @@ Codex keeps the conversation. Stop sends `turn/interrupt`; if Codex ignores it, 
 host ends the daemon and the next turn gets a new one. A `turn/start` Codex never
 answers also ends the daemon, unless a `turn/started` named the turn.
 
-**Access.** One profile: read-only with your own Codex settings (`personal`). Every
-thread starts or resumes with Codex's read-only sandbox, approvals `never`, the model
-provider the route check saw, and every 0.171 feature that runs code, writes files or
-acts on the desktop turned off (`TOOL_FEATURES` in `lockdown.ts`: the shell and its
-login-shell snapshot, unified exec, apps, plugins, hooks, sub-agents, browser and
-computer use, code mode, image generation) plus each configured MCP server. Web search
-stays as your Codex config sets it: it runs on OpenAI's side. Before the prompt goes out, the provider
-checks Codex's own report of the thread (sandbox and network, approval policy,
-permission profile, model provider, `mcpServerStatus/list`, `hooks/list`), then reads
-the account and route again, and refuses the turn if anything differs. An approval
-request is declined without a card. Read-only Codex can read files outside the
-workspace (`readsOutsideCwd`).
+**Access.** Two profiles, both with your own Codex settings (`personal`) and reading outside the
+workspace (`readsOutsideCwd`), in interactive or background mode:
+
+- **read-only**: every thread starts or resumes with Codex's read-only sandbox, approvals `never`,
+  the model provider the route check saw, and every 0.171 feature that runs code, writes files or
+  acts on the desktop turned off (`TOOL_FEATURES` in `lockdown.ts`: the shell and its login-shell
+  snapshot, unified exec, apps, plugins, hooks, sub-agents, browser and computer use, code mode,
+  image generation) plus each configured MCP server. Web search stays as your Codex config sets it:
+  it runs on OpenAI's side. Before the prompt goes out, the provider checks Codex's own report of
+  the thread (sandbox and network, approval policy, permission profile, model provider,
+  `mcpServerStatus/list`, `hooks/list`), then reads the account and route again, and refuses the
+  turn if anything differs.
+- **full**: starts or resumes with Codex's `danger-full-access` sandbox (`dangerFullAccess` on
+  `turn/start`), approvals `never`, and the model provider the route check saw, keeping Codex's
+  full shell and file access alongside MorrowBot's own MCP server. Stop cancels the active turn
+  best-effort via `turn/interrupt`.
+
+An unexpected approval request is declined without a card.
 
 **MorrowBot's tools.** The one MCP server a thread runs is the host's own for the turn
 (`mcp_servers.morrowbot` in the thread's config overrides, replacing any server of yours by

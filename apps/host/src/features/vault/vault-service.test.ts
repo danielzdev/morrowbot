@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { CreateVaultItemRequest, UpdateVaultItemRequest } from '@morrowbot/contracts';
@@ -235,4 +235,42 @@ it('replaces a secret that can no longer be read, when the change names every pa
       { label: 'Weather', key: 'new' },
     ],
   });
+});
+
+it('lists nothing and changes nothing while vault.json cannot be read, and keeps its secrets for when the file is fixed', async () => {
+  const id = idOf(await create(await open(), { kind: 'api_key', label: 'Weather', key: 'kept' }));
+  const file = path.join(dir, 'vault.json');
+  const good = await readFile(file, 'utf8');
+  const broken = '{"version": 1, "entries": [';
+  await writeFile(file, broken);
+  const closed = await open(sealedStore());
+  const meanwhile = {
+    list: closed.list(),
+    create: await create(closed, { kind: 'api_key', label: 'New', key: 'new' }),
+    update: await update(closed, id, { kind: 'api_key', key: 'new' }),
+    delete: await closed.delete(id),
+    resolve: await closed.resolve(id).catch((error: unknown) => (error instanceof Error ? error.message : String(error))),
+  };
+  const reported = errors.splice(0).map((error) => (error instanceof Error ? error.message : String(error)));
+  const untouched = (await readFile(file, 'utf8')) === broken;
+  await writeFile(file, good);
+  const fixed = await open(sealedStore());
+  const reason = 'vault.json in the data folder is not a vault file MorrowBot can read; fix it or move it aside to start with an empty vault';
+  expect({ meanwhile, reported, untouched, afterFix: used(await fixed.resolve(id)) }).toEqual({
+    meanwhile: { list: [], create: { kind: 'invalid', reason }, update: { kind: 'invalid', reason }, delete: false, resolve: reason },
+    reported: [`${file}: ${reason}`],
+    untouched: true,
+    afterFix: { label: 'Weather', key: 'kept' },
+  });
+});
+
+it('opens empty while vault.json is moved aside, and erases nothing, so its secrets are back when it is put back', async () => {
+  const id = idOf(await create(await open(), { kind: 'api_key', label: 'Weather', key: 'kept' }));
+  const file = path.join(dir, 'vault.json');
+  await rename(file, `${file}.aside`);
+  const empty = await open(sealedStore());
+  const listed = empty.list();
+  await rename(`${file}.aside`, file);
+  const back = await open(sealedStore());
+  expect({ listed, back: used(await back.resolve(id)) }).toEqual({ listed: [], back: { label: 'Weather', key: 'kept' } });
 });

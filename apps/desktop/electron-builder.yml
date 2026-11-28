@@ -8,6 +8,10 @@ directories:
   output: release
   buildResources: resources
 npmRebuild: false
+# The host runs as Node (runAsNode); no inspector flags or SIGUSR1 debugger, so an agent's shell cannot drive the app.
+electronFuses:
+  runAsNode: true
+  enableNodeCliInspectArguments: false
 # scripts/build-app.ts bundles every dependency, so the app ships no node_modules.
 files:
   - '**/*'
