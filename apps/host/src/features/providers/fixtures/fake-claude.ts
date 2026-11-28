@@ -79,6 +79,9 @@ function controlResponse(requestId: string): Promise<unknown> {
   return waiting.promise;
 }
 
+/** The host's denial when Stop ends the turn while it asks: it is stopping this CLI, which writes nothing more, as a real model has not answered by then. */
+const TURN_ENDED = 'The turn ended before anyone answered.';
+
 /** Writes `.git/x` after asking the host, as Claude Code does for a protected path with `--permission-prompt-tool stdio`. */
 async function writeGit(): Promise<void> {
   const input = { file_path: path.join(process.cwd(), '.git', 'x'), content: 'hi' };
@@ -99,6 +102,7 @@ async function writeGit(): Promise<void> {
   }
   const Decision = z.object({ behavior: z.enum(['allow', 'deny']), message: z.string().optional() });
   const { behavior, message } = Decision.parse(decision);
+  if (message === TURN_ENDED) return;
   if (behavior === 'allow') {
     mkdirSync(path.dirname(input.file_path), { recursive: true });
     writeFileSync(input.file_path, input.content);
