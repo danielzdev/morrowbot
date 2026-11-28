@@ -1,22 +1,24 @@
 import type { Agent } from '@morrowbot/contracts';
 import type { MorrowbotBridge } from '../bridge.ts';
 import type { AgentSection } from '../features/agents/index.ts';
-import { ExtensionsView } from '../features/plugins/index.ts';
 import type { SettingsLink } from '../features/settings/index.ts';
 import type { AppInfo } from '../shared/privacy.ts';
 import { useStore } from '../shared/use-store.ts';
 import type { NewAgentBrain } from './AgentDialogs.tsx';
 import { ChatPane, type Chrome } from './ChatPane.tsx';
+import { ExtensionsPage, type ExtensionsJump } from './ExtensionsPage.tsx';
 import { FirstRun } from './FirstRun.tsx';
 import type { Models } from './models.ts';
 import { PageFrame } from './PageFrame.tsx';
 
-export type Page = { readonly kind: 'chat' } | { readonly kind: 'extensions' };
+export type Page = { readonly kind: 'chat' } | { readonly kind: 'extensions'; readonly jump: ExtensionsJump | null };
 
 /** The main pane's page: the selected agent's chat, or Extensions. New Agent and Agent Settings are dialogs. */
 export function Pages(props: {
   readonly page: Page;
   readonly onPage: (page: Page) => void;
+  /** Extensions hands up its "Discard changes?" check while open, and null when it closes. */
+  readonly onLeaveCheck: (check: ((action: () => void) => void) | null) => void;
   readonly models: Models;
   readonly bridge: MorrowbotBridge;
   readonly agent: Agent | undefined;
@@ -45,7 +47,16 @@ export function Pages(props: {
     case 'extensions':
       return (
         <PageFrame title="Extensions" chrome={chrome}>
-          <ExtensionsView model={models.plugins} info={info} bridge={bridge} onOpenProvider={(id) => { props.onOpenSettings(`providers/${id}`); }} onExit={() => { props.onPage({ kind: 'chat' }); }} />
+          <ExtensionsPage
+            models={models}
+            bridge={bridge}
+            info={info}
+            reducedMotion={props.reducedMotion}
+            jump={page.jump}
+            onLeaveCheck={props.onLeaveCheck}
+            onOpenProvider={(id) => { props.onOpenSettings(`providers/${id}`); }}
+            onExit={() => { props.onPage({ kind: 'chat' }); }}
+          />
         </PageFrame>
       );
     case 'chat':

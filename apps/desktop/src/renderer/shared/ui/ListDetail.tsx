@@ -6,11 +6,19 @@ import { handleRovingKey } from '../roving.ts';
  * The list/detail pattern (spec §6.2) shared by Settings › Providers and Extensions: a list of rows
  * on the left (↑/↓/Home/End move, one tab stop) and the selected row's detail on the right.
  */
-export function ListDetail(props: { readonly label: string; readonly list: ComponentChildren; readonly footer?: ComponentChildren; readonly detail: ComponentChildren }) {
+export function ListDetail(props: {
+  readonly label: string;
+  /** Above the rows, outside their arrow-key movement: the list's filters. */
+  readonly header?: ComponentChildren;
+  readonly list: ComponentChildren;
+  readonly footer?: ComponentChildren;
+  readonly detail: ComponentChildren;
+}) {
   const list = useRef<HTMLDivElement>(null);
   return (
     <div class="list-detail">
       <div class="list-pane">
+        {props.header}
         <div
           ref={list}
           class="list-rows"

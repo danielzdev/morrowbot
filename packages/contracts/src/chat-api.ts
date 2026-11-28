@@ -3,6 +3,7 @@ import { AgentMessagePosted } from './agent-messages.ts';
 import { Agent, AgentInstructionsView, Folder, LastMessage } from './agents.ts';
 import { MAX_ATTACHMENTS } from './attachments.ts';
 import { EntityId, PluginId, Timestamp } from './ids.ts';
+import { ConnectorScope } from './connectors.ts';
 import { AssistantMessage, Message, UserMessage } from './messages.ts';
 import { PluginManifest } from './plugin-manifest.ts';
 import { PluginStatus } from './plugin-runtime.ts';
@@ -36,6 +37,8 @@ export const ApiError = z.strictObject({
       current: AgentInstructionsView,
       message: z.string(),
     }),
+    /** A connector's scope changed since it was read; nothing was written. `current` is the newer scope. */
+    z.strictObject({ kind: z.literal('scope-conflict'), current: ConnectorScope, message: z.string() }),
   ]),
 });
 export type ApiError = z.infer<typeof ApiError>;

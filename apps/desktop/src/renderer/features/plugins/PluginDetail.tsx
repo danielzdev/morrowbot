@@ -1,4 +1,5 @@
 import type { PluginConfig, PluginEntry, PluginPermission, PluginProblem } from '@morrowbot/contracts';
+import { ItemMark } from '../../shared/ui/ItemMark.tsx';
 import { DetailSection, Pill } from '../../shared/ui/ListDetail.tsx';
 import { SettingsForm } from '../../shared/ui/SettingsForm.tsx';
 import { Toggle } from '../../shared/ui/Toggle.tsx';
@@ -13,15 +14,6 @@ const PERMISSIONS: Readonly<Record<PluginPermission, string>> = {
   accessibility: 'See and control apps on this Mac (Accessibility)',
   'screen-recording': 'Take pictures of the screen (Screen Recording)',
 };
-
-/** The first letter of a name, as an extension's mark. */
-export function ItemMark({ name }: { readonly name: string }) {
-  return (
-    <span class="item-mark" aria-hidden="true">
-      {name.charAt(0).toUpperCase()}
-    </span>
-  );
-}
 
 export const sourceLabel = (entry: PluginEntry): string => (entry.source === 'built-in' ? 'Built-in' : 'Yours');
 

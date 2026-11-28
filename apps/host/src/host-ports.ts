@@ -2,6 +2,7 @@ import { SendAgentMessageRequest } from '@morrowbot/contracts';
 import type { AgentMessageService, SendRefusal } from './features/agent-messages/index.ts';
 import type { ToolPorts } from './features/agent-tools/index.ts';
 import type { createChatService, ProviderPlugins } from './features/chat/index.ts';
+import type { ConnectorService } from './features/connectors/index.ts';
 import type { MemoryService } from './features/memories/index.ts';
 import type { PluginHost } from './features/plugins/index.ts';
 import type { Storage } from './features/storage/index.ts';
@@ -31,6 +32,7 @@ export function agentToolPorts(
   agents: ToolPorts['agents'],
   agentMessages: AgentMessageService,
   memories: MemoryService,
+  connectors: ConnectorService,
 ): ToolPorts {
   return {
     agents,
@@ -42,6 +44,7 @@ export function agentToolPorts(
       },
     },
     memories,
+    connectors: { tools: (agentId) => connectors.toolsFor(agentId), call: (agentId, name, args, signal) => connectors.call(agentId, name, args, signal) },
   };
 }
 

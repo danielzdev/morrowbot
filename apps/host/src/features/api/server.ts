@@ -7,6 +7,7 @@ import { authorize, viewerOf, type Caller } from './access.ts';
 import { agentMessageRoutes } from './agent-message-routes.ts';
 import { agentRoutes } from './agent-routes.ts';
 import { attachmentRoutes } from './attachment-routes.ts';
+import { connectorRoutes } from './connector-routes.ts';
 import { folderRoutes } from './folder-routes.ts';
 import { memoryRoutes } from './memory-routes.ts';
 import { serveEvents } from './event-socket.ts';
@@ -81,6 +82,7 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
     ...memoryRoutes(options.services),
     ...skillRoutes(options.services),
     ...pluginRoutes(options.services),
+    ...connectorRoutes(options.services),
     ...usageRoutes(options.services),
     ...routineRoutes(options.services),
     ...t3WatchRoutes(options.services),
