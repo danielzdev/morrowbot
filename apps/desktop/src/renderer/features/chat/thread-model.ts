@@ -6,9 +6,12 @@ import type {
   Cursor,
   Message,
   PendingApproval,
+  QueuedMessage,
   Thread,
   ThreadState,
+  TurnOutcome,
   TurnState,
+  TurnTrigger,
 } from '@morrowbot/contracts';
 
 /**
@@ -45,6 +48,8 @@ export type TurnStep = ToolStep | ApprovalStep;
 /** The turn that is queued or running, as the window shows it. */
 export interface ActiveTurnView {
   readonly generationId: string;
+  /** `agent-message`: a background turn, shown with the agent messages instead of as a reply. */
+  readonly trigger: TurnTrigger;
   readonly state: TurnState;
   readonly queueNote: string | null;
   /** The provider's latest status line, such as "Thinking". */
@@ -69,10 +74,14 @@ export interface ThreadView {
   readonly activeTurn: ActiveTurnView | null;
   /** Turns watched to the end, by their reply's message id. Replies from before this window have none. */
   readonly finished: Readonly<Record<string, FinishedTurn>>;
+  /** Messages the agent has not seen yet, oldest first. */
+  readonly queue: readonly QueuedMessage[];
   readonly blockedGroups: readonly BlockedGroup[];
   readonly cursor: Cursor;
   /** Messages this chat's agent sent or received here from other agents, oldest first. */
   readonly agentMessages: readonly AgentMessage[];
+  /** How background turns this window watched ended without telling the user, by the agent message they read. */
+  readonly quietEnds: Readonly<Record<string, TurnOutcome>>;
 }
 
 export type ThreadEvent = Exclude<ChatEvent, { kind: 'usage.updated' }>;
@@ -121,6 +130,7 @@ export function viewOf(
       ? null
       : {
           generationId: active.generationId,
+          trigger: active.trigger,
           state: active.state,
           queueNote: active.queueNote,
           detail: null,
@@ -130,7 +140,15 @@ export function viewOf(
         };
   const present = new Set(state.messages.map(({ id }) => id));
   const kept = Object.fromEntries(Object.entries(previous?.finished ?? {}).filter(([id]) => present.has(id)));
-  const base = { thread: state.thread, messages: state.messages, blockedGroups: state.blockedGroups, cursor: state.cursor, agentMessages };
+  const base = {
+    thread: state.thread,
+    messages: state.messages,
+    queue: state.queue,
+    blockedGroups: state.blockedGroups,
+    cursor: state.cursor,
+    agentMessages,
+    quietEnds: previous?.quietEnds ?? {},
+  };
   const before = previous?.activeTurn ?? null;
   if (before === null || previous === null) return { ...base, activeTurn: fresh, finished: kept };
   if (fresh !== null && active !== null && fresh.generationId === before.generationId) {
@@ -191,12 +209,13 @@ function endingOf(resolution: ApprovalResolution, approval: PendingApproval): Ap
 
 /** The view after `event`, or undefined when the event does not fit what the view knows. */
 function change(view: ThreadView, event: ThreadEvent, now: number): ThreadView | undefined {
-  if (event.kind === 'generation.started') {
-    const messages = event.userMessage === null || view.messages.some(({ id }) => id === event.userMessage?.id)
-      ? view.messages
-      : [...view.messages, event.userMessage];
+  if (event.kind === 'queue.changed') return { ...view, queue: event.queue };
+  if (event.kind === 'generation.started' || event.kind === 'generation.background-started') {
+    const started = event.kind === 'generation.started' ? event.userMessage : null;
+    const messages = started === null || view.messages.some(({ id }) => id === started.id) ? view.messages : [...view.messages, started];
     const activeTurn: ActiveTurnView = {
       generationId: event.generationId,
+      trigger: event.kind === 'generation.started' ? { kind: 'chat' } : { kind: 'agent-message', agentMessageId: event.agentMessageId },
       state: event.state,
       queueNote: null,
       detail: null,
@@ -244,10 +263,25 @@ function change(view: ThreadView, event: ThreadEvent, now: number): ThreadView |
             : step,
         ),
       });
+    case 'generation.steered': {
+      const { segment, userMessage } = event;
+      const record: FinishedTurn = { steps: settled(active.steps, 'unfinished'), durationMs: active.startedAt === null ? null : now - active.startedAt };
+      return {
+        ...view,
+        messages: [...view.messages, segment, userMessage],
+        activeTurn: { ...active, text: '', steps: [], detail: null, startedAt: now },
+        finished: { ...view.finished, [segment.id]: record },
+      };
+    }
     case 'generation.finished': {
       if (view.messages.some(({ id }) => id === event.message.id)) return { ...view, activeTurn: null };
       const record: FinishedTurn = { steps: settled(active.steps, 'unfinished'), durationMs: active.startedAt === null ? null : now - active.startedAt };
       return { ...view, messages: [...view.messages, event.message], activeTurn: null, finished: { ...view.finished, [event.message.id]: record } };
+    }
+    case 'generation.background-finished': {
+      const { trigger } = active;
+      if (trigger.kind !== 'agent-message') return undefined;
+      return { ...view, activeTurn: null, quietEnds: { ...view.quietEnds, [trigger.agentMessageId]: event.outcome } };
     }
   }
 }

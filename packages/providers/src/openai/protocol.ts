@@ -106,6 +106,9 @@ export type ThreadOpened = z.infer<typeof ThreadOpened>;
 
 export const TurnStartResponse = z.looseObject({ turn: z.looseObject({ id: z.string().min(1) }) });
 
+/** `turn/steer` (checked on 0.171): Codex adds the input to the running turn and names that turn. */
+export const TurnSteerResponse = z.looseObject({ turnId: z.string().min(1) });
+
 /** A result whose content is not used. */
 export const Ignored = z.unknown();
 
@@ -155,10 +158,11 @@ export const TurnCompleted = z.looseObject({
 
 export const AgentMessageDelta = z.looseObject({ threadId: z.string(), turnId: z.string(), itemId: z.string(), delta: z.string() });
 
-/** A thread item: only the fields shown for tool calls are read. */
+/** A thread item: only the fields shown for tool calls, and a user message's `clientId`, are read. */
 export const ThreadItem = z.looseObject({
   type: z.string(),
   id: z.string(),
+  clientId: z.string().nullish(),
   text: z.string().nullish(),
   command: z.string().nullish(),
   status: z.string().nullish(),

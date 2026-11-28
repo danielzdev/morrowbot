@@ -44,7 +44,7 @@ const AVATAR_PX = 44;
 const NONE_FOLDED: ReadonlySet<string> = new Set();
 const RAIL_AVATAR_PX = 36;
 
-/** The agents list (spec §3.1, messenger style): search, Needs you / Working, Agents, the person's folders, then Extensions and Settings. */
+/** The agents list (spec §3.1, messenger style): search, Agents, the person's folders, then Extensions and Settings. */
 export function Sidebar(props: SidebarProps) {
   const state = useStore(props.model.state);
   const rail = props.mode === 'rail';

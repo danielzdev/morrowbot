@@ -1,7 +1,7 @@
 import type { SendWith } from './chat-prefs.ts';
 
 /** The app's global shortcuts (spec §1.5). ⌘ on macOS is Ctrl elsewhere. */
-export type ShortcutId = 'palette' | 'new-chat' | 'new-agent' | 'settings' | 'usage' | 'toggle-sidebar' | 'filter-agents' | 'extensions' | 'find' | 'binding';
+export type ShortcutId = 'palette' | 'new-chat' | 'new-agent' | 'settings' | 'usage' | 'toggle-sidebar' | 'filter-agents' | 'extensions' | 'find' | 'binding' | 'inspector';
 
 export type Platform = 'mac' | 'other';
 
@@ -21,6 +21,7 @@ export const SHORTCUTS: Readonly<Record<ShortcutId, Chord>> = {
   extensions: { key: 'x', shift: true },
   find: { key: 'f', shift: false },
   binding: { key: 'm', shift: true },
+  inspector: { key: 'i', shift: false },
 };
 
 /** What the matcher reads from a keyboard event. */

@@ -1,8 +1,9 @@
-import type { Message } from '@morrowbot/contracts';
+import type { AgentMessage, Message } from '@morrowbot/contracts';
 import { memo } from 'preact/compat';
-import { useEffect, useMemo, useState } from 'preact/hooks';
-import { timelineItems } from './agent-exchange.ts';
-import { AgentExchange, type PeerDirectory } from './AgentExchange.tsx';
+import { useEffect, useId, useMemo, useState } from 'preact/hooks';
+import { Icon } from '../../shared/ui/Icon.tsx';
+import { backgroundVerb, timelineItems } from './agent-exchange.ts';
+import { AgentExchange, Peer, type PeerDirectory } from './AgentExchange.tsx';
 import { ApprovalCard } from './ApprovalCard.tsx';
 import type { ChatDisplay } from './display.ts';
 import { ACTIVE_ID } from './find.ts';
@@ -10,7 +11,7 @@ import { Markdown, type MarkdownActions } from './Markdown.tsx';
 import { outcomeCopy, type CopyContext, type OutcomeAction } from './outcome-copy.ts';
 import { OutcomeNote } from './OutcomeNote.tsx';
 import { SentAttachments } from './SentAttachments.tsx';
-import type { ActiveTurnView, ApprovalStep, FinishedTurn, ThreadView } from './thread-model.ts';
+import type { ActiveTurnView, ApprovalStep, FinishedTurn, ThreadView, TurnStep } from './thread-model.ts';
 import { TurnSteps } from './ToolGroup.tsx';
 import { elapsed } from './tool-rows.ts';
 
@@ -51,11 +52,17 @@ function approvalFor(ctx: TimelineContext, answering: readonly string[], offline
 
 const NO_ANSWERS: readonly string[] = [];
 
+const STEERED_IN = 'Steered in · seen by the agent';
+
+const steered = (message: Message | undefined): boolean => message?.kind === 'assistant' && message.outcome.kind === 'steered';
+
 const MessageItem = memo(function MessageItem(props: {
   readonly message: Message;
   readonly finished: FinishedTurn | undefined;
   readonly latest: boolean;
   readonly busy: boolean;
+  /** A user message sent into the reply above it with Steer now. */
+  readonly steeredIn: boolean;
   readonly ctx: TimelineContext;
 }) {
   const { message, finished, ctx } = props;
@@ -64,6 +71,7 @@ const MessageItem = memo(function MessageItem(props: {
       <div class="message user" data-message-id={message.id}>
         {message.attachments.length > 0 && <SentAttachments attachments={message.attachments} image={ctx.image} />}
         {message.text !== '' && <div class="bubble" data-find-id={message.id}>{message.text}</div>}
+        {props.steeredIn && <div class="steered-in">{STEERED_IN}</div>}
       </div>
     );
   }
@@ -86,17 +94,60 @@ const MessageItem = memo(function MessageItem(props: {
 
 function ActiveTurn(props: { readonly turn: ActiveTurnView; readonly answering: readonly string[]; readonly offline: boolean; readonly ctx: TimelineContext }) {
   const { turn, ctx } = props;
-  const queued = turn.state === 'queued';
-  const detail = queued ? (turn.queueNote ?? 'Queued: waiting for a free slot') : turn.detail;
+  const detail = turn.state === 'queued' ? (turn.queueNote ?? 'Queued: waiting for a free slot') : turn.detail;
   return (
     <div class="message assistant active">
       <div class={`turn-time ${turn.state}`}>
         <span class="pulse" aria-hidden="true" />
-        {queued ? 'Queued' : turn.startedAt === null ? 'Working…' : <>Working for <Since startedAt={turn.startedAt} /></>}
+        <Working turn={turn} />
         {detail !== null && <span class="turn-detail"> · {ctx.display.safe(detail) ?? ''}</span>}
       </div>
       <TurnSteps steps={turn.steps} display={ctx.display} approval={approvalFor(ctx, props.answering, props.offline)} />
       {turn.text !== '' && <div data-find-id={ACTIVE_ID}><Markdown text={turn.text} actions={ctx.actions} /></div>}
+    </div>
+  );
+}
+
+function Working({ turn }: { readonly turn: ActiveTurnView }) {
+  if (turn.state === 'queued') return <>Queued</>;
+  return turn.startedAt === null ? <>Working…</> : <>Working for <Since startedAt={turn.startedAt} /></>;
+}
+
+const isPending = (step: TurnStep): step is ApprovalStep => step.kind === 'approval' && step.ending === null;
+
+/**
+ * A background turn reading another agent's message: one quiet line beside the agent messages, opened in place
+ * to show its steps and what it has written so far. An approval it asks for always shows: only the user can answer.
+ */
+function BackgroundTurn(props: {
+  readonly turn: ActiveTurnView;
+  readonly message: AgentMessage | undefined;
+  readonly answering: readonly string[];
+  readonly offline: boolean;
+  readonly ctx: TimelineContext;
+}) {
+  const { turn, message, ctx } = props;
+  const [open, setOpen] = useState(false);
+  const bodyId = useId();
+  const approval = approvalFor(ctx, props.answering, props.offline);
+  return (
+    <div class={`exchange background-turn${open ? ' open' : ''}`}>
+      <button class="exchange-pill" aria-expanded={open} aria-controls={open ? bodyId : undefined} onClick={() => { setOpen(!open); }}>
+        <span class={`pulse ${turn.state}`} aria-hidden="true" />
+        <span class="exchange-verb">{backgroundVerb(message)}</span>
+        {message !== undefined && <Peer peers={ctx.peers} agentId={message.from.agentId} />}
+        <span class="exchange-time"><Working turn={turn} /></span>
+        <span class="exchange-chevron" aria-hidden="true"><Icon name="chevron-down" size={14} /></span>
+      </button>
+      {open && (
+        <div id={bodyId} class="exchange-cards">
+          <div class="exchange-body background-draft">
+            <TurnSteps steps={turn.steps.filter((step) => !isPending(step))} display={ctx.display} approval={approval} />
+            {turn.text === '' ? <div class="exchange-meta">Nothing written yet.</div> : <Markdown text={turn.text} actions={ctx.actions} />}
+          </div>
+        </div>
+      )}
+      {turn.steps.filter(isPending).map((step) => <div key={step.approval.approvalId} class="background-approval">{approval(step)}</div>)}
     </div>
   );
 }
@@ -121,7 +172,11 @@ export function Timeline(props: {
   const { messages, finished } = view;
   const unwatched = useMemo(() => messages.some((message) => message.kind === 'assistant' && !(message.id in finished)), [messages, finished]);
   const last = messages.at(-1);
+  const steeredIn = useMemo(() => new Set(messages.flatMap((message, index) => (message.kind === 'user' && steered(messages[index - 1]) ? [message.id] : []))), [messages]);
   const items = useMemo(() => timelineItems(messages, view.agentMessages, start), [messages, view.agentMessages, start]);
+  const active = view.activeTurn;
+  const reading = active?.trigger.kind === 'agent-message' ? active.trigger.agentMessageId : null;
+  const background = view.agentMessages.find(({ id }) => id === reading);
   return (
     <div class="messages" aria-label="Messages">
       {start > 0 && (
@@ -132,19 +187,36 @@ export function Timeline(props: {
       {unwatched && <div class="note muted reload-note">{TOOLS_NOT_KEPT}</div>}
       {items.map((item) =>
         item.kind === 'exchange' ? (
-          <AgentExchange key={`exchange-${item.messages[0]?.id ?? ''}`} messages={item.messages} threadId={view.thread.id} peers={ctx.peers} actions={ctx.actions} />
+          <AgentExchange
+            key={`exchange-${item.messages[0]?.id ?? ''}`}
+            messages={item.messages}
+            threadId={view.thread.id}
+            peers={ctx.peers}
+            actions={ctx.actions}
+            readEnds={view.quietEnds}
+          />
         ) : (
           <MessageItem
             key={item.message.id}
             message={item.message}
             finished={finished[item.message.id]}
             latest={item.message === last}
+            steeredIn={steeredIn.has(item.message.id)}
             busy={item.message === last && (!props.idle || props.locked || props.offline)}
             ctx={ctx}
           />
         ),
       )}
-      {view.activeTurn !== null && <ActiveTurn turn={view.activeTurn} answering={props.answering} offline={props.offline} ctx={ctx} />}
+      {active?.trigger.kind === 'chat' && <ActiveTurn turn={active} answering={props.answering} offline={props.offline} ctx={ctx} />}
+      {active?.trigger.kind === 'agent-message' && (
+        <BackgroundTurn
+          turn={active}
+          message={background}
+          answering={props.answering}
+          offline={props.offline}
+          ctx={ctx}
+        />
+      )}
     </div>
   );
 }

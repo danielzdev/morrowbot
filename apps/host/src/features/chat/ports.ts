@@ -1,5 +1,6 @@
 import type {
   Agent,
+  AgentMessage,
   Attachment,
   AttachmentContent,
   BlockedGroup,
@@ -19,6 +20,13 @@ import type {
 import type { Prelude } from './prompt.ts';
 
 export type SessionState = 'clean' | 'diverged' | 'needs-seed';
+
+export interface QueuedRecord {
+  readonly id: string;
+  readonly threadId: string;
+  readonly text: string;
+  readonly createdAt: string;
+}
 
 export interface SessionKey {
   readonly pluginId: string;
@@ -53,6 +61,12 @@ export interface ChatStore {
     get(id: string): Message | undefined;
     listByThread(threadId: string): Message[];
   };
+  /** Messages sent while a turn ran that the agent has not seen yet. */
+  readonly queued: {
+    insert(record: QueuedRecord): void;
+    delete(id: string): boolean;
+    listByThread(threadId: string): QueuedRecord[];
+  };
   readonly generations: {
     insert(record: {
       readonly id: string;
@@ -66,11 +80,14 @@ export interface ChatStore {
     }): void;
     markDispatched(id: string, at: string): void;
     setAttemptedSessionRow(id: string, row: number): void;
+    setInputMessage(id: string, messageId: string): void;
     flushPartial(id: string, text: string): void;
-    settle(id: string, resultMessageId: string): void;
+    settle(id: string, resultMessageId: string | null): void;
+    hasInput(messageId: string): boolean;
     unsettled(): readonly {
       readonly id: string;
       readonly threadId: string;
+      readonly inputMessageId: string;
       readonly partialText: string;
     }[];
     byResultMessage(messageId: string): { readonly id: string; readonly inputMessageId: string } | undefined;
@@ -113,6 +130,16 @@ export interface AgentDirectory {
   get(id: string): Agent | undefined;
   delete(id: string): boolean;
   readInstructions(id: string): Promise<string | undefined>;
+}
+
+export type ReplyAnswer = { readonly kind: 'sent' } | { readonly kind: 'refused'; readonly reason: string };
+
+/** Messages from other agents, each read once in a background turn (the agent-messages feature provides them). */
+export interface AgentInbox {
+  /** Messages no turn has read yet, oldest first: those to `threadId`, or to every chat when null. */
+  waiting(threadId: string | null): AgentMessage[];
+  /** Sends `text` from the chat `message` arrived in, as its recipient's reply. */
+  reply(message: AgentMessage, text: string): ReplyAnswer;
 }
 
 /** `superseded`: Recheck or a daemon exit moved the daemon revision while it was asked. */
@@ -164,6 +191,8 @@ export interface ProviderPlugins {
   /** Retires the plugin's daemon (if any) and asks a fresh provider-info; the caller has closed admission. */
   recheck(pluginId: string): Promise<RecheckAnswer>;
   cancelTurn(pluginId: string, turnId: string): void;
+  /** Sends the user's message into a running turn; the plugin answers with `steer-delivered` or `steer-refused`. */
+  steerTurn(pluginId: string, turnId: string, steerId: string, text: string): void;
   replyApproval(pluginId: string, turnId: string, approvalId: string, choiceId: string): void;
   /** Whether any process group (live or blocked) still belongs to the generation. */
   holdsGeneration(generationId: string): boolean;
@@ -185,6 +214,7 @@ export interface TurnContext {
 export interface ChatServiceOptions {
   readonly store: ChatStore;
   readonly agents: AgentDirectory;
+  readonly inbox: AgentInbox;
   readonly context: TurnContext;
   readonly plugins: ProviderPlugins;
   readonly newId: () => string;

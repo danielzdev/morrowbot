@@ -7,6 +7,7 @@ import { defineProvider, runPlugin, type AccessProfile, type PluginConfig, type 
  * A test provider. It answers with its greeting and the prompt; some prompts pick a behavior.
  * The `account` file in its data folder, when present, overrides the account it is signed in to.
  * With `sessions` on it keeps fake vendor sessions, so the host's session rules can be exercised.
+ * `steerable` takes a steer mid-turn; `gate` runs until a `gate` file appears in its data folder.
  * A prompt whose first line is `nothing-new` gets only the stay-quiet marker back, as a routine's agent would send.
  */
 let config: PluginConfig = {};
@@ -61,7 +62,7 @@ runPlugin((runtime) =>
         }
       }
     },
-    turn: async ({ request, signal, emit }) => {
+    turn: async ({ request, signal, emit, onSteer }) => {
       const current = account();
       if (request.expectedAccountKey !== '' && current !== request.expectedAccountKey) {
         return end({ kind: 'failed', error: { kind: 'account-changed' } }, current, { sessionTouched: false });
@@ -123,6 +124,21 @@ runPlugin((runtime) =>
         case 'describe':
           emit({ kind: 'text', text: ` ${JSON.stringify({ session: request.session, system: request.system, selection: request.selection, expectedAccountKey: request.expectedAccountKey })}` });
           return end({ kind: 'completed', finishReason: 'stop' }, current);
+        case 'steerable': {
+          const steered = await new Promise<string | null>((resolve) => {
+            onSteer((steer) => {
+              emit({ kind: 'steer-delivered', steerId: steer.steerId });
+              resolve(steer.text);
+            });
+            signal.addEventListener('abort', () => { resolve(null); }, { once: true });
+          });
+          if (steered === null) return end({ kind: 'cancelled' }, current);
+          emit({ kind: 'text', text: ` heard: ${steered}` });
+          return end({ kind: 'completed', finishReason: 'stop' }, current);
+        }
+        case 'gate':
+          while (!existsSync(path.join(dataDir, 'gate')) && !signal.aborted) await new Promise((resolve) => setTimeout(resolve, 20));
+          return end(signal.aborted ? { kind: 'cancelled' } : { kind: 'completed', finishReason: 'stop' }, current);
         case 'sleep': {
           const command = runtime.openCommand('/bin/sleep', { args: ['30'], cwd: request.cwd, files: [], scope: { kind: 'turn', turnId: request.turnId }, signal, onLine: () => undefined });
           command.end();

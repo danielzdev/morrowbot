@@ -1,7 +1,7 @@
 import { rm } from 'node:fs/promises';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { SendMessageResponse } from '@morrowbot/contracts';
+import { StartedSend } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { type CodexFixture, NATIVE, startCodexFixture, turnMethods } from '../../testing/codex-fixture.ts';
 import { until } from '../../testing/daemon-fixture.ts';
@@ -19,7 +19,7 @@ afterEach(async () => {
 
 async function sendAndWait(thread: { readonly id: string }, text: string, sessionChoice?: { readonly kind: string }): Promise<string> {
   const reply = await codex.post(thread, text, sessionChoice);
-  const { generationId } = SendMessageResponse.parse(reply.body);
+  const { generationId } = StartedSend.parse(reply.body);
   await codex.events.finished(generationId);
   return generationId;
 }

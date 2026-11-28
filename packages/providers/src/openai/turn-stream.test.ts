@@ -131,3 +131,35 @@ it('drops another thread\'s events heard before the turn is named', async () => 
   stream.hear({ kind: 'exited' });
   expect({ chunks, finish: await stream.finished }).toEqual({ chunks: [], finish: { kind: 'exited' } });
 });
+
+it('delivers a steer when Codex starts the user message turn/steer sent with its clientId, once', () => {
+  const chunks: TurnChunk[] = [];
+  const stream = createTurnStream({ threadId: 'thread-1', home: null, emit: (chunk) => chunks.push(chunk), tokens: countTokens({ kind: 'new-thread' }, () => null), onRateLimitHint: () => undefined, onAnnounced: () => undefined });
+  stream.begin('turn-1');
+  stream.expectSteer('client-1', 'steer-1');
+  // The prompt's own user message and a steer's, as Codex 0.171 sent them (ids and times shortened).
+  const userMessage = (method: string, clientId: string | null, text: string): DaemonEvent => ({
+    kind: 'notification',
+    method,
+    params: {
+      item: { type: 'userMessage', id: `item-${text}`, clientId, content: [{ type: 'text', text, text_elements: [] }], startedAtMs: 1, completedAtMs: null },
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      startedAtMs: 1,
+    },
+  });
+  stream.hear(userMessage('item/started', null, 'Run cat on each file.'));
+  stream.hear(userMessage('item/started', 'client-1', 'Also, what is 3+3?'));
+  stream.hear(userMessage('item/completed', 'client-1', 'Also, what is 3+3?'));
+  expect({ chunks, droppedAfterDelivery: stream.dropSteer('client-1') }).toMatchInlineSnapshot(`
+    {
+      "chunks": [
+        {
+          "kind": "steer-delivered",
+          "steerId": "steer-1",
+        },
+      ],
+      "droppedAfterDelivery": false,
+    }
+  `);
+});

@@ -37,10 +37,10 @@ function textOf(message: Message): string {
   return text;
 }
 
-/** Every loaded message (rendered or not) and the streaming reply, oldest first. */
+/** Every loaded message (rendered or not) and the streaming reply, oldest first. A background turn's text is not a reply. */
 export function searchableOf(view: ThreadView): Searchable[] {
   const items = view.messages.map((message) => ({ id: message.id, text: textOf(message) }));
-  const active = view.activeTurn?.text ?? '';
+  const active = view.activeTurn?.trigger.kind === 'chat' ? view.activeTurn.text : '';
   return active === '' ? items : [...items, { id: ACTIVE_ID, text: plainText(parseMarkdown(active)) }];
 }
 

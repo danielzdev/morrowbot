@@ -170,7 +170,7 @@ export class EventClient {
   /** The thread events of one generation, without cursors. */
   of(generationId: string): unknown[] {
     return this.received
-      .filter((event) => event.kind !== 'usage.updated' && event.generationId === generationId)
+      .filter((event) => event.kind !== 'usage.updated' && event.kind !== 'queue.changed' && event.generationId === generationId)
       .map((event) => {
         if (event.kind === 'usage.updated') return event;
         return Object.fromEntries(Object.entries(event).filter(([key]) => key !== 'cursor'));

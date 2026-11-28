@@ -3,7 +3,6 @@ import { MenuButton } from '../../shared/ui/Menu.tsx';
 import { IconButton } from '../../shared/ui/Tooltip.tsx';
 import { NameInput } from '../../shared/ui/NameInput.tsx';
 import { sectionLabel, type Section } from './sidebar-groups.ts';
-import { collapsible } from './sidebar-window.ts';
 
 export interface SectionHeaderProps {
   readonly section: Section;
@@ -30,23 +29,19 @@ export function SectionHeader(props: SectionHeaderProps) {
   }
   return (
     <div class="section-header">
-      {collapsible(section) ? (
-        <button
-          type="button"
-          class="section-toggle"
-          aria-expanded={!props.collapsed}
-          aria-label={`${label}, ${String(props.count)} ${props.count === 1 ? 'agent' : 'agents'}`}
-          onClick={props.onToggle}
-          onDblClick={() => {
-            if (section.kind === 'folder') props.onRename();
-          }}
-        >
-          <span class="section-title">{label}</span>
-          <Icon name={props.collapsed ? 'chevron-right' : 'chevron-down'} />
-        </button>
-      ) : (
+      <button
+        type="button"
+        class="section-toggle"
+        aria-expanded={!props.collapsed}
+        aria-label={`${label}, ${String(props.count)} ${props.count === 1 ? 'agent' : 'agents'}`}
+        onClick={props.onToggle}
+        onDblClick={() => {
+          if (section.kind === 'folder') props.onRename();
+        }}
+      >
         <span class="section-title">{label}</span>
-      )}
+        <Icon name={props.collapsed ? 'chevron-right' : 'chevron-down'} />
+      </button>
       <span class="spacer" />
       {section.kind === 'agents' && <IconButton icon="folder-plus" label="New folder" onClick={props.onNewFolder} />}
       {section.kind === 'folder' && (

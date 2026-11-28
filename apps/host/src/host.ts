@@ -2,8 +2,8 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { mkdir, realpath } from 'node:fs/promises';
 import { hostname } from 'node:os';
 import path from 'node:path';
-import type { PluginStatusEvent } from '@morrowbot/contracts';
-import { createAgentMessageService } from './features/agent-messages/index.ts';
+import { SendAgentMessageRequest, type PluginStatusEvent } from '@morrowbot/contracts';
+import { createAgentMessageService, type SendRefusal } from './features/agent-messages/index.ts';
 import { createAgentService, createFolderService } from './features/agents/index.ts';
 import { startApiServer } from './features/api/index.ts';
 import { createAttachmentService, type AttachmentService } from './features/attachments/index.ts';
@@ -138,9 +138,25 @@ export async function startHost(options: HostOptions): Promise<Host> {
     await attachments.sweep();
     const memories = createMemoryService({ records: storage.memories, agentExists: (id) => agents.get(id) !== undefined, newId, now });
     const skillsDir = path.join(dataDir, 'skills');
+    const agentMessages = createAgentMessageService({
+      records: storage.agentMessages,
+      agentExists: (id) => agents.get(id) !== undefined,
+      threads: storage.threads,
+      newId,
+      now,
+    });
     const chat = createChatService({
       store: chatStore(storage),
       agents,
+      inbox: {
+        waiting: (threadId) => storage.agentMessages.waiting(threadId),
+        reply: (message, text) => {
+          const request = SendAgentMessageRequest.safeParse({ kind: 'reply', replyToMessageId: message.id, text, expectsReply: false });
+          if (!request.success) return { kind: 'refused', reason: request.error.issues.map((issue) => issue.message).join('; ') };
+          const sent = agentMessages.send(message.to.agentId, request.data);
+          return sent.kind === 'sent' ? { kind: 'sent' } : { kind: 'refused', reason: refusalReason(sent) };
+        },
+      },
       context: turnContext(skillsDir, memories, attachments),
       plugins: providerPlugins(plugins),
       newId,
@@ -149,12 +165,19 @@ export async function startHost(options: HostOptions): Promise<Host> {
       report,
     });
     undo.push(() => chat.close());
+    const stopReading = agentMessages.subscribe((message) => {
+      chat.readAgentMessages(message.to.threadId);
+    });
+    undo.push(() => {
+      stopReading();
+    });
+    chat.readAgentMessages(null);
     const routines = createRoutineService({
       store: { routines: storage.routines, runs: storage.routineRuns, waits: storage.waits, transaction: (work) => storage.transaction(work) },
       chat: {
         agentExists: (id) => agents.get(id) !== undefined,
         createThread: (agentId, request) => chat.createThread(agentId, request),
-        send: (threadId, text, choice, mode) => chat.send(threadId, text, [], choice, mode),
+        send: (threadId, text, choice) => chat.sendUnattended(threadId, text, choice),
         deleteThread: (id) => chat.deleteThread(id),
         subscribe: (listener) => chat.subscribe(listener),
       },
@@ -230,13 +253,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
           releaseGroup: (regId) => plugins.releaseGroup(regId),
         },
         pairing: createPairingService({ records: storage.devices, newId, now }),
-        agentMessages: createAgentMessageService({
-          records: storage.agentMessages,
-          agentExists: (id) => agents.get(id) !== undefined,
-          threads: storage.threads,
-          newId,
-          now,
-        }),
+        agentMessages,
         routines,
         t3Watches,
       },
@@ -256,6 +273,10 @@ export async function startHost(options: HostOptions): Promise<Host> {
     await unwind();
     throw error;
   }
+}
+
+function refusalReason(refusal: SendRefusal): string {
+  return refusal.kind === 'not-found' ? `${refusal.what} not found` : refusal.reason;
 }
 
 /** Runs `cleanup` once `work` removed something; a failed cleanup is reported, never returned. */
@@ -292,6 +313,7 @@ function chatStore(storage: Storage): Parameters<typeof createChatService>[0]['s
     attachments: storage.attachments,
     threads: storage.threads,
     messages: storage.messages,
+    queued: storage.queued,
     generations: storage.generations,
     sessions: storage.sessions,
     usage: storage.usage,
@@ -319,6 +341,9 @@ function providerPlugins(plugins: PluginHost): ProviderPlugins {
     recheck: (pluginId) => plugins.recheck(pluginId),
     cancelTurn: (pluginId, turnId) => {
       plugins.cancelTurn(pluginId, turnId);
+    },
+    steerTurn: (pluginId, turnId, steerId, text) => {
+      plugins.steerTurn(pluginId, turnId, steerId, text);
     },
     replyApproval: (pluginId, turnId, approvalId, choiceId) => {
       plugins.replyApproval(pluginId, turnId, approvalId, choiceId);

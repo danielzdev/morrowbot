@@ -63,7 +63,7 @@ export async function startRun(
   });
   let admitted: ChatAdmit;
   try {
-    admitted = await chat.send(thread.id, promptFor(routine, input), { kind: 'auto' }, 'background');
+    admitted = await chat.send(thread.id, promptFor(routine, input), { kind: 'auto' });
   } catch (error) {
     stop();
     context.report(error);
@@ -97,6 +97,8 @@ function resultOf(message: AssistantMessage, finishedAt: string): FinishedResult
       return { kind: 'failed', finishedAt, reason: 'The run was stopped.' };
     case 'interrupted':
       return { kind: 'failed', finishedAt, reason: 'The run was interrupted.' };
+    case 'steered':
+      return { kind: 'failed', finishedAt, reason: 'The run was stopped for your message.' };
     case 'failed':
       return { kind: 'failed', finishedAt, reason: providerFailure(outcome.error) };
   }

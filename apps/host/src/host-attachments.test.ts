@@ -1,6 +1,6 @@
 import { readdir } from 'node:fs/promises';
 import path from 'node:path';
-import { Attachment, MessageList, SendMessageResponse } from '@morrowbot/contracts';
+import { Attachment, MessageList, StartedSend } from '@morrowbot/contracts';
 import { afterEach, expect, it } from 'vitest';
 import { hidePid, startChatFixture, type ChatFixture } from './testing/chat-fixture.ts';
 
@@ -20,7 +20,7 @@ it('sends an uploaded image and text file with the message, and the provider get
   const image = Attachment.parse((await upload({ kind: 'image', name: 'screen shot.png', mimeType: 'image/png', data: PNG }))?.body);
   const notes = Attachment.parse((await upload({ kind: 'text', name: 'notes.md', text: '# Notes\nWater on Tuesdays.' }))?.body);
   const sent = await chat.host.call('POST', `/api/threads/${thread.id}/messages`, { text: 'describe-input', attachmentIds: [image.id, notes.id] });
-  await chat.events.finished(SendMessageResponse.parse(sent.body).generationId);
+  await chat.events.finished(StartedSend.parse(sent.body).generationId);
   const messages = MessageList.parse((await chat.host.call('GET', `/api/threads/${thread.id}/messages`)).body).messages;
   expect(messages.map((message) => ({ ...message, text: hidePid(message.text) }))).toMatchInlineSnapshot(`
     [
@@ -69,7 +69,7 @@ it('refuses a file that is not the image type it claims, and an attachment sent 
   const upload = (body: unknown) => chat?.host.call('POST', `/api/threads/${thread.id}/attachments`, body);
   const image = Attachment.parse((await upload({ kind: 'image', name: 'a.png', mimeType: 'image/png', data: PNG }))?.body);
   await chat.events.finished(
-    SendMessageResponse.parse((await chat.host.call('POST', `/api/threads/${thread.id}/messages`, { text: '', attachmentIds: [image.id] })).body).generationId,
+    StartedSend.parse((await chat.host.call('POST', `/api/threads/${thread.id}/messages`, { text: '', attachmentIds: [image.id] })).body).generationId,
   );
   expect({
     disguised: (await upload({ kind: 'image', name: 'b.jpg', mimeType: 'image/jpeg', data: PNG }))?.body,

@@ -7,7 +7,6 @@ import type {
   SessionChoice,
   SessionChoiceReason,
   Thread,
-  TurnMode,
   Wait,
 } from '@morrowbot/contracts';
 
@@ -57,7 +56,8 @@ export type ChatAdmit =
 export interface RoutineChat {
   agentExists(agentId: string): boolean;
   createThread(agentId: string, request: { readonly title: string }): Thread | undefined;
-  send(threadId: string, text: string, choice: SessionChoice, mode: TurnMode): Promise<ChatAdmit>;
+  /** An unattended send: refused as busy rather than queued, and its turn denies instead of asking for approval. */
+  send(threadId: string, text: string, choice: SessionChoice): Promise<ChatAdmit>;
   deleteThread(id: string): Promise<boolean>;
   subscribe(listener: (event: ChatEvent) => void): () => void;
 }

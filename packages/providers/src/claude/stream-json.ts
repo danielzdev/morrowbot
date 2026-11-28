@@ -10,6 +10,8 @@ export type CliLine =
   | { readonly kind: 'result'; readonly result: CliResult }
   | { readonly kind: 'control'; readonly request: ControlRequest }
   | { readonly kind: 'rate-limit'; readonly rateLimit: RateLimit }
+  /** A user message from stdin, echoed back (`--replay-user-messages`) once Claude Code has taken it. */
+  | { readonly kind: 'replayed'; readonly uuid: string }
   | { readonly kind: 'skip' }
   | { readonly kind: 'malformed'; readonly problem: string };
 
@@ -53,6 +55,8 @@ const AssistantLine = z.looseObject({
 
 const UserLine = z.looseObject({
   parent_tool_use_id: ParentToolUseId,
+  uuid: z.string().optional(),
+  isReplay: z.boolean().optional(),
   message: z.looseObject({
     content: z.union([
       z.string(),
@@ -159,7 +163,8 @@ function assistant({ parent_tool_use_id, message }: z.infer<typeof AssistantLine
   );
 }
 
-function user({ parent_tool_use_id, message }: z.infer<typeof UserLine>): CliLine {
+function user({ parent_tool_use_id, uuid, isReplay, message }: z.infer<typeof UserLine>): CliLine {
+  if (isReplay === true && uuid !== undefined) return { kind: 'replayed', uuid };
   if (parent_tool_use_id || typeof message.content === 'string') return SKIP;
   return chunks(
     message.content.flatMap((block): TurnChunk[] =>

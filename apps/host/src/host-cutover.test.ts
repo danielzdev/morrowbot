@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
-import { MessageList, SendMessageResponse } from '@morrowbot/contracts';
+import { MessageList, StartedSend } from '@morrowbot/contracts';
 import { afterEach, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { MIGRATIONS } from './features/storage/index.ts';
@@ -66,7 +66,7 @@ it('upgrades a #4 data folder and answers the next two messages through the buil
   events.subscribe('t1', null);
   for (const text of ['next step?', 'and then?']) {
     const reply = await host.call('POST', '/api/threads/t1/messages', { text, sessionChoice: { kind: 'auto' } });
-    await events.finished(SendMessageResponse.parse(reply.body).generationId);
+    await events.finished(StartedSend.parse(reply.body).generationId);
   }
   const agent = (await host.call('GET', '/api/agents/a1')).body;
   const { messages } = MessageList.parse((await host.call('GET', '/api/threads/t1/messages')).body);

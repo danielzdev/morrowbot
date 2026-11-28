@@ -1,4 +1,4 @@
-import { SendMessageResponse } from '@morrowbot/contracts';
+import { StartedSend } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { hidePid, startChatFixture, type ChatFixture } from './testing/chat-fixture.ts';
 
@@ -15,7 +15,7 @@ it('streams a reply through the echo plugin and stores it with its usage', async
   const agent = await chat.agent();
   const thread = await chat.thread(agent);
   const reply = await chat.send(thread, 'hello');
-  const { generationId } = SendMessageResponse.parse(reply.body);
+  const { generationId } = StartedSend.parse(reply.body);
   expect(reply.status).toBe(202);
   expect(JSON.parse(hidePid(JSON.stringify(chat.events.of(generationId))))).toMatchInlineSnapshot(`
     [

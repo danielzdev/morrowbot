@@ -1,4 +1,4 @@
-import type { AgentMessage, Message } from '@morrowbot/contracts';
+import { MAX_EXCHANGE_MESSAGES, type AgentMessage, type Message, type TurnOutcome } from '@morrowbot/contracts';
 
 /** One row of the timeline: a chat message, or the agent messages that arrived between two chat messages. */
 export type TimelineItem =
@@ -70,4 +70,25 @@ export function summarize(messages: readonly AgentMessage[], threadId: string): 
 export function replyNote(message: AgentMessage): string {
   if (message.expectsReply) return 'Expects a reply';
   return message.replyToMessageId === null ? 'No reply needed' : 'Reply';
+}
+
+/** The quiet line of a background turn reading `message` (undefined while it is not loaded). */
+export function backgroundVerb(message: AgentMessage | undefined): string {
+  if (message === undefined) return 'Reading a message';
+  return message.expectsReply && message.depth + 1 < MAX_EXCHANGE_MESSAGES ? 'Replying to' : 'Reading a message from';
+}
+
+/** What a received message's card says when the background turn reading it ended early; null when it finished. */
+export function readNote(outcome: TurnOutcome | undefined): string | null {
+  switch (outcome?.kind) {
+    case undefined:
+    case 'completed':
+      return null;
+    case 'cancelled':
+      return 'Stopped while reading';
+    case 'interrupted':
+      return 'Interrupted while reading';
+    case 'failed':
+      return 'Failed while reading';
+  }
 }

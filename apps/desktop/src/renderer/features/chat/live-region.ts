@@ -9,11 +9,15 @@ export type AnnounceMode = 'status' | 'replies';
 const MAX_REPLY_CHARS = 600;
 
 /**
- * What the polite live region says after the view changes (spec §4.1): a turn starting, an
- * approval request, a finished reply or an error. Never streamed text, and nothing on first load.
+ * What the polite live region says after the view changes (spec §4.1): a message queued or seen, a
+ * turn starting, an approval request, a finished reply or an error. Never streamed text, and nothing
+ * on first load. A background turn stays quiet unless it needs an approval.
  */
 export function viewAnnouncement(before: ThreadView | null, after: ThreadView, agent: string, context: CopyContext, mode: AnnounceMode): string | null {
   if (before === null) return null;
+  const queued = (view: ThreadView, id: string): boolean => view.queue.some((entry) => entry.id === id);
+  if (before.queue.some(({ id }) => !queued(after, id) && after.messages.some((message) => message.id === id))) return `${agent} has your message.`;
+  if (after.queue.some(({ id }) => !queued(before, id))) return `Queued: ${agent} hasn't seen it yet.`;
   const seen = before.messages === after.messages ? null : new Set(before.messages.map(({ id }) => id));
   const reply = seen === null ? undefined : after.messages.findLast((message) => message.kind === 'assistant' && !seen.has(message.id));
   if (reply?.kind === 'assistant') {
@@ -23,12 +27,14 @@ export function viewAnnouncement(before: ThreadView | null, after: ThreadView, a
     }
     const copy = outcomeCopy(outcome, context);
     if (outcome.kind === 'cancelled') return `${agent} stopped.`;
+    if (outcome.kind === 'steered') return `${agent} paused for your message.`;
     return outcome.kind === 'completed' ? `${agent} replied. ${copy.text ?? ''}`.trim() : `${agent}'s reply failed. ${copy.text ?? ''}`.trim();
   }
   const turn = after.activeTurn;
   if (turn === null) return null;
   const pendingBefore = new Set(before.activeTurn === null ? [] : pendingApprovals(before.activeTurn).map(({ approvalId }) => approvalId));
   if (pendingApprovals(turn).some(({ approvalId }) => !pendingBefore.has(approvalId))) return `${agent} needs approval.`;
+  if (turn.trigger.kind === 'agent-message') return null;
   if (before.activeTurn?.generationId !== turn.generationId) return turn.state === 'queued' ? `${agent} is queued.` : `${agent} is working.`;
   return null;
 }
