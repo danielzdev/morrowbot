@@ -219,7 +219,7 @@ it('does not start the provider when it is disabled, and keeps it off in safe mo
   host = undefined;
   const safeErrors: unknown[] = [];
   const safe = await startHost({
-    config: { hostname: '127.0.0.1', port: 0, safeMode: true, dataDir: path.join(home, 'data'), pluginsDir: path.join(home, 'data', 'plugins'), builtinPluginsDir: null, t3Watch: { dir: path.join(home, 'data', 't3-watch'), bin: '/nonexistent/t3', projects: [] } },
+    config: { hostname: '127.0.0.1', port: 0, safeMode: true, dataDir: path.join(home, 'data'), pluginsDir: path.join(home, 'data', 'plugins'), builtinPluginsDir: null, t3Watch: { dir: path.join(home, 'data', 't3-watch'), bin: '/nonexistent/t3', projects: [], routineId: null } },
     version: '0.0.0-test',
     onPluginStatus: () => undefined,
     ...sequence(),
