@@ -5,6 +5,7 @@ export type {
   PluginDefinition,
   ProviderHooks,
   ProviderPlugin,
+  Steer,
   ToolPlugin,
   TurnContext,
 } from './plugin.ts';

@@ -102,7 +102,11 @@ function withCursor(event: NewThreadEvent, cursor: Cursor): ChatEvent {
       return { ...event, cursor };
     case 'generation.approval-resolved':
       return { ...event, cursor };
+    case 'generation.steered':
+      return { ...event, cursor };
     case 'generation.finished':
+      return { ...event, cursor };
+    case 'queue.changed':
       return { ...event, cursor };
     case 'generation.background-started':
       return { ...event, cursor };

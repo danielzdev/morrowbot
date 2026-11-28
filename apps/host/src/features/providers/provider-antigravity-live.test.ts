@@ -1,7 +1,7 @@
 import { access, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { Agent, MessageList, SendMessageResponse, Thread, UsageResponse } from '@morrowbot/contracts';
+import { Agent, MessageList, StartedSend, Thread, UsageResponse } from '@morrowbot/contracts';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { AGY } from '../../testing/agy-fixture.ts';
@@ -37,7 +37,7 @@ afterEach(async () => {
 
 async function send(thread: Thread, text: string): Promise<string> {
   const reply = await host.call('POST', `/api/threads/${thread.id}/messages`, { text, sessionChoice: { kind: 'auto' } });
-  const { generationId } = SendMessageResponse.parse(reply.body);
+  const { generationId } = StartedSend.parse(reply.body);
   await events.finished(generationId);
   return generationId;
 }

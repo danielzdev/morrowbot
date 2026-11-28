@@ -1,4 +1,4 @@
-import { SendMessageResponse, StopGenerationResponse, ThreadState } from '@morrowbot/contracts';
+import { StartedSend, StopGenerationResponse, ThreadState } from '@morrowbot/contracts';
 import { afterEach, expect, it } from 'vitest';
 import { systemProbe, type ProcessProbe } from './features/plugins/index.ts';
 import { hidePid, startChatFixture, type ChatFixture } from './testing/chat-fixture.ts';
@@ -38,7 +38,7 @@ it('answers Stop once a group is blocked, keeps the thread busy, and frees it on
   chat = await startChatFixture({ probe, clock: { now: () => new Date().toISOString(), monotonic: () => performance.now() + skipped } });
   const agent = await chat.agent();
   const thread = await chat.thread(agent);
-  const sent = SendMessageResponse.parse((await chat.host.call('POST', `/api/threads/${thread.id}/messages`, { text: 'sleep' })).body);
+  const sent = StartedSend.parse((await chat.host.call('POST', `/api/threads/${thread.id}/messages`, { text: 'sleep' })).body);
   const groups = chat.host.host.plugins.groups;
   await until(() => groups.groupsOf(new Set([sent.generationId])).length > 0);
   stick();
@@ -70,7 +70,7 @@ it('answers Stop once a group is blocked, keeps the thread busy, and frees it on
           "releasable": false,
         },
       ],
-      "busy": 409,
+      "busy": 202,
       "early": {
         "error": {
           "kind": "conflict",

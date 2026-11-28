@@ -3,7 +3,7 @@ import { access, chmod, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { Agent, MessageList, SendMessageResponse, Thread, UsageResponse } from '@morrowbot/contracts';
+import { Agent, MessageList, StartedSend, Thread, UsageResponse } from '@morrowbot/contracts';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { CODEX } from '../../testing/codex-fixture.ts';
@@ -60,7 +60,7 @@ async function agentThread(): Promise<{ readonly thread: Thread; readonly worksp
 
 async function send(thread: Thread, text: string): Promise<string> {
   const reply = await host.call('POST', `/api/threads/${thread.id}/messages`, { text, sessionChoice: { kind: 'auto' } });
-  const { generationId } = SendMessageResponse.parse(reply.body);
+  const { generationId } = StartedSend.parse(reply.body);
   await events.finished(generationId);
   return generationId;
 }

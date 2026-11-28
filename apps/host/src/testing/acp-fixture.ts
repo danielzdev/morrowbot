@@ -1,7 +1,7 @@
 import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { SendMessageResponse, type ChatEvent, type ProviderBinding, type Thread } from '@morrowbot/contracts';
+import { StartedSend, type ChatEvent, type ProviderBinding, type Thread } from '@morrowbot/contracts';
 import { z } from 'zod';
 import { startChatFixture, type ChatFixture } from './chat-fixture.ts';
 import type { Reply, TestHostOptions } from './test-host.ts';
@@ -81,7 +81,7 @@ export async function startAcpFixture(setup: AcpFixtureSetup, options: Partial<T
     },
     daemonPgids: () => chat.host.host.plugins.groups.daemons(binding.pluginId).map((row) => row.pgid),
     post,
-    start: async (thread, text, sessionChoice) => SendMessageResponse.parse((await post(thread, text, sessionChoice)).body).generationId,
+    start: async (thread, text, sessionChoice) => StartedSend.parse((await post(thread, text, sessionChoice)).body).generationId,
     answer: async (thread, generationId, choiceId) => {
       const requested = (event: ChatEvent): boolean => event.kind === 'generation.approval-requested' && event.generationId === generationId;
       await chat.events.until(requested);
@@ -89,9 +89,9 @@ export async function startAcpFixture(setup: AcpFixtureSetup, options: Partial<T
       const approvalId = card?.kind === 'generation.approval-requested' ? card.approval.approvalId : '';
       return (await chat.host.call('POST', `/api/threads/${thread.id}/approvals/${approvalId}`, { generationId, choiceId })).status;
     },
-    turnEvents: (generationId) => chat.events.received.filter((event) => event.kind !== 'usage.updated' && event.generationId === generationId),
+    turnEvents: (generationId) => chat.events.received.filter((event) => event.kind !== 'usage.updated' && event.kind !== 'queue.changed' && event.generationId === generationId),
     steps: (generationId) =>
-      chat.events.received.flatMap((event) => (event.kind !== 'usage.updated' && event.generationId === generationId ? describeStep(event).map((line) => line.replaceAll(home, '$HOME')) : [])),
+      chat.events.received.flatMap((event) => (event.kind !== 'usage.updated' && event.kind !== 'queue.changed' && event.generationId === generationId ? describeStep(event).map((line) => line.replaceAll(home, '$HOME')) : [])),
     close: async () => {
       await chat.close();
       process.env.HOME = previousHome;
@@ -114,7 +114,9 @@ function describeStep(event: ChatEvent): string[] {
       return [`card resolved: ${JSON.stringify(event.resolution)}`];
     case 'generation.started':
     case 'generation.delta':
+    case 'generation.steered':
     case 'generation.finished':
+    case 'queue.changed':
     case 'generation.background-started':
     case 'generation.background-finished':
     case 'usage.updated':

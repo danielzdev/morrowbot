@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { PluginList, SendMessageResponse, StopGenerationResponse } from '@morrowbot/contracts';
+import { PluginList, QueuedSend, StartedSend, StopGenerationResponse } from '@morrowbot/contracts';
 import { afterEach, expect, it } from 'vitest';
 import { DEFAULT_PLUGIN_TIMEOUTS, systemProbe } from './features/plugins/index.ts';
 import { openStorage } from './features/storage/index.ts';
@@ -16,7 +16,7 @@ afterEach(async () => {
 
 async function start(fixture: DaemonFixture, threadId: string, text: string): Promise<string> {
   const reply = await fixture.host.call('POST', `/api/threads/${threadId}/messages`, { text });
-  return SendMessageResponse.parse(reply.body).generationId;
+  return StartedSend.parse(reply.body).generationId;
 }
 
 async function turnsSeen(fixture: DaemonFixture): Promise<number> {
@@ -101,7 +101,7 @@ it('stops a daemon that ignores interrupt with kill-child-group, then a worker k
   const startedDuringRetire = (await fixture.daemonEvents()).filter((line) => line.startsWith('info true') || line.includes('d2'));
   const stopped = StopGenerationResponse.parse((await stopping).body);
   await fixture.events.finished(second);
-  await fixture.events.finished(SendMessageResponse.parse((await meanwhile).body).generationId);
+  await fixture.events.finished(StartedSend.parse((await meanwhile).body).generationId);
   const next = await fixture.send(ignoring, 'after');
   expect({
     startedDuringRetire,
@@ -186,7 +186,7 @@ it('on an unexpected daemon exit holds new work and settles its turns once the e
   holding = false;
   await fixture.events.finished(exited);
   await fixture.events.finished(shared);
-  const next = SendMessageResponse.parse((await pending).body);
+  const next = StartedSend.parse((await pending).body);
   await fixture.events.finished(next.generationId);
   expect({
     settledWhileChecking,
@@ -208,7 +208,7 @@ it('on an unexpected daemon exit holds new work and settles its turns once the e
         1,
         1,
       ],
-      "heldThread": 409,
+      "heldThread": 202,
       "histories": [
         [
           "user: exit",
@@ -264,7 +264,7 @@ it('disabling the plugin mid-turn keeps the daemon link, so the thread stays hel
   await fixture.events.finished(generationId);
   const rows = fixture.daemonRows().map((row) => ({ state: row.state, linked: row.generationIds.includes(generationId) }));
   const send = async () => (await fixture.host.call('POST', `/api/threads/${thread.id}/messages`, { text: 'again' })).body;
-  const whileHeld = await send();
+  const whileHeld = QueuedSend.parse(await send()).queued.state;
   holding = false;
   await until(() => fixture.daemonRows().length === 0);
   expect({ disabled, rows, whileHeld, afterRelease: await send(), history: await fixture.history(thread) }).toMatchInlineSnapshot(`
@@ -287,10 +287,7 @@ it('disabling the plugin mid-turn keeps the daemon link, so the thread stays hel
         },
       ],
       "whileHeld": {
-        "error": {
-          "kind": "conflict",
-          "message": "This thread is already generating a reply. Stop it first.",
-        },
+        "kind": "queued",
       },
     }
   `);
@@ -310,7 +307,7 @@ it('shares one daemon start between concurrent cold sends', async () => {
   await sleep(100);
   await fixture.setFlag('pause-info', false);
   const sent = await Promise.all(sends);
-  for (const reply of sent) await fixture.events.finished(SendMessageResponse.parse(reply.body).generationId);
+  for (const reply of sent) await fixture.events.finished(StartedSend.parse(reply.body).generationId);
   expect({ statuses: sent.map((reply) => reply.status), events: (await fixture.daemonEvents()).sort() }).toMatchInlineSnapshot(`
     {
       "events": [

@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promi
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Agent, MessageList, SendMessageResponse, Thread, UsageResponse, type AccessLevel, type ChatEvent, type ProviderBinding } from '@morrowbot/contracts';
+import { Agent, MessageList, StartedSend, Thread, UsageResponse, type AccessLevel, type ChatEvent, type ProviderBinding } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { startTestHost, type EventClient, type TestHost } from '../../testing/test-host.ts';
 
@@ -47,7 +47,7 @@ async function agentThread(access: AccessLevel): Promise<{ readonly thread: Thre
 
 async function start(thread: Thread, text: string): Promise<string> {
   const reply = await host.call('POST', `/api/threads/${thread.id}/messages`, { text, sessionChoice: { kind: 'auto' } });
-  return SendMessageResponse.parse(reply.body).generationId;
+  return StartedSend.parse(reply.body).generationId;
 }
 
 /** Waits for the turn's approval card and answers it with `choiceId`. */

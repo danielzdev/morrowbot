@@ -20,6 +20,8 @@ export type AdmitResult =
 export type AdmitInput =
   | { readonly kind: 'send'; readonly text: string; readonly attachmentIds: readonly string[]; readonly mode: TurnMode }
   | { readonly kind: 'continue'; readonly failedMessageId: string }
+  /** A queued message, delivered as the user message with its own id; `prompt` is what the provider reads. */
+  | { readonly kind: 'queued'; readonly id: string; readonly text: string; readonly prompt: string }
   | { readonly kind: 'agent-message'; readonly message: AgentMessage; readonly prompt: string };
 
 type Ready = {
@@ -128,13 +130,14 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
   const { plan } = decision;
   const at = core.options.now();
   const generationId = core.options.newId();
-  const turnSource = sourceFor(source, (text) => ({ kind: 'user', id: core.options.newId(), threadId, text, createdAt: at, attachments }));
-  const userMessage = source.kind === 'new' && turnSource.kind === 'chat' ? turnSource.message : null;
+  const turnSource = sourceFor(source, (text, id = core.options.newId()) => ({ kind: 'user', id, threadId, text, createdAt: at, attachments }));
+  const userMessage = (source.kind === 'new' || source.kind === 'queued') && turnSource.kind === 'chat' ? turnSource.message : null;
   store.transaction(() => {
     if (userMessage !== null) {
       store.messages.insert(userMessage);
       store.threads.touch(threadId, at);
     }
+    if (source.kind === 'queued') store.queued.delete(source.id);
     store.generations.insert({
       id: generationId,
       threadId,
@@ -176,6 +179,7 @@ export async function admit(core: ChatCore, threadId: string, input: AdmitInput,
     boundRow: null,
     fenced: false,
     stopRequested: false,
+    steer: null,
     approvals: new Map(),
     settled: Promise.withResolvers(),
     released: Promise.withResolvers(),
@@ -226,30 +230,35 @@ function check(core: ChatCore, threadId: string): Checked {
 
 type Source =
   | { readonly kind: 'new'; readonly text: string; readonly attachmentIds: readonly string[] }
+  | { readonly kind: 'queued'; readonly id: string; readonly text: string; readonly prompt: string }
   | { readonly kind: 'existing'; readonly message: UserMessage }
   | { readonly kind: 'background'; readonly message: AgentMessage; readonly prompt: string }
   | { readonly kind: 'refused'; readonly reason: string };
 
-/** What the turn answers: a send's new message (made by `fresh`), a Continue's saved one, or the agent message. */
-function sourceFor(source: Exclude<Source, { kind: 'refused' }>, fresh: (text: string) => UserMessage): TurnSource {
+/** What the turn answers: a send's or queued message's new message (made by `fresh`), a Continue's saved one, or the agent message. */
+function sourceFor(source: Exclude<Source, { kind: 'refused' }>, fresh: (text: string, id?: string) => UserMessage): TurnSource {
   switch (source.kind) {
     case 'new':
-      return { kind: 'chat', message: fresh(source.text) };
+      return { kind: 'chat', message: fresh(source.text), prompt: source.text };
+    case 'queued':
+      return { kind: 'chat', message: fresh(source.text, source.id), prompt: source.prompt };
     case 'existing':
-      return { kind: 'chat', message: source.message };
+      return { kind: 'chat', message: source.message, prompt: source.message.text };
     case 'background':
       return { kind: 'agent-message', message: source.message, prompt: source.prompt };
   }
 }
 
 /**
- * A send's new text, the saved input of the failed or interrupted latest turn being continued, or an agent
- * message no turn has read yet.
+ * A send's or queued message's new text, the saved input of the failed or interrupted latest turn being
+ * continued, or an agent message no turn has read yet.
  */
 function sourceOf(core: ChatCore, messages: readonly Message[], input: AdmitInput): Source {
   switch (input.kind) {
     case 'send':
       return { kind: 'new', text: input.text, attachmentIds: input.attachmentIds };
+    case 'queued':
+      return input;
     case 'agent-message':
       return core.options.store.generations.hasInput(input.message.id)
         ? { kind: 'refused', reason: 'This message was already read.' }

@@ -11,6 +11,7 @@ import { generationRepository, type GenerationRepository } from './generations-r
 import { memoryRepository, type MemoryRepository } from './memories-repo.ts';
 import { messageRepository, type MessageRepository } from './messages-repo.ts';
 import { pluginSettingsRepository, type PluginSettingsRepository } from './plugins-repo.ts';
+import { queuedRepository, type QueuedRepository } from './queued-repo.ts';
 import { routineRunRepository, type RoutineRunRepository } from './routine-runs-repo.ts';
 import { routineRepository, type RoutineRepository } from './routines-repo.ts';
 import { migrate } from './schema.ts';
@@ -25,6 +26,7 @@ export interface Storage {
   readonly folders: FolderRepository;
   readonly threads: ThreadRepository;
   readonly messages: MessageRepository;
+  readonly queued: QueuedRepository;
   readonly plugins: PluginSettingsRepository;
   readonly generations: GenerationRepository;
   readonly sessions: SessionRepository;
@@ -57,6 +59,7 @@ export function openStorage(file: string, now: () => string): Storage {
       folders: folderRepository(db),
       threads: threadRepository(db),
       messages: messageRepository(db),
+      queued: queuedRepository(db),
       plugins: pluginSettingsRepository(db, now),
       generations: generationRepository(db),
       sessions: sessionRepository(db),

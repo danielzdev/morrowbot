@@ -1,5 +1,5 @@
 import { rm } from 'node:fs/promises';
-import { MessageList, SendMessageResponse, ThreadState, type Thread } from '@morrowbot/contracts';
+import { MessageList, StartedSend, ThreadState, type Thread } from '@morrowbot/contracts';
 import { afterEach, expect, it } from 'vitest';
 import { DEFAULT_PLUGIN_TIMEOUTS } from './features/plugins/index.ts';
 import { hidePid, startChatFixture, type ChatFixture } from './testing/chat-fixture.ts';
@@ -13,7 +13,7 @@ afterEach(async () => {
 
 async function start(fixture: ChatFixture, thread: Thread, text: string): Promise<string> {
   const reply = await fixture.host.call('POST', `/api/threads/${thread.id}/messages`, { text });
-  return SendMessageResponse.parse(reply.body).generationId;
+  return StartedSend.parse(reply.body).generationId;
 }
 
 async function state(fixture: ChatFixture, thread: Thread): Promise<ThreadState> {

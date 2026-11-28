@@ -1,4 +1,4 @@
-import { SendMessageResponse } from '@morrowbot/contracts';
+import { StartedSend } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { type CodexFixture, NATIVE, startCodexFixture, turnMethods } from '../../testing/codex-fixture.ts';
 import { until } from '../../testing/daemon-fixture.ts';
@@ -18,7 +18,7 @@ const CUSTOM = { config: { ...NATIVE.config, openai_base_url: 'https://api.opena
 
 async function sendAndWait(thread: { readonly id: string }, text: string, sessionChoice?: { readonly kind: string }): Promise<unknown> {
   const reply = await codex.post(thread, text, sessionChoice);
-  const sent = SendMessageResponse.safeParse(reply.body);
+  const sent = StartedSend.safeParse(reply.body);
   if (!sent.success) return { status: reply.status, body: reply.body };
   await codex.events.finished(sent.data.generationId);
   return reply.status;
@@ -88,7 +88,7 @@ it('native → custom runs stateless ephemeral turns with no prompt; custom → 
 it('a route change between route-info and the turn ends route-changed with nothing sent, and leaves another turn running', async () => {
   const agent = await codex.agent();
   const [stalled, changed] = [await codex.thread(agent, 'A'), await codex.thread(agent, 'B')];
-  const running = SendMessageResponse.parse((await codex.post(stalled, 'stall')).body).generationId;
+  const running = StartedSend.parse((await codex.post(stalled, 'stall')).body).generationId;
   await until(async () => (await codex.log()).some((entry) => entry.method === 'turn/start'));
   await codex.switchAfter(1, { config: { ...NATIVE.config, chatgpt_base_url: 'https://gateway.example.com/backend-api/' } });
   const from = await logLength();
@@ -297,7 +297,7 @@ it('publishes plan usage only on the native route, and refuses a quota answer fo
 it('a rate-limit notification during a native turn reads usage again and sends it with the turn; a usage-limit failure is rate-limited', async () => {
   const thread = await codex.thread(await codex.agent());
   const reply = await codex.post(thread, 'hint');
-  const { generationId } = SendMessageResponse.parse(reply.body);
+  const { generationId } = StartedSend.parse(reply.body);
   await codex.events.finished(generationId);
   const updates = codex.events.received.filter((event) => event.kind === 'usage.updated');
   await sendAndWait(thread, 'fail-limit');

@@ -51,6 +51,7 @@ async function turn(session: TurnRequest['session'], prompt: string): Promise<un
       chunks.push(chunk);
     },
     ask: () => Promise.reject(new Error('no approvals in this test')),
+    onSteer: () => undefined,
   });
   return { outcome: end.outcome, chunks: chunks.filter((chunk) => chunk.kind !== 'model-options-changed') };
 }

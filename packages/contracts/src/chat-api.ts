@@ -7,6 +7,7 @@ import { AssistantMessage, Message, UserMessage } from './messages.ts';
 import { PluginManifest } from './plugin-manifest.ts';
 import { PluginStatus } from './plugin-runtime.ts';
 import { PluginConfig } from './plugin-settings.ts';
+import { QueuedMessage } from './queue.ts';
 import { AccountKey, ApprovalChoice, ProviderInfo, TurnOutcome, UsageResult } from './provider.ts';
 import { Thread } from './threads.ts';
 
@@ -67,7 +68,14 @@ export const SendMessageRequest = z
   .refine((request) => new Set(request.attachmentIds).size === request.attachmentIds.length, { error: 'Attach each file once' });
 export type SendMessageRequest = z.infer<typeof SendMessageRequest>;
 
-export const SendMessageResponse = z.strictObject({ generationId: EntityId, userMessage: UserMessage });
+export const StartedSend = z.strictObject({ kind: z.literal('started'), generationId: EntityId, userMessage: UserMessage });
+export type StartedSend = z.infer<typeof StartedSend>;
+
+/** A send while the thread is busy is queued: the agent sees it later, or now with Steer now. */
+export const QueuedSend = z.strictObject({ kind: z.literal('queued'), queued: QueuedMessage });
+export type QueuedSend = z.infer<typeof QueuedSend>;
+
+export const SendMessageResponse = z.discriminatedUnion('kind', [StartedSend, QueuedSend]);
 export type SendMessageResponse = z.infer<typeof SendMessageResponse>;
 
 /** Runs the failed or interrupted latest turn again with its saved input. */
@@ -143,6 +151,8 @@ export const ThreadState = z.strictObject({
   thread: Thread,
   messages: z.array(Message),
   activeTurn: ActiveTurn.nullable(),
+  /** Messages sent while a turn ran that the agent has not seen yet, oldest first. */
+  queue: z.array(QueuedMessage),
   blockedGroups: z.array(BlockedGroup),
   cursor: Cursor,
 });
@@ -250,7 +260,14 @@ export const ChatEvent = z.discriminatedUnion('kind', [
     approvalId: z.string().min(1),
     resolution: ApprovalResolution,
   }),
+  /**
+   * A queued message reached the running turn: the reply so far is saved as `segment` (outcome
+   * `steered`), then `userMessage`; the turn goes on with fresh text after them.
+   */
+  z.strictObject({ kind: z.literal('generation.steered'), ...ThreadEvent, segment: AssistantMessage, userMessage: UserMessage }),
   z.strictObject({ kind: z.literal('generation.finished'), ...ThreadEvent, message: AssistantMessage }),
+  /** The thread's whole queue as it is now. */
+  z.strictObject({ kind: z.literal('queue.changed'), threadId: EntityId, cursor: Cursor, queue: z.array(QueuedMessage) }),
   /** A background turn started on a message from another agent. It adds nothing to the chat's messages. */
   z.strictObject({ kind: z.literal('generation.background-started'), ...ThreadEvent, agentMessageId: EntityId, state: TurnState }),
   /**

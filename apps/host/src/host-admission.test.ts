@@ -1,6 +1,6 @@
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { MessageList, SendMessageResponse, type Thread } from '@morrowbot/contracts';
+import { MessageList, StartedSend, type Thread } from '@morrowbot/contracts';
 import { afterEach, expect, it } from 'vitest';
 import { DEFAULT_PLUGIN_TIMEOUTS } from './features/plugins/index.ts';
 import { ECHO, hidePid, startChatFixture, type ChatFixture } from './testing/chat-fixture.ts';
@@ -14,7 +14,7 @@ afterEach(async () => {
 
 async function start(fixture: ChatFixture, thread: Thread, text: string): Promise<string> {
   const reply = await fixture.host.call('POST', `/api/threads/${thread.id}/messages`, { text });
-  return SendMessageResponse.parse(reply.body).generationId;
+  return StartedSend.parse(reply.body).generationId;
 }
 
 it('refuses an access level the provider withholds, with its reason, and writes nothing', async () => {

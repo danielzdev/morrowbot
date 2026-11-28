@@ -33,6 +33,10 @@ export interface TurnStream {
   finalText(): string | null;
   /** A model Codex rerouted the turn to, or null. */
   reroutedTo(): string | null;
+  /** Watches for the user message a `turn/steer` sent with `clientId`: its `item/started` is the steer's delivery. */
+  expectSteer(clientId: string, steerId: string): void;
+  /** Stops watching for a steer Codex refused; false once it was delivered. */
+  dropSteer(clientId: string): boolean;
 }
 
 export interface StreamOptions {
@@ -52,6 +56,7 @@ export function createTurnStream(options: StreamOptions): TurnStream {
   const finished = Promise.withResolvers<Finish>();
   const early: DaemonEvent[] = [];
   const tools = new Set<string>();
+  const steers = new Map<string, string>();
   let turnId: string | null = null;
   let announced: string | null = null;
   let lastMessage: string | null = null;
@@ -146,6 +151,14 @@ export function createTurnStream(options: StreamOptions): TurnStream {
     const parsed = ItemEvent.safeParse(params);
     if (!parsed.success || parsed.data.threadId !== threadId || parsed.data.turnId !== turnId) return;
     const { item: entry } = parsed.data;
+    if (entry.type === 'userMessage') {
+      const steerId = entry.clientId == null ? undefined : steers.get(entry.clientId);
+      if (method === 'item/started' && entry.clientId != null && steerId !== undefined) {
+        steers.delete(entry.clientId);
+        emit({ kind: 'steer-delivered', steerId });
+      }
+      return;
+    }
     if (entry.type === 'reasoning') {
       if (method === 'item/started') emit({ kind: 'status', text: 'Thinking' });
       return;
@@ -188,6 +201,10 @@ export function createTurnStream(options: StreamOptions): TurnStream {
     finished: finished.promise,
     finalText: () => lastMessage,
     reroutedTo: () => rerouted,
+    expectSteer: (clientId, steerId) => {
+      steers.set(clientId, steerId);
+    },
+    dropSteer: (clientId) => steers.delete(clientId),
   };
 }
 

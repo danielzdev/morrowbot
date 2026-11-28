@@ -52,11 +52,17 @@ function approvalFor(ctx: TimelineContext, answering: readonly string[], offline
 
 const NO_ANSWERS: readonly string[] = [];
 
+const STEERED_IN = 'Steered in · seen by the agent';
+
+const steered = (message: Message | undefined): boolean => message?.kind === 'assistant' && message.outcome.kind === 'steered';
+
 const MessageItem = memo(function MessageItem(props: {
   readonly message: Message;
   readonly finished: FinishedTurn | undefined;
   readonly latest: boolean;
   readonly busy: boolean;
+  /** A user message sent into the reply above it with Steer now. */
+  readonly steeredIn: boolean;
   readonly ctx: TimelineContext;
 }) {
   const { message, finished, ctx } = props;
@@ -65,6 +71,7 @@ const MessageItem = memo(function MessageItem(props: {
       <div class="message user" data-message-id={message.id}>
         {message.attachments.length > 0 && <SentAttachments attachments={message.attachments} image={ctx.image} />}
         {message.text !== '' && <div class="bubble" data-find-id={message.id}>{message.text}</div>}
+        {props.steeredIn && <div class="steered-in">{STEERED_IN}</div>}
       </div>
     );
   }
@@ -165,6 +172,7 @@ export function Timeline(props: {
   const { messages, finished } = view;
   const unwatched = useMemo(() => messages.some((message) => message.kind === 'assistant' && !(message.id in finished)), [messages, finished]);
   const last = messages.at(-1);
+  const steeredIn = useMemo(() => new Set(messages.flatMap((message, index) => (message.kind === 'user' && steered(messages[index - 1]) ? [message.id] : []))), [messages]);
   const items = useMemo(() => timelineItems(messages, view.agentMessages, start), [messages, view.agentMessages, start]);
   const active = view.activeTurn;
   const reading = active?.trigger.kind === 'agent-message' ? active.trigger.agentMessageId : null;
@@ -193,6 +201,7 @@ export function Timeline(props: {
             message={item.message}
             finished={finished[item.message.id]}
             latest={item.message === last}
+            steeredIn={steeredIn.has(item.message.id)}
             busy={item.message === last && (!props.idle || props.locked || props.offline)}
             ctx={ctx}
           />

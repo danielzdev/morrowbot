@@ -10,8 +10,8 @@ import {
   UpdateThreadRequest,
 } from '@morrowbot/contracts';
 import { refusal } from './admit-reply.ts';
-import type { ApiServices } from './ports.ts';
-import { failure, json, noContent, notFound } from './reply.ts';
+import type { ApiQueueAnswer, ApiServices } from './ports.ts';
+import { failure, json, noContent, notFound, type Reply } from './reply.ts';
 import { parseBody, type Route } from './route.ts';
 
 export function threadRoutes({ chat }: ApiServices): Route[] {
@@ -93,11 +93,26 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
         if (request.kind === 'rejected') return request.reply;
         const { text, attachmentIds, sessionChoice } = request.value;
         const result = await chat.send(context.params.get('id'), text, attachmentIds, sessionChoice);
+        if (result.kind === 'queued') {
+          const body: SendMessageResponse = { kind: 'queued', queued: result.queued };
+          return json(202, body);
+        }
+        if (result.kind === 'files_wait') return failure('conflict', 'Files can be sent once this reply ends. Send the text alone to queue it.');
         if (result.kind !== 'started') return refusal(result);
         if (result.userMessage === null) return failure('internal', 'The send started without its message');
-        const body: SendMessageResponse = { generationId: result.generationId, userMessage: result.userMessage };
+        const body: SendMessageResponse = { kind: 'started', generationId: result.generationId, userMessage: result.userMessage };
         return json(202, body);
       },
+    },
+    {
+      method: 'DELETE',
+      path: '/api/threads/:id/queue/:queuedId',
+      handle: ({ params }) => queueReply(chat.cancelQueued(params.get('id'), params.get('queuedId')), noContent),
+    },
+    {
+      method: 'POST',
+      path: '/api/threads/:id/queue/:queuedId/steer',
+      handle: ({ params }) => queueReply(chat.steerQueued(params.get('id'), params.get('queuedId')), noContent),
     },
     {
       method: 'POST',
@@ -140,4 +155,15 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
       },
     },
   ];
+}
+
+function queueReply(answer: ApiQueueAnswer, ok: () => Reply): Reply {
+  switch (answer.kind) {
+    case 'ok':
+      return ok();
+    case 'not_found':
+      return notFound('Queued message');
+    case 'conflict':
+      return failure('conflict', answer.reason);
+  }
 }

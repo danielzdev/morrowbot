@@ -242,3 +242,97 @@ describe('turn reader', () => {
     `);
   });
 });
+
+/** A steer's stdin frame echoed back by `--replay-user-messages`, as 2.1.332 prints it. */
+const echo = (uuid: string, text: string) => ({ type: 'user', message: { role: 'user', content: text }, parent_tool_use_id: null, session_id: 's', uuid, isReplay: true });
+
+/** Like `replay`, with one steer written (as `uuid` u-1) once `steerAt` lines have been read. */
+function replaySteer(lines: readonly unknown[], steerAt: number) {
+  const chunks: TurnChunk[] = [];
+  let closed = false;
+  const reader = createTurnReader(
+    { home: HOME },
+    {
+      emit: (chunk) => chunks.push(TurnChunk.parse(chunk)),
+      usage: () => undefined,
+      control: () => undefined,
+      done: () => {
+        closed = true;
+      },
+    },
+  );
+  const taken: boolean[] = [];
+  lines.forEach((line, index) => {
+    if (index === steerAt) taken.push(reader.expect('u-1', 'steer-1'));
+    reader.read(json(line));
+  });
+  taken.push(reader.expect('u-2', 'steer-2'));
+  const end = TurnEnd.parse(reader.finish(EXITED, { cliPath: 'claude', accountKey: 'key', cancelled: false }));
+  return { taken, closed, chunks: chunks.map((chunk) => (chunk.kind === 'text' ? chunk.text : chunk.kind === 'steer-delivered' ? `delivered ${chunk.steerId}` : chunk.kind)), end: { finalText: end.finalText, usage: end.usage } };
+}
+
+describe('steers', () => {
+  it('delivers a steer Claude Code takes at a tool result, and ends at the one result', () => {
+    expect(
+      replaySteer([init, toolUse('toolu_01', {}), toolResult('toolu_01'), echo('u-1', 'what is 2+2?'), textDelta('4. Carrying on.'), success('4. Carrying on.')], 2),
+    ).toMatchInlineSnapshot(`
+      {
+        "chunks": [
+          "status",
+          "tool-start",
+          "tool-end",
+          "delivered steer-1",
+          "4. Carrying on.",
+        ],
+        "closed": true,
+        "end": {
+          "finalText": "4. Carrying on.",
+          "usage": {
+            "cacheWriteTokens": 3083,
+            "cachedInputTokens": 9355,
+            "inputTokens": 4,
+            "kind": "reported",
+            "outputTokens": 395,
+            "reasoningTokens": null,
+          },
+        },
+        "taken": [
+          true,
+          false,
+        ],
+      }
+    `);
+  });
+
+  it('keeps the turn open past a result while a steer is not echoed, then ends at the reply to it, adding both usages', () => {
+    expect(
+      replaySteer([init, textDelta('A story.'), success('A story.'), init, echo('u-1', 'make it a cat'), textDelta(' Now with a cat.'), success('Now with a cat.')], 1),
+    ).toMatchInlineSnapshot(`
+      {
+        "chunks": [
+          "status",
+          "A story.",
+          "status",
+          "delivered steer-1",
+          " Now with a cat.",
+        ],
+        "closed": true,
+        "end": {
+          "finalText": "Now with a cat.",
+          "usage": {
+            "cacheWriteTokens": 6166,
+            "cachedInputTokens": 18710,
+            "inputTokens": 8,
+            "kind": "reported",
+            "outputTokens": 790,
+            "reasoningTokens": null,
+          },
+        },
+        "taken": [
+          true,
+          false,
+        ],
+      }
+    `);
+  });
+});
