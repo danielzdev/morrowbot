@@ -4,6 +4,8 @@ import type {
   Message,
   PendingApproval,
   PluginEntry,
+  QueuedMessage,
+  QueuedMessageState,
   Thread,
   ThreadState,
   TurnOutcome,
@@ -21,6 +23,7 @@ type Active = NonNullable<ThreadState['activeTurn']>;
 const ok = <T>(value: T): Promise<ChatResult<T>> => Promise.resolve({ kind: 'ok', value });
 const missing = <T>(what: string): Promise<ChatResult<T>> =>
   Promise.resolve({ kind: 'failed', status: 404, error: { kind: 'not_found', message: `${what} not found` } });
+const conflict = <T>(message: string): Promise<ChatResult<T>> => Promise.resolve({ kind: 'failed', status: 409, error: { kind: 'conflict', message } });
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => {
     setTimeout(resolve, ms);
@@ -42,6 +45,7 @@ export function createSampleChatHost(now: () => string = () => new Date().toISOS
   const watchers = new Map<string, Set<ThreadWatcher>>();
   const pluginListeners = new Set<(entry: PluginEntry) => void>();
   const answers = new Map<string, (choiceId: string | null) => void>();
+  const queues = new Map<string, QueuedMessage[]>();
   let counter = 0;
   const nextId = (prefix: string): string => `${prefix}-${String(++counter)}`;
 
@@ -52,12 +56,50 @@ export function createSampleChatHost(now: () => string = () => new Date().toISOS
     for (const watcher of watchers.get(threadId) ?? []) watcher.onEvent(frame);
   };
 
+  const setQueue = (threadId: string, queue: QueuedMessage[]): void => {
+    queues.set(threadId, queue);
+    const seq = (seqs.get(threadId) ?? 0) + 1;
+    seqs.set(threadId, seq);
+    for (const watcher of watchers.get(threadId) ?? []) watcher.onEvent({ kind: 'queue.changed', threadId, cursor: { hostEpoch: EPOCH, seq }, queue: [...queue] });
+  };
+  const queueOf = (threadId: string): QueuedMessage[] => queues.get(threadId) ?? [];
+  const delivered = (item: QueuedMessage): UserMessage => ({ kind: 'user', id: item.id, threadId: item.threadId, text: item.text, createdAt: now(), attachments: [] });
+
+  /** Ends the turn. A finished reply sends the next queued message; a stopped one holds the queue. */
   const finish = (threadId: string, turn: Active, outcome: TurnOutcome): AssistantMessage => {
     const message: AssistantMessage = { kind: 'assistant', id: nextId('reply'), threadId, text: turn.text, createdAt: now(), outcome };
     active.delete(threadId);
     messages.set(threadId, [...(messages.get(threadId) ?? []), message]);
     emit(threadId, turn.generationId, { kind: 'generation.finished', message });
+    const waiting = queueOf(threadId).filter(({ state }) => state.kind !== 'held');
+    if (waiting.length === 0) return message;
+    if (outcome.kind !== 'completed') {
+      const held: QueuedMessageState = { kind: 'held', reason: 'Not sent: you stopped the reply.' };
+      setQueue(threadId, queueOf(threadId).map((item) => (item.state.kind === 'held' ? item : { ...item, state: held })));
+      return message;
+    }
+    const [next] = waiting;
+    if (next !== undefined) {
+      setQueue(threadId, queueOf(threadId).filter(({ id }) => id !== next.id));
+      start(threadId, delivered(next), next.text);
+    }
     return message;
+  };
+
+  /** Steer now into a running turn: after a beat, the reply so far is saved as steered, and the turn answers the message. */
+  const steerInto = async (threadId: string, turn: Active, item: QueuedMessage): Promise<void> => {
+    setQueue(threadId, queueOf(threadId).map((each) => (each.id === item.id ? { ...each, state: { kind: 'steering', via: 'native' } } : each)));
+    await sleep(STEP_MS * 4);
+    if (active.get(threadId) !== turn) return;
+    for (const approval of turn.pendingApprovals) answers.get(approval.approvalId)?.(null);
+    const segment: AssistantMessage = { kind: 'assistant', id: nextId('reply'), threadId, text: turn.text, createdAt: now(), outcome: { kind: 'steered' } };
+    const userMessage = delivered(item);
+    const resumed: Active = { ...turn, text: '', pendingApprovals: [] };
+    active.set(threadId, resumed);
+    messages.set(threadId, [...(messages.get(threadId) ?? []), segment, userMessage]);
+    emit(threadId, turn.generationId, { kind: 'generation.steered', segment, userMessage });
+    setQueue(threadId, queueOf(threadId).filter(({ id }) => id !== item.id));
+    void run(threadId, resumed, item.text);
   };
 
   const stream = async (threadId: string, turn: Active, text: string): Promise<boolean> => {
@@ -142,7 +184,7 @@ export function createSampleChatHost(now: () => string = () => new Date().toISOS
       activeTurn: turn === undefined ? null : copy(turn),
       blockedGroups: [],
       subagents: [],
-      queue: [],
+      queue: [...queueOf(thread.id)],
       cursor: { hostEpoch: EPOCH, seq: seqs.get(thread.id) ?? 0 },
     };
   };
@@ -157,7 +199,11 @@ export function createSampleChatHost(now: () => string = () => new Date().toISOS
       return ok(created);
     },
     send: (threadId, text) => {
-      if (active.has(threadId)) return Promise.resolve({ kind: 'failed', status: 409, error: { kind: 'conflict', message: 'A reply is already running.' } });
+      if (active.has(threadId)) {
+        const queued: QueuedMessage = { id: nextId('msg'), threadId, text, createdAt: now(), state: { kind: 'queued' } };
+        setQueue(threadId, [...queueOf(threadId), queued]);
+        return ok({ kind: 'queued', queued });
+      }
       const userMessage: UserMessage = { kind: 'user', id: nextId('msg'), threadId, text, createdAt: now(), attachments: [] };
       return ok({ kind: 'started', generationId: start(threadId, userMessage, text), userMessage });
     },
@@ -172,6 +218,26 @@ export function createSampleChatHost(now: () => string = () => new Date().toISOS
       if (turn === undefined) return ok({ kind: 'idle' });
       for (const approval of turn.pendingApprovals) answers.get(approval.approvalId)?.(null);
       return ok({ kind: 'stopped', message: finish(threadId, turn, { kind: 'cancelled' }) });
+    },
+    steerQueued: (threadId, queuedId) => {
+      const item = queueOf(threadId).find(({ id }) => id === queuedId);
+      if (item === undefined) return missing('Queued message');
+      if (queueOf(threadId).some(({ state }) => state.kind === 'steering')) return conflict('Another message is already on its way to the agent.');
+      const turn = active.get(threadId);
+      if (turn !== undefined) {
+        void steerInto(threadId, turn, item);
+        return ok(null);
+      }
+      setQueue(threadId, queueOf(threadId).filter(({ id }) => id !== queuedId));
+      start(threadId, delivered(item), item.text);
+      return ok(null);
+    },
+    cancelQueued: (threadId, queuedId) => {
+      const item = queueOf(threadId).find(({ id }) => id === queuedId);
+      if (item === undefined) return missing('Queued message');
+      if (item.state.kind === 'steering') return conflict('This message is already on its way to the agent.');
+      setQueue(threadId, queueOf(threadId).filter(({ id }) => id !== queuedId));
+      return ok(null);
     },
     answerApproval: (_threadId, approvalId, reply) => {
       const answer = answers.get(approvalId);

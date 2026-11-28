@@ -83,6 +83,28 @@ it('stops a running turn', async () => {
   expect(stopped.kind === 'ok' && stopped.value.kind === 'stopped' ? stopped.value.message.outcome : stopped).toEqual({ kind: 'cancelled' });
 });
 
+it('queues a send while a turn runs, cancels one queued message and steers another into the reply', async () => {
+  const { chat, thread } = await pairedChat();
+  const told = watch(chat, thread.id);
+  await until(() => told.fresh === 1);
+  await chat.send(thread.id, 'steerable');
+  await until(() => told.events.some(({ kind }) => kind === 'generation.started'));
+  const [first, second] = [await chat.send(thread.id, 'never mind'), await chat.send(thread.id, 'go left')];
+  const id = (sent: typeof first) => (sent.kind === 'ok' && sent.value.kind === 'queued' ? sent.value.queued.id : 'none');
+  const cancelled = await chat.cancelQueued(thread.id, id(first));
+  const steered = await chat.steerQueued(thread.id, id(second));
+  await until(() => finished(told.events).length === 1);
+  const steeredIn = told.events.flatMap((event) => (event.kind === 'generation.steered' ? [event.userMessage.text] : []));
+  expect({
+    queued: [first, second].map((sent) => (sent.kind === 'ok' ? sent.value.kind : sent)),
+    cancelled: cancelled.kind,
+    steered: steered.kind,
+    steeredIn,
+    outcome: finished(told.events)[0]?.message.outcome.kind,
+    missing: (await chat.cancelQueued(thread.id, id(first))).kind === 'failed',
+  }).toEqual({ queued: ['queued', 'queued'], cancelled: 'ok', steered: 'ok', steeredIn: ['go left'], outcome: 'completed', missing: true });
+});
+
 it('answers 404 for an approval the host no longer has, as a stale card does', async () => {
   const { chat, thread } = await pairedChat();
   const told = watch(chat, thread.id);

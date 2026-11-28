@@ -1,6 +1,7 @@
 import type { ApiError } from '@morrowbot/contracts';
-import type { ChatHost } from '../../lib/chat-host.ts';
+import type { ChatHost, ChatResult } from '../../lib/chat-host.ts';
 import type { ThreadEvent } from '../../lib/host-connection.ts';
+import { queuedControls } from './composer-controls.ts';
 import { Store, type Loadable } from './store.ts';
 import { applyEvent, endApproval, pendingApprovals, viewOf, type ThreadView } from './thread-view.ts';
 
@@ -20,22 +21,11 @@ export interface ChatScreen {
   readonly busy: 'sending' | 'stopping' | null;
   /** Approval ids whose answer is on its way to the host. */
   readonly answering: readonly string[];
+  /** Queued messages whose Steer now, Edit or Cancel is on its way to the host. */
+  readonly queueActing: readonly string[];
   readonly problem: ComposerProblem | null;
   /** The link dropped or is catching up: the view is the last one seen, and every action waits for the next `/state`. */
   readonly stale: boolean;
-}
-
-/** The composer's one main button. */
-export type ComposerButton =
-  | { readonly kind: 'send'; readonly enabled: boolean }
-  | { readonly kind: 'stop'; readonly enabled: boolean };
-
-/** Send while the thread is idle, Stop while a turn is queued or running; neither while stale. */
-export function composerButton(screen: ChatScreen): ComposerButton {
-  if (screen.view.kind !== 'loaded') return { kind: 'send', enabled: false };
-  const ready = screen.busy === null && !screen.stale;
-  if (screen.view.value.activeTurn !== null || screen.busy === 'stopping') return { kind: 'stop', enabled: ready };
-  return { kind: 'send', enabled: ready && screen.draft.trim() !== '' };
 }
 
 function problemOf(error: ApiError['error'], action: PendingAction): ComposerProblem {
@@ -73,11 +63,16 @@ export interface ChatSession {
   retry(): Promise<void>;
   stop(): Promise<void>;
   answer(approvalId: string, choiceId: string): Promise<void>;
+  /** Steer now: the queued message goes into the running reply, or out as the next turn when nothing runs. */
+  steer(queuedId: string): Promise<void>;
+  /** Takes a queued message out of the queue and puts it back in the draft, above what is typed there. */
+  editQueued(queuedId: string): Promise<void>;
+  cancelQueued(queuedId: string): Promise<void>;
   close(): void;
 }
 
 export function openChatSession(host: ChatHost, threadId: string): ChatSession {
-  const screen = new Store<ChatScreen>({ view: { kind: 'loading' }, draft: '', busy: null, answering: [], problem: null, stale: false });
+  const screen = new Store<ChatScreen>({ view: { kind: 'loading' }, draft: '', busy: null, answering: [], queueActing: [], problem: null, stale: false });
   const patch = (change: Partial<ChatScreen>): void => {
     screen.update((current) => {
       const next = { ...current, ...change };
@@ -144,6 +139,28 @@ export function openChatSession(host: ChatHost, threadId: string): ChatSession {
     if (result.error.kind === 'conflict') load();
   }
 
+  /** The queued message, while the bubble still offers this action for it. */
+  function offered(queuedId: string, action: 'now' | 'edit') {
+    const current = screen.get();
+    if (current.view.kind !== 'loaded') return undefined;
+    const item = current.view.value.queue.find(({ id }) => id === queuedId);
+    if (item === undefined) return undefined;
+    const controls = queuedControls(current, item);
+    if (controls.kind === 'none') return undefined;
+    return (action === 'now' ? controls.now.enabled : controls.editable) ? item : undefined;
+  }
+
+  /** Runs one queue action; a refusal (it was delivered or changed meanwhile) shows the host's reason and reloads. */
+  async function onQueued(queuedId: string, act: () => Promise<ChatResult<null>>): Promise<boolean> {
+    patch({ queueActing: [...screen.get().queueActing, queuedId], problem: null });
+    const result = await act();
+    patch({ queueActing: screen.get().queueActing.filter((id) => id !== queuedId) });
+    if (result.kind === 'ok') return true;
+    patch({ problem: { kind: 'error', message: result.error.message } });
+    load();
+    return false;
+  }
+
   return {
     threadId,
     screen,
@@ -189,6 +206,18 @@ export function openChatSession(host: ChatHost, threadId: string): ChatSession {
         return;
       }
       patch({ problem: { kind: 'error', message: result.error.message } });
+    },
+    steer: async (queuedId) => {
+      if (offered(queuedId, 'now') !== undefined) await onQueued(queuedId, () => host.steerQueued(threadId, queuedId));
+    },
+    editQueued: async (queuedId) => {
+      const item = offered(queuedId, 'edit');
+      if (item === undefined || !(await onQueued(queuedId, () => host.cancelQueued(threadId, queuedId)))) return;
+      const typed = screen.get().draft.trim();
+      patch({ draft: typed === '' ? item.text : `${item.text}\n\n${typed}` });
+    },
+    cancelQueued: async (queuedId) => {
+      if (offered(queuedId, 'edit') !== undefined) await onQueued(queuedId, () => host.cancelQueued(threadId, queuedId));
     },
     close: () => {
       closed = true;
