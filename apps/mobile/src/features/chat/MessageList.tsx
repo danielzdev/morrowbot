@@ -35,7 +35,12 @@ function queueNote(message: QueuedMessage): string {
   }
 }
 
-function Outcome(props: { readonly message: AssistantMessage; readonly latest: boolean; readonly onContinue: () => void }) {
+function Outcome(props: {
+  readonly message: AssistantMessage;
+  readonly latest: boolean;
+  readonly disabled: boolean;
+  readonly onContinue: () => void;
+}) {
   const { colors } = useTheme();
   const note = outcomeNote(props.message);
   if (note === null) return null;
@@ -46,8 +51,14 @@ function Outcome(props: { readonly message: AssistantMessage; readonly latest: b
       {note.action !== null && props.latest ? (
         <Pressable
           accessibilityRole="button"
+          accessibilityState={{ disabled: props.disabled }}
+          disabled={props.disabled}
           onPress={props.onContinue}
-          style={({ pressed }) => [styles.continue, { backgroundColor: pressed ? colors.selected : colors.accentSoft }]}
+          style={({ pressed }) => [
+            styles.continue,
+            { backgroundColor: pressed ? colors.selected : colors.accentSoft },
+            props.disabled && styles.disabled,
+          ]}
         >
           <Text style={[typography.ui, styles.continueText, { color: colors.accent }]}>{note.action}</Text>
         </Pressable>
@@ -62,6 +73,8 @@ export function MessageList(props: {
   readonly activeTurn: ActiveTurnView | null;
   readonly queue: readonly QueuedMessage[];
   readonly answering: readonly string[];
+  /** The chat is catching up with the host: approvals and Continue wait. */
+  readonly stale: boolean;
   readonly bottomInset: number;
   readonly onAnswer: (approvalId: string, choiceId: string) => void;
   readonly onContinue: (failedMessageId: string) => void;
@@ -104,6 +117,7 @@ export function MessageList(props: {
             <Outcome
               message={message}
               latest={message === last && activeTurn === null}
+              disabled={props.stale}
               onContinue={() => {
                 props.onContinue(message.id);
               }}
@@ -128,7 +142,7 @@ export function MessageList(props: {
               <ApprovalCard
                 key={step.approval.approvalId}
                 step={step}
-                sending={props.answering.includes(step.approval.approvalId)}
+                answer={props.answering.includes(step.approval.approvalId) ? 'sending' : props.stale ? 'paused' : 'ready'}
                 onAnswer={(choiceId) => {
                   props.onAnswer(step.approval.approvalId, choiceId);
                 }}
@@ -155,4 +169,5 @@ const styles = StyleSheet.create({
   outcomeText: { flex: 1 },
   continue: { minHeight: 44, paddingHorizontal: spacing[5], borderRadius: radii.pill, justifyContent: 'center' },
   continueText: { fontWeight: '600' },
+  disabled: { opacity: 0.5 },
 });

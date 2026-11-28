@@ -56,7 +56,7 @@ function interpret<T>(status: number, text: string, request: HostRequest<T>): Ho
   if (status === 401) return { kind: 'unauthorized' };
   if (status < 200 || status >= 300) {
     const error = ApiErrorReply.safeParse(body);
-    return { kind: 'failed', status, message: error.success ? error.data.error.message : `The host answered ${String(status)}.` };
+    return { kind: 'failed', status, error: error.success ? error.data.error : { kind: 'internal', message: `The host answered ${String(status)}.` } };
   }
   const parsed = lenient(request.reply).safeParse(body);
   return parsed.success

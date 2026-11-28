@@ -1,4 +1,4 @@
-import type { Cursor, EntityId, EventServerFrame, ThreadState } from '@morrowbot/contracts';
+import type { ApiError, Cursor, EntityId, EventServerFrame, ThreadState } from '@morrowbot/contracts';
 import { createContext, useContext } from 'react';
 import type { z } from 'zod';
 import type { PairingTarget } from './pairing-link.ts';
@@ -36,7 +36,8 @@ export type HostResult<T> =
   | { readonly kind: 'unauthorized' }
   /** A `/api/ui/v1` route on a host that does not serve them. Nothing was sent. */
   | { readonly kind: 'unsupported' }
-  | { readonly kind: 'failed'; readonly status: number; readonly message: string }
+  /** The host refused. `error` is the host's own when it sent one, otherwise `internal` naming the status. */
+  | { readonly kind: 'failed'; readonly status: number; readonly error: ApiError['error'] }
   | { readonly kind: 'malformed'; readonly message: string };
 
 export type HostMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -70,6 +71,8 @@ export interface ThreadWatcher {
    * showing the last state marked as stale, with actions disabled, until the next `onFresh`.
    */
   readonly onStale: () => void;
+  /** The host has no such thread (404). Nothing retries until the thread is watched again. */
+  readonly onGone: () => void;
 }
 
 /**

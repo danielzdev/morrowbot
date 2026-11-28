@@ -23,9 +23,9 @@ export interface ExtensionsState {
 
 const Context = createContext<ExtensionsState | null>(null);
 
-/** Loads the host's plugins once for the Extensions tab and its detail screens. */
-export function ExtensionsHostProvider(props: { readonly host: ExtensionsHost; readonly children: ReactNode }) {
-  const { host } = props;
+/** Loads the host's plugins for the Extensions tab and its detail screens, again whenever the link is back `online`. */
+export function ExtensionsHostProvider(props: { readonly host: ExtensionsHost; readonly online: boolean; readonly children: ReactNode }) {
+  const { host, online } = props;
   const [plugins, setPlugins] = useState<LoadedPlugins>({ kind: 'loading' });
   const [segment, setSegment] = useState<ExtensionsSegment>('plugins');
   const [saving, setSaving] = useState<readonly string[]>([]);
@@ -35,7 +35,9 @@ export function ExtensionsHostProvider(props: { readonly host: ExtensionsHost; r
       setPlugins(result.kind === 'ok' ? { kind: 'loaded', list: result.value } : { kind: 'failed', message: result.error.message });
     });
   }, [host]);
-  useEffect(reload, [reload]);
+  useEffect(() => {
+    if (online) reload();
+  }, [reload, online]);
   useEffect(
     () =>
       host.onPluginChanged((entry) => {
