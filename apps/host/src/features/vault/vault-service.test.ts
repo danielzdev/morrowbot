@@ -28,16 +28,11 @@ afterEach(async () => {
 
 const sealedStore = (): SecretStore => encryptedFileStore({ file: path.join(sealedDir, 'vault-secrets.json'), keys: keyFileStore(path.join(dir, 'vault.key')) });
 
-/** How many sealed values `vault-secrets.json` holds. */
 async function storedValues(): Promise<number> {
   const text = await readFile(path.join(sealedDir, 'vault-secrets.json'), 'utf8');
   return Object.keys(z.object({ secrets: z.record(z.string(), z.unknown()) }).parse(JSON.parse(text)).secrets).length;
 }
 
-/**
- * A store where the host stops at `step`, never to answer: right after a write saves its value, or right before a
- * remove erases one. `reached` settles when it gets there.
- */
 function stopsAt(step: 'write' | 'remove'): { readonly store: SecretStore; readonly reached: Promise<undefined> } {
   const inner = sealedStore();
   const reached = Promise.withResolvers<undefined>();
@@ -239,7 +234,7 @@ it('drops a deleted item even when erasing its value fails, and erases that valu
   });
 });
 
-it('erases the new value of a change cut short before vault.json is saved, and keeps the secret it still points at', async () => {
+it('keeps the secret vault.json points at, and every value saved since, when a change is cut short before vault.json is saved', async () => {
   const id = idOf(await create(await open(), { kind: 'api_key', label: 'Weather', key: 'old' }));
   const updating = stopsAt('write');
   void update(await open(updating.store), id, { kind: 'api_key', key: 'new' });
@@ -252,10 +247,10 @@ it('erases the new value of a change cut short before vault.json is saved, and k
   const reopened = await open(sealedStore());
   expect({ afterUpdate, afterCreate, listed: reopened.list().map(({ label }) => label), resolved: used(await reopened.resolve(id)), valuesAfterReopen: await storedValues() }).toEqual({
     afterUpdate: 2,
-    afterCreate: 2,
+    afterCreate: 3,
     listed: ['Weather'],
     resolved: { label: 'Weather', key: 'old' },
-    valuesAfterReopen: 1,
+    valuesAfterReopen: 3,
   });
 });
 
@@ -270,17 +265,27 @@ it('erases the old value of a change cut short after vault.json is saved, and ke
 });
 
 it('keeps the secrets of items an older restored vault.json does not list, so they are back when the newer file is put back', async () => {
-  const vault = await open();
-  const kept = idOf(await create(vault, { kind: 'api_key', label: 'Weather', key: 'kept' }));
   const file = path.join(dir, 'vault.json');
-  const older = await readFile(file, 'utf8');
+  const inner = sealedStore();
+  const backups: string[] = [];
+  const backedUp: SecretStore = {
+    read: (ref) => inner.read(ref),
+    write: async (ref, secret) => {
+      backups.push(await readFile(file, 'utf8').catch(() => 'missing'));
+      await inner.write(ref, secret);
+    },
+    remove: (ref) => inner.remove(ref),
+  };
+  const vault = await open(backedUp);
+  const kept = idOf(await create(vault, { kind: 'api_key', label: 'Weather', key: 'kept' }));
   const added = idOf(await create(vault, { kind: 'api_key', label: 'Search', key: 'added later' }));
-  const newer = await readFile(file, 'utf8');
-  await writeFile(file, older);
+  const [, takenWhileSearchWasSaved = ''] = backups;
+  const newer = z.object({ entries: z.array(z.unknown()) }).parse(JSON.parse(await readFile(file, 'utf8')));
+  await writeFile(file, takenWhileSearchWasSaved);
   const restored = await open(sealedStore());
   const listed = restored.list().map(({ label }) => label);
   const valuesAfterRestore = await storedValues();
-  await writeFile(file, newer);
+  await writeFile(file, JSON.stringify({ version: 1, entries: newer.entries }));
   const back = await open(sealedStore());
   expect({ listed, valuesAfterRestore, back: [used(await back.resolve(kept)), used(await back.resolve(added))] }).toEqual({
     listed: ['Weather'],
