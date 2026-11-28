@@ -14,6 +14,33 @@ export function numberedModel(event: KeyboardEvent, shown: readonly ProviderMode
 
 const SEARCH_AT = 7;
 
+/** Which models are starred, and how to star or unstar one. */
+export interface Stars {
+  readonly starred: (modelId: string) => boolean;
+  readonly onToggle: (modelId: string) => void;
+}
+
+/** A row's golden star: filled when starred, else shown on hover. Not a tab stop: the row is. */
+export function StarButton(props: { readonly starred: boolean; readonly onToggle: () => void }) {
+  const label = props.starred ? 'Remove from favorites' : 'Add to favorites';
+  return (
+    <button
+      type="button"
+      tabIndex={-1}
+      class={`star-button ${props.starred ? 'starred' : ''}`}
+      aria-label={label}
+      aria-pressed={props.starred}
+      title={label}
+      onClick={(event) => {
+        event.stopPropagation();
+        props.onToggle();
+      }}
+    >
+      <Icon name="star" />
+    </button>
+  );
+}
+
 /**
  * The selected provider's models (spec §4.6): search, ⌘1–9, a check on the saved model and a
  * Recommended tag. "Default" is never a model label: Auto names who chooses instead.
@@ -26,6 +53,8 @@ export function ModelList(props: {
   readonly disabled: boolean;
   /** False while browsing another provider: nothing there is this agent's yet. */
   readonly showCurrent?: boolean;
+  /** The composer's stars; left out, rows have none (Agent Settings, New Agent). */
+  readonly stars?: Stars;
   readonly onPick: (model: ProviderModel) => void;
 }) {
   const [query, setQuery] = useState('');
@@ -89,9 +118,10 @@ export function ModelList(props: {
           <div ref={list} role="listbox" aria-label="Models" class="model-options">
             {shown.map((model, index) => {
               const selected = model.id === selectedId;
+              const { stars } = props;
               return (
+                <div key={model.id} role="none" class="model-row">
                 <button
-                  key={model.id}
                   type="button"
                   role="option"
                   aria-selected={selected}
@@ -109,6 +139,8 @@ export function ModelList(props: {
                   {model.isDefault && <span class="tag">Recommended</span>}
                   {index < 9 && <kbd>{`${PLATFORM === 'mac' ? '⌘' : 'Ctrl+'}${String(index + 1)}`}</kbd>}
                 </button>
+                {stars !== undefined && <StarButton starred={stars.starred(model.id)} onToggle={() => { stars.onToggle(model.id); }} />}
+                </div>
               );
             })}
             {shown.length === 0 && <p class="binding-note">No model matches.</p>}

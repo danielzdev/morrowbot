@@ -87,6 +87,7 @@ export const ROWS = {
     'Tint your outgoing chat bubbles to match each bot, use a custom color, or keep them neutral.',
     ['bubble', 'chat color', 'colour', 'match bot', 'outgoing'],
   ),
+  sendColor: row('appearance', 'send-color', 'Send button in agent color', "Color the Send button with the agent's color. Off, it is plain white or black with the theme.", ['send', 'button', 'colour', 'accent']),
   chatWidth: row('appearance', 'chat-width', 'Chat width', 'How wide the chat column gets: Normal is 720px, Wide is 920px.'),
   reduceMotion: row('appearance', 'reduce-motion', 'Reduce motion', "On stills avatars and slide-ins. Your system's reduce-motion setting always applies."),
   sendWith: row('chat', 'send-with', 'Send with', 'Which key sends your message. Shift+Enter always starts a new line.'),

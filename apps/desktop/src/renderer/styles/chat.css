@@ -283,7 +283,10 @@
   background: var(--accent-soft);
 }
 .composer-bar .toolbar {
-  margin-right: auto;
+  margin-left: auto;
+}
+.composer-reason + .toolbar {
+  margin-left: 0;
 }
 .attachment-strip {
   display: flex;

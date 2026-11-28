@@ -14,13 +14,15 @@ export type ChatWidth = z.infer<typeof ChatWidth>;
 const AgentMessageColors = z.record(z.string(), BubbleColorOverride);
 export type AgentMessageColors = z.infer<typeof AgentMessageColors>;
 
-/** The saved choices; older values without Chat width or Message color upgrade cleanly to defaults. */
+/** The saved choices; older values without Chat width, Message color or Send color upgrade cleanly to defaults. */
 export const AppearanceChoices = z.strictObject({
   theme: Theme,
   reduceMotion: ReduceMotion,
   chatWidth: ChatWidth.default('normal'),
   messageColor: BubbleColorGlobal.default({ kind: 'match-bot' }),
   agentMessageColors: AgentMessageColors.default({}),
+  /** The Send button in the agent's color; off, plain white or black with the theme. */
+  sendInAgentColor: z.boolean().default(true),
 });
 type Choices = z.infer<typeof AppearanceChoices>;
 const KEY = 'morrowbot.appearance';
@@ -46,6 +48,7 @@ const DEFAULT_CHOICES: Choices = {
   chatWidth: 'normal',
   messageColor: { kind: 'match-bot' },
   agentMessageColors: {},
+  sendInAgentColor: true,
 };
 
 /** Owns the appearance settings and puts them on `<html>` as `data-theme`, `data-motion` and `data-width`. */
@@ -65,6 +68,7 @@ export function createAppearance(root: HTMLElement): AppearanceModel {
     chatWidth: value.chatWidth,
     messageColor: value.messageColor,
     agentMessageColors: value.agentMessageColors,
+    sendInAgentColor: value.sendInAgentColor,
   });
   const apply = (value: Appearance): void => {
     root.dataset.theme = value.theme;

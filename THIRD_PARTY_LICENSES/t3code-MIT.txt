@@ -1,5 +1,6 @@
 t3code (https://github.com/pingdotgg/t3code)
 Ideas adapted in apps/mobile: the iPhone Duo hinge and reserved-region bridge (modules/morrow-native-controls) and the hinge-safe layout engine (src/lib/reserved-regions.ts, src/lib/layout.ts).
+Copied in apps/desktop: the provider icons of the model picker (src/renderer/shared/binding-ui/ProviderGlyph.tsx), from apps/web/src/components/Icons.tsx and apps/marketing/public/harnesses/opencode-dark.svg.
 
 MIT License
 

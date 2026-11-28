@@ -24,6 +24,8 @@ import type {
   CardAction,
   ChatEvent,
   ChatSettings,
+  ModelFavoriteChange,
+  ModelFavorites,
   MessageReaction,
   SetReactionRequest,
   CreateAgentRequest,
@@ -313,10 +315,12 @@ export interface ApiT3Watches {
   ack(ack: T3WatchAck): { readonly kind: 'acked' | 'already_acked' | 'unknown_batch' };
 }
 
-/** Settings › Chat. */
+/** Settings › Chat, and the composer's starred models. */
 export interface ApiSettings {
   chat(): ChatSettings;
   setChat(settings: ChatSettings): ChatSettings;
+  modelFavorites(): ModelFavorites;
+  changeModelFavorite(change: ModelFavoriteChange): ModelFavorites;
 }
 
 export type ApiVaultSave = { readonly kind: 'saved'; readonly item: VaultItem } | { readonly kind: 'not-found' } | { readonly kind: 'invalid'; readonly reason: string };

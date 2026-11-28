@@ -1,0 +1,89 @@
+/* The model picker's provider icons, Favorites tab and stars, and the Send button in the agent's color. */
+.provider-glyph.icon {
+  background: none;
+}
+.provider-glyph.icon svg {
+  width: 22px;
+  height: 22px;
+}
+.provider-glyph.sm.icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.picker-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: var(--s-2);
+}
+.picker-rail .provider-rail {
+  padding-top: var(--s-1);
+}
+.favorites-tab {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-md);
+  color: var(--star);
+}
+.favorites-tab svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+.favorites-tab:hover {
+  background: var(--hover);
+}
+.favorites-tab.selected {
+  background: var(--selected);
+}
+
+.model-row {
+  display: flex;
+  align-items: center;
+}
+.model-row .model-option {
+  flex: 1;
+  min-width: 0;
+}
+.star-button {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  color: var(--text-3);
+  opacity: 0;
+}
+.model-row:hover .star-button,
+.model-row:focus-within .star-button,
+.star-button.starred {
+  opacity: 1;
+}
+.star-button:hover {
+  background: var(--hover);
+  color: var(--star);
+}
+.star-button.starred {
+  color: var(--star);
+}
+.star-button.starred svg {
+  fill: currentColor;
+}
+@media (hover: none) {
+  .star-button {
+    opacity: 1;
+  }
+}
+
+.round-btn.send.tinted:not(:disabled) {
+  background: var(--send-bg);
+  color: var(--send-fg);
+}
+.round-btn.send.tinted:hover:not(:disabled) {
+  background: var(--send-bg);
+  filter: brightness(1.1);
+}

@@ -1,8 +1,7 @@
 import { ProviderInfo, type ModelSelection, type ProviderBinding } from '@morrowbot/contracts';
 import { expect, it } from 'vitest';
-import { changeCheck } from '../../shared/binding-ui/binding-state.ts';
 import { isAutoSelectable, isRunnable, newBinding, pinModel, prefill, readinessOf, statusLine, type ProviderChoice } from '../../shared/binding-ui/selection.ts';
-import { accessPill, bindingPill, composerWarnings, sendBlock, type BoundProvider } from './binding-display.ts';
+import { accessPill, bindingPill, bindingWarnings, sendBlock, type BoundProvider } from './binding-display.ts';
 
 const ISOLATED_READ = { access: 'read-only', vendorSettings: 'isolated', modes: ['interactive', 'background'], readsOutsideCwd: false };
 const ISOLATED_WRITE = { access: 'workspace-write', vendorSettings: 'isolated', modes: ['interactive'], readsOutsideCwd: false };
@@ -192,7 +191,7 @@ it('shows each saved binding in the pills, blocks only what cannot send, and nev
   const shown = CASES.map(([name, binding]) => {
     const provider = binding.kind === 'bound' ? PROVIDERS.find(({ id }) => id === binding.pluginId) : undefined;
     const pills = binding.kind === 'bound' ? [pill(bindingPill(provider, binding)), pill(accessPill(provider, binding))] : [];
-    const warnings = composerWarnings(provider, binding).map((warning) => (warning.kind === 'profile' ? warning.text : 'Review this provider’s status'));
+    const warnings = bindingWarnings(provider, binding).map((warning) => (warning.kind === 'profile' ? warning.text : 'Review this provider’s status'));
     return [name, { pills, block: sendBlock('Helper', provider, binding), warnings }];
   });
   expect(shown.filter(([, view]) => JSON.stringify(view).includes('"Default')).length).toBe(0);
@@ -210,7 +209,7 @@ it('shows each saved binding in the pills, blocks only what cannot send, and nev
         ],
       },
       "access withheld": {
-        "block": "This agent's access isn't offered. Pick another in the access menu.",
+        "block": "This agent's access isn't offered. Pick another in Agent Settings › Permissions.",
         "pills": [
           "Auto · chosen by codex CLI",
           "Edit workspace · Personal setup (unavailable) [warn]",
@@ -309,66 +308,6 @@ it('shows each saved binding in the pills, blocks only what cannot send, and nev
         "block": "Choose a provider for Helper",
         "pills": [],
         "warnings": [],
-      },
-    }
-  `);
-});
-
-it('asks first for a switch (with all the new warnings) or an access that adds a warning, and never for one that keeps or drops warnings', () => {
-  const personal = (access: 'read-only' | 'workspace-write'): Pick<BoundProvider, 'access' | 'vendorSettings'> => ({ access, vendorSettings: 'personal' });
-  const both: ProviderChoice = choice('both', ready({ capabilities: { ...CODEX_CAPABILITIES, profiles: [PERSONAL_READ, { ...PERSONAL_READ, access: 'workspace-write', readsOutsideCwd: false }, ISOLATED_READ] } }));
-  const choices = [...PROVIDERS, both];
-  const auto: ModelSelection = { kind: 'default' };
-  const steps: readonly (readonly [string, ProviderBinding, ProviderBinding])[] = [
-    ['switch provider', bound('claude', auto), bound('codex', auto, personal('read-only'))],
-    ['access adds warnings', bound('both', auto), bound('both', auto, personal('read-only'))],
-    ['access keeps a warning, drops one', bound('both', auto, personal('read-only')), bound('both', auto, personal('workspace-write'))],
-    ['access drops warnings', bound('both', auto, personal('read-only')), bound('both', auto)],
-    ['first binding', { kind: 'unbound' }, bound('claude', auto)],
-    ['first binding with warnings', { kind: 'unbound' }, bound('codex', auto, personal('read-only'))],
-    ['switch between two personal setups', bound('codex', auto, personal('read-only')), bound('both', auto, personal('read-only'))],
-  ];
-  expect(Object.fromEntries(steps.map(([name, before, after]) => [name, changeCheck(choices, before, after)]))).toMatchInlineSnapshot(`
-    {
-      "access adds warnings": {
-        "added": [
-          "Can read your files outside the workspace.",
-          "Also loads your personal CLI instructions.",
-        ],
-        "switched": false,
-      },
-      "access drops warnings": {
-        "added": [],
-        "switched": false,
-      },
-      "access keeps a warning, drops one": {
-        "added": [],
-        "switched": false,
-      },
-      "first binding": {
-        "added": [],
-        "switched": false,
-      },
-      "first binding with warnings": {
-        "added": [
-          "Can read your files outside the workspace.",
-          "Also loads your personal CLI instructions.",
-        ],
-        "switched": false,
-      },
-      "switch between two personal setups": {
-        "added": [
-          "Can read your files outside the workspace.",
-          "Also loads your personal CLI instructions.",
-        ],
-        "switched": true,
-      },
-      "switch provider": {
-        "added": [
-          "Can read your files outside the workspace.",
-          "Also loads your personal CLI instructions.",
-        ],
-        "switched": true,
       },
     }
   `);

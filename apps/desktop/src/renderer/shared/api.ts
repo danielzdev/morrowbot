@@ -44,6 +44,8 @@ import {
   TokenUsageResponse,
   UsageResponse,
   ChatSettings,
+  ModelFavorites,
+  type ModelFavoriteChange,
   CreateAgentRequest,
   SetReactionResponse,
   type CreateConnectorRequest,
@@ -126,6 +128,9 @@ export interface Api {
   /** The host's chat settings (Settings › Chat › Emoji-only / silent replies). */
   chatSettings(): Promise<ApiResult<ChatSettings>>;
   saveChatSettings(settings: ChatSettings): Promise<ApiResult<ChatSettings>>;
+  /** The host's starred models of the composer's model picker, shared by every device. */
+  modelFavorites(): Promise<ApiResult<ModelFavorites>>;
+  changeModelFavorite(change: ModelFavoriteChange): Promise<ApiResult<ModelFavorites>>;
   listPlugins(): Promise<ApiResult<PluginList>>;
   setPluginEnabled(id: string, enabled: boolean): Promise<ApiResult<PluginEntry>>;
   setPluginConfig(id: string, config: PluginConfig): Promise<ApiResult<PluginEntry>>;
@@ -236,6 +241,8 @@ export function createApi(bridge: Pick<MorrowbotBridge, 'request'>): Api {
     actOnCard: (threadId, cardId, action) => call(ThreadCard, 'POST', at('ui', 'v1', 'threads', threadId, 'cards', cardId, 'act'), action),
     chatSettings: () => call(ChatSettings, 'GET', at('settings', 'chat')),
     saveChatSettings: (settings) => call(ChatSettings, 'PUT', at('settings', 'chat'), settings),
+    modelFavorites: () => call(ModelFavorites, 'GET', at('settings', 'model-favorites')),
+    changeModelFavorite: (change) => call(ModelFavorites, 'POST', at('settings', 'model-favorites'), change),
     listPlugins: () => call(PluginList, 'GET', at('plugins')),
     setPluginEnabled: (id, enabled) => call(PluginEntry, 'PUT', at('plugins', id, 'enabled'), { enabled }),
     setPluginConfig: (id, config) => call(PluginEntry, 'PUT', at('plugins', id, 'config'), { config }),

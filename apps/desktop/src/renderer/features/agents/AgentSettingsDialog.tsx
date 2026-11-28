@@ -11,6 +11,7 @@ import { AgentBrain } from './AgentBrain.tsx';
 import { AgentGeneral } from './AgentGeneral.tsx';
 import type { AgentNotifyModel } from './agent-notify.ts';
 import { AgentNotifications } from './AgentNotifications.tsx';
+import { AgentPermissions } from './AgentPermissions.tsx';
 import { AgentReplies } from './AgentReplies.tsx';
 import type { AgentsModel } from './agents-model.ts';
 import { DangerZone, WorkspaceSection } from './DangerZone.tsx';
@@ -19,11 +20,12 @@ import { MemoriesSection } from './MemoriesSection.tsx';
 import { SkillsSection } from './SkillsSection.tsx';
 import type { AvatarEditor } from './NewAgentDialog.tsx';
 
-export type AgentSection = 'general' | 'brain' | 'extensions' | 'instructions' | 'skills' | 'memories' | 'routines' | 'replies' | 'notifications' | 'workspace' | 'danger';
+export type AgentSection = 'general' | 'brain' | 'permissions' | 'extensions' | 'instructions' | 'skills' | 'memories' | 'routines' | 'replies' | 'notifications' | 'workspace' | 'danger';
 
 const TITLES: Readonly<Record<AgentSection, string>> = {
   general: 'General',
   brain: 'Brain',
+  permissions: 'Permissions',
   extensions: 'Extensions',
   instructions: 'Instructions',
   skills: 'Skills',
@@ -38,6 +40,7 @@ const TITLES: Readonly<Record<AgentSection, string>> = {
 const ICONS: Readonly<Record<AgentSection, IconName>> = {
   general: 'settings',
   brain: 'chat',
+  permissions: 'lock',
   extensions: 'plugins',
   instructions: 'pencil',
   skills: 'book',
@@ -49,7 +52,7 @@ const ICONS: Readonly<Record<AgentSection, IconName>> = {
   danger: 'trash',
 };
 
-const NAV: readonly AgentSection[] = ['general', 'brain', 'extensions', 'instructions', 'skills', 'memories', 'routines', 'replies', 'notifications', 'workspace'];
+const NAV: readonly AgentSection[] = ['general', 'brain', 'permissions', 'extensions', 'instructions', 'skills', 'memories', 'routines', 'replies', 'notifications', 'workspace'];
 
 const isSection = (id: string): id is AgentSection => id in TITLES;
 
@@ -127,6 +130,9 @@ export function AgentSettingsDialog(props: {
         </div>
         <div hidden={props.section !== 'brain'}>
           <AgentBrain model={model} agent={agent} choices={props.choices} allowFull={props.allowFull} redact={props.redact} onOpenProviders={leave(props.onOpenProviders)} onDirty={mark('brain')} />
+        </div>
+        <div hidden={props.section !== 'permissions'}>
+          <AgentPermissions model={model} agent={agent} choices={props.choices} allowFull={props.allowFull} redact={props.redact} onOpenProviders={leave(props.onOpenProviders)} onDirty={mark('permissions')} />
         </div>
         {props.extensions !== null && (
           <div hidden={props.section !== 'extensions'}>

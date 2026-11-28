@@ -1,6 +1,7 @@
 import { useRef } from 'preact/hooks';
 import { handleRovingKey } from '../roving.ts';
 import { Tooltip } from '../ui/Tooltip.tsx';
+import { ProviderGlyph } from './ProviderGlyph.tsx';
 import { isRunnable, readinessOf, statusLine, type ProviderChoice, type Readiness } from './selection.ts';
 
 const toneOf = (readiness: Readiness): 'ok' | 'warn' | 'danger' | 'muted' => {
@@ -20,15 +21,6 @@ const toneOf = (readiness: Readiness): 'ok' | 'warn' | 'danger' | 'muted' => {
       return 'danger';
   }
 };
-
-/** A provider's mark: its initial on a tile. No vendor logos ship with the app. */
-export function ProviderGlyph(props: { readonly name: string; readonly size?: 'sm' | 'md' }) {
-  return (
-    <span class={`provider-glyph ${props.size ?? 'md'}`} aria-hidden="true">
-      {props.name.slice(0, 1).toUpperCase()}
-    </span>
-  );
-}
 
 /**
  * The providers to choose from (spec §4.6): a 44px icon rail with status dots (names in tooltips and
@@ -78,7 +70,7 @@ export function ProviderRail(props: {
             }}
           >
             <span class="provider-mark">
-              <ProviderGlyph name={choice.name} />
+              <ProviderGlyph id={choice.id} name={choice.name} />
               <span class={`status-dot ${toneOf(readiness)}`} aria-hidden="true" />
             </span>
             {props.layout === 'cards' && (

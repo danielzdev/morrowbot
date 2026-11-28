@@ -1,6 +1,7 @@
 import { SendAgentMessageRequest } from '@morrowbot/contracts';
 import type { AgentMessageService, SendRefusal } from './features/agent-messages/index.ts';
 import type { RoutineToolsPort, T3WatchToolsPort, ToolGrant, ToolPorts } from './features/agent-tools/index.ts';
+import type { ApiSettings } from './features/api/index.ts';
 import type { ReplyAttachments } from './features/attachments/index.ts';
 import type { ChatService, createChatService, ProviderPlugins, TurnInitiator } from './features/chat/index.ts';
 import type { ConnectorService, TurnOf } from './features/connectors/index.ts';
@@ -303,4 +304,17 @@ export function subagentService(storage: Storage, chat: ChatService, plugins: Pl
     newId,
     now,
   });
+}
+
+/** Settings › Chat and the composer's starred models, straight from storage. */
+export function settingsService(storage: Storage): ApiSettings {
+  return {
+    chat: () => storage.chatSettings.get(),
+    setChat: (settings) => {
+      storage.chatSettings.set(settings);
+      return storage.chatSettings.get();
+    },
+    modelFavorites: () => storage.modelFavorites.list(),
+    changeModelFavorite: (change) => storage.modelFavorites.change(change),
+  };
 }

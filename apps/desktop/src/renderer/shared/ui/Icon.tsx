@@ -42,6 +42,7 @@ export type IconName =
   | 'file'
   | 'book'
   | 'bookmark'
+  | 'star'
   | 'provider'
   | 'clock'
   | 'people'
@@ -211,6 +212,7 @@ const SHAPES: Readonly<Record<IconName, ComponentChildren>> = {
   file: <path d="M4 2h5l3 3v9H4zM9 2v3h3" />,
   book: <path d="M2.5 3.5h4A1.5 1.5 0 0 1 8 5v8.5a1.5 1.5 0 0 0-1.5-1.5h-4zM13.5 3.5h-4A1.5 1.5 0 0 0 8 5v8.5a1.5 1.5 0 0 1 1.5-1.5h4z" />,
   bookmark: <path d="M4.5 2.5h7v11L8 10.5l-3.5 3z" />,
+  star: <path d="M8 2.25l1.75 3.6 3.95.55-2.87 2.77.69 3.93L8 11.2l-3.52 1.9.69-3.93L2.3 6.4l3.95-.55z" />,
   stop: <rect x="4.5" y="4.5" width="7" height="7" rx="1" fill="currentColor" />,
   keyboard: (
     <>

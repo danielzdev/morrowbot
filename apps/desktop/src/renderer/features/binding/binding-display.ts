@@ -46,18 +46,18 @@ export function sendBlock(agentName: string, choice: ProviderChoice | undefined,
   const model = modelState(choice.info, binding.selection);
   if (model.kind === 'listed' && model.current.kind === 'unavailable') return 'Pick another model';
   const access = accessState(choice.info, binding);
-  if (access !== null && access.current.kind !== 'offered') return "This agent's access isn't offered. Pick another in the access menu.";
+  if (access !== null && access.current.kind !== 'offered') return "This agent's access isn't offered. Pick another in Agent Settings › Permissions.";
   return null;
 }
 
-/** One warning-strip line under the composer (spec §4.5). */
-export type ComposerWarning = { readonly kind: 'profile'; readonly text: string } | { readonly kind: 'review-provider' };
+/** One warning the Inspector's Brain card lists for the agent's binding; the chat shows none. */
+export type BindingWarning = { readonly kind: 'profile'; readonly text: string } | { readonly kind: 'review-provider' };
 
-export function composerWarnings(choice: ProviderChoice | undefined, binding: ProviderBinding): readonly ComposerWarning[] {
+export function bindingWarnings(choice: ProviderChoice | undefined, binding: ProviderBinding): readonly BindingWarning[] {
   if (binding.kind === 'unbound' || choice === undefined) return [];
   const access = accessState(choice.info, binding);
   const profile = access?.current.kind === 'offered' ? profileWarnings(access.current.profile) : [];
-  const lines: ComposerWarning[] = profile.map((text) => ({ kind: 'profile', text }));
+  const lines: BindingWarning[] = profile.map((text) => ({ kind: 'profile', text }));
   if ((readyInfo(choice.info)?.warning ?? null) !== null && isRunnable(choice)) lines.push({ kind: 'review-provider' });
   return lines;
 }

@@ -2,7 +2,7 @@ import type { Agent } from '@morrowbot/contracts';
 import { useEffect, useState } from 'preact/hooks';
 import type { MorrowbotBridge } from '../bridge.ts';
 import type { AgentSection } from '../features/agents/index.ts';
-import { accessPill, bindingPill, composerWarnings } from '../features/binding/index.ts';
+import { accessPill, bindingPill, bindingWarnings } from '../features/binding/index.ts';
 import { Inspector, previewOf, type BrainFacts, type InstructionsPreview } from '../features/inspector/index.ts';
 import { isRunnable, readinessOf, readyInfo, statusLine, type ProviderChoice } from '../shared/binding-ui/selection.ts';
 import { displayPath, redact, type AppInfo } from '../shared/privacy.ts';
@@ -15,7 +15,7 @@ export function brainFacts(agent: Agent, choice: ProviderChoice | undefined, saf
   const binding = agent.provider;
   if (binding.kind === 'unbound') return { kind: 'unbound' };
   const runnable = choice !== undefined && isRunnable(choice);
-  const warnings = composerWarnings(choice, binding).map((warning) => (warning.kind === 'profile' ? safe(warning.text) : "Review this provider's status in Settings › Providers."));
+  const warnings = bindingWarnings(choice, binding).map((warning) => (warning.kind === 'profile' ? safe(warning.text) : "Review this provider's status in Settings › Providers."));
   return {
     kind: 'bound',
     provider: choice?.name ?? binding.pluginId,

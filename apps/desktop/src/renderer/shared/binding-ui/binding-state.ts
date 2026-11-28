@@ -1,5 +1,5 @@
 import type { AccessLevel, AccessProfile, ModelSelection, ProviderBinding, ProviderInfo, ProviderModel, VendorSettings } from '@morrowbot/contracts';
-import { profileWarnings, withheldReason } from './access-copy.ts';
+import { withheldReason } from './access-copy.ts';
 import { interactiveProfiles, readinessOf, readyInfo, statusLine, type ProviderChoice } from './selection.ts';
 
 /** The saved model against what the provider lists (spec §4.6 rules 2, 4 and 7). */
@@ -72,35 +72,10 @@ export function accessState(info: ProviderInfo | undefined, saved: AccessKey): A
   return { offered, approvals, current };
 }
 
-/** The warnings a binding's access brings, as its provider reports that profile now. */
-function warningsOf(choices: readonly ProviderChoice[], binding: ProviderBinding): readonly string[] {
-  if (binding.kind === 'unbound') return [];
-  const current = accessState(choices.find(({ id }) => id === binding.pluginId)?.info, binding)?.current;
-  return current?.kind === 'offered' ? profileWarnings(current.profile) : [];
-}
-
-/**
- * What a binding change must confirm first (spec §4.6): a switch from one provider to another, with all
- * of the new profile's warnings, or an access change that adds a warning.
- */
-export interface ChangeCheck {
-  readonly switched: boolean;
-  readonly added: readonly string[];
-}
-
-export function changeCheck(choices: readonly ProviderChoice[], before: ProviderBinding, after: ProviderBinding): ChangeCheck {
-  const switched = before.kind === 'bound' && after.kind === 'bound' && before.pluginId !== after.pluginId;
-  const had = switched ? [] : warningsOf(choices, before);
-  return { switched, added: warningsOf(choices, after).filter((warning) => !had.includes(warning)) };
-}
-
-export const needsConfirm = (check: ChangeCheck): boolean => check.switched || check.added.length > 0;
-
-/** The confirm button's label: what saving the change does. */
-export function confirmLabel(check: ChangeCheck, before: ProviderBinding, after: ProviderBinding): string {
-  if (check.switched) return 'Switch';
+/** Whether a change gives the agent full access it did not have: the moment the one-time notice is for. */
+export function turnsOnFull(before: ProviderBinding, after: ProviderBinding): boolean {
   const full = (binding: ProviderBinding): boolean => binding.kind === 'bound' && binding.access === 'full';
-  return full(after) && !full(before) ? 'Turn on full access' : 'Use it';
+  return full(after) && !full(before);
 }
 
 /** Why `choice` cannot run: if `saved`'s own profile is withheld when zero profiles are offered, shows that redacted reason. */

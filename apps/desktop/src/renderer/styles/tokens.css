@@ -32,6 +32,7 @@
   --ok-bg: light-dark(#F0FDF4, rgba(74, 222, 128, 0.12));
   --warn: light-dark(#805300, #F5C451);
   --warn-bg: light-dark(#FFFBEB, rgba(245, 196, 81, 0.12));
+  --star: light-dark(#B8860B, #FFC107);
   --danger: light-dark(#B91C1C, #F87C7C);
   --danger-bg: light-dark(#FEF2F2, #2E1A1A);
   --danger-hover: light-dark(#991B1B, #FCA5A5);

@@ -23,14 +23,14 @@ function fit(box: HTMLTextAreaElement): void {
 }
 
 /**
- * The message box (spec §4.5). `toolbar` holds the binding and access pills, `notes` the warning
- * strip shown under it while a warning applies. `sendWith` is Settings › Chat › Send with.
+ * The message box (spec §4.5). `toolbar` holds the model picker, beside Send; `sendVars` colors
+ * Send (the agent's color, or undefined for the plain button). `sendWith` is Settings › Chat › Send with.
  */
 export function Composer(props: {
   readonly session: ThreadSession;
   readonly agentName: string;
   readonly toolbar: ComponentChildren;
-  readonly notes?: ComponentChildren;
+  readonly sendVars: Readonly<Record<string, string>> | undefined;
   readonly disabledReason: string | null;
   readonly sendWith: SendWith;
   /** Host text made safe to show (spec §9.1), or null when it can't be. */
@@ -127,8 +127,8 @@ export function Composer(props: {
           <button class="icon-btn attach" aria-label="Attach files" title="Attach images or text files" onClick={() => picker.current?.click()}>
             <Icon name="paperclip" />
           </button>
-          <div class="toolbar">{props.toolbar}</div>
           {disabledReason !== null && <span class="composer-reason">{disabledReason}</span>}
+          <div class="toolbar">{props.toolbar}</div>
           <div class="composer-sends">
             {running && (
               <button class="round-btn stop" aria-label={screen.busy === 'stopping' ? 'Stopping…' : 'Stop'} title="Stop" disabled={screen.busy !== null || screen.connection !== 'live'} onClick={() => void session.stop()}>
@@ -136,14 +136,13 @@ export function Composer(props: {
               </button>
             )}
             {(!running || hasContent) && (
-              <button class="round-btn send" aria-label={sendLabel} title={sendLabel} disabled={!canSend} onClick={() => void session.send()}>
+              <button class={`round-btn send${props.sendVars === undefined ? '' : ' tinted'}`} style={props.sendVars} aria-label={sendLabel} title={sendLabel} disabled={!canSend} onClick={() => void session.send()}>
                 <Icon name="send" />
               </button>
             )}
           </div>
         </div>
       </div>
-      {props.notes}
     </div>
   );
 }
