@@ -62,7 +62,7 @@ function FileCard(props: { readonly attachment: ReplyAttachment; readonly files:
       </span>
       <span class="reply-file-text">
         <span class="reply-file-name" title={attachment.name}>{attachment.name}</span>
-        <span class="reply-file-meta">{problem ?? fileMeta(attachment)}</span>
+        {problem === null ? <span class="reply-file-meta">{fileMeta(attachment)}</span> : <span class="reply-file-problem" role="alert">{problem}</span>}
       </span>
       <span class="reply-file-actions">
         {opensInViewer(attachment) && (
@@ -83,7 +83,7 @@ function Media(props: { readonly attachment: Extract<ReplyAttachment, { kind: 'i
   return (
     <figure class={`reply-media ${attachment.kind}`}>
       {attachment.kind === 'image' ? (
-        <button class="reply-image-button" title={`Open ${attachment.name}`} disabled={busy} onClick={() => { run('open'); }}>
+        <button class="reply-image-button" title={`Open ${attachment.name}`} aria-label={`Open ${attachment.name}`} disabled={busy} onClick={() => { run('open'); }}>
           <img class="reply-image" src={src} alt={attachment.name} loading="lazy" onError={() => { setBroken(true); }} />
         </button>
       ) : (
@@ -91,9 +91,10 @@ function Media(props: { readonly attachment: Extract<ReplyAttachment, { kind: 'i
       )}
       <figcaption class="reply-media-caption">
         <span class="reply-file-name" title={attachment.name}>{attachment.name}</span>
-        <span class="reply-file-meta">{problem ?? formatBytes(attachment.size)}</span>
+        <span class="reply-file-meta">{formatBytes(attachment.size)}</span>
         <button class="ghost" disabled={busy} aria-label={`Save ${attachment.name}`} onClick={() => { run('save'); }}>Save…</button>
       </figcaption>
+      {problem !== null && <p class="reply-file-problem reply-media-problem" role="alert">{problem}</p>}
     </figure>
   );
 }

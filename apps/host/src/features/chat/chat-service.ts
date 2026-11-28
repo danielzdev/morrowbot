@@ -19,7 +19,7 @@ import { parentTurn, publishSubagent, stopChildren, stopTurn as stopWithChildren
 import { dispatch } from './dispatch.ts';
 import { EventLog, type Replay } from './event-log.ts';
 import type { ChatListener, ChatServiceOptions, RecheckAnswer } from './ports.ts';
-import { agentReact, dropNote, emojiReplies, nextNote, reactionPrompt, readOrGone, setUserReaction, stayQuiet, type ReplyToolAnswer, type SetReactionAnswer, type TurnGrant } from './reactions.ts';
+import { agentReact, attachRefusal, dropNote, emojiReplies, nextNote, reactionPrompt, readOrGone, setUserReaction, stayQuiet, type ReplyToolAnswer, type SetReactionAnswer, type TurnGrant } from './reactions.ts';
 import { createSummaryFeed, type SummaryListener } from './thread-summary.ts';
 import { afterTurn, cancelQueued, enqueue, queueOf, sendsQueue, steerQueued, type QueueAnswer } from './queue.ts';
 import { laneOf, queueNote, type ChatCore, type StoredReply, type Turn } from './turn.ts';
@@ -68,6 +68,8 @@ export interface ChatService {
   agentReact(grant: TurnGrant, emoji: string): ReplyToolAnswer;
   /** `stay_quiet` for a running turn: it ends with no message, if the agent may answer that way. */
   stayQuiet(grant: TurnGrant): ReplyToolAnswer;
+  /** Why `attach_files` cannot add to the running turn's reply, or undefined when it can. */
+  attachRefusal(grant: TurnGrant): string | undefined;
   /** Delivers a queued message now: into the running reply, or as the next turn when nothing runs. */
   steerQueued(threadId: string, queuedId: string): QueueAnswer;
   continueTurn(threadId: string, failedMessageId: string, choice: SessionChoice): Promise<AdmitResult>;
@@ -275,6 +277,7 @@ export function createChatService(options: ChatServiceOptions): ChatService {
     setReaction: (threadId, request) => setUserReaction(core, threadId, request),
     agentReact: (grant, emoji) => agentReact(core, grant, emoji),
     stayQuiet: (grant) => stayQuiet(core, grant),
+    attachRefusal: (grant) => attachRefusal(core, grant),
     cancelQueued: (threadId, queuedId) => cancelQueued(core, threadId, queuedId),
     steerQueued: (threadId, queuedId) => steerQueued(core, threadId, queuedId),
     continueTurn: (threadId, failedMessageId, choice) => admit(core, threadId, { kind: 'continue', failedMessageId }, choice),

@@ -100,7 +100,7 @@ export function openTestWindow(target: HostTarget, files?: TestFiles): TestWindo
       if (files === undefined) return { kind: 'failed', reason: 'Not in tests.' };
       const result = await runFileAction(parseFileAction({ sender: PAGE, rendererUrl: RENDERER_URL, input: request }), {
         host,
-        openDir: files.openDir,
+        openDir: () => Promise.resolve(files.openDir),
         saveTo: (name) => Promise.resolve(files.saveTo(name)),
         open: (file) => {
           seen.push({ opened: file });

@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdir, mkdtemp, readdir, realpath, rm, symlink, truncate, writeFile } from 'node:fs/promises';
+import { link, mkdir, mkdtemp, readdir, realpath, rm, symlink, truncate, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { MessageList, replyAttachmentPath, ThreadState, type Agent, type AssistantMessage, type Thread } from '@morrowbot/contracts';
@@ -61,6 +61,7 @@ it('attaches an image, a PDF and a video from the workspace, refuses every path 
     symlink(outside, path.join(ws, 'linked')),
     symlink(path.join(ws, 'report.pdf'), path.join(ws, 'latest.pdf')),
   ]);
+  await link(path.join(outside, 'secret.txt'), path.join(ws, 'hard.txt'));
   execFileSync('mkfifo', [path.join(ws, 'pipe')]);
   const reply = await attach(chat, thread, [
     path.join(ws, 'out', 'chart.png'),
@@ -72,7 +73,7 @@ it('attaches an image, a PDF and a video from the workspace, refuses every path 
     path.join(outside, 'secret.txt'),
     path.join(ws, 'escape.txt'),
   ]);
-  const refusedMore = await attach(chat, thread, [path.join(ws, 'linked', 'secret.txt'), `${ws}/out/../../../outside/secret.txt`, 'report.pdf', path.join(ws, 'out'), path.join(ws, 'pipe')]);
+  const refusedMore = await attach(chat, thread, [path.join(ws, 'linked', 'secret.txt'), `${ws}/out/../../../outside/secret.txt`, 'report.pdf', path.join(ws, 'out'), path.join(ws, 'pipe'), path.join(ws, 'hard.txt')]);
   expect({ attachments: reply.attachments, text: hide(reply.text, agent) }).toMatchInlineSnapshot(`
     {
       "attachments": [
@@ -115,7 +116,8 @@ it('attaches an image, a PDF and a video from the workspace, refuses every path 
     <workspace>/out/../../../outside/secret.txt: Only files inside your workspace folder can be attached (symlinks are followed).
     report.pdf: Give the absolute path of a file in your workspace folder.
     <workspace>/out: Only regular files can be attached.
-    <workspace>/pipe: Only regular files can be attached.",
+    <workspace>/pipe: Only regular files can be attached.
+    <workspace>/hard.txt: Files with more than one hard link cannot be attached; copy the file first.",
     }
   `);
 
@@ -241,4 +243,35 @@ it('serves a reply file only to those who may view its chat', async () => {
   } finally {
     await kit.close();
   }
+});
+
+it('keeps attached files and stay_quiet apart: a reply with files needs a message, and a quiet turn takes no files', async () => {
+  chat = await startChatFixture({ dataDir });
+  await chat.host.call('PUT', '/api/settings/chat', { emojiReplies: 'all' });
+  const agent = await chat.agent();
+  const thread = await chat.thread(agent);
+  const ws = agent.workspace.dir;
+  await writeFile(path.join(ws, 'chart.png'), PNG);
+  await writeFile(path.join(ws, 'report.pdf'), PDF);
+  await chat.send(thread, [`host-tool attach_files ${JSON.stringify({ paths: [path.join(ws, 'report.pdf')] })}`, 'host-tool stay_quiet {}'].join('\n'));
+  const attachThenQuiet = MessageList.parse((await chat.host.call('GET', `/api/threads/${thread.id}/messages`)).body).messages.at(-1);
+  await chat.send(thread, ['host-tool stay_quiet {}', `host-tool attach_files ${JSON.stringify({ paths: [path.join(ws, 'chart.png')] })}`].join('\n'));
+  const history = MessageList.parse((await chat.host.call('GET', `/api/threads/${thread.id}/messages`)).body).messages;
+  expect({
+    attachThenQuiet: attachThenQuiet?.kind === 'assistant' ? { files: attachThenQuiet.attachments.map(({ name }) => name), text: hide(attachThenQuiet.text, agent) } : attachThenQuiet,
+    quietThenAttach: history.at(-1)?.kind,
+    kept: (await readdir(path.join(dataDir, 'reply-attachments'))).length,
+  }).toMatchInlineSnapshot(`
+    {
+      "attachThenQuiet": {
+        "files": [
+          "report.pdf",
+        ],
+        "text": "attach_files: {"attached":[{"name":"report.pdf","kind":"file","mimeType":"application/pdf","size":50}],"refused":[]}
+    stay_quiet: error You attached files to this reply, so it needs a message: answer with a short text reply.",
+      },
+      "kept": 1,
+      "quietThenAttach": "user",
+    }
+  `);
 });

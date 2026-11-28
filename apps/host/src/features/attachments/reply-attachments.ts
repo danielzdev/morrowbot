@@ -62,6 +62,9 @@ class Refusal extends Error {
   override readonly name = 'Refusal';
 }
 
+/** Read through a call so a check after an `await` sees the signal as it is now. */
+const ended = (turn: AttachingTurn): boolean => turn.signal.aborted;
+
 const codeOf = (error: unknown): unknown => (error instanceof Error && 'code' in error ? error.code : undefined);
 
 /** Whether `child` is `root` or inside it; both are real paths. */
@@ -70,9 +73,9 @@ function inside(root: string, child: string): boolean {
   return relative !== '' && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
 }
 
-/** A file name the contract accepts: no separators, at most 255 characters, extension kept. */
+/** A file name the contract accepts and shows as written: no separators, control or text-direction characters, at most 255 characters, extension kept. */
 function nameOf(given: string): string {
-  const base = path.basename(given).replaceAll(/[\\\0]/g, '_');
+  const base = path.basename(given).replaceAll(/[\\\p{Cc}\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/gu, '_');
   if (base.length <= 255) return base;
   const extension = path.extname(base).slice(0, 16);
   return `${base.slice(0, 255 - extension.length)}${extension}`;
@@ -114,6 +117,7 @@ export function createReplyAttachments(options: ReplyAttachmentOptions): ReplyAt
     try {
       const opened = await handle.stat();
       if (!opened.isFile()) throw new Refusal('Only regular files can be attached.');
+      if (opened.nlink > 1) throw new Refusal('Files with more than one hard link cannot be attached; copy the file first.');
       const again = await realpath(real).catch(() => '');
       const now = inside(root, again) ? await stat(again).catch(() => undefined) : undefined;
       if (now?.ino !== opened.ino || now.dev !== opened.dev) throw new Refusal('The file moved while it was being attached.');
@@ -124,7 +128,7 @@ export function createReplyAttachments(options: ReplyAttachmentOptions): ReplyAt
     }
   }
 
-  /** Copies the open file to `<id>.part` (hashing it and keeping its first bytes), stopping if it grows past `size`. */
+  /** Copies the open file to `<id>.part` (hashing it and keeping its first bytes), refusing it if its length changes. */
   async function copy(handle: FileHandle, size: number, part: string, signal: AbortSignal): Promise<{ sha256: string; head: Buffer }> {
     const hash = createHash('sha256');
     let head = Buffer.alloc(0);
@@ -142,15 +146,17 @@ export function createReplyAttachments(options: ReplyAttachmentOptions): ReplyAt
       },
     });
     await pipeline(handle.createReadStream({ start: 0, autoClose: false }), meter, createWriteStream(part, { flags: 'wx', mode: 0o600 }), { signal });
+    if (read !== size) throw new Refusal('The file changed while it was being attached.');
     return { sha256: hash.digest('hex'), head };
   }
 
   async function attachOne(turn: AttachingTurn, root: string, given: string): Promise<ReplyAttachment> {
+    if (ended(turn)) throw new Refusal('The turn ended before the file was attached.');
     const open = records.listOpen(turn.generationId);
     if (open.length >= MAX_REPLY_ATTACHMENTS) throw new Refusal(`A reply can carry up to ${String(MAX_REPLY_ATTACHMENTS)} files.`);
-    const { handle, size } = await openInside(root, given);
     const id = options.newId();
     if (!SAFE_ID.test(id)) throw new Error('Unsafe attachment id');
+    const { handle, size } = await openInside(root, given);
     const part = path.join(dir, `${id}${PART}`);
     writing.add(id);
     try {
@@ -159,7 +165,7 @@ export function createReplyAttachments(options: ReplyAttachmentOptions): ReplyAt
       if (total + size > MAX_REPLY_ATTACHMENTS_BYTES) throw new Refusal("A reply's files can add up to 200 MB.");
       await mkdir(dir, { recursive: true, mode: 0o700 });
       const copied = await copy(handle, size, part, turn.signal);
-      const same = open.find(({ sha256 }) => sha256 === copied.sha256);
+      const same = records.listOpen(turn.generationId).find(({ sha256 }) => sha256 === copied.sha256);
       if (same !== undefined) {
         await unlink(part);
         return same.attachment;
@@ -167,7 +173,7 @@ export function createReplyAttachments(options: ReplyAttachmentOptions): ReplyAt
       const name = nameOf(given);
       const attachment: ReplyAttachment = { ...kindOf(name, copied.head), id, name, size };
       await rename(part, path.join(dir, id));
-      const saved = !turn.signal.aborted && records.insert({ attachment, threadId: turn.threadId, generationId: turn.generationId, sha256: copied.sha256, createdAt: options.now() });
+      const saved = !ended(turn) && records.insert({ attachment, threadId: turn.threadId, generationId: turn.generationId, sha256: copied.sha256, createdAt: options.now() });
       if (!saved) {
         await unlink(path.join(dir, id));
         throw new Refusal('The turn ended before the file was attached.');
@@ -175,7 +181,7 @@ export function createReplyAttachments(options: ReplyAttachmentOptions): ReplyAt
       return attachment;
     } catch (error) {
       await unlink(part).catch(() => undefined);
-      if (turn.signal.aborted && !(error instanceof Refusal)) throw new Refusal('The turn ended before the file was attached.');
+      if (ended(turn) && !(error instanceof Refusal)) throw new Refusal('The turn ended before the file was attached.');
       throw error;
     } finally {
       writing.delete(id);

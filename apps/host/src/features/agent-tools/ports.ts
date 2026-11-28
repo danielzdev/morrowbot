@@ -180,6 +180,8 @@ export interface ToolPorts {
   readonly replies: {
     react(grant: ToolGrant, emoji: string): ReplyAnswer;
     stayQuiet(grant: ToolGrant): ReplyAnswer;
+    /** Why `attach_files` cannot add to this turn's reply, or undefined when it can. */
+    attachRefusal(grant: ToolGrant): string | undefined;
   };
   /** Files for the reply of the turn `grant` stands for (the attachments feature provides it). */
   readonly replyAttachments: {

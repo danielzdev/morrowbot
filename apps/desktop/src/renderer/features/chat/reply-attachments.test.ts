@@ -17,7 +17,7 @@ it('shows images and videos inline, a PDF as a card to open or save, and an unkn
   const shown = [...html.matchAll(/<(img|video|button|span class="reply-file-(?:name|meta|badge)")[^>]*>([^<]*)/g)].map(([shownTag = '']) => shownTag.replace(/ (?:class|loading|title)="[^"]*"/g, ''));
   expect(shown).toMatchInlineSnapshot(`
     [
-      "<button>",
+      "<button aria-label="Open chart.png">",
       "<img src="morrowbot-file://reply/i1" alt="chart.png"/>",
       "<span>chart.png",
       "<span>47 KB",

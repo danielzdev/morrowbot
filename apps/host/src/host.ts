@@ -249,7 +249,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
           agents,
           agentMessages,
           memories,
-          replies: { react: (grant, emoji) => chat.agentReact(grant, emoji), stayQuiet: (grant) => chat.stayQuiet(grant) },
+          replies: { react: (grant, emoji) => chat.agentReact(grant, emoji), stayQuiet: (grant) => chat.stayQuiet(grant), attachRefusal: (grant) => chat.attachRefusal(grant) },
           replyFiles,
           vault,
           subagents,

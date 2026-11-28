@@ -93,7 +93,7 @@ export async function startConnectorKit(options: { readonly agentIds: readonly s
       agents: { list: () => storage.agents.list() },
       messages: { get: () => undefined, send: () => ({ kind: 'refused', reason: 'Messages are not part of connector tests' }) },
       memories: { list: () => undefined, create: () => undefined, update: () => undefined, delete: () => false },
-      replies: { react: () => ({ kind: 'refused', reason: 'Replies are not part of connector tests' }), stayQuiet: () => ({ kind: 'refused', reason: 'Replies are not part of connector tests' }) },
+      replies: { react: () => ({ kind: 'refused', reason: 'Replies are not part of connector tests' }), stayQuiet: () => ({ kind: 'refused', reason: 'Replies are not part of connector tests' }), attachRefusal: () => 'Replies are not part of connector tests' },
       replyAttachments: { attach: () => Promise.resolve({ attached: [], refused: [] }) },
       vault: { list: () => [] },
       connectors: { tools: (agentId) => connectors.toolsFor(agentId), call: (agentId, name, args, signal) => connectors.call(agentId, name, args, signal) },

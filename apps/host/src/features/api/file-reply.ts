@@ -1,5 +1,6 @@
 import { createReadStream } from 'node:fs';
 import type { ServerResponse } from 'node:http';
+import { pipeline } from 'node:stream/promises';
 
 /** A kept file's bytes, whole or one byte range of them. */
 export interface FileReply {
@@ -30,7 +31,7 @@ export function byteRange(header: string | undefined, size: number): ByteRange {
   return start >= size || end < start ? { kind: 'unsatisfiable' } : { kind: 'part', start, end };
 }
 
-/** Streams the reply's bytes; a read error (the file vanished) cuts the response off rather than crashing. */
+/** Streams the reply's bytes. A read error (the file vanished) cuts the response off, and a client that hangs up closes the file. */
 export function sendFile(response: ServerResponse, reply: FileReply): void {
   const length = reply.end - reply.start + 1;
   response.writeHead(reply.status, { ...reply.headers, 'content-length': String(length) });
@@ -38,9 +39,7 @@ export function sendFile(response: ServerResponse, reply: FileReply): void {
     response.end();
     return;
   }
-  const stream = createReadStream(reply.file, { start: reply.start, end: reply.end });
-  stream.on('error', () => {
+  pipeline(createReadStream(reply.file, { start: reply.start, end: reply.end }), response).catch(() => {
     response.destroy();
   });
-  stream.pipe(response);
 }
