@@ -160,7 +160,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
       newId,
       now,
     });
-    await Promise.all([attachments.sweep(), agents.clearStaging()]);
+    await attachments.sweep();
     const replyFiles = createReplyAttachments({ dir: path.join(dataDir, 'reply-attachments'), records: storage.replyAttachments, workspaceOf: (id) => agents.get(id)?.workspace.dir, newId, now });
     const sweepFiles = async (): Promise<void> => {
       await Promise.all([attachments.sweep(), replyFiles.sweep()]);

@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { constants, type BigIntStats } from 'node:fs';
-import { link, lstat, mkdir, open, realpath, rm, unlink } from 'node:fs/promises';
+import { link, lstat, mkdir, open, realpath, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import type { AgentInstructionsView } from '@morrowbot/contracts';
 
@@ -33,7 +33,7 @@ function readError(code: string | null): string {
     case 'ELOOP':
       return 'SOUL.md is a link. Ori Kami reads only a regular file in the workspace folder.';
     case 'hard-link':
-      return 'SOUL.md has more than one hard link. Ori Kami reads only a file of its own; copy it instead.';
+      return 'SOUL.md has more than one hard link, so Ori Kami does not read it. Remove the other link (a leftover .SOUL.md….tmp file beside it is one) or replace SOUL.md with a copy.';
     case 'EACCES':
     case 'EPERM':
       return "Ori Kami isn't allowed to read SOUL.md.";
@@ -57,8 +57,10 @@ const refusal = (code: string): Error => Object.assign(new Error(code), { code }
 
 /**
  * Reads `dir/SOUL.md` only when it is a regular file of its own right in `dir`, the same one `lstat` found
- * (`entry`): never through a symlink (`O_NOFOLLOW` fails with ELOOP) or a second hard link. The host runs
- * outside the Fence, so it must not read a file the agent pointed it at, such as the vault or the database.
+ * (`entry`): never through a symlink (`O_NOFOLLOW` fails with ELOOP) or a second hard link. The last check is
+ * an `lstat` after the read, which must still name the opened file with one link, so a link removed mid-read
+ * cannot hide another name the file keeps elsewhere. The host runs outside the Fence, so it must not read a
+ * file the agent pointed it at, such as the vault or the database.
  */
 async function readTarget(dir: string, entry: BigIntStats): Promise<Target> {
   const root = await realpath(dir);
@@ -78,6 +80,9 @@ async function readTarget(dir: string, entry: BigIntStats): Promise<Target> {
       read += bytesRead;
       if (read === buffer.length) throw refusal('changed');
     }
+    const after = await lstat(path.join(root, INSTRUCTIONS_FILE), { bigint: true });
+    if (after.ino !== stats.ino || after.dev !== stats.dev) throw refusal('changed');
+    if (after.nlink > 1n) throw refusal('hard-link');
     return { kind: 'read', identity, bytes: buffer.subarray(0, read) };
   } finally {
     await handle.close();
@@ -180,13 +185,11 @@ async function writeExclusive(file: string, bytes: Buffer): Promise<Published> {
 
 /**
  * Publishes `bytes` as `dir/name` only if no entry has that name, not even a dangling link. The text is
- * written and synced to a file in `stagingDir` first, then hard-linked into place (atomic, fails on any
- * existing entry), so a crash never leaves a partial file and nothing else's file is ever removed. A crash
- * before the staging file is unlinked leaves it in `stagingDir`, which `clearStaging` empties.
+ * written and synced to a staging file first, then hard-linked into place (atomic, fails on any
+ * existing entry), so a crash never leaves a partial file and nothing else's file is ever removed.
  */
-async function publish(stagingDir: string, dir: string, name: string, bytes: Buffer): Promise<Published> {
-  await mkdir(stagingDir, { recursive: true });
-  const staging = path.join(stagingDir, `.${randomUUID()}.tmp`);
+async function publish(dir: string, name: string, bytes: Buffer): Promise<Published> {
+  const staging = path.join(dir, `.${name}.${randomUUID()}.tmp`);
   const handle = await open(staging, 'wx');
   try {
     let identity: string;
@@ -225,16 +228,16 @@ async function present(file: string): Promise<boolean> {
 export type CreateInstructionsResult = { readonly kind: 'created'; readonly revision: string } | { readonly kind: 'occupied' } | WriteFailure;
 
 /**
- * Creates `dir/SOUL.md` only when no entry has that name, so an existing file or link is never replaced. It is
- * staged in `stagingDir`, a folder only the host writes: a crash that leaves the staging link makes `SOUL.md`
- * unreadable (two links) until `clearStaging` runs when the host starts again.
+ * Creates `dir/SOUL.md` only when no entry has that name, so an existing file or link is never replaced. A crash
+ * between linking it into place and unlinking the staging name leaves `.SOUL.md.<uuid>.tmp` beside it; the
+ * reader then refuses `SOUL.md` (two links) and says how to fix it, rather than guess which link is whose.
  */
-export function createInstructions(stagingDir: string, dir: string, content: string): Promise<CreateInstructionsResult> {
+export function createInstructions(dir: string, content: string): Promise<CreateInstructionsResult> {
   return guarded(async () => {
     await mkdir(dir, { recursive: true });
     if (await present(path.join(dir, INSTRUCTIONS_FILE))) return { kind: 'occupied' };
     const bytes = Buffer.from(content, 'utf8');
-    const published = await publish(stagingDir, dir, INSTRUCTIONS_FILE, bytes);
+    const published = await publish(dir, INSTRUCTIONS_FILE, bytes);
     if (published.kind === 'exists') return { kind: 'occupied' };
     return { kind: 'created', revision: revisionOf(published.identity, published.identity, hashOf(bytes), null) };
   });
@@ -250,13 +253,8 @@ export function saveInstructionsCopy(dir: string, at: string, content: string): 
     const bytes = Buffer.from(content, 'utf8');
     for (let n = 1; n < 1_000_000; n++) {
       const name = `${stamp}-${String(n)}.md`;
-      if ((await publish(dir, dir, name, bytes)).kind === 'published') return { kind: 'saved', name };
+      if ((await publish(dir, name, bytes)).kind === 'published') return { kind: 'saved', name };
     }
     throw new Error('Too many copies saved at the same time');
   });
-}
-
-/** Removes what creates cut short left in `stagingDir`; run when the host starts, before any create. */
-export async function clearStaging(stagingDir: string): Promise<void> {
-  await rm(stagingDir, { recursive: true, force: true });
 }

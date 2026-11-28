@@ -238,31 +238,29 @@ it('never reads SOUL.md through a symlink or a second hard link, even to a file 
       {
         "content": null,
         "present": true,
-        "readError": "SOUL.md has more than one hard link. Ori Kami reads only a file of its own; copy it instead.",
+        "readError": "SOUL.md has more than one hard link, so Ori Kami does not read it. Remove the other link (a leftover .SOUL.md….tmp file beside it is one) or replace SOUL.md with a copy.",
       },
     ]
   `);
 });
 
-it('refuses a SOUL.md a create cut short left linked to its staging file, and reads it once the host restarts', async () => {
+it('refuses a SOUL.md a create cut short left linked to its staging file, says how to fix it, and reads it once that link is gone', async () => {
   const { agent, file } = await sharedAgent('cut-short');
+  const leftover = path.join(path.dirname(file), '.SOUL.md.00000000-0000-4000-8000-000000000000.tmp');
   await writeFile(file, 'kept');
-  const staging = path.join(dataDir, 'instructions-drafts', '.staging');
-  await mkdir(staging, { recursive: true });
-  await link(file, path.join(staging, '.left-by-a-crash.tmp'));
+  await link(file, leftover);
   const before = await view(agent);
-  await host.close();
-  host = await startTestHost({ dataDir });
+  const untouched = (await readdir(path.dirname(file))).sort();
+  await rm(leftover);
   const after = await view(agent);
-  expect({
-    before: before.readError,
-    after: after.content,
-    staging: await readdir(staging).catch((error: unknown) => (error instanceof Error && 'code' in error ? error.code : error)),
-  }).toMatchInlineSnapshot(`
+  expect({ before: before.readError, untouched, after: after.content }).toMatchInlineSnapshot(`
     {
       "after": "kept",
-      "before": "SOUL.md has more than one hard link. Ori Kami reads only a file of its own; copy it instead.",
-      "staging": "ENOENT",
+      "before": "SOUL.md has more than one hard link, so Ori Kami does not read it. Remove the other link (a leftover .SOUL.md….tmp file beside it is one) or replace SOUL.md with a copy.",
+      "untouched": [
+        ".SOUL.md.00000000-0000-4000-8000-000000000000.tmp",
+        "SOUL.md",
+      ],
     }
   `);
 });
