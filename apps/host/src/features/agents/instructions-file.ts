@@ -63,6 +63,7 @@ const refusal = (code: string): Error => Object.assign(new Error(code), { code }
  * outside the Fence, so it must not read a file the agent pointed it at, such as the vault or the database.
  */
 async function readTarget(dir: string, entry: BigIntStats): Promise<Target> {
+  if (!entry.isFile()) throw refusal('not-a-file');
   if (entry.nlink > 1n) throw refusal('hard-link');
   const root = await realpath(dir);
   const handle = await open(path.join(root, INSTRUCTIONS_FILE), constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
@@ -143,6 +144,8 @@ function writeError(code: string): string {
     case 'ENOENT':
     case 'ENOTDIR':
       return 'The folder is missing.';
+    case 'no-hard-links':
+      return 'Ori Kami can create SOUL.md only in a folder on the same disk as its data folder. Add SOUL.md to this folder yourself, and Ori Kami will use it.';
     default:
       return 'The file could not be written.';
   }
@@ -163,33 +166,16 @@ export async function guarded<T>(write: () => Promise<T>): Promise<T | WriteFail
 
 type Published = { readonly kind: 'published'; readonly identity: string } | { readonly kind: 'exists' };
 
-/** `link()` errors from a file system without hard links (FAT, exFAT, some network mounts). */
+/** `link()` errors from another volume or a file system without hard links (FAT, exFAT, some network mounts). */
 const NO_HARD_LINKS = new Set(['ENOTSUP', 'EOPNOTSUPP', 'EPERM', 'EXDEV', 'ENOSYS']);
-
-/** Exclusive create straight at `file`, for file systems without hard links; a crash mid-write can leave it partial there. */
-async function writeExclusive(file: string, bytes: Buffer): Promise<Published> {
-  let handle;
-  try {
-    handle = await open(file, 'wx');
-  } catch (error) {
-    if (codeOf(error) === 'EEXIST') return { kind: 'exists' };
-    throw error;
-  }
-  try {
-    await handle.writeFile(bytes);
-    await handle.sync();
-    return { kind: 'published', identity: identityOf(await handle.stat({ bigint: true })) };
-  } finally {
-    await handle.close();
-  }
-}
 
 /**
  * Publishes `bytes` as `dir/name` only if no entry has that name, not even a dangling link. The text is
  * written and synced to a file in `stagingDir` first, then hard-linked into place (atomic, fails on any
- * existing entry), so a crash never leaves a partial file and nothing else's file is ever removed.
- * `stagingDir` must be a folder only the host writes: `link()` follows a symlink, so a staging name the
- * agent could replace would let it publish any file the host can reach as `dir/name`.
+ * existing entry), so no reader ever sees a partial file and nothing else's file is ever removed. Where no
+ * hard link can be made (another volume), nothing is written. `stagingDir` must be a folder only the host
+ * writes: `link()` follows a symlink, so a staging name the agent could replace would let it publish any
+ * file the host can reach as `dir/name`.
  */
 async function publish(stagingDir: string, dir: string, name: string, bytes: Buffer): Promise<Published> {
   await mkdir(stagingDir, { recursive: true });
@@ -209,7 +195,7 @@ async function publish(stagingDir: string, dir: string, name: string, bytes: Buf
     } catch (error) {
       const code = codeOf(error);
       if (code === 'EEXIST') return { kind: 'exists' };
-      if (code !== null && NO_HARD_LINKS.has(code)) return await writeExclusive(path.join(dir, name), bytes);
+      if (code !== null && NO_HARD_LINKS.has(code)) throw refusal('no-hard-links');
       throw error;
     }
     return { kind: 'published', identity };
@@ -233,8 +219,7 @@ export type CreateInstructionsResult = { readonly kind: 'created'; readonly revi
 
 /**
  * Creates `dir/SOUL.md` only when no entry has that name, so an existing file or link is never replaced. It is
- * staged in the host-only `stagingDir`; on another volume it is created in place instead, which a crash can
- * leave partial. A crash between linking it into place and unlinking the staging name leaves `SOUL.md` with
+ * staged in the host-only `stagingDir`, so it is refused in a folder on another volume. A crash between linking it into place and unlinking the staging name leaves `SOUL.md` with
  * two links; the reader then refuses it and says how to fix it, rather than guess which link is whose.
  */
 export function createInstructions(dir: string, stagingDir: string, content: string): Promise<CreateInstructionsResult> {
