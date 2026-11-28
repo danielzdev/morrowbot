@@ -244,22 +244,25 @@ it('never reads SOUL.md through a symlink or a second hard link, even to a file 
   `);
 });
 
-it('reads a SOUL.md that a create cut short left with its staging link, and changes nothing in the folder', async () => {
+it('refuses a SOUL.md a create cut short left linked to its staging file, and reads it once the host restarts', async () => {
   const { agent, file } = await sharedAgent('cut-short');
-  const dir = path.dirname(file);
   await writeFile(file, 'kept');
-  await link(file, path.join(dir, '.SOUL.md.00000000-0000-4000-8000-000000000000.tmp'));
-  await writeFile(path.join(dir, '.SOUL.md.other.tmp'), 'not ours');
-  const read = await view(agent);
-  expect({ content: read.content, readError: read.readError, left: (await readdir(dir)).sort() }).toMatchInlineSnapshot(`
+  const staging = path.join(dataDir, 'instructions-drafts', '.staging');
+  await mkdir(staging, { recursive: true });
+  await link(file, path.join(staging, '.left-by-a-crash.tmp'));
+  const before = await view(agent);
+  await host.close();
+  host = await startTestHost({ dataDir });
+  const after = await view(agent);
+  expect({
+    before: before.readError,
+    after: after.content,
+    staging: await readdir(staging).catch((error: unknown) => (error instanceof Error && 'code' in error ? error.code : error)),
+  }).toMatchInlineSnapshot(`
     {
-      "content": "kept",
-      "left": [
-        ".SOUL.md.00000000-0000-4000-8000-000000000000.tmp",
-        ".SOUL.md.other.tmp",
-        "SOUL.md",
-      ],
-      "readError": undefined,
+      "after": "kept",
+      "before": "SOUL.md has more than one hard link. Ori Kami reads only a file of its own; copy it instead.",
+      "staging": "ENOENT",
     }
   `);
 });

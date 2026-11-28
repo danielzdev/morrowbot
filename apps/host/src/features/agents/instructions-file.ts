@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { constants, type BigIntStats } from 'node:fs';
-import { link, lstat, mkdir, open, readdir, realpath, unlink } from 'node:fs/promises';
+import { link, lstat, mkdir, open, realpath, rm, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import type { AgentInstructionsView } from '@morrowbot/contracts';
 
@@ -55,29 +55,10 @@ type Target = { readonly kind: 'read'; readonly identity: string; readonly bytes
 
 const refusal = (code: string): Error => Object.assign(new Error(code), { code });
 
-/** The name `publish` stages `name` under before linking it into place. */
-const stagingName = (name: string): string => `.${name}.${randomUUID()}.tmp`;
-const STAGED_INSTRUCTIONS = new RegExp(`^\\.${INSTRUCTIONS_FILE.replaceAll('.', '\\.')}\\.[0-9a-f-]{36}\\.tmp$`);
-
-/**
- * How many staging names of `SOUL.md` in `root` are links to the opened file: a create cut short (a crash
- * between linking it into place and unlinking the staging name) leaves one. Nothing is changed.
- */
-async function stagedLinks(root: string, opened: BigIntStats): Promise<bigint> {
-  let count = 0n;
-  for (const name of await readdir(root)) {
-    if (!STAGED_INSTRUCTIONS.test(name)) continue;
-    const stats = await lstat(path.join(root, name), { bigint: true }).catch(() => undefined);
-    if (stats?.ino === opened.ino && stats.dev === opened.dev) count += 1n;
-  }
-  return count;
-}
-
 /**
  * Reads `dir/SOUL.md` only when it is a regular file of its own right in `dir`, the same one `lstat` found
- * (`entry`): never through a symlink (`O_NOFOLLOW` fails with ELOOP) or a hard link other than a create's
- * leftover staging name. The host runs outside the Fence, so it must not read a file the agent pointed it
- * at, such as the vault or the database.
+ * (`entry`): never through a symlink (`O_NOFOLLOW` fails with ELOOP) or a second hard link. The host runs
+ * outside the Fence, so it must not read a file the agent pointed it at, such as the vault or the database.
  */
 async function readTarget(dir: string, entry: BigIntStats): Promise<Target> {
   const root = await realpath(dir);
@@ -86,7 +67,7 @@ async function readTarget(dir: string, entry: BigIntStats): Promise<Target> {
     const stats = await handle.stat({ bigint: true });
     if (stats.ino !== entry.ino || stats.dev !== entry.dev) throw refusal('changed');
     if (!stats.isFile()) throw refusal('not-a-file');
-    if (stats.nlink > 1n && stats.nlink !== 1n + (await stagedLinks(root, stats))) throw refusal('hard-link');
+    if (stats.nlink > 1n) throw refusal('hard-link');
     const identity = identityOf(stats);
     if (stats.size > BigInt(MAX_BYTES)) return { kind: 'too-large', identity };
     const buffer = Buffer.alloc(Number(stats.size) + 1);
@@ -199,11 +180,13 @@ async function writeExclusive(file: string, bytes: Buffer): Promise<Published> {
 
 /**
  * Publishes `bytes` as `dir/name` only if no entry has that name, not even a dangling link. The text is
- * written and synced to a staging file first, then hard-linked into place (atomic, fails on any
- * existing entry), so a crash never leaves a partial file and nothing else's file is ever removed.
+ * written and synced to a file in `stagingDir` first, then hard-linked into place (atomic, fails on any
+ * existing entry), so a crash never leaves a partial file and nothing else's file is ever removed. A crash
+ * before the staging file is unlinked leaves it in `stagingDir`, which `clearStaging` empties.
  */
-async function publish(dir: string, name: string, bytes: Buffer): Promise<Published> {
-  const staging = path.join(dir, stagingName(name));
+async function publish(stagingDir: string, dir: string, name: string, bytes: Buffer): Promise<Published> {
+  await mkdir(stagingDir, { recursive: true });
+  const staging = path.join(stagingDir, `.${randomUUID()}.tmp`);
   const handle = await open(staging, 'wx');
   try {
     let identity: string;
@@ -241,13 +224,17 @@ async function present(file: string): Promise<boolean> {
 
 export type CreateInstructionsResult = { readonly kind: 'created'; readonly revision: string } | { readonly kind: 'occupied' } | WriteFailure;
 
-/** Creates `dir/SOUL.md` only when no entry has that name, so an existing file or link is never replaced. */
-export function createInstructions(dir: string, content: string): Promise<CreateInstructionsResult> {
+/**
+ * Creates `dir/SOUL.md` only when no entry has that name, so an existing file or link is never replaced. It is
+ * staged in `stagingDir`, a folder only the host writes: a crash that leaves the staging link makes `SOUL.md`
+ * unreadable (two links) until `clearStaging` runs when the host starts again.
+ */
+export function createInstructions(stagingDir: string, dir: string, content: string): Promise<CreateInstructionsResult> {
   return guarded(async () => {
     await mkdir(dir, { recursive: true });
     if (await present(path.join(dir, INSTRUCTIONS_FILE))) return { kind: 'occupied' };
     const bytes = Buffer.from(content, 'utf8');
-    const published = await publish(dir, INSTRUCTIONS_FILE, bytes);
+    const published = await publish(stagingDir, dir, INSTRUCTIONS_FILE, bytes);
     if (published.kind === 'exists') return { kind: 'occupied' };
     return { kind: 'created', revision: revisionOf(published.identity, published.identity, hashOf(bytes), null) };
   });
@@ -263,8 +250,13 @@ export function saveInstructionsCopy(dir: string, at: string, content: string): 
     const bytes = Buffer.from(content, 'utf8');
     for (let n = 1; n < 1_000_000; n++) {
       const name = `${stamp}-${String(n)}.md`;
-      if ((await publish(dir, name, bytes)).kind === 'published') return { kind: 'saved', name };
+      if ((await publish(dir, dir, name, bytes)).kind === 'published') return { kind: 'saved', name };
     }
     throw new Error('Too many copies saved at the same time');
   });
+}
+
+/** Removes what creates cut short left in `stagingDir`; run when the host starts, before any create. */
+export async function clearStaging(stagingDir: string): Promise<void> {
+  await rm(stagingDir, { recursive: true, force: true });
 }

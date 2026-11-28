@@ -1,7 +1,7 @@
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import type { Agent, AgentInstructionsView, AgentWorkspace, AgentWorkspaceRequest, CreateAgentRequest, UpdateAgentRequest } from '@morrowbot/contracts';
-import { createInstructions, guarded, readInstructionsText, readInstructionsView, saveInstructionsCopy, type CreateInstructionsResult, type SaveCopyResult, type WriteFailure } from './instructions-file.ts';
+import { clearStaging, createInstructions, guarded, readInstructionsText, readInstructionsView, saveInstructionsCopy, type CreateInstructionsResult, type SaveCopyResult, type WriteFailure } from './instructions-file.ts';
 
 /** Where agent records are kept (the storage feature provides one). */
 export interface AgentRecords {
@@ -25,7 +25,10 @@ export interface AgentServiceOptions {
   readonly folderExists: (id: string) => boolean;
   /** Parent folder for dedicated workspaces: each agent gets `<workspacesDir>/<agentId>`. */
   readonly workspacesDir: string;
-  /** Where Save a copy keeps drafts: `<draftsDir>/<agentId>/<time>-<n>.md`, never in a workspace. */
+  /**
+   * Where Save a copy keeps drafts: `<draftsDir>/<agentId>/<time>-<n>.md`, never in a workspace. Creating
+   * `SOUL.md` stages it in `<draftsDir>/.staging`, which only the host writes.
+   */
   readonly draftsDir: string;
   readonly newId: () => string;
   readonly now: () => string;
@@ -61,10 +64,13 @@ export interface AgentService {
   createInstructions(id: string, content: string): Promise<CreateInstructionsResult | undefined>;
   /** Saves `content` as a copy in the data folder and returns its file name. Undefined for an unknown agent. */
   saveInstructionsCopy(id: string, content: string): Promise<SaveCopyResult | undefined>;
+  /** Removes staging files a create cut short left; the host runs it once at start. */
+  clearStaging(): Promise<void>;
 }
 
 export function createAgentService(options: AgentServiceOptions): AgentService {
   const { records } = options;
+  const stagingDir = path.join(options.draftsDir, '.staging');
 
   function workspaceFor(id: string, request: AgentWorkspaceRequest): AgentWorkspace | undefined {
     switch (request.kind) {
@@ -108,7 +114,7 @@ export function createAgentService(options: AgentServiceOptions): AgentService {
       if (made !== null) return { kind: 'failed', message: `The workspace folder could not be made. ${made.message}` };
       if (unknownFolder(agent.folderId)) return { kind: 'invalid', reason: NO_SUCH_FOLDER };
       if (request.initialInstructions !== null) {
-        const written = await createInstructions(agent.workspace.dir, request.initialInstructions);
+        const written = await createInstructions(stagingDir, agent.workspace.dir, request.initialInstructions);
         switch (written.kind) {
           case 'created':
             break;
@@ -149,11 +155,12 @@ export function createAgentService(options: AgentServiceOptions): AgentService {
     },
     createInstructions: async (id, content) => {
       const agent = records.get(id);
-      return agent === undefined ? undefined : createInstructions(agent.workspace.dir, content);
+      return agent === undefined ? undefined : createInstructions(stagingDir, agent.workspace.dir, content);
     },
     saveInstructionsCopy: async (id, content) => {
       const agent = records.get(id);
       return agent === undefined ? undefined : saveInstructionsCopy(path.join(options.draftsDir, agent.id), options.now(), content);
     },
+    clearStaging: () => clearStaging(stagingDir),
   };
 }
