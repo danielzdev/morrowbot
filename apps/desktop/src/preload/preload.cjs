@@ -27,6 +27,8 @@ const CHANNELS = {
   checkForUpdates: 'morrowbot:check-for-updates',
   restartToUpdate: 'morrowbot:restart-to-update',
   signInTerminal: 'morrowbot:sign-in-terminal',
+  resetPlan: 'morrowbot:reset-plan',
+  runReset: 'morrowbot:run-reset',
   serverMode: 'morrowbot:server-mode',
   chooseServer: 'morrowbot:choose-server',
 };
@@ -66,6 +68,8 @@ const bridge = {
   checkForUpdates: () => ipcRenderer.invoke(CHANNELS.checkForUpdates),
   restartToUpdate: () => ipcRenderer.invoke(CHANNELS.restartToUpdate),
   signInTerminal: (providerId) => ipcRenderer.invoke(CHANNELS.signInTerminal, { providerId }),
+  resetPlan: () => ipcRenderer.invoke(CHANNELS.resetPlan),
+  runReset: (request) => ipcRenderer.invoke(CHANNELS.runReset, request),
   serverMode: () => ipcRenderer.invoke(CHANNELS.serverMode),
   chooseServer: (request) => ipcRenderer.invoke(CHANNELS.chooseServer, request),
 };

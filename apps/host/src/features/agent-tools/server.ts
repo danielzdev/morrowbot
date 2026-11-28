@@ -5,6 +5,7 @@ import { createToolGrants, type ToolGrant } from './grants.ts';
 import { answerMcp } from './mcp.ts';
 import { memoryTools } from './memory-tools.ts';
 import { messageTools } from './message-tools.ts';
+import { resolveTools } from './plugin-tools.ts';
 import type { ToolPorts } from './ports.ts';
 import { vaultTools } from './vault-tools.ts';
 
@@ -17,6 +18,7 @@ export interface ToolServerOptions {
   /** The host's version, as the MCP server reports it. */
   readonly version: string;
   readonly report: (error: unknown) => void;
+  readonly warn?: (message: string) => void;
 }
 
 /** The host's MCP server: loopback only, each request acting as the running turn its bearer token was issued to. */
@@ -37,9 +39,12 @@ type Answer = { readonly status: number; readonly body: object | null; readonly 
  */
 export async function startToolServer(options: ToolServerOptions): Promise<ToolServer> {
   const grants = createToolGrants();
-  /** Each running turn's abort: closing the turn stops its connector calls. */
-  const turns = new Map<string, AbortController>();
-  const tools = [...messageTools(options.ports), ...memoryTools(options.ports), ...vaultTools(options.ports)];
+  const builtins = [...messageTools(options.ports), ...memoryTools(options.ports), ...vaultTools(options.ports)];
+  const warn =
+    options.warn ??
+    ((message: string) => {
+      console.warn(`MorrowBot host: ${message}`);
+    });
   let authority = '';
   const handle = async (request: IncomingMessage, response: ServerResponse): Promise<Answer> => {
     if (request.headers.host !== authority || request.headers.origin !== undefined) return { status: 403, body: { error: 'Forbidden' } };
@@ -54,13 +59,18 @@ export async function startToolServer(options: ToolServerOptions): Promise<ToolS
         return body.answer;
       case 'read': {
         const dropped = new AbortController();
-        response.once('close', () => {
-          if (!response.writableFinished) dropped.abort();
-        });
-        const turn = turns.get(grant.turnId)?.signal ?? AbortSignal.abort();
-        const signal = AbortSignal.any([turn, dropped.signal]);
-        const answer = await answerMcp(body.value, { grant, tools, connectors: options.ports.connectors, signal }, options.version);
-        return answer.kind === 'accepted' ? { status: 202, body: null } : { status: 200, body: answer.body };
+        const onClose = (): void => {
+          if (!response.writableEnded) dropped.abort();
+        };
+        response.on('close', onClose);
+        try {
+          const signal = AbortSignal.any([grant.signal, dropped.signal]);
+          const tools = resolveTools(builtins, options.ports.pluginTools, grant.agentId, warn);
+          const answer = await answerMcp(body.value, { grant, tools, connectors: options.ports.connectors, signal }, options.version);
+          return answer.kind === 'accepted' ? { status: 202, body: null } : { status: 200, body: answer.body };
+        } finally {
+          response.off('close', onClose);
+        }
       }
     }
   };
@@ -88,19 +98,12 @@ export async function startToolServer(options: ToolServerOptions): Promise<ToolS
   const url = `http://${authority}${MCP_PATH}`;
   return {
     url,
-    open: (grant) => {
-      turns.get(grant.turnId)?.abort();
-      turns.set(grant.turnId, new AbortController());
-      return { kind: 'mcp', url, token: grants.issue(grant) };
-    },
+    open: (grant) => ({ kind: 'mcp', url, token: grants.issue(grant) }),
     close: (turnId) => {
       grants.revoke(turnId);
-      turns.get(turnId)?.abort();
-      turns.delete(turnId);
     },
     stop: async () => {
-      for (const turn of turns.values()) turn.abort();
-      turns.clear();
+      grants.revokeAll();
       server.closeAllConnections();
       await new Promise<void>((resolve) => {
         server.close(() => {
@@ -112,6 +115,7 @@ export async function startToolServer(options: ToolServerOptions): Promise<ToolS
 }
 
 function reply(response: ServerResponse, { status, body, headers = {} }: Answer): void {
+  if (response.writableEnded || response.destroyed) return;
   if (body === null) {
     response.writeHead(status, headers).end();
     return;

@@ -2,7 +2,7 @@ import { HostMessage, PROTOCOL_VERSION, type PluginMessage, type TurnChunk, type
 import { createTurnApprovals, type TurnApprovals } from './approvals.ts';
 import type { CommandRunner } from './command.ts';
 import { createGroupLink, type GroupLink } from './host-link.ts';
-import type { PluginDefinition, ProviderPlugin, Steer } from './plugin.ts';
+import type { PluginDefinition, ProviderPlugin, Steer, ToolPlugin } from './plugin.ts';
 import { createRuntime, type PluginFactory, type RuntimeOptions } from './runtime.ts';
 
 /** How a served plugin's messages reach the host: a worker's IPC channel, or a channel inside the host. */
@@ -34,6 +34,7 @@ interface Served {
   readonly send: (message: PluginMessage, done?: () => void) => void;
   readonly exit: () => void;
   readonly turns: Map<string, RunningTurn>;
+  readonly toolCalls: Map<number, AbortController>;
   readonly commands: CommandRunner;
   readonly link: GroupLink;
 }
@@ -56,7 +57,7 @@ export function servePlugin(factory: PluginFactory, options: RuntimeOptions & { 
     commands.abandon();
     throw error;
   }
-  const served: Served = { plugin, send, exit, turns: new Map(), commands, link };
+  const served: Served = { plugin, send, exit, turns: new Map(), toolCalls: new Map(), commands, link };
   return {
     receive: (raw) => {
       if (abandoned) return;
@@ -72,6 +73,7 @@ export function servePlugin(factory: PluginFactory, options: RuntimeOptions & { 
       abandoned = true;
       commands.abandon();
       for (const { controller } of served.turns.values()) controller.abort();
+      for (const controller of served.toolCalls.values()) controller.abort();
     },
   };
 }
@@ -85,6 +87,9 @@ function handle(served: Served, message: HostMessage): void {
       return;
     case 'cancel':
       served.turns.get(message.turnId)?.controller.abort();
+      return;
+    case 'tool-cancel':
+      served.toolCalls.get(message.callId)?.abort();
       return;
     case 'steer':
       served.turns.get(message.turnId)?.steer({ steerId: message.steerId, text: message.text });
@@ -106,6 +111,8 @@ function handle(served: Served, message: HostMessage): void {
     case 'provider-info':
     case 'usage':
     case 'route-info':
+    case 'tools-list':
+    case 'tool-call':
       answer(served, message).catch((error: unknown) => {
         served.send(failure(message.id, error));
       });
@@ -128,6 +135,7 @@ async function answer(served: Served, message: Request): Promise<void> {
       return;
     case 'shutdown': {
       for (const { controller } of served.turns.values()) controller.abort();
+      for (const controller of served.toolCalls.values()) controller.abort();
       let reply: PluginMessage = { kind: 'shutdown-result', id };
       try {
         await served.commands.stopAll();
@@ -147,14 +155,34 @@ async function answer(served: Served, message: Request): Promise<void> {
       return;
     case 'route-info': {
       const route = await provider(plugin).routeInfo({ cwd: message.cwd });
-      switch (route.kind) {
-        case 'known':
-          send({ kind: 'route-info-result', id, accountKey: route.accountKey, routeKey: route.routeKey });
-          return;
-        case 'failed':
-          send({ kind: 'route-info-failed', id, reason: route.reason });
-          return;
+      send(
+        route.kind === 'known'
+          ? { kind: 'route-info-result', id, accountKey: route.accountKey, routeKey: route.routeKey }
+          : { kind: 'route-info-failed', id, reason: route.reason },
+      );
+      return;
+    }
+    case 'tools-list': {
+      const target = toolPlugin(plugin);
+      const tools = (await target.listTools?.()) ?? [];
+      send({ kind: 'tools-list-result', id, tools: [...tools] });
+      return;
+    }
+    case 'tool-call': {
+      const target = toolPlugin(plugin);
+      if (target.callTool === undefined) {
+        send({ kind: 'tool-call-result', id, result: { kind: 'error', message: `Unknown tool: ${message.name}` } });
+        return;
       }
+      const controller = new AbortController();
+      served.toolCalls.set(id, controller);
+      try {
+        const result = await target.callTool({ turnId: message.turnId, name: message.name, input: message.input, signal: controller.signal });
+        send({ kind: 'tool-call-result', id, result });
+      } finally {
+        served.toolCalls.delete(id);
+      }
+      return;
     }
   }
 }
@@ -165,6 +193,15 @@ function provider(plugin: PluginDefinition): ProviderPlugin {
       return plugin;
     case 'tool':
       throw new UnsupportedError('Tool plugins do not run provider requests');
+  }
+}
+
+function toolPlugin(plugin: PluginDefinition): ToolPlugin {
+  switch (plugin.kind) {
+    case 'tool':
+      return plugin;
+    case 'provider':
+      throw new UnsupportedError('Provider plugins do not run tool requests');
   }
 }
 

@@ -5,6 +5,8 @@ export interface AppFiles {
   readonly rendererUrl: string;
   readonly preload: string;
   readonly hostMain: string;
+  /** The post-exit cleanup helper that Reset or Uninstall starts. */
+  readonly cleanupHelper: string;
   /** The plugins that ship with the app, or `null` when it ships none. */
   readonly builtinPluginsDir: string | null;
 }
@@ -21,6 +23,7 @@ export function appFilesOf(build: { readonly kind: 'dev' } | { readonly kind: 'p
         rendererUrl: pathToFileURL(fileURLToPath(new URL('../../dist/renderer/index.html', import.meta.url))).href,
         preload: fileURLToPath(new URL('../preload/preload.cjs', import.meta.url)),
         hostMain: fileURLToPath(new URL('../../../host/src/main.ts', import.meta.url)),
+        cleanupHelper: fileURLToPath(new URL('./reset/cleanup-helper.ts', import.meta.url)),
         builtinPluginsDir: fileURLToPath(new URL('../../../../plugins', import.meta.url)),
       };
     case 'packaged':
@@ -28,6 +31,7 @@ export function appFilesOf(build: { readonly kind: 'dev' } | { readonly kind: 'p
         rendererUrl: pathToFileURL(path.join(build.appPath, 'renderer', 'index.html')).href,
         preload: path.join(build.appPath, 'main', 'preload.cjs'),
         hostMain: path.join(build.appPath, 'host', 'main.js'),
+        cleanupHelper: path.join(build.appPath, 'main', 'cleanup-helper.js'),
         builtinPluginsDir: null,
       };
   }

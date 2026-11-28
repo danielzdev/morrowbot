@@ -58,6 +58,8 @@ export interface HostOptions {
   readonly t3Watch?: { readonly probe: T3Probe; readonly clock: T3WatchClock };
   /** Where the vault's master key lives: the OS keystore (the default), or a file in the data folder (tests). */
   readonly vaultKeys?: VaultKeyChoice;
+  /** Hook for per-agent tool plugin scoping (#36). Defaults to allowing all enabled tool plugins. */
+  readonly isPluginAllowedForAgent?: (agentId: string, pluginId: string) => boolean;
 }
 
 export interface Host {
@@ -176,7 +178,11 @@ export async function startHost(options: HostOptions): Promise<Host> {
     });
     undo.push(() => connectors.close());
     connectors.start();
-    const tools = await startToolServer({ ports: agentToolPorts(storage, agents, agentMessages, memories, vault, connectors), version: options.version, report });
+    const tools = await startToolServer({
+      ports: agentToolPorts(storage, agents, agentMessages, memories, vault, connectors, plugins, options.isPluginAllowedForAgent),
+      version: options.version,
+      report,
+    });
     undo.push(() => tools.stop());
     const chat = createChatService({
       store: chatStore(storage),

@@ -81,6 +81,8 @@ export function openTestWindow(target: HostTarget): TestWindow {
     checkForUpdates: () => Promise.resolve({ kind: 'unsupported' }),
     restartToUpdate: () => Promise.resolve(),
     signInTerminal: () => Promise.resolve({ kind: 'unavailable', reason: 'One-click sign-in works on macOS only. Use the command instead.' }),
+    resetPlan: () => Promise.resolve({ token: 'test', options: [] }),
+    runReset: () => Promise.resolve({ kind: 'refused', reason: 'Not in tests.' }),
     serverMode: () => Promise.resolve({ kind: 'local' }),
     chooseServer: () => Promise.resolve({ kind: 'failed', message: 'A test window keeps its server' }),
   };
