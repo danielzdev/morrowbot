@@ -1,8 +1,6 @@
 import type {
   Agent,
   AssistantMessage,
-  ChatEvent,
-  EventServerFrame,
   Message,
   PendingApproval,
   PluginEntry,
@@ -11,7 +9,8 @@ import type {
   TurnOutcome,
   UserMessage,
 } from '@morrowbot/contracts';
-import type { ChatHost, HostResult } from './chat-host.ts';
+import type { ChatHost, ChatResult } from '../../lib/chat-host.ts';
+import type { ThreadEvent, ThreadWatcher } from '../../lib/host-connection.ts';
 import { SAMPLE_ACTIVE, SAMPLE_AGENTS, SAMPLE_MESSAGES, SAMPLE_PLUGINS, SAMPLE_PROVIDERS, SAMPLE_THREADS } from './sample-data.ts';
 
 const EPOCH = 'sample';
@@ -19,8 +18,8 @@ const STEP_MS = 140;
 
 type Active = NonNullable<ThreadState['activeTurn']>;
 
-const ok = <T>(value: T): Promise<HostResult<T>> => Promise.resolve({ kind: 'ok', value });
-const missing = <T>(what: string): Promise<HostResult<T>> =>
+const ok = <T>(value: T): Promise<ChatResult<T>> => Promise.resolve({ kind: 'ok', value });
+const missing = <T>(what: string): Promise<ChatResult<T>> =>
   Promise.resolve({ kind: 'failed', status: 404, error: { kind: 'not_found', message: `${what} not found` } });
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => {
@@ -40,17 +39,17 @@ export function createSampleChatHost(now: () => string = () => new Date().toISOS
   const active = new Map<string, Active>();
   for (const [threadId, turn] of Object.entries(SAMPLE_ACTIVE)) if (turn !== null) active.set(threadId, copy(turn));
   const seqs = new Map<string, number>();
-  const listeners = new Map<string, Set<(frame: EventServerFrame) => void>>();
+  const watchers = new Map<string, Set<ThreadWatcher>>();
   const pluginListeners = new Set<(entry: PluginEntry) => void>();
   const answers = new Map<string, (choiceId: string | null) => void>();
   let counter = 0;
   const nextId = (prefix: string): string => `${prefix}-${String(++counter)}`;
 
-  const emit = (threadId: string, generationId: string, body: DistributiveOmit<ChatEvent, 'threadId' | 'generationId' | 'cursor'>): void => {
+  const emit = (threadId: string, generationId: string, body: DistributiveOmit<Exclude<ThreadEvent, { kind: 'queue.changed' }>, 'threadId' | 'generationId' | 'cursor'>): void => {
     const seq = (seqs.get(threadId) ?? 0) + 1;
     seqs.set(threadId, seq);
     const frame = { ...body, threadId, generationId, cursor: { hostEpoch: EPOCH, seq } };
-    for (const listener of listeners.get(threadId) ?? []) listener(frame);
+    for (const watcher of watchers.get(threadId) ?? []) watcher.onEvent(frame);
   };
 
   const finish = (threadId: string, turn: Active, outcome: TurnOutcome): AssistantMessage => {
@@ -154,10 +153,6 @@ export function createSampleChatHost(now: () => string = () => new Date().toISOS
       threads = [...threads, created];
       return ok(created);
     },
-    threadState: (threadId) => {
-      const thread = threads.find(({ id }) => id === threadId);
-      return thread === undefined ? missing('Thread') : ok(stateOf(thread));
-    },
     send: (threadId, text) => {
       if (active.has(threadId)) return Promise.resolve({ kind: 'failed', status: 409, error: { kind: 'conflict', message: 'A reply is already running.' } });
       const userMessage: UserMessage = { kind: 'user', id: nextId('msg'), threadId, text, createdAt: now(), attachments: [] };
@@ -225,12 +220,23 @@ export function createSampleChatHost(now: () => string = () => new Date().toISOS
         pluginListeners.delete(listener);
       };
     },
-    follow: (threadId, _since, onFrame) => {
-      const set = listeners.get(threadId) ?? new Set();
-      set.add(onFrame);
-      listeners.set(threadId, set);
+    watch: (threadId, watcher) => {
+      const set = watchers.get(threadId) ?? new Set();
+      watchers.set(threadId, set);
+      let watching = true;
+      void Promise.resolve().then(() => {
+        if (!watching) return;
+        const thread = threads.find(({ id }) => id === threadId);
+        if (thread === undefined) {
+          watcher.onGone();
+          return;
+        }
+        watcher.onFresh(stateOf(thread));
+        set.add(watcher);
+      });
       return () => {
-        set.delete(onFrame);
+        watching = false;
+        set.delete(watcher);
       };
     },
   };

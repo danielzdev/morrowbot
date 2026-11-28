@@ -1,6 +1,6 @@
 import type { Agent, Thread } from '@morrowbot/contracts';
-import { useEffect, useState } from 'react';
-import { AppState, Keyboard, KeyboardAvoidingView, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Keyboard, KeyboardAvoidingView, Pressable, StyleSheet, Text, View } from 'react-native';
 import { MorrowLayoutMetricsView } from '../../../modules/morrow-native-controls/index.ts';
 import { ACTION_SLOT_METRICS, deriveActionSlotPlacement } from '../../lib/layout.ts';
 import { deriveBottomControlInsets, parseNativeLayoutMetrics, type NativeLayoutMetrics } from '../../lib/reserved-regions.ts';
@@ -60,16 +60,8 @@ function ChatThread(props: {
   const [metrics, setMetrics] = useState<NativeLayoutMetrics | null>(null);
   const [composerHeight, setComposerHeight] = useState(96);
   const keyboard = useKeyboardShown();
-  useEffect(() => {
-    const listener = AppState.addEventListener('change', (next) => {
-      if (next === 'active') void session.load();
-    });
-    return () => {
-      listener.remove();
-    };
-  }, [session]);
   const frame = composerFrame(metrics, keyboard);
-  const { view, problem } = screen;
+  const { view, problem, stale } = screen;
   return (
     <KeyboardAvoidingView behavior="padding" style={styles.fill}>
       <MorrowLayoutMetricsView
@@ -94,6 +86,7 @@ function ChatThread(props: {
           activeTurn={view.value.activeTurn}
           queue={view.value.queue}
           answering={screen.answering}
+          stale={stale}
           bottomInset={composerHeight + frame.bottom}
           onAnswer={(approvalId, choiceId) => void session.answer(approvalId, choiceId)}
           onContinue={(failedMessageId) => void session.continueTurn(failedMessageId)}
@@ -101,7 +94,12 @@ function ChatThread(props: {
       ) : (
         <View style={styles.center}>
           <Text style={[typography.ui, { color: colors.text3 }]}>{view.kind === 'loading' ? 'Loading chat…' : view.message}</Text>
-          {view.kind === 'failed' ? <Button label="Try again" onPress={() => void session.load()} /> : null}
+          {view.kind === 'failed' ? <Button
+              label="Try again"
+              onPress={() => {
+                session.load();
+              }}
+            /> : null}
         </View>
       )}
       <View
@@ -110,6 +108,11 @@ function ChatThread(props: {
           setComposerHeight(nativeEvent.layout.height);
         }}
       >
+        {stale && view.kind === 'loaded' ? (
+          <View accessibilityLiveRegion="polite" style={[styles.problem, { backgroundColor: colors.surface2, borderColor: colors.hairline }]}>
+            <Text style={[typography.small, styles.problemText, { color: colors.text3 }]}>Catching up with the host…</Text>
+          </View>
+        ) : null}
         {problem === null ? null : (
           <View style={[styles.problem, { backgroundColor: colors.surface2, borderColor: colors.hairlineStrong }]}>
             <Text style={[typography.small, styles.problemText, { color: colors.text2 }]}>{problem.message}</Text>
@@ -166,6 +169,13 @@ export function ChatBody(props: DetailProps<'chat'>) {
   );
   const agent = agents.kind === 'loaded' ? agents.value.find(({ id }) => id === route.agentId) : undefined;
   const thread = threads.kind === 'loaded' ? threadFor(threads.value, route.threadId) : null;
+  const unknown = threads.kind === 'loaded' && thread === null && route.threadId !== null ? route.threadId : null;
+  const askedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (unknown === null || askedFor.current === unknown) return;
+    askedFor.current = unknown;
+    void hub.refreshThreads(route.agentId);
+  }, [hub, route.agentId, unknown]);
   if (agent === undefined || thread === null || threads.kind !== 'loaded') {
     const waiting = agents.kind === 'loading' || threads.kind === 'loading';
     const noChats = agent !== undefined && threads.kind === 'loaded' && threads.value.length === 0;

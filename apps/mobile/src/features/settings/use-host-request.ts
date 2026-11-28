@@ -67,7 +67,7 @@ function toLoaded<T>(result: HostResult<T>): Loaded<T> {
     case 'unsupported':
       return { kind: 'error', message: 'This host does not offer this yet.' };
     case 'failed':
-      return { kind: 'error', message: result.message };
+      return { kind: 'error', message: result.error.message };
     case 'malformed':
       return { kind: 'error', message: 'The host sent something this app cannot read. Update MorrowBot on both devices.' };
   }

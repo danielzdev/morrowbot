@@ -16,9 +16,10 @@ Expo (dev client) + React Native app for iOS, built first for iPhone Duo folded 
   `src/app/registry.ts` wires them in. A new detail screen is a new kind in `DetailRouteMap` plus
   its slot in the registry; the shell does not change.
 - `src/features/chat/` — the chat canvas, approvals, composer and Agent Settings sheet. It talks to
-  the host only through its `ChatHost` interface; `src/features/extensions/` likewise through
-  `ExtensionsHost`. `src/app/HostProviders.tsx` hands both the built-in sample host
-  (`createSampleChatHost`, made-up agents) until a paired host is wired in.
+  the host only through `ChatHost` (`src/lib/chat-host.ts`); `src/features/extensions/` through
+  its plugin part, `ExtensionsHost`. `src/app/HostProviders.tsx` hands both the active paired
+  host (`createLiveChatHost` in `features/connection`), and the Agents and Threads lists that
+  host's directory; with no host paired, all three show the built-in sample host (made-up agents).
 
 ## Host connection
 
