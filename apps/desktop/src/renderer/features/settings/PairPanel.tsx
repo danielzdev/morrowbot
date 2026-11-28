@@ -26,7 +26,7 @@ export function PairCode(props: { readonly code: PairingCodeResponse; readonly n
           <span class="mono">{code.url}</span>
         </div>
         <p class="setting-description">
-          Scan the QR code with your phone, or type the address and code into MorrowBot on your phone. Each code works once, for 5 minutes.
+          In MorrowBot on your phone, open Settings › Connections › Add Host, then scan the QR code or enter the address and code. Each code works once, for 5 minutes.
         </p>
         <div class="pair-actions">
           {left === null ? (
