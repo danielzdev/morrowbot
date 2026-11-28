@@ -1,4 +1,4 @@
-import { commandFilePath, defineProvider, runPlugin, z } from '../index.ts';
+import { commandFilePath, defineProvider, defineToolPlugin, runPlugin, z } from '../index.ts';
 
 /**
  * A plugin process for SDK tests, started by `startPlugin`. `tool` serves a tool plugin; anything
@@ -21,7 +21,31 @@ function fileArgs(args: readonly string[]): string[] {
 }
 
 if (process.argv[2] === 'tool') {
-  runPlugin(() => ({ kind: 'tool' }));
+  runPlugin(() =>
+    defineToolPlugin({
+      listTools: () => [
+        { name: 'ping', description: 'Echoes text back', inputSchema: { type: 'object', properties: { text: { type: 'string' } } } },
+        { name: 'wait', description: 'Waits until cancelled', inputSchema: { type: 'object' } },
+        { name: 'boom', description: 'Throws an error', inputSchema: { type: 'object' } },
+      ],
+      callTool: async ({ name, input, signal }) => {
+        if (name === 'ping') {
+          return { kind: 'ok', content: [{ kind: 'text', text: `pong:${JSON.stringify(input)}` }] };
+        }
+        if (name === 'wait') {
+          await new Promise<void>((resolve) => {
+            if (signal.aborted) resolve();
+            else signal.addEventListener('abort', () => { resolve(); }, { once: true });
+          });
+          return { kind: 'error', message: 'aborted' };
+        }
+        if (name === 'boom') {
+          throw new Error('tool exploded');
+        }
+        return { kind: 'error', message: `unknown tool ${name}` };
+      },
+    }),
+  );
 } else {
   runPlugin((runtime) =>
     defineProvider({

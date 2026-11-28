@@ -91,6 +91,7 @@ export function steerRefused(core: ChatCore, turn: Turn, steerId: string): void 
   if (turn.steer?.id !== steerId || turn.steer.via !== 'native') return;
   turn.steer = { id: steerId, via: 'interrupt' };
   setState(core, turn.threadId, [steerId], { kind: 'steering', via: 'interrupt' });
+  core.options.tools.close(turn.generationId);
   core.options.plugins.cancelTurn(turn.pluginId, turn.generationId);
 }
 

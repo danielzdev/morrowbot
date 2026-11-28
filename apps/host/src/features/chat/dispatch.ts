@@ -280,7 +280,10 @@ export function accountChanged(core: ChatCore, pluginId: string, oldKey: string)
     } else {
       turn.fenced = true;
       turn.stopRequested = true;
-      if (turn.state === 'running') core.options.plugins.cancelTurn(pluginId, turn.generationId);
+      if (turn.state === 'running') {
+        core.options.tools.close(turn.generationId);
+        core.options.plugins.cancelTurn(pluginId, turn.generationId);
+      }
     }
   }
 }

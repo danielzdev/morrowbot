@@ -18,7 +18,7 @@ const CallParams = z.looseObject({ name: z.string(), arguments: z.unknown().opti
 /** What to answer one POSTed message with: a JSON-RPC response, or nothing (HTTP 202) for a notification. */
 export type McpAnswer = { readonly kind: 'respond'; readonly body: object } | { readonly kind: 'accepted' };
 
-/** What one turn's MCP message can reach: MorrowBot's own tools, the agent's connector tools, and the turn's end. */
+/** What one turn's MCP message can reach: MorrowBot's own and plugin tools, the agent's connector tools, and the turn's end. */
 export interface McpScope {
   readonly grant: ToolGrant;
   readonly tools: readonly Tool[];
@@ -63,10 +63,12 @@ async function callTool(id: RequestId, params: unknown, scope: McpScope): Promis
   if (!call.success) return error(id, -32602, 'Invalid params: name the tool to call');
   const found = scope.tools.find(({ name }) => name === call.data.name);
   if (found === undefined) return callConnector(id, call.data.name, call.data.arguments, scope);
-  const outcome = found.call(scope.grant, call.data.arguments);
+  const outcome = await found.call(scope.grant, call.data.arguments, scope.signal);
   switch (outcome.kind) {
     case 'done':
       return result(id, { content: [{ type: 'text', text: JSON.stringify(outcome.value) }], structuredContent: outcome.value, isError: false });
+    case 'content':
+      return result(id, { content: outcome.blocks, isError: false });
     case 'refused':
       return result(id, { content: [{ type: 'text', text: outcome.reason }], isError: true });
   }
