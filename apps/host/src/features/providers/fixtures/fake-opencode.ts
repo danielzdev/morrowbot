@@ -47,6 +47,21 @@ const MODELS = [
   { value: 'opencode/big-pickle', name: 'opencode/Big Pickle' },
   { value: 'opencode/fake-free', name: 'opencode/Fake Free' },
 ];
+const ConfigContent = z.looseObject({
+  agent: z.record(z.string(), z.looseObject({ mode: z.string().optional(), disable: z.boolean().optional() })).optional(),
+});
+function configuredModes(): { readonly value: string; readonly name: string }[] {
+  const base = [{ value: 'build', name: 'Build' }];
+  const raw = process.env.OPENCODE_CONFIG_CONTENT;
+  if (raw === undefined) return base;
+  const parsed = ConfigContent.safeParse(JSON.parse(raw));
+  if (!parsed.success || parsed.data.agent === undefined) return base;
+  for (const [id, entry] of Object.entries(parsed.data.agent)) {
+    if (entry.disable !== true && entry.mode === 'primary' && id !== 'build') base.push({ value: id, name: id.slice(0, 1).toUpperCase() + id.slice(1) });
+  }
+  return base;
+}
+const MODES = configuredModes();
 
 interface Session {
   readonly cwd: string;
@@ -82,7 +97,7 @@ function ask(method: string, params: Readonly<Record<string, unknown>>): Promise
 function configOptions(session: Session): unknown[] {
   return [
     { id: 'model', name: 'Model', category: 'model', type: 'select', currentValue: session.model, options: MODELS },
-    { id: 'mode', name: 'Session Mode', category: 'mode', type: 'select', currentValue: session.mode, options: [{ value: 'build', name: 'Build' }] },
+    { id: 'mode', name: 'Session Mode', category: 'mode', type: 'select', currentValue: session.mode, options: MODES },
   ];
 }
 
@@ -158,6 +173,14 @@ async function prompt(sessionId: string, session: Session, sent: string): Promis
     const outside = path.join(home, 'outside.txt');
     return permitted(sessionId, { id: 'call-read', kind: 'read', name: 'read', path: outside }, () => `outside says: ${readFileSync(outside, 'utf8')}`);
   }
+  if (text.includes('run-tools')) {
+    update(sessionId, { sessionUpdate: 'tool_call', toolCallId: 'call-edit', title: 'write', kind: 'edit', status: 'in_progress', locations: [{ path: path.join(session.cwd, 'edited.txt') }] });
+    update(sessionId, { sessionUpdate: 'tool_call_update', toolCallId: 'call-edit', title: 'write', kind: 'edit', status: 'completed' });
+    update(sessionId, { sessionUpdate: 'tool_call', toolCallId: 'call-bash', title: 'bash', kind: 'execute', status: 'in_progress' });
+    update(sessionId, { sessionUpdate: 'tool_call_update', toolCallId: 'call-bash', title: 'bash', kind: 'execute', status: 'completed' });
+    update(sessionId, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: `Ran tools in ${session.mode}` } });
+    return { stopReason: 'end_turn', usage: USAGE, _meta: {} };
+  }
   if (text.includes('write')) {
     return permitted(sessionId, { id: 'call-write', kind: 'edit', name: 'write', path: path.join(session.cwd, 'inside.txt') }, () => 'wrote inside.txt');
   }
@@ -206,6 +229,9 @@ async function answer(method: string, raw: unknown): Promise<unknown> {
       if (params.configId === 'model') {
         if (!MODELS.some((model) => model.value === value)) throw new Error(`Model not found: ${value}`);
         session.model = value;
+      } else if (params.configId === 'mode') {
+        if (!MODES.some((mode) => mode.value === value)) throw new Error(`Mode not found: ${value}`);
+        session.mode = value;
       }
       return { configOptions: configOptions(session) };
     }

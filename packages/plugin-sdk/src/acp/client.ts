@@ -26,6 +26,8 @@ export interface SessionHandlers {
   readonly onRefused: (method: string) => void;
   /** Whether the agent is replaying the session's saved history. */
   readonly replaying: () => boolean;
+  /** When true, edits, commands, and mode changes on this session do not trip the read-only breach tripwire. */
+  readonly allowChanges?: boolean;
 }
 
 /** One running ACP agent (`agy acp`, `opencode acp`): a provider's shared daemon. */
@@ -75,9 +77,13 @@ export type AcpStart = { readonly kind: 'started'; readonly client: AcpClient } 
  *   session's replayed history. A change the agent reports finished without asking is a breach:
  *   `onBreach` hears it once and the agent ends, failing every request still waiting on it.
  */
+/** Unrestricted sessions remembered past detach so late updates never trip the read-only tripwire. */
+const MAX_UNRESTRICTED = 1_000;
+
 export async function startAcpClient(jsonRpcProcess: StartJsonRpcProcess, command: string, options: AcpClientOptions): Promise<AcpStart> {
   const { name } = options;
   const sessions = new Map<string, SessionHandlers>();
+  const unrestricted = new Set<string>();
   const ending = new AbortController();
   let alive = true;
   let version: string | null = null;
@@ -108,7 +114,7 @@ export async function startAcpClient(jsonRpcProcess: StartJsonRpcProcess, comman
       if (!notification.success) return;
       const { sessionId, update } = notification.data;
       const handlers = sessions.get(sessionId);
-      if (handlers?.replaying() !== true) tripwire.hear(sessionId, update);
+      if (handlers?.replaying() !== true && !unrestricted.has(sessionId)) tripwire.hear(sessionId, update);
       handlers?.onUpdate(update);
     },
     onRequest: (method, params) => {
@@ -170,6 +176,14 @@ export async function startAcpClient(jsonRpcProcess: StartJsonRpcProcess, comman
         rpc.notify(method, params);
       },
       attach: (sessionId, handlers) => {
+        if (handlers.allowChanges === true) {
+          unrestricted.delete(sessionId);
+          unrestricted.add(sessionId);
+          const oldest = unrestricted.values().next();
+          if (unrestricted.size > MAX_UNRESTRICTED && oldest.done !== true) unrestricted.delete(oldest.value);
+        } else {
+          unrestricted.delete(sessionId);
+        }
         sessions.set(sessionId, handlers);
         return () => {
           if (sessions.get(sessionId) === handlers) sessions.delete(sessionId);

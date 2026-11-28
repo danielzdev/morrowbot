@@ -1,26 +1,31 @@
 import { HOST_TOOLS_SERVER } from '@morrowbot/contracts';
 
-/** The one mode (agent) MorrowBot runs: `build`, held to the read-only permissions below. */
+/** The mode (agent) for read-only turns: `build`, held to the top-level read-only permissions below. */
 export const BUILD_MODE = 'build';
 
+/** The mode (agent) for full-access turns: a primary agent whose permissions allow every tool without prompting. */
+export const FULL_MODE = 'full';
+
 /**
- * The opencode config every MorrowBot session runs under, given as `OPENCODE_CONFIG_CONTENT`. Every
- * tool is denied, so opencode never offers the model a write, edit, shell or task tool; it still
- * offers `skill`, which is denied and finds no skills. Reads, searches and listings inside the
- * workspace are allowed; a read outside it, an `.env` file and a web fetch ask first, which
- * MorrowBot turns into an approval card. Web and code search are denied: opencode reports them as
- * a tool of no kind, which MorrowBot always refuses. MorrowBot's own tools (its MCP server, which acts
- * only as the turn's agent) are allowed. The other built-in agents are disabled, so a
- * session cannot switch to one with other permissions; language servers and formatters, which run
- * code in the workspace, are off (checked on opencode 2.4.1).
+ * The opencode config every MorrowBot session runs under, given as `OPENCODE_CONFIG_CONTENT`.
+ * The default `build` agent inherits the top-level read-only permissions (every tool denied except
+ * reads, searches, listings, web fetch, and MorrowBot's own MCP server; external reads, `.env`,
+ * and web fetch ask first). The `full` primary agent overrides those permissions to allow every
+ * tool without prompting for full-access turns. The other built-in agents are disabled; language
+ * servers and formatters, which run code in the workspace, are off (checked on opencode 2.4.1).
  */
-const READ_ONLY_CONFIG = {
+const OPENCODE_CONFIG = {
   $schema: 'https://opencode.ai/config.json',
   autoupdate: false,
   share: 'disabled',
   lsp: false,
   formatter: false,
-  agent: { plan: { disable: true }, general: { disable: true }, explore: { disable: true } },
+  agent: {
+    plan: { disable: true },
+    general: { disable: true },
+    explore: { disable: true },
+    [FULL_MODE]: { mode: 'primary', permission: { '*': 'allow' } },
+  },
   permission: {
     '*': 'deny',
     read: { '*': 'allow', '*.env': 'ask', '*.env.*': 'ask', '*.env.example': 'allow' },
@@ -49,7 +54,7 @@ export function agentEnv(dir: string): Readonly<Record<string, string>> {
     XDG_DATA_HOME: `${dir}/data`,
     XDG_STATE_HOME: `${dir}/state`,
     XDG_CACHE_HOME: `${dir}/cache`,
-    OPENCODE_CONFIG_CONTENT: JSON.stringify(READ_ONLY_CONFIG),
+    OPENCODE_CONFIG_CONTENT: JSON.stringify(OPENCODE_CONFIG),
     OPENCODE_DISABLE_PROJECT_CONFIG: '1',
     OPENCODE_DISABLE_CLAUDE_CODE: '1',
     OPENCODE_DISABLE_EXTERNAL_SKILLS: '1',

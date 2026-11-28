@@ -42,6 +42,7 @@ export interface TurnStream {
 export interface StreamOptions {
   readonly threadId: string;
   readonly home: string | null;
+  readonly access?: 'read-only' | 'full';
   readonly emit: (chunk: TurnChunk) => void;
   readonly tokens: TokenCounter;
   /** Hears an `account/rateLimits/updated` notification: a hint to read the plan usage again. */
@@ -91,7 +92,12 @@ export function createTurnStream(options: StreamOptions): TurnStream {
         finish({ kind: 'exited' });
         return;
       case 'declined':
-        if (ours(event.params)) emit({ kind: 'status', text: 'Denied a Codex approval request: MorrowBot turns are read-only.' });
+        if (ours(event.params)) {
+          emit({
+            kind: 'status',
+            text: options.access === 'full' ? 'Denied an unexpected Codex approval request.' : 'Denied a Codex approval request: MorrowBot turns are read-only.',
+          });
+        }
         return;
       case 'notification':
         notification(event.method, event.params);

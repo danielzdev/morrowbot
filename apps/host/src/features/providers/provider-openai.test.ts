@@ -39,7 +39,7 @@ async function sendAndWait(thread: { readonly id: string }, text: string): Promi
   return generationId;
 }
 
-it('reports Codex ready with its read-only profile and why the others are held back, starting the daemon through provider-info', async () => {
+it('reports Codex ready with its read-only and full profiles and why the others are held back, starting the daemon through provider-info', async () => {
   const before = codex.daemonPgids().length;
   const info = await codex.host.call('GET', '/api/plugins/provider-openai/info');
   expect({ before, after: codex.daemonPgids().length, info: redact(info.body) }).toMatchInlineSnapshot(`
@@ -55,6 +55,15 @@ it('reports Codex ready with its read-only profile and why the others are held b
             "profiles": [
               {
                 "access": "read-only",
+                "modes": [
+                  "interactive",
+                  "background",
+                ],
+                "readsOutsideCwd": true,
+                "vendorSettings": "personal",
+              },
+              {
+                "access": "full",
                 "modes": [
                   "interactive",
                   "background",
@@ -80,11 +89,6 @@ it('reports Codex ready with its read-only profile and why the others are held b
                 "access": "workspace-write",
                 "reason": "Codex always loads your own ~/.codex/AGENTS.md (checked on Codex 0.171), so MorrowBot cannot replace its instructions. Use your Codex instructions instead.",
                 "vendorSettings": "isolated",
-              },
-              {
-                "access": "full",
-                "reason": "Codex runs each shell command in its own process group, and a command that calls setsid keeps running after Stop (checked on Codex 0.171). Full access needs Stop to end every command.",
-                "vendorSettings": "personal",
               },
             ],
           },

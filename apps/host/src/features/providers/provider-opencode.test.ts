@@ -63,6 +63,15 @@ it('starts one opencode acp daemon with its own folders and read-only config, re
               "readsOutsideCwd": true,
               "vendorSettings": "isolated",
             },
+            {
+              "access": "full",
+              "modes": [
+                "interactive",
+                "background",
+              ],
+              "readsOutsideCwd": true,
+              "vendorSettings": "isolated",
+            },
           ],
           "sessions": false,
           "usage": "none",
@@ -81,11 +90,6 @@ it('starts one opencode acp daemon with its own folders and read-only config, re
               "access": "workspace-write",
               "reason": "MorrowBot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's AGENTS.md is sent by MorrowBot instead.",
               "vendorSettings": "personal",
-            },
-            {
-              "access": "full",
-              "reason": "MorrowBot has not yet checked with a fixture that Stop ends every command opencode starts, so OpenCode has no full access.",
-              "vendorSettings": "isolated",
             },
           ],
         },
@@ -108,6 +112,12 @@ it('starts one opencode acp daemon with its own folders and read-only config, re
             "agent": {
               "explore": {
                 "disable": true,
+              },
+              "full": {
+                "mode": "primary",
+                "permission": {
+                  "*": "allow",
+                },
               },
               "general": {
                 "disable": true,
@@ -162,6 +172,15 @@ it('starts one opencode acp daemon with its own folders and read-only config, re
               "readsOutsideCwd": true,
               "vendorSettings": "isolated",
             },
+            {
+              "access": "full",
+              "modes": [
+                "interactive",
+                "background",
+              ],
+              "readsOutsideCwd": true,
+              "vendorSettings": "isolated",
+            },
           ],
           "sessions": false,
           "usage": "none",
@@ -180,11 +199,6 @@ it('starts one opencode acp daemon with its own folders and read-only config, re
               "access": "workspace-write",
               "reason": "MorrowBot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's AGENTS.md is sent by MorrowBot instead.",
               "vendorSettings": "personal",
-            },
-            {
-              "access": "full",
-              "reason": "MorrowBot has not yet checked with a fixture that Stop ends every command opencode starts, so OpenCode has no full access.",
-              "vendorSettings": "isolated",
             },
           ],
         },

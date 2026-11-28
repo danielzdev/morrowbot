@@ -1,5 +1,5 @@
 import { acp, type HostTools, type ModelSelection, type ProviderError } from '@morrowbot/plugin-sdk';
-import { BUILD_MODE } from './config.ts';
+import { BUILD_MODE, FULL_MODE } from './config.ts';
 import { MODEL, type ModelCatalog } from './models.ts';
 
 const OPEN_MS = 60_000;
@@ -20,19 +20,34 @@ export async function openSession(client: acp.AcpClient, cwd: string, tools: Hos
 
 export type Configured = { readonly kind: 'configured'; readonly model: string | null } | { readonly kind: 'refused'; readonly error: ProviderError };
 
+export type OpenCodeAccess = 'read-only' | 'full';
+
 /**
- * Checks the session runs in the `build` mode and applies the picked model, checking it against
- * opencode's answer. Teaches `catalog` the models opencode reports.
+ * Checks or sets the session mode (`build` for read-only, `full` for full access) and applies the
+ * picked model, checking each against opencode's answer. Teaches `catalog` the models opencode reports.
  */
 export async function configureSession(
   client: acp.AcpClient,
   sessionId: string,
   opened: readonly acp.ConfigOption[],
-  setup: { readonly selection: ModelSelection; readonly catalog: ModelCatalog },
+  setup: {
+    readonly access: OpenCodeAccess;
+    readonly selection: ModelSelection;
+    readonly catalog: ModelCatalog;
+    /** Called just before asking opencode for another mode, so only updates afterwards count. */
+    readonly forgetMode: () => void;
+  },
 ): Promise<Configured> {
-  const { selection, catalog } = setup;
+  const { access, selection, catalog } = setup;
+  const targetMode = access === 'full' ? FULL_MODE : BUILD_MODE;
   catalog.observe(opened, true);
   let options = opened;
+  if (access === 'full' && acp.selectOf(options, 'mode')?.current !== FULL_MODE) {
+    setup.forgetMode();
+    const reply = await client.call('session/set_config_option', { sessionId, configId: 'mode', value: FULL_MODE }, acp.SetConfigResponse, SET_MS);
+    if (reply.kind !== 'ok') return { kind: 'refused', error: callError('change its mode', reply) };
+    options = reply.value.configOptions;
+  }
   if (selection.kind === 'model' && acp.selectOf(options, MODEL)?.current !== selection.id) {
     const reply = await client.call('session/set_config_option', { sessionId, configId: MODEL, value: selection.id }, acp.SetConfigResponse, SET_MS);
     if (reply.kind !== 'ok') {
@@ -43,8 +58,12 @@ export async function configureSession(
     if (acp.selectOf(options, MODEL)?.current !== selection.id) return { kind: 'refused', error: { kind: 'invalid-model' } };
     catalog.observe(options, false);
   }
-  if (acp.selectOf(options, 'mode')?.current !== BUILD_MODE) {
-    return { kind: 'refused', error: { kind: 'access-not-supported', reason: "OpenCode would not run this chat in its build mode, which MorrowBot's read-only permissions hold." } };
+  if (acp.selectOf(options, 'mode')?.current !== targetMode) {
+    const reason =
+      access === 'full'
+        ? 'OpenCode would not switch this chat to its full-access mode.'
+        : "OpenCode would not run this chat in its build mode, which MorrowBot's read-only permissions hold.";
+    return { kind: 'refused', error: { kind: 'access-not-supported', reason } };
   }
   return { kind: 'configured', model: acp.selectOf(options, MODEL)?.current ?? null };
 }

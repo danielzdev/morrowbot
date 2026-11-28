@@ -39,27 +39,27 @@ new one. opencode 2.4.1 starts a helper, `opencode serve --stdio`, in a process 
 out of the guard's reach; it ends when the daemon's pipe to it closes, even after a SIGKILL (the
 live check confirms no process is left).
 
-**Access.** One profile: read-only, interactive, `isolated`:
+**Access.** Two profiles, both `isolated`:
 
-- every tool is denied in opencode's own config except reads, searches, listings and web fetch, so
+- **read-only** (interactive only): runs in `build` mode where every tool is denied in opencode's
+  top-level config except reads, searches, listings, web fetch, and MorrowBot's MCP server, so
   opencode never offers the model a write, edit, shell or task tool (it offers `skill`, which is
   denied and finds none). Web and code search are denied. The other built-in agents (`plan`,
-  `general`, `explore`) are disabled, and so are language servers and formatters;
-- a read outside the workspace, an `.env` file, or a web fetch asks first: an approval card,
-  "Allow once" or "Deny". `allow_always` is never chosen. Anything else opencode asks for is
-  denied without a card. opencode ends its reply when a request is denied; the turn still completes;
-- the card shows only when opencode asks, and it decides what is outside by the path as written:
-  a symlink inside the workspace is read without asking, the whole git repository holding the
-  workspace counts as inside, and `grep` searches `.env` files. So the profile declares
-  `readsOutsideCwd`; read-only here means nothing is written and nothing is run;
-- requests from opencode to write a file or run a terminal through MorrowBot are refused;
-- if opencode reports an edit or command that finished without asking, in any session on the
-  daemon, or a session leaves the `build` mode, every turn on the daemon fails at once
-  (`access-not-supported`), the daemon ends, and the profile is withheld until the provider restarts;
-- the profile is withheld while this computer has managed opencode config (an entry in
-  `/Library/Application Support/opencode`, or `ai.opencode.managed.plist` in
-  `/Library/Managed Preferences` or any user's folder in it), which outranks MorrowBot's own. It is checked by provider-info
-  and before every turn.
+  `general`, `explore`) are disabled, and so are language servers and formatters. A read outside
+  the workspace, an `.env` file, or a web fetch asks first via an approval card ("Allow once" or
+  "Deny"; `allow_always` is never chosen); anything else is denied without a card. If opencode
+  reports an edit or command that finished without asking in a read-only session, or a read-only
+  session leaves `build` mode, every turn fails at once (`access-not-supported`), the daemon ends,
+  and profiles are withheld until the provider restarts.
+- **full** (interactive and background): switches the session to MorrowBot's `full` primary agent
+  defined in `OPENCODE_CONFIG_CONTENT` (`permission: { '*': 'allow' }`), skips the read-only
+  tripwire for that session, and auto-allows permission prompts without showing cards. Stop cancels
+  the active turn best-effort via `session/cancel`.
+
+Both profiles declare `readsOutsideCwd` and are withheld while this computer has managed opencode
+config (an entry in `/Library/Application Support/opencode`, or `ai.opencode.managed.plist` in
+`/Library/Managed Preferences` or any user's folder in it), which outranks MorrowBot's own.
+Requests from opencode to write a file or run a terminal through MorrowBot are always refused.
 
 **Held back** (shown on the Plugins page): workspace-write (opencode runs commands outside any
 sandbox), `personal` instructions (they would need opencode's workspace config, which also runs the
