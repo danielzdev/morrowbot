@@ -1,8 +1,11 @@
+import { useState } from 'preact/hooks';
 import type { UpdateStatus } from '../../bridge.ts';
 import { PLATFORM } from '../../shared/keys.ts';
 import { displayPath, type AppInfo } from '../../shared/privacy.ts';
 import { updateNote } from '../../shared/updates.ts';
 import { LICENCES } from './licences.ts';
+import type { ResetBridge } from './reset.ts';
+import { ResetDialog } from './ResetDialog.tsx';
 import { ROWS } from './settings-index.ts';
 import { SettingRow } from './SettingRow.tsx';
 
@@ -12,11 +15,13 @@ export interface AboutSectionProps {
   readonly onRevealData: () => void;
   readonly onCheckForUpdates: () => void;
   readonly onRestartToUpdate: () => void;
+  readonly reset: ResetBridge;
 }
 
-/** Settings › About: version, licence and publisher, updates, the data folder, and bundled licences. */
+/** Settings › About: version, licence and publisher, updates, the data folder, bundled licences, and Reset or Uninstall. */
 export function AboutSection(props: AboutSectionProps) {
   const { info, update } = props;
+  const [resetting, setResetting] = useState(false);
   const busy = update.kind === 'checking' || update.kind === 'downloading';
   return (
     <>
@@ -51,6 +56,12 @@ export function AboutSection(props: AboutSectionProps) {
           ))}
         </ul>
       </SettingRow>
+      <SettingRow entry={ROWS.reset}>
+        <button type="button" class="btn secondary" onClick={() => { setResetting(true); }}>
+          Reset or Uninstall…
+        </button>
+      </SettingRow>
+      {resetting && <ResetDialog bridge={props.reset} info={info} onClose={() => { setResetting(false); }} />}
     </>
   );
 }

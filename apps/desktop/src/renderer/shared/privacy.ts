@@ -32,7 +32,8 @@ export function redact(text: string, info: AppInfo): string {
   return safe;
 }
 
-function homeRelative(path: string, homeDir: string): string {
+/** `path` with a leading home folder written `~`, otherwise exactly as given. */
+export function homeRelative(path: string, homeDir: string): string {
   if (homeDir === '' || !path.startsWith(homeDir)) return path;
   const rest = path.slice(homeDir.length);
   return rest === '' || SEPARATOR.test(rest.charAt(0)) ? `~${rest}` : path;

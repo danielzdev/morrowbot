@@ -37,7 +37,7 @@ export interface SettingsModalProps {
   readonly chatSettings: ChatSettingsModel;
   readonly info: AppInfo | null;
   readonly updates: UpdatesModel;
-  readonly bridge: Pick<MorrowbotBridge, 'loginItem' | 'setOpenAtLogin' | 'revealPath'>;
+  readonly bridge: Pick<MorrowbotBridge, 'loginItem' | 'setOpenAtLogin' | 'revealPath' | 'resetPlan' | 'runReset'>;
   /** Settings › Providers, from `features/providers` (wired in by `app/`): opened at `initial`, naming its selection for the breadcrumb. */
   readonly providers: (slot: { readonly initial: string | null; readonly onTrail: (name: string | null) => void }) => ComponentChildren;
   /** Settings › Usage, composed by the app from the usage feature. */
@@ -136,6 +136,7 @@ export function SettingsModal(props: SettingsModalProps) {
             onRevealData={() => void props.bridge.revealPath({ kind: 'data-dir' })}
             onCheckForUpdates={props.updates.check}
             onRestartToUpdate={props.updates.restart}
+            reset={props.bridge}
           />
         );
     }

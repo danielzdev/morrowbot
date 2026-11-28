@@ -12,6 +12,9 @@ export interface Updater {
   check(): UpdateStatus;
   /** Quits and installs a staged update, once; does nothing until one is ready. Stop the host first. */
   restart(): void;
+  /** Holds every check, timed or asked for, until `resume`; one already under way carries on. */
+  pause(): void;
+  resume(): void;
   stop(): void;
 }
 
@@ -28,6 +31,8 @@ export const NO_UPDATER: Updater = {
   status: () => ({ kind: 'unsupported' }),
   check: () => ({ kind: 'unsupported' }),
   restart: () => undefined,
+  pause: () => undefined,
+  resume: () => undefined,
   stop: () => undefined,
 };
 
@@ -41,6 +46,7 @@ export function startUpdater({ env, appPath, onStatus, report }: UpdaterOptions)
   let status: UpdateStatus = { kind: 'idle' };
   let downloaded: string | null = null;
   let restarting = false;
+  let paused = false;
   const set = (next: UpdateStatus): void => {
     status = next;
     onStatus(next);
@@ -83,6 +89,7 @@ export function startUpdater({ env, appPath, onStatus, report }: UpdaterOptions)
     }
   };
   const check = (): UpdateStatus => {
+    if (paused) return status;
     if (status.kind === 'checking' || status.kind === 'downloading' || status.kind === 'ready') return status;
     set({ kind: 'checking' });
     const run = async (): Promise<void> => {
@@ -108,6 +115,12 @@ export function startUpdater({ env, appPath, onStatus, report }: UpdaterOptions)
       if (status.kind !== 'ready' || restarting) return;
       restarting = true;
       autoUpdater.quitAndInstall();
+    },
+    pause: () => {
+      paused = true;
+    },
+    resume: () => {
+      paused = false;
     },
     stop: () => {
       clearTimeout(first);
