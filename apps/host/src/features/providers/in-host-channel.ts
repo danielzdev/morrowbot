@@ -1,5 +1,5 @@
 import type { OpenPluginChannel } from '@morrowbot/contracts';
-import { servePlugin, type PluginFactory, type RuntimeEnv, type ServedPlugin } from '@morrowbot/plugin-sdk';
+import { servePlugin, type Fence, type PluginFactory, type RuntimeEnv, type ServedPlugin } from '@morrowbot/plugin-sdk';
 
 /**
  * Serves a built-in provider inside the host, on the same wire protocol a plugin worker speaks but
@@ -14,7 +14,7 @@ import { servePlugin, type PluginFactory, type RuntimeEnv, type ServedPlugin } f
  * from the provider that is not JSON ends it too (a worker's `process.send` would throw instead,
  * failing only that request), so no detached provider code can throw into the host.
  */
-export function inHostChannel(factory: PluginFactory, env: RuntimeEnv, platform: NodeJS.Platform): OpenPluginChannel {
+export function inHostChannel(factory: PluginFactory, env: RuntimeEnv, platform: NodeJS.Platform, fence: Fence): OpenPluginChannel {
   return (events) => {
     let open = true;
     const close = (code: number | null, signal: string | null): void => {
@@ -34,6 +34,7 @@ export function inHostChannel(factory: PluginFactory, env: RuntimeEnv, platform:
       served = servePlugin(factory, {
         env,
         platform,
+        fence,
         transport: {
           send: (message, done) => {
             if (!open) return;

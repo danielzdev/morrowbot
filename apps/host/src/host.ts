@@ -29,6 +29,7 @@ import { createRoutineService, type RoutineClock } from './features/routines/ind
 import { lockDataDir, openStorage } from './features/storage/index.ts';
 import { cliProbe, createT3WatchService, type T3Probe, type T3WatchClock, type T3WatchService } from './features/t3-watch/index.ts';
 import { keyValue, loginFill, openVault, vaultBackend, type VaultKeyChoice } from './features/vault/index.ts';
+import { DATABASE, providerFence } from './host-fence.ts';
 import { agentInbox, agentToolPorts, chatStore, providerPlugins, subagentService } from './host-ports.ts';
 import { routineSink } from './t3-routine-sink.ts';
 
@@ -92,7 +93,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
     for (const step of undo.reverse()) await step();
   };
   try {
-    const storage = openStorage(path.join(dataDir, 'morrowbot.sqlite'), now);
+    const storage = openStorage(path.join(dataDir, DATABASE), now);
     undo.push(() => {
       storage.close();
     });
@@ -111,7 +112,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
     const plugins = await startPluginHost({
       pluginsDir: config.pluginsDir,
       builtinPluginsDir: config.builtinPluginsDir,
-      builtins: builtinProviders(platform),
+      builtins: builtinProviders(platform, await providerFence(dataDir, config.pluginsDir, process.execPath)),
       safeMode: config.safeMode,
       dataDir: path.join(dataDir, 'plugin-data'),
       store: storage.plugins,

@@ -42,7 +42,7 @@ function launch(host: HostLaunch): Launched {
   const child = fork(host.main, [], {
     env: { ...host.env, ELECTRON_RUN_AS_NODE: '1' },
     stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
-    execArgv: [],
+    execArgv: ['--disable-sigusr1'],
   });
   const exited = new Promise<void>((resolve) => child.once('exit', () => { resolve(); }));
   const first = new Promise<Launch>((resolve) => {

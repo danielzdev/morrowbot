@@ -1,7 +1,7 @@
 import { tmpdir } from 'node:os';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { PluginMessage, type PluginChannelEvents } from '@morrowbot/contracts';
-import { defineProvider, type PluginFactory } from '@morrowbot/plugin-sdk';
+import { defineProvider, OPEN, type PluginFactory } from '@morrowbot/plugin-sdk';
 import { expect, it, vi } from 'vitest';
 import { inHostChannel } from './in-host-channel.ts';
 
@@ -53,7 +53,7 @@ function connect(factory: PluginFactory) {
       exited.reject(error);
     },
   };
-  const channel = inHostChannel(factory, { PATH: process.env.PATH }, process.platform)(events);
+  const channel = inHostChannel(factory, { PATH: process.env.PATH }, process.platform, OPEN)(events);
   return { channel, received, groups, exited: exited.promise };
 }
 
@@ -228,6 +228,7 @@ it('a built-in provider that throws while it is built fails to start instead of 
     },
     {},
     process.platform,
+    OPEN,
   );
   const channel = open({
     message: () => undefined,

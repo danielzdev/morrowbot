@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { Fence } from './fence.ts';
 
 /** The first file descriptor a command sees its extra input files on. */
 export const FIRST_FILE_FD = 4;
@@ -14,8 +15,8 @@ export type GuardMessage = z.infer<typeof GuardMessage>;
 
 /** What the plugin process tells the guard. */
 export const OwnerMessage = z.discriminatedUnion('kind', [
-  /** The host has registered the group: start the command, with `env` on top of the guard's own. */
-  z.strictObject({ kind: z.literal('spawn'), env: z.record(z.string(), z.string()) }),
+  /** The host has registered the group: start the command behind `fence`, with `env` on top of the guard's own. */
+  z.strictObject({ kind: z.literal('spawn'), env: z.record(z.string(), z.string()), fence: Fence }),
   /** Stop the group: SIGTERM, then SIGKILL a second later. */
   z.strictObject({ kind: z.literal('kill') }),
 ]);
