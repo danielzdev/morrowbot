@@ -11,6 +11,7 @@ import { createAttachmentService, type AttachmentService } from './features/atta
 import { createChatService } from './features/chat/index.ts';
 import type { HostConfig } from './features/config/index.ts';
 import { healthListener } from './features/health/index.ts';
+import { createMemberService } from './features/members/index.ts';
 import { createMemoryService, type MemoryService } from './features/memories/index.ts';
 import { createPairingService } from './features/pairing/index.ts';
 import {
@@ -141,9 +142,11 @@ export async function startHost(options: HostOptions): Promise<Host> {
     await attachments.sweep();
     const memories = createMemoryService({ records: storage.memories, agentExists: (id) => agents.get(id) !== undefined, newId, now });
     const skillsDir = path.join(dataDir, 'skills');
+    const members = createMemberService({ records: storage.members, workspaceOf: (id) => agents.get(id)?.workspace.kind, newId, now });
     const agentMessages = createAgentMessageService({
       records: storage.agentMessages,
       agentExists: (id) => agents.get(id) !== undefined,
+      mayMessage: (fromAgentId, toAgentId) => members.mayMessage(fromAgentId, toAgentId),
       threads: storage.threads,
       newId,
       now,
@@ -218,7 +221,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
           deleteThread: (id) => afterwards(chat.deleteThread(id), () => attachments.sweep(), report),
           deleteAgent: (id) => afterwards(chat.deleteAgent(id), () => attachments.sweep(), report),
         },
-        attachments,
+        attachments: { ...attachments, threadOf: (id) => storage.attachments.threadOf(id) },
         memories,
         skills: {
           list: async (agentId) => {
@@ -252,6 +255,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
           releaseGroup: (regId) => plugins.releaseGroup(regId),
         },
         pairing: createPairingService({ records: storage.devices, newId, now }),
+        members,
         agentMessages,
         routines,
         t3Watches,

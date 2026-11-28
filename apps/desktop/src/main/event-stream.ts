@@ -20,7 +20,7 @@ export interface EventStreamHandlers {
 export function openEventStream(target: HostTarget, handlers: EventStreamHandlers): EventStream {
   const { onEvent, report } = handlers;
   const url = new URL('/api/events', target.url);
-  url.protocol = 'ws:';
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
   const socket = new WebSocket(url, { headers: { authorization: `Bearer ${target.token}` } });
   const pending: EventClientFrame[] = [];
   let closing = false;

@@ -20,7 +20,26 @@ export interface BridgeChannels {
   readonly checkForUpdates: 'morrowbot:check-for-updates';
   readonly restartToUpdate: 'morrowbot:restart-to-update';
   readonly signInTerminal: 'morrowbot:sign-in-terminal';
+  readonly serverMode: 'morrowbot:server-mode';
+  readonly chooseServer: 'morrowbot:choose-server';
 }
+
+/**
+ * Which server this app uses: none chosen yet (first launch), its own (a host this app starts), or one it joined.
+ * A joined server is client-only: no host runs here, and the server never reaches this computer's files or terminal.
+ */
+export type ServerMode =
+  | { readonly kind: 'choosing' }
+  | { readonly kind: 'local' }
+  | { readonly kind: 'remote'; readonly url: string; readonly hostName: string };
+
+/** Start this computer's own server, or join one with a pasted link or an address and code. */
+export type ServerRequest =
+  | { readonly kind: 'local' }
+  | { readonly kind: 'join'; readonly link: string; readonly url: string; readonly code: string };
+
+/** `ready`: in use now (first launch). `restarting`: saved, and MorrowBot reopens on it. */
+export type ServerAnswer = { readonly kind: 'ready' } | { readonly kind: 'restarting' } | { readonly kind: 'failed'; readonly message: string };
 
 /** A folder or file to show in Finder, named by an opaque id; desktop main resolves the path itself. */
 export type RevealTarget =
@@ -102,4 +121,8 @@ export interface MorrowbotBridge {
    * the host; the renderer names only the provider. Parse with `SignInLaunch`.
    */
   signInTerminal(providerId: string): Promise<unknown>;
+  /** Which server this app uses. Parse with `ServerMode` from `shared/server.ts`. */
+  serverMode(): Promise<unknown>;
+  /** Picks or switches the server; answers a `ServerAnswer`. */
+  chooseServer(request: ServerRequest): Promise<unknown>;
 }

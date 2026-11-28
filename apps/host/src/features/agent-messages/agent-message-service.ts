@@ -20,6 +20,8 @@ export interface AgentMessageRecords {
 export interface AgentMessageServiceOptions {
   readonly records: AgentMessageRecords;
   readonly agentExists: (id: string) => boolean;
+  /** Whether `fromAgentId` may start messaging `toAgentId` (an agent shared with members is held to their allowlists). */
+  readonly mayMessage: (fromAgentId: string, toAgentId: string) => boolean;
   readonly threads: {
     get(id: string): Thread | undefined;
     listByAgent(agentId: string): Thread[];
@@ -62,6 +64,9 @@ export function createAgentMessageService(options: AgentMessageServiceOptions): 
         if (from?.agentId !== senderId) return { kind: 'not-found', what: 'Thread' };
         if (request.toAgentId === senderId) return { kind: 'invalid', reason: 'An agent cannot message itself' };
         if (!options.agentExists(request.toAgentId)) return { kind: 'not-found', what: 'Recipient agent' };
+        if (!options.mayMessage(senderId, request.toAgentId)) {
+          return { kind: 'forbidden', reason: 'This agent is shared with server members and may message only the agents its share allows' };
+        }
         const inbox = mainThread(threads.listByAgent(request.toAgentId));
         if (inbox === null) return { kind: 'conflict', reason: 'The recipient has no chat to receive messages yet' };
         return { kind: 'route', from: { agentId: senderId, threadId: from.id }, to: { agentId: request.toAgentId, threadId: inbox.id }, replyTo: null };

@@ -1,6 +1,6 @@
 import type { ComponentChildren } from 'preact';
 import { useCallback, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import type { MorrowbotBridge } from '../../bridge.ts';
+import type { MorrowbotBridge, ServerMode, ServerRequest } from '../../bridge.ts';
 import type { AppearanceModel } from '../../shared/appearance.ts';
 import type { ChatPrefsModel } from '../../shared/chat-prefs.ts';
 import { PLATFORM } from '../../shared/keys.ts';
@@ -14,8 +14,11 @@ import { ChatSection } from './ChatSection.tsx';
 import { DevicesSection } from './DevicesSection.tsx';
 import { GeneralSection } from './GeneralSection.tsx';
 import { KeyboardSection } from './KeyboardSection.tsx';
+import type { MembersPort } from './members.ts';
+import { MembersSection } from './MembersSection.tsx';
 import type { PairingPort } from './pairing.ts';
-import { isSection, NAV, ROWS, searchSettings, SECTIONS, targetOf, type SettingEntry, type SettingsLink, type SettingsSection } from './settings-index.ts';
+import { ServerSection } from './ServerSection.tsx';
+import { INDEX, isSection, ROWS, searchSettings, SECTIONS, targetOf, visibleNav, type SettingEntry, type SettingsLink, type SettingsSection } from './settings-index.ts';
 import { SettingRow } from './SettingRow.tsx';
 import { SettingsSearchField, SettingsSearchResults } from './SettingsNav.tsx';
 
@@ -38,6 +41,14 @@ export interface SettingsModalProps {
   readonly usage: ComponentChildren;
   /** The host's pairing calls, for Settings › Devices. */
   readonly pairing: PairingPort;
+  /** The host's member calls, for Settings › Members. */
+  readonly members: MembersPort;
+  /** Which server this app uses, for Settings › Server. */
+  readonly server: Exclude<ServerMode, { kind: 'choosing' }>;
+  /** Switches the server; answers a problem to show, or null once MorrowBot reopens. */
+  readonly chooseServer: (request: ServerRequest) => Promise<string | null>;
+  /** Sections left out of the nav and search (`hiddenSections`). */
+  readonly hidden: ReadonlySet<SettingsSection>;
 }
 
 /** A section's own header row, so search finds the section. */
@@ -67,7 +78,10 @@ export function SettingsModal(props: SettingsModalProps) {
   const appearance = useStore(props.appearance.state);
   const chatPrefs = useStore(props.chatPrefs.state);
   const update = useStore(props.updates.status);
-  const [start] = useState(() => targetOf(props.link));
+  const [start] = useState(() => {
+    const target = targetOf(props.link);
+    return props.hidden.has(target.section) ? targetOf('general') : target;
+  });
   const [section, setSection] = useState<SettingsSection>(start.section);
   const [query, setQuery] = useState('');
   const [focusRow, setFocusRow] = useState<{ readonly id: string } | null>(start.row === null ? null : { id: start.row });
@@ -79,7 +93,7 @@ export function SettingsModal(props: SettingsModalProps) {
   const results = useRef<HTMLDivElement>(null);
   const body = useRef<HTMLDivElement>(null);
   const searching = query.trim() !== '';
-  const groups = searchSettings(query);
+  const groups = searchSettings(query, INDEX.filter((entry) => !props.hidden.has(entry.section)));
 
   useLayoutEffect(() => {
     if (focusRow === null || body.current === null) return;
@@ -105,6 +119,10 @@ export function SettingsModal(props: SettingsModalProps) {
         );
       case 'usage':
         return props.usage;
+      case 'server':
+        return <ServerSection server={props.server} onChoose={props.chooseServer} />;
+      case 'members':
+        return <MembersSection port={props.members} />;
       case 'devices':
         return <DevicesSection pairing={props.pairing} />;
       case 'about':
@@ -129,10 +147,10 @@ export function SettingsModal(props: SettingsModalProps) {
   return (
     <SettingsShell
       label="Settings"
-      groups={NAV}
+      groups={visibleNav(props.hidden)}
       selected={section}
       onSelect={(id) => {
-        if (!isSection(id)) return;
+        if (!isSection(id) || props.hidden.has(id)) return;
         setQuery('');
         setSection(id);
         setFocusRow(null);

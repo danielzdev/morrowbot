@@ -10,6 +10,7 @@ import {
   UpdateThreadRequest,
 } from '@morrowbot/contracts';
 import { refusal } from './admit-reply.ts';
+import { sees } from './access.ts';
 import type { ApiQueueAnswer, ApiServices } from './ports.ts';
 import { failure, json, noContent, notFound, type Reply } from './reply.ts';
 import { parseBody, type Route } from './route.ts';
@@ -19,14 +20,16 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
     {
       method: 'GET',
       path: '/api/threads',
-      handle: () => {
-        const body: ThreadList = { threads: chat.listAllThreads() };
+      access: { kind: 'signed-in' },
+      handle: ({ viewer }) => {
+        const body: ThreadList = { threads: chat.listAllThreads().filter(({ agentId }) => sees(viewer, agentId)) };
         return json(200, body);
       },
     },
     {
       method: 'GET',
       path: '/api/agents/:id/threads',
+      access: { kind: 'agent', need: 'view' },
       handle: ({ params }) => {
         const threads = chat.listThreads(params.get('id'));
         if (threads === undefined) return notFound('Agent');
@@ -37,6 +40,7 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
     {
       method: 'POST',
       path: '/api/agents/:id/threads',
+      access: { kind: 'agent', need: 'view' },
       handle: async (context) => {
         const request = await parseBody(context, CreateThreadRequest);
         if (request.kind === 'rejected') return request.reply;
@@ -47,6 +51,7 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
     {
       method: 'GET',
       path: '/api/threads/:id',
+      access: { kind: 'thread', need: 'view' },
       handle: ({ params }) => {
         const thread = chat.getThread(params.get('id'));
         return thread === undefined ? notFound('Thread') : json(200, thread);
@@ -55,6 +60,7 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
     {
       method: 'PATCH',
       path: '/api/threads/:id',
+      access: { kind: 'thread', need: 'view' },
       handle: async (context) => {
         const request = await parseBody(context, UpdateThreadRequest);
         if (request.kind === 'rejected') return request.reply;
@@ -65,11 +71,13 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
     {
       method: 'DELETE',
       path: '/api/threads/:id',
+      access: { kind: 'thread', need: 'edit' },
       handle: async ({ params }) => ((await chat.deleteThread(params.get('id'))) ? noContent() : notFound('Thread')),
     },
     {
       method: 'GET',
       path: '/api/threads/:id/state',
+      access: { kind: 'thread', need: 'view' },
       handle: ({ params }) => {
         const state = chat.state(params.get('id'));
         return state === undefined ? notFound('Thread') : json(200, state);
@@ -78,6 +86,7 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
     {
       method: 'GET',
       path: '/api/threads/:id/messages',
+      access: { kind: 'thread', need: 'view' },
       handle: ({ params }) => {
         const messages = chat.listMessages(params.get('id'));
         if (messages === undefined) return notFound('Thread');
@@ -88,6 +97,7 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
     {
       method: 'POST',
       path: '/api/threads/:id/messages',
+      access: { kind: 'thread', need: 'chat' },
       handle: async (context) => {
         const request = await parseBody(context, SendMessageRequest);
         if (request.kind === 'rejected') return request.reply;
@@ -107,16 +117,19 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
     {
       method: 'DELETE',
       path: '/api/threads/:id/queue/:queuedId',
+      access: { kind: 'thread', need: 'view' },
       handle: ({ params }) => queueReply(chat.cancelQueued(params.get('id'), params.get('queuedId')), noContent),
     },
     {
       method: 'POST',
       path: '/api/threads/:id/queue/:queuedId/steer',
+      access: { kind: 'thread', need: 'chat' },
       handle: ({ params }) => queueReply(chat.steerQueued(params.get('id'), params.get('queuedId')), noContent),
     },
     {
       method: 'POST',
       path: '/api/threads/:id/continue',
+      access: { kind: 'thread', need: 'chat' },
       handle: async (context) => {
         const request = await parseBody(context, ContinueRequest);
         if (request.kind === 'rejected') return request.reply;
@@ -130,6 +143,7 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
     {
       method: 'POST',
       path: '/api/threads/:id/approvals/:approvalId',
+      access: { kind: 'thread', need: 'chat' },
       handle: async (context) => {
         const request = await parseBody(context, ApprovalReplyRequest);
         if (request.kind === 'rejected') return request.reply;
@@ -146,6 +160,7 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
     {
       method: 'POST',
       path: '/api/threads/:id/stop',
+      access: { kind: 'thread', need: 'view' },
       handle: async ({ params }) => {
         const id = params.get('id');
         if (chat.getThread(id) === undefined) return notFound('Thread');

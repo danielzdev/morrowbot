@@ -40,13 +40,30 @@ export type IconName =
   | 'book'
   | 'bookmark'
   | 'provider'
-  | 'clock';
+  | 'clock'
+  | 'people'
+  | 'server';
 
 const dot = (cx: number, cy: number, r = 1.1) => <circle cx={cx} cy={cy} r={r} fill="currentColor" stroke="none" />;
 
 /** Each icon on a 16px grid, drawn with a 1.5px stroke in `currentColor`. */
 const SHAPES: Readonly<Record<IconName, ComponentChildren>> = {
   plus: <path d="M8 3v10M3 8h10" />,
+  people: (
+    <>
+      <circle cx="6" cy="5.5" r="2.25" />
+      <path d="M2 13c.4-2.3 2-3.5 4-3.5s3.6 1.2 4 3.5" />
+      <path d="M10.5 3.6a2.1 2.1 0 0 1 0 3.9M11.5 9.7c1.3.4 2.2 1.5 2.5 3.3" />
+    </>
+  ),
+  server: (
+    <>
+      <rect x="2.5" y="2.5" width="11" height="4.5" rx="1" />
+      <rect x="2.5" y="9" width="11" height="4.5" rx="1" />
+      {dot(5, 4.75, 0.9)}
+      {dot(5, 11.25, 0.9)}
+    </>
+  ),
   more: (
     <>
       {dot(3.5, 8)}

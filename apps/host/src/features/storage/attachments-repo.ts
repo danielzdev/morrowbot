@@ -18,6 +18,8 @@ export interface AttachmentRepository {
   /** The thread's unsent uploads named by `ids`, in that order; undefined when one is missing or already sent. */
   pending(threadId: string, ids: readonly string[]): Attachment[] | undefined;
   get(id: string): Attachment | undefined;
+  /** The thread the attachment was uploaded to. */
+  threadOf(id: string): string | undefined;
   /** Every attachment id, so files without a row can be removed. */
   ids(): Set<string>;
   /** Removes uploads never sent and made before `at`; returns their ids. */
@@ -33,7 +35,9 @@ export function attachmentRepository(db: DatabaseSync): AttachmentRepository {
   const get = db.prepare('SELECT * FROM attachments WHERE id = ?');
   const ids = db.prepare('SELECT id FROM attachments');
   const unsent = db.prepare('DELETE FROM attachments WHERE message_id IS NULL AND created_at < ? RETURNING id');
+  const threadOf = db.prepare('SELECT thread_id FROM attachments WHERE id = ?');
   const IdRow = z.object({ id: z.string() });
+  const ThreadRow = z.object({ thread_id: z.string() });
   return {
     insert: (threadId, attachment, createdAt) => {
       const mimeType = attachment.kind === 'image' ? attachment.mimeType : null;
@@ -51,6 +55,10 @@ export function attachmentRepository(db: DatabaseSync): AttachmentRepository {
     get: (id) => {
       const row = get.get(id);
       return row === undefined ? undefined : AttachmentRow.parse(row);
+    },
+    threadOf: (id) => {
+      const row = threadOf.get(id);
+      return row === undefined ? undefined : ThreadRow.parse(row).thread_id;
     },
     ids: () => new Set(ids.all().map((row) => IdRow.parse(row).id)),
     deleteUnsentBefore: (at) => unsent.all(at).map((row) => IdRow.parse(row).id),

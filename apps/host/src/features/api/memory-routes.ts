@@ -8,6 +8,7 @@ export function memoryRoutes({ memories }: ApiServices): Route[] {
     {
       method: 'GET',
       path: '/api/agents/:id/memories',
+      access: { kind: 'agent', need: 'view' },
       handle: ({ params, query }) => {
         const q = query.get('q') ?? '';
         if (q.length > MAX_MEMORY_QUERY) return failure('invalid_request', `q: Keep the search under ${String(MAX_MEMORY_QUERY)} characters`);
@@ -20,6 +21,7 @@ export function memoryRoutes({ memories }: ApiServices): Route[] {
     {
       method: 'POST',
       path: '/api/agents/:id/memories',
+      access: { kind: 'agent', need: 'edit' },
       handle: async (context) => {
         const request = await parseBody(context, CreateMemoryRequest);
         if (request.kind === 'rejected') return request.reply;
@@ -30,6 +32,7 @@ export function memoryRoutes({ memories }: ApiServices): Route[] {
     {
       method: 'PATCH',
       path: '/api/agents/:id/memories/:memoryId',
+      access: { kind: 'agent', need: 'edit' },
       handle: async (context) => {
         const request = await parseBody(context, UpdateMemoryRequest);
         if (request.kind === 'rejected') return request.reply;
@@ -40,6 +43,7 @@ export function memoryRoutes({ memories }: ApiServices): Route[] {
     {
       method: 'DELETE',
       path: '/api/agents/:id/memories/:memoryId',
+      access: { kind: 'agent', need: 'edit' },
       handle: ({ params }) => (memories.delete(params.get('id'), params.get('memoryId')) ? noContent() : notFound('Memory')),
     },
   ];
