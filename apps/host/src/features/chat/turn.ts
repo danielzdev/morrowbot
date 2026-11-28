@@ -265,6 +265,7 @@ function persistSettlement(core: ChatCore, turn: Turn, message: AssistantMessage
         store.threads.touch(turn.threadId, createdAt);
       }
       store.generations.settle(turn.generationId, message?.id ?? null);
+      store.toolSteps.close(turn.generationId, message?.id ?? null);
       if (!turn.dispatched) return;
       store.generations.insertUsage({
         generationId: turn.generationId,

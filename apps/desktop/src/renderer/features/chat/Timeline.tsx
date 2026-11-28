@@ -41,8 +41,6 @@ export interface TimelineContext {
   readonly avatar: (activity: ChatActivity) => ComponentChildren;
 }
 
-export const TOOLS_NOT_KEPT = "Tool steps from before this session aren't shown.";
-
 function Since({ startedAt }: { readonly startedAt: number }) {
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
@@ -209,7 +207,6 @@ export function Timeline(props: {
 }) {
   const { view, start, ctx } = props;
   const { messages, finished } = view;
-  const unwatched = useMemo(() => messages.some((message) => message.kind === 'assistant' && !(message.id in finished)), [messages, finished]);
   const last = messages.at(-1);
   const steeredIn = useMemo(() => new Set(messages.flatMap((message, index) => (message.kind === 'user' && steered(messages[index - 1]) ? [message.id] : []))), [messages]);
   const reactions = useMemo(() => reactionsByMessage(view.reactions), [view.reactions]);
@@ -224,7 +221,6 @@ export function Timeline(props: {
           Show earlier ({String(start)} more)
         </button>
       )}
-      {unwatched && <div class="note muted reload-note">{TOOLS_NOT_KEPT}</div>}
       {items.map((item) => {
         switch (item.kind) {
           case 'exchange':
