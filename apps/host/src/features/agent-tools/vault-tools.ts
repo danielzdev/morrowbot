@@ -21,7 +21,7 @@ export function vaultTools({ vault }: ToolPorts): Tool[] {
     tool({
       name: 'list_vault_items',
       description:
-        "Lists the user's vault: saved website logins, API keys and HTTP header secrets, by id, kind, name and site. You never see a password, key, header value or two-step code; a tool that takes a vaultId uses the secret for you.",
+        "Lists the user's vault: saved website logins, API keys and HTTP header secrets, by id, kind, name and site. Passwords, keys, header values and two-step codes are never shown to you.",
       input: z.strictObject({}),
       run: () => done({ items: vault.list().map(shown) }),
     }),

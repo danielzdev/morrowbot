@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { CreateVaultItemRequest, UpdateVaultItemRequest } from '@morrowbot/contracts';
@@ -34,6 +34,7 @@ function open(store: SecretStore = secrets): Promise<VaultService> {
   });
 }
 
+const savedFile = async (): Promise<unknown> => JSON.parse(await readFile(path.join(dir, 'vault.json'), 'utf8'));
 const create = (vault: VaultService, request: unknown) => vault.create(CreateVaultItemRequest.parse(request));
 const update = (vault: VaultService, id: string, request: unknown) => vault.update(id, UpdateVaultItemRequest.parse(request));
 
@@ -182,12 +183,66 @@ it('saves every one of many concurrent writes whole, leaving no temporary file a
   });
 });
 
-it('refuses a secret too long for the Keychain before writing anything', async () => {
+it('refuses a secret too long for the Keychain before saving it', async () => {
   const vault = await open(keychainStore('com.legendarykoi.morrowbot.vault.never-written'));
   const tooLong = await create(vault, { kind: 'api_key', label: 'Huge', key: '✓'.repeat(2000) });
-  expect({ tooLong, items: vault.list(), files: await readdir(dir) }).toEqual({
+  expect({ tooLong, items: vault.list(), saved: await savedFile() }).toEqual({
     tooLong: { kind: 'invalid', reason: 'This secret is too long to save in the macOS Keychain. Shorten it and try again.' },
     items: [],
-    files: [],
+    saved: { version: 1, items: [], pending: [] },
+  });
+});
+
+it('erases the secret before dropping the item, so a failed erase leaves the item to delete again', async () => {
+  const vault = await open();
+  const id = idOf(await create(vault, { kind: 'api_key', label: 'Weather', key: 'wx-1' }));
+  const secretsFile = path.join(dir, 'vault-secrets.json');
+  await rm(secretsFile);
+  await mkdir(secretsFile);
+  const failed = await vault.delete(id).then(
+    () => 'deleted',
+    () => 'refused',
+  );
+  const listedAfterFailure = vault.list().length;
+  await rm(secretsFile, { recursive: true });
+  expect({ failed, listedAfterFailure, retried: await vault.delete(id), secretLeft: await secrets.read(id), listed: (await open()).list() }).toEqual({
+    failed: 'refused',
+    listedAfterFailure: 1,
+    retried: true,
+    secretLeft: undefined,
+    listed: [],
+  });
+});
+
+it('erases, on the next open, a secret whose create was cut short before its item was saved', async () => {
+  await secrets.write('item-9', JSON.stringify({ kind: 'api_key', key: 'orphan' }));
+  await writeFile(path.join(dir, 'vault.json'), JSON.stringify({ version: 1, items: [], pending: ['item-9'] }));
+  const vault = await open();
+  expect({ items: vault.list(), orphan: await secrets.read('item-9'), saved: await savedFile() }).toEqual({
+    items: [],
+    orphan: undefined,
+    saved: { version: 1, items: [], pending: [] },
+  });
+});
+
+it('replaces a secret that can no longer be read, when the change names every part of it', async () => {
+  const vault = await open();
+  const login = idOf(await create(vault, { kind: 'login', label: 'Forge', username: 'robot', password: 'old', twoStepKey: 'JBSWY3DPEHPK3PXP' }));
+  const key = idOf(await create(vault, { kind: 'api_key', label: 'Weather', key: 'old' }));
+  await secrets.remove(login);
+  await secrets.remove(key);
+  expect({
+    passwordOnly: await update(vault, login, { kind: 'login', password: 'new' }),
+    wholeLogin: (await update(vault, login, { kind: 'login', password: 'new', twoStepKey: null })).kind,
+    apiKey: (await update(vault, key, { kind: 'api_key', key: 'new' })).kind,
+    resolved: [used(await vault.resolve(login)), used(await vault.resolve(key))],
+  }).toEqual({
+    passwordOnly: { kind: 'invalid', reason: "This login's saved secret can't be read. Enter the password and the two-step key (or remove the key) to replace it." },
+    wholeLogin: 'saved',
+    apiKey: 'saved',
+    resolved: [
+      { label: 'Forge', password: 'new', code: null },
+      { label: 'Weather', key: 'new' },
+    ],
   });
 });

@@ -7,8 +7,11 @@ import { SecretStoreError } from './secret-store.ts';
 import { serial } from './serial.ts';
 import { base32Bytes, totp } from './totp.ts';
 
-/** `<dataDir>/vault.json`: the items' names and kinds only. Secret values live in the `SecretStore`. */
-const VaultFile = z.strictObject({ version: z.literal(1), items: z.array(VaultItem) });
+/**
+ * `<dataDir>/vault.json`: the items' names and kinds only; secret values live in the `SecretStore`. `pending` lists
+ * ids whose secret may be saved without an item (a create cut short); opening the vault erases those secrets.
+ */
+const VaultFile = z.strictObject({ version: z.literal(1), items: z.array(VaultItem), pending: z.array(z.string()).default([]) });
 
 /** The secret part of an item, as the store keeps it (JSON). */
 const Secret = z.discriminatedUnion('kind', [
@@ -56,12 +59,24 @@ const KIND_NAMES: Readonly<Record<VaultItemKind, string>> = { login: 'a login', 
 export async function openVault(options: VaultOptions): Promise<VaultService> {
   const { secrets, newId, now } = options;
   const clock = options.clock ?? Date.now;
-  let items = await load(options.file);
+  let { items, pending } = await load(options.file);
   const inTurn = serial();
-  const persist = async (next: VaultItem[]): Promise<void> => {
-    await writeFileAtomic(options.file, `${JSON.stringify({ version: 1, items: next }, null, 2)}\n`);
-    items = next;
+  const persist = async (nextItems: VaultItem[], nextPending: readonly string[]): Promise<void> => {
+    await writeFileAtomic(options.file, `${JSON.stringify({ version: 1, items: nextItems, pending: nextPending }, null, 2)}\n`);
+    items = nextItems;
+    pending = [...nextPending];
   };
+  const settled = (id: string): string[] => pending.filter((each) => each !== id);
+  if (pending.length > 0) {
+    const left: string[] = [];
+    for (const id of pending) {
+      await secrets.remove(id).catch((error: unknown) => {
+        left.push(id);
+        options.report(error);
+      });
+    }
+    await persist(items, left).catch(options.report);
+  }
   const readSecret = async (item: VaultItem): Promise<Secret> => {
     const text = await secrets.read(item.id);
     const parsed = text === undefined ? undefined : Secret.safeParse(parseJson(text));
@@ -75,28 +90,39 @@ export async function openVault(options: VaultOptions): Promise<VaultService> {
       inTurn(async () => {
         const at = now();
         const { item, secret } = created(request, newId(), at);
-        if ((await secrets.write(item.id, JSON.stringify(secret))).kind === 'too-long') return { kind: 'invalid', reason: TOO_LONG };
+        await persist(items, [...pending, item.id]);
         try {
-          await persist([...items, item]);
+          if ((await secrets.write(item.id, JSON.stringify(secret))).kind === 'too-long') {
+            await persist(items, settled(item.id));
+            return { kind: 'invalid', reason: TOO_LONG };
+          }
+          await persist([...items, item], settled(item.id));
+          return { kind: 'saved', item };
         } catch (error) {
-          await secrets.remove(item.id).catch(options.report);
+          await secrets
+            .remove(item.id)
+            .then(() => persist(items, settled(item.id)))
+            .catch(options.report);
           throw error;
         }
-        return { kind: 'saved', item };
       }),
     update: (id, request) =>
       inTurn(async () => {
         const current = items.find((item) => item.id === id);
         if (current === undefined) return { kind: 'not-found' };
         if (current.kind !== request.kind) return { kind: 'invalid', reason: `This item is ${KIND_NAMES[current.kind]} and stays one` };
-        const before = changesSecret(request) ? await readSecret(current) : null;
-        const change = updated(current, request, before, now());
+        const saved = changesSecret(request) ? await secrets.read(id).catch(() => undefined) : undefined;
+        const before = saved === undefined ? undefined : Secret.safeParse(parseJson(saved));
+        const change = updated(current, request, before?.success === true ? before.data : null, now());
         if (change.kind === 'invalid') return change;
         if (change.secret !== null && (await secrets.write(id, JSON.stringify(change.secret))).kind === 'too-long') return { kind: 'invalid', reason: TOO_LONG };
         try {
-          await persist(items.map((item) => (item.id === id ? change.item : item)));
+          await persist(
+            items.map((item) => (item.id === id ? change.item : item)),
+            pending,
+          );
         } catch (error) {
-          if (before !== null) await secrets.write(id, JSON.stringify(before)).catch(options.report);
+          if (saved !== undefined) await secrets.write(id, saved).catch(options.report);
           throw error;
         }
         return { kind: 'saved', item: change.item };
@@ -104,8 +130,11 @@ export async function openVault(options: VaultOptions): Promise<VaultService> {
     delete: (id) =>
       inTurn(async () => {
         if (!items.some((item) => item.id === id)) return false;
-        await persist(items.filter((item) => item.id !== id));
-        await secrets.remove(id).catch(options.report);
+        await secrets.remove(id);
+        await persist(
+          items.filter((item) => item.id !== id),
+          pending,
+        );
         return true;
       }),
     resolve: async (id) => {
@@ -155,13 +184,23 @@ function changesSecret(request: UpdateVaultItemRequest): boolean {
 
 type Change = { readonly kind: 'changed'; readonly item: VaultItem; readonly secret: Secret | null } | { readonly kind: 'invalid'; readonly reason: string };
 
-/** The item after `request`, and its new secret when the request changes one (`before` is the secret saved now). */
+/**
+ * The item after `request`, and its new secret when the request changes one. `before` is the secret saved now, or
+ * null when it is missing or unreadable: a login can then only take a new secret that names both of its parts.
+ */
 function updated(current: VaultItem, request: UpdateVaultItemRequest, before: Secret | null, at: string): Change {
   const common = { label: request.label ?? current.label, site: request.site === undefined ? current.site : request.site, updatedAt: at };
   switch (request.kind) {
     case 'login': {
-      if (current.kind !== 'login' || (before !== null && before.kind !== 'login')) return mismatch;
-      const secret = before === null ? null : { ...before, password: request.password ?? before.password, twoStepKey: request.twoStepKey === undefined ? before.twoStepKey : request.twoStepKey };
+      if (current.kind !== 'login') return mismatch;
+      const old = before?.kind === 'login' ? before : null;
+      let secret: Secret | null = null;
+      if (request.password !== undefined || request.twoStepKey !== undefined) {
+        const password = request.password ?? old?.password;
+        const twoStepKey = request.twoStepKey === undefined ? old?.twoStepKey : request.twoStepKey;
+        if (password === undefined || twoStepKey === undefined) return unreadable;
+        secret = { kind: 'login', password, twoStepKey };
+      }
       return { kind: 'changed', item: { ...current, ...common, username: request.username ?? current.username, hasTotp: secret === null ? current.hasTotp : secret.twoStepKey !== null }, secret };
     }
     case 'api_key':
@@ -178,18 +217,22 @@ function updated(current: VaultItem, request: UpdateVaultItemRequest, before: Se
 }
 
 const mismatch: Change = { kind: 'invalid', reason: 'This item is of another kind' };
+const unreadable: Change = {
+  kind: 'invalid',
+  reason: "This login's saved secret can't be read. Enter the password and the two-step key (or remove the key) to replace it.",
+};
 
-async function load(file: string): Promise<VaultItem[]> {
+async function load(file: string): Promise<{ items: VaultItem[]; pending: string[] }> {
   let text: string;
   try {
     text = await readFile(file, 'utf8');
   } catch (error) {
-    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return [];
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return { items: [], pending: [] };
     throw error;
   }
   const parsed = VaultFile.safeParse(parseJson(text));
   if (!parsed.success) throw new Error(`${file} is not a vault file MorrowBot wrote; move it aside to start with an empty vault`);
-  return parsed.data.items;
+  return parsed.data;
 }
 
 function parseJson(text: string): unknown {

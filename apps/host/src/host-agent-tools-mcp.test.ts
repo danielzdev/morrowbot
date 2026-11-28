@@ -216,7 +216,7 @@ it('speaks MCP on loopback only to the running turn’s token', async () => {
                 "name": "forget_memory",
               },
               {
-                "description": "Lists the user's vault: saved website logins, API keys and HTTP header secrets, by id, kind, name and site. You never see a password, key, header value or two-step code; a tool that takes a vaultId uses the secret for you.",
+                "description": "Lists the user's vault: saved website logins, API keys and HTTP header secrets, by id, kind, name and site. Passwords, keys, header values and two-step codes are never shown to you.",
                 "inputSchema": {
                   "additionalProperties": false,
                   "properties": {},
