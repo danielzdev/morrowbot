@@ -23,6 +23,8 @@ const BRIDGE = {
   loginItem: () => Promise.resolve({ kind: 'unsupported' }),
   setOpenAtLogin: () => Promise.resolve({ kind: 'unsupported' }),
   revealPath: () => Promise.resolve(),
+  resetPlan: () => Promise.resolve({ token: 'test', options: [] }),
+  runReset: () => Promise.resolve({ kind: 'refused', reason: 'test' }),
 };
 const ignore = (): void => undefined;
 const PAIRING: PairingPort = {
@@ -60,7 +62,7 @@ const SECTIONS: Readonly<Record<SettingsSection, () => string>> = {
   providers: () => renderToString(h(SettingsModal, { ...MODAL, link: 'providers' })),
   usage: () => '',
   devices: () => renderToString(h(DevicesSection, { pairing: PAIRING })),
-  about: () => renderToString(h(AboutSection, { info: INFO, update: { kind: 'up-to-date' }, onRevealData: ignore, onCheckForUpdates: ignore, onRestartToUpdate: ignore })),
+  about: () => renderToString(h(AboutSection, { info: INFO, update: { kind: 'up-to-date' }, onRevealData: ignore, onCheckForUpdates: ignore, onRestartToUpdate: ignore, reset: BRIDGE })),
 };
 
 it('renders exactly the rows search knows about, with the same label and description', () => {

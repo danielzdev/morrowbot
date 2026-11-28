@@ -14,6 +14,16 @@ A host started by hand (`npm start -w apps/host`) also defaults to `~/.morrowbot
 paired address survives a restart. Only the installed app checks for updates.
 `src/main/profile.ts` decides this, and `src/main/profile.test.ts` records it.
 
+## Reset or Uninstall (Settings › About)
+
+The installed app offers three choices: reset and relaunch, move `MorrowBot.app` to the Trash, or both
+plus all data. A run with its own data folder (inside the home folder) may only reset that folder; it
+never touches `~/.morrowbot`, `MorrowBot.app`, Library files or the Keychain. Only MorrowBot's own entries
+in the data folder, its Library files and its Keychain items are removed; `workspaces/`, any agent
+workspace, symbolic links and unknown files stay. The confirmation lists every path first. Deletion runs
+in a helper after the app exits (log: `$TMPDIR/morrowbot-reset.log`). The allowlist lives in
+`src/main/reset/reset-paths.ts`.
+
 ## Build the app locally
 
 ```sh

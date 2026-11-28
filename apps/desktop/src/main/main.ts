@@ -11,6 +11,9 @@ import { NO_UPDATER, startUpdater, type Updater } from './updater.ts';
 import { hostEnvOf, profileOf, type UsableProfile } from './profile.ts';
 import { appInfoOf, loginItemOf, parseExternalUrl, parseOpenAtLogin, parseRelaunch, parseRevealTarget, pluginsDirOf, resolveReveal } from './shell-actions.ts';
 import { openSignInTerminal, parseSignInRequest } from './sign-in-terminal.ts';
+import { MAC_KEYCHAIN } from './reset/keychain.ts';
+import { parseResetRequest, resetFlow } from './reset/reset-flow.ts';
+import { hostWorkspaces, startCleanupHelper } from './reset/start-helper.ts';
 
 const FILES = appFilesOf(app.isPackaged ? { kind: 'packaged', appPath: app.getAppPath() } : { kind: 'dev' });
 const RENDERER_URL = FILES.rendererUrl;
@@ -34,6 +37,8 @@ const CHANNELS: BridgeChannels = {
   checkForUpdates: 'morrowbot:check-for-updates',
   restartToUpdate: 'morrowbot:restart-to-update',
   signInTerminal: 'morrowbot:sign-in-terminal',
+  resetPlan: 'morrowbot:reset-plan',
+  runReset: 'morrowbot:run-reset',
 };
 
 /** macOS keeps its traffic lights, inset into the window's own 48px top bar; elsewhere the system frame stays. */
@@ -233,6 +238,39 @@ function runApp(profile: UsableProfile): void {
       lifetime = 'host-stopped';
     });
   }
+
+  const reset = resetFlow({
+    context: async () => ({
+      platform: process.platform,
+      homeDir: homedir(),
+      profile: { kind: profile.kind, dataDir },
+      workspaces: await hostWorkspaces(host.target(), RENDERER_URL),
+    }),
+    bundle: () => ({ packaged: app.isPackaged, execPath: process.execPath, updatePending: ['checking', 'downloading', 'ready'].includes(updater.status().kind) }),
+    keychain: MAC_KEYCHAIN,
+    running: () => lifetime === 'running',
+    stopHost,
+    startHelper: (job) => startCleanupHelper(FILES.cleanupHelper, job),
+    trash: (target) => shell.trashItem(target),
+    relaunch: { command: process.execPath, args: process.argv.slice(1), cwd: process.cwd() },
+    mainPid: process.pid,
+    quit: () => {
+      app.quit();
+    },
+    recover: (message) => {
+      dialog.showErrorBox('MorrowBot could not finish', message);
+      app.relaunch();
+      app.quit();
+    },
+  });
+  ipcMain.handle(CHANNELS.resetPlan, (event) => {
+    checkSender(senderOf(event), RENDERER_URL);
+    return reset.plan();
+  });
+  ipcMain.handle(CHANNELS.runReset, (event, input: unknown) => {
+    const { choice, token } = parseResetRequest(fromRenderer(event, input));
+    return reset.run(choice, token);
+  });
 
   ipcMain.handle(CHANNELS.restartToUpdate, async (event) => {
     checkSender(senderOf(event), RENDERER_URL);
