@@ -66,7 +66,10 @@ else {
   const refusal = jobRefusal(job, { platform: process.platform, homeDir: await realpath(homedir()), execPath: process.execPath });
   if (refusal !== null) await stop(2, { kind: 'refused', reason: refusal });
   await send({ kind: 'ready' });
-  if (!Commit.safeParse(await next()).success) await stop(0, { kind: 'cancelled' });
+  if (!Commit.safeParse(await next()).success) {
+    clearResetLock(job.context.profile.dataDir);
+    await stop(0, { kind: 'cancelled' });
+  }
   await send({ kind: 'committed' });
   if (process.connected) process.disconnect?.();
   const dataDir = job.context.profile.dataDir;

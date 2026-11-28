@@ -125,6 +125,8 @@ export function deleteCandidatesOf(context: ResetContext): readonly DeleteCandid
   }
 }
 
+export const WORKSPACE_REFUSAL = 'An agent workspace, or holds one. Workspaces are never touched.';
+
 /** What the disk says about a path, read with `lstat` and `realpath`. `unreadable`: either failed for a reason but absence. */
 export type PathFacts =
   | { readonly kind: 'missing' }
@@ -145,7 +147,7 @@ export function workspacesOf(context: ResetContext): readonly string[] {
 export function refusalOf(target: string, root: string, homeDir: string, facts: Exclude<PathFacts, { readonly kind: 'missing' }>, workspaces: readonly string[]): string | null {
   if (!path.isAbsolute(target) || path.normalize(target) !== target) return 'Not a plain absolute path.';
   if (!strictlyInside(target, root) || !strictlyInside(target, homeDir)) return "Outside MorrowBot's own folders.";
-  if (workspaces.some((workspace) => isWithin(target, workspace) || isWithin(workspace, target))) return 'An agent workspace, or holds one. Workspaces are never touched.';
+  if (workspaces.some((workspace) => isWithin(target, workspace) || isWithin(workspace, target))) return WORKSPACE_REFUSAL;
   switch (facts.kind) {
     case 'unreadable':
       return 'MorrowBot could not check it, so it stays.';

@@ -2,7 +2,7 @@ import { rm } from 'node:fs/promises';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { fakeHome, fakeKeychain, INFO_PLIST, type FakeHome } from './reset-fixture.ts';
 import { RELEASE_TOKEN, SAFE_STORAGE } from './reset-paths.ts';
-import { resetOptionsOf } from './reset-plan.ts';
+import { deleteRefusalNow, resetOptionsOf } from './reset-plan.ts';
 
 let fake: FakeHome;
 const KEYCHAIN = [RELEASE_TOKEN, SAFE_STORAGE, { service: 'Other App Safe Storage', account: 'Other App' }];
@@ -325,5 +325,43 @@ it("keeps Electron's Safe Storage key while its profile folder stays, and protec
       ],
       "keychain": [],
     }
+  `);
+});
+
+it.skipIf(process.platform !== 'darwin')('protects a workspace the host names by another path to the same folder, such as the Data volume firmlink', async () => {
+  const execPath = await installed();
+  await fake.file('.morrowbot/attachments/a.png');
+  const alias = `/System/Volumes/Data${fake.home}`;
+  const context = fake.context('installed', '.morrowbot', [`${alias}/.morrowbot/plugin-data/echo`, `${alias}/.morrowbot/attachments/not-made-yet`]);
+  const [reset] = await resetOptionsOf(context, { packaged: true, execPath, updatePending: false }, fakeKeychain([]));
+  const now = await deleteRefusalNow(context, `${fake.home}/.morrowbot/plugin-data`);
+  const kept = reset?.kind === 'available' ? reset.kept.filter((each) => each.path.includes('plugin-data') || each.path.includes('attachments')) : reset;
+  expect(fake.short({ kept, now })).toMatchInlineSnapshot(`
+    {
+      "kept": [
+        {
+          "path": "~/.morrowbot/attachments",
+          "reason": "An agent workspace, or holds one. Workspaces are never touched.",
+        },
+        {
+          "path": "~/.morrowbot/plugin-data",
+          "reason": "An agent workspace, or holds one. Workspaces are never touched.",
+        },
+      ],
+      "now": "An agent workspace, or holds one. Workspaces are never touched.",
+    }
+  `);
+});
+
+it("refuses only the choices that delete data when the login Keychain can't be checked", async () => {
+  const execPath = await installed();
+  const broken = { has: () => Promise.reject(new Error('The login Keychain is missing, so MorrowBot leaves the Keychain alone.')), remove: () => Promise.resolve() };
+  const options = await resetOptionsOf(fake.context('installed', '.morrowbot'), { packaged: true, execPath, updatePending: false }, broken);
+  expect(options.map((option) => (option.kind === 'available' ? `${option.choice}: available` : `${option.choice}: ${option.reason}`))).toMatchInlineSnapshot(`
+    [
+      "reset: The login Keychain is missing, so MorrowBot leaves the Keychain alone.",
+      "uninstall-app: available",
+      "full-uninstall: The login Keychain is missing, so MorrowBot leaves the Keychain alone.",
+    ]
   `);
 });

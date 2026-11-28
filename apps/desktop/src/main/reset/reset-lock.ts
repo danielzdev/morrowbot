@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { comparable } from './reset-paths.ts';
@@ -30,9 +30,12 @@ export function writeResetLock(dataDir: string, helperPid: number): void {
 
 /** Marks the lock fresh again; a lock that is gone stays gone. */
 export function touchResetLock(dataDir: string): void {
-  const lock = resetLockOf(dataDir);
   const now = new Date();
-  if (existsSync(lock)) utimesSync(lock, now, now);
+  try {
+    utimesSync(resetLockOf(dataDir), now, now);
+  } catch (error) {
+    if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
+  }
 }
 
 export function clearResetLock(dataDir: string): void {

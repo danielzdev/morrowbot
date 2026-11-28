@@ -145,6 +145,7 @@ export function resetFlow(deps: ResetDeps): ResetFlow {
         return giveBack(refused('Something changed since this list was made. Review it again.'));
       }
       if (now.kind === 'unavailable') return giveBack(refused(now.reason));
+      if (!deps.running()) return giveBack(refused('MorrowBot is already quitting.'));
       await deps.stopHost();
       try {
         const result = await act(choice, now.steps, context);

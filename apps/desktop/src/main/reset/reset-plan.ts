@@ -3,7 +3,8 @@ import path from 'node:path';
 import type { KeptPath, ResetOption, ResetStep } from '../../renderer/bridge.ts';
 import { APP_ID } from '../app-identity.ts';
 import type { Keychain } from './keychain.ts';
-import { bundleIdIn, bundleOf, comparable, dataDirRefusal, deleteCandidatesOf, ELECTRON_PROFILE, isWithin, RELEASE_TOKEN, refusalOf, SAFE_STORAGE, WORKSPACES_ENTRY, workspacesOf, type KeychainItem, type PathFacts, type ResetContext } from './reset-paths.ts';
+import { sharesWorkspace, workspaceIdsOf } from './workspace-identity.ts';
+import { bundleIdIn, bundleOf, comparable, dataDirRefusal, deleteCandidatesOf, ELECTRON_PROFILE, isWithin, RELEASE_TOKEN, refusalOf, SAFE_STORAGE, WORKSPACE_REFUSAL, WORKSPACES_ENTRY, workspacesOf, type KeychainItem, type PathFacts, type ResetContext } from './reset-paths.ts';
 
 /** Where this process runs from, for finding the app bundle. */
 export interface BundleInput {
@@ -58,7 +59,10 @@ export async function deleteRefusalNow(context: ResetContext, target: string): P
   const candidate = deleteCandidatesOf(context).find((each) => each.path === target);
   if (candidate === undefined) return "Not one of MorrowBot's own files.";
   const facts = await factsOf(target);
-  return facts.kind === 'missing' ? 'Already gone.' : refusalOf(target, candidate.root, context.homeDir, facts, workspacesOf(context));
+  if (facts.kind === 'missing') return 'Already gone.';
+  const refusal = refusalOf(target, candidate.root, context.homeDir, facts, workspacesOf(context));
+  if (refusal !== null) return refusal;
+  return (await sharesWorkspace(target, await workspaceIdsOf(workspacesOf(context)))) ? WORKSPACE_REFUSAL : null;
 }
 
 /** True only when Electron's profile folder is verifiably gone, so its Safe Storage key protects nothing any more. */
@@ -80,10 +84,11 @@ export async function dataPlanOf(context: ResetContext, choice: DataChoice, keyc
   const workspaces = workspacesOf(context);
   const steps: ResetStep[] = [];
   const kept: KeptPath[] = [];
+  const ids = await workspaceIdsOf(workspaces);
   for (const candidate of deleteCandidatesOf(context)) {
     const facts = await factsOf(candidate.path);
     if (facts.kind === 'missing') continue;
-    const reason = refusalOf(candidate.path, candidate.root, context.homeDir, facts, workspaces);
+    const reason = refusalOf(candidate.path, candidate.root, context.homeDir, facts, workspaces) ?? ((await sharesWorkspace(candidate.path, ids)) ? WORKSPACE_REFUSAL : null);
     if (reason === null) steps.push({ kind: 'delete', path: candidate.path });
     else kept.push({ path: candidate.path, reason });
   }
@@ -96,10 +101,14 @@ export async function dataPlanOf(context: ResetContext, choice: DataChoice, keyc
   if (context.profile.kind === 'installed') {
     const electronProfile = path.join(context.homeDir, ELECTRON_PROFILE);
     const profileKept = kept.some((each) => each.path === electronProfile);
-    if (!profileKept && (await keychain.has(SAFE_STORAGE))) steps.push(keychainStep(SAFE_STORAGE));
-    if (await keychain.has(RELEASE_TOKEN)) {
-      if (choice === 'full-uninstall') steps.push(keychainStep(RELEASE_TOKEN));
-      else kept.push({ path: `Keychain: ${RELEASE_TOKEN.service} (account ${RELEASE_TOKEN.account})`, reason: 'Needed for app updates while MorrowBot stays installed.' });
+    try {
+      if (!profileKept && (await keychain.has(SAFE_STORAGE))) steps.push(keychainStep(SAFE_STORAGE));
+      if (await keychain.has(RELEASE_TOKEN)) {
+        if (choice === 'full-uninstall') steps.push(keychainStep(RELEASE_TOKEN));
+        else kept.push({ path: `Keychain: ${RELEASE_TOKEN.service} (account ${RELEASE_TOKEN.account})`, reason: 'Needed for app updates while MorrowBot stays installed.' });
+      }
+    } catch (error) {
+      return { kind: 'refused', reason: error instanceof Error ? error.message : 'The login Keychain could not be checked.' };
     }
   }
   return { kind: 'ready', steps, kept };
@@ -118,7 +127,8 @@ export async function bundlePlanOf(context: ResetContext, input: BundleInput): P
   if (facts.kind !== 'present' || facts.realPath !== bundle.path) return { kind: 'refused', reason: 'MorrowBot.app is a symbolic link or could not be checked.' };
   const plist = await readFile(path.join(bundle.path, 'Contents', 'Info.plist'), 'utf8').catch(() => '');
   if (bundleIdIn(plist) !== APP_ID) return { kind: 'refused', reason: `This app bundle is not ${APP_ID}.` };
-  if ((context.workspaces ?? []).some((workspace) => isWithin(workspace, bundle.path) || isWithin(bundle.path, workspace))) {
+  const known = context.workspaces ?? [];
+  if (known.some((workspace) => isWithin(workspace, bundle.path) || isWithin(bundle.path, workspace)) || (await sharesWorkspace(bundle.path, await workspaceIdsOf(known)))) {
     return { kind: 'refused', reason: 'An agent workspace is inside MorrowBot.app, or holds it. Move that workspace first.' };
   }
   return bundle;
