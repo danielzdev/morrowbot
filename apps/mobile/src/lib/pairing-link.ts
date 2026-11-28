@@ -1,6 +1,6 @@
 import { HostUrl, PairingCode } from '@morrowbot/contracts';
 
-/** Where to pair and with which code, from a scanned QR, a `orikami://pair` link, or typed fields. */
+/** Where to pair and with which code, from a scanned QR, an `orikami://pair` link, or typed fields. */
 export interface PairingTarget {
   readonly url: HostUrl;
   readonly code: PairingCode;

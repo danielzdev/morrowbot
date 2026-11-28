@@ -143,7 +143,7 @@ it("joins the owner's own server with a pairing code typed beside its address, a
       },
       "badLink": {
         "kind": "failed",
-        "message": "Paste a orikami://join link",
+        "message": "Paste an orikami://join link",
       },
       "localHostsStarted": [
         "local host",

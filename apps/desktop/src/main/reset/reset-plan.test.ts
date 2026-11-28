@@ -94,7 +94,7 @@ it('resolves every choice for the installed app to exact paths, keeping workspac
             "path": "~/Library/Preferences/com.legendarykoi.orikami.plist",
           },
           {
-            "account": "Ori Kami Key",
+            "account": "Ori Kami",
             "kind": "keychain",
             "service": "Ori Kami Safe Storage",
           },
@@ -171,7 +171,7 @@ it('resolves every choice for the installed app to exact paths, keeping workspac
             "path": "~/Library/Preferences/com.legendarykoi.orikami.plist",
           },
           {
-            "account": "Ori Kami Key",
+            "account": "Ori Kami",
             "kind": "keychain",
             "service": "Ori Kami Safe Storage",
           },

@@ -116,7 +116,7 @@ export function parseJoinTarget(link: string, typedUrl: string, typedCode: strin
   if (pasted !== '') {
     const parsed = urlOf(pasted);
     const kind = parsed?.protocol === 'orikami:' ? parsed.host : '';
-    if (parsed === null || (kind !== 'join' && kind !== 'pair')) return { kind: 'invalid', reason: 'Paste a orikami://join link' };
+    if (parsed === null || (kind !== 'join' && kind !== 'pair')) return { kind: 'invalid', reason: 'Paste an orikami://join link' };
     return targetOf(parsed.searchParams.get('url') ?? '', parsed.searchParams.get('code') ?? '');
   }
   return targetOf(typedUrl.trim(), typedCode.trim().replaceAll(' ', ''));

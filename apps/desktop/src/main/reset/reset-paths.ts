@@ -75,8 +75,8 @@ export const RELEASE_TOKEN: KeychainItem = { service: `${APP_ID}.releases`, acco
 /** The vault's master key, which every data folder on this Mac shares; removed only with the installed app's `VAULT_SECRETS`. */
 export const VAULT_KEY: KeychainItem = { service: `${APP_ID}.vault`, account: 'master-key' };
 
-/** Electron's key for the files in `ELECTRON_PROFILE` (Chromium names the account `<app> Key`); removed only once they are gone. */
-export const SAFE_STORAGE: KeychainItem = { service: `${PRODUCT_NAME} Safe Storage`, account: `${PRODUCT_NAME} Key` };
+/** Electron's key for the files in `ELECTRON_PROFILE` (Electron names the account after the app); removed only once they are gone. */
+export const SAFE_STORAGE: KeychainItem = { service: `${PRODUCT_NAME} Safe Storage`, account: PRODUCT_NAME };
 
 /**
  * A path as APFS compares it by default: normalised, no trailing separator, one Unicode form, any case (folded

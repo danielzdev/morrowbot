@@ -71,7 +71,7 @@ it('removes exactly the confirmed Ori Kami files and Keychain items, and leaves 
             "path": "~/Library/Application Support/Ori Kami",
           },
           {
-            "account": "Ori Kami Key",
+            "account": "Ori Kami",
             "kind": "keychain",
             "service": "Ori Kami Safe Storage",
           },
@@ -234,7 +234,7 @@ it("keeps Electron's Safe Storage key when its profile folder could not be delet
   expect(fake.short({ summary, keychain: [...keychain.items], unreadable })).toMatchInlineSnapshot(`
     {
       "keychain": [
-        "Ori Kami Safe Storage / Ori Kami Key",
+        "Ori Kami Safe Storage / Ori Kami",
       ],
       "summary": {
         "done": [
@@ -251,7 +251,7 @@ it("keeps Electron's Safe Storage key when its profile folder could not be delet
         ],
         "skipped": [
           {
-            "account": "Ori Kami Key",
+            "account": "Ori Kami",
             "kind": "keychain",
             "service": "Ori Kami Safe Storage",
           },

@@ -97,14 +97,18 @@ security add-generic-password -s com.legendarykoi.orikami.releases -a releases -
 
 The app was called MorrowBot (`com.legendarykoi.morrowbot`). Ori Kami is a new app to macOS: a new bundle id,
 data folder (`~/.orikami`), Electron profile and Keychain items, and nothing is carried over or migrated.
-An installed `MorrowBot.app` cannot update itself into `Ori Kami.app`, because the bundle id differs.
+An installed `MorrowBot.app` cannot update itself into `Ori Kami.app`, because the bundle id differs: it keeps
+downloading each new release and failing to install it until it is removed.
 
 1. In MorrowBot, Settings › About › **Reset or Uninstall…** › **Full uninstall** removes `MorrowBot.app`,
-   `~/.morrowbot`, its Library files and its Keychain items. Choose **Uninstall app (keep data)** instead to keep
-   the old chats in `~/.morrowbot`; Ori Kami never reads them.
+   `~/.morrowbot`, its Library files and its Keychain items. Do this rather than keeping the old data: the fence
+   hides only Ori Kami's own data folder, so a kept `~/.morrowbot` or `~/.morrowbot-dev` (chats, vault files,
+   joined-server token) and the `com.legendarykoi.morrowbot.vault` Keychain item stay readable by full-access
+   agents. Delete any you keep, and `MorrowBot Safe Storage` in Keychain Access if it is still there.
 2. Install `Ori Kami.app` from the releases repo's latest `.dmg` and drag it into `/Applications`.
 3. Store the release feed token again under the new name:
    `security add-generic-password -s com.legendarykoi.orikami.releases -a releases -w`.
    The old `com.legendarykoi.morrowbot.releases` item can then be deleted in Keychain Access.
 
-The `MORROWBOT_*` environment variables are now `ORIKAMI_*`; the old names are ignored.
+The `MORROWBOT_*` environment variables are now `ORIKAMI_*`, and an agent's own skills folder is now
+`.orikami/skills` in its workspace; the old names are ignored.
