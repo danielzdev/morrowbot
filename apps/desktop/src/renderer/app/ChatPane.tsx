@@ -5,11 +5,13 @@ import { BotAvatar, combineActivity, motionOf } from '../features/avatar/index.t
 import type { AgentSection } from '../features/agents/index.ts';
 import { BindingControl, BindingWarnings, sendBlock, type BoundProvider } from '../features/binding/index.ts';
 import { chatDisplay, ChatView, Composer, type PeerDirectory } from '../features/chat/index.ts';
+import { INSPECTOR_TOGGLE } from '../features/inspector/index.ts';
 import { ThreadHeader } from '../features/thread/index.ts';
 import { profileName } from '../shared/binding-ui/access-copy.ts';
 import { displayPath, type AppInfo } from '../shared/privacy.ts';
 import { useStore } from '../shared/use-store.ts';
 import { choiceFor, providerChoicesOf, threadStatusOf } from './derive.ts';
+import { InspectorPane } from './InspectorPane.tsx';
 import type { Models } from './models.ts';
 
 export interface Chrome {
@@ -36,6 +38,8 @@ export function ChatPane(props: {
   readonly bindingRequest: number;
   readonly onCopy: (threadId: string) => void;
   readonly onNewChat: () => void;
+  readonly inspectorOpen: boolean;
+  readonly onToggleInspector: () => void;
 }) {
   const { models, agent } = props;
   const display = useMemo(() => chatDisplay(props.info, agent.workspace.dir), [props.info, agent.workspace.dir]);
@@ -72,6 +76,7 @@ export function ChatPane(props: {
   }, [everyone, props.reducedMotion]);
   const motion = motionOf(combineActivity(Object.values(activity).filter((each) => each.agentId === agent.id).map((each) => each.activity)));
   return (
+    <div class="main-row">
     <div class="main">
       <ThreadHeader
         agent={agent}
@@ -91,6 +96,9 @@ export function ChatPane(props: {
         onRename={(id, title) => void models.agents.renameThread(agent.id, id, title)}
         onDelete={(id) => void models.agents.deleteThread(agent.id, id)}
         onCopy={props.onCopy}
+        inspectorOpen={props.inspectorOpen}
+        inspectorToggle={INSPECTOR_TOGGLE}
+        onToggleInspector={props.onToggleInspector}
       />
       {threads?.kind === 'failed' && <div class="banner danger">{display.redact(threads.message)}</div>}
       {session === undefined ? (
@@ -152,6 +160,10 @@ export function ChatPane(props: {
           />
         </>
       )}
+    </div>
+    {props.inspectorOpen && (
+      <InspectorPane models={models} bridge={props.bridge} agent={agent} choice={choice} info={props.info} onAgentSettings={props.onAgentSettings} onClose={props.onToggleInspector} />
+    )}
     </div>
   );
 }

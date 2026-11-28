@@ -10,6 +10,7 @@ import { readSafeMode, writeSafeMode } from './launch-prefs.ts';
 import { NO_UPDATER, startUpdater, type Updater } from './updater.ts';
 import { hostEnvOf, profileOf, type UsableProfile } from './profile.ts';
 import { appInfoOf, loginItemOf, parseExternalUrl, parseOpenAtLogin, parseRelaunch, parseRevealTarget, pluginsDirOf, resolveReveal } from './shell-actions.ts';
+import { openSignInTerminal, parseSignInRequest } from './sign-in-terminal.ts';
 
 const FILES = appFilesOf(app.isPackaged ? { kind: 'packaged', appPath: app.getAppPath() } : { kind: 'dev' });
 const RENDERER_URL = FILES.rendererUrl;
@@ -32,6 +33,7 @@ const CHANNELS: BridgeChannels = {
   updateChanged: 'morrowbot:update-changed',
   checkForUpdates: 'morrowbot:check-for-updates',
   restartToUpdate: 'morrowbot:restart-to-update',
+  signInTerminal: 'morrowbot:sign-in-terminal',
 };
 
 /** macOS keeps its traffic lights, inset into the window's own 48px top bar; elsewhere the system frame stays. */
@@ -186,6 +188,16 @@ function runApp(profile: UsableProfile): void {
     app.relaunch();
     app.quit();
   });
+
+  ipcMain.handle(CHANNELS.signInTerminal, (event, input: unknown) =>
+    openSignInTerminal(parseSignInRequest(fromRenderer(event, input)), {
+      host: host.target(),
+      rendererUrl: RENDERER_URL,
+      dataDir,
+      platform: process.platform,
+      open: (file) => shell.openPath(file),
+    }),
+  );
 
   ipcMain.handle(CHANNELS.appInfo, (event) => {
     checkSender(senderOf(event), RENDERER_URL);

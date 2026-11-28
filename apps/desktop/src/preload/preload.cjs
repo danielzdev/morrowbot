@@ -26,6 +26,7 @@ const CHANNELS = {
   updateChanged: 'morrowbot:update-changed',
   checkForUpdates: 'morrowbot:check-for-updates',
   restartToUpdate: 'morrowbot:restart-to-update',
+  signInTerminal: 'morrowbot:sign-in-terminal',
 };
 
 /**
@@ -62,6 +63,7 @@ const bridge = {
   onUpdateStatus: (listener) => listen(CHANNELS.updateChanged, (_event, status) => { listener(status); }),
   checkForUpdates: () => ipcRenderer.invoke(CHANNELS.checkForUpdates),
   restartToUpdate: () => ipcRenderer.invoke(CHANNELS.restartToUpdate),
+  signInTerminal: (providerId) => ipcRenderer.invoke(CHANNELS.signInTerminal, { providerId }),
 };
 
 contextBridge.exposeInMainWorld('morrowbot', bridge);

@@ -64,6 +64,11 @@ it('labels every shortcut for tooltips and aria-keyshortcuts', () => {
         "Ctrl+F",
         "Meta+F",
       ],
+      "inspector": [
+        "⌘I",
+        "Ctrl+I",
+        "Meta+I",
+      ],
       "new-agent": [
         "⇧⌘N",
         "Ctrl+Shift+N",

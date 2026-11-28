@@ -48,6 +48,32 @@ function Guide(props: { readonly providerId: string; readonly onOpenLink: (url: 
   );
 }
 
+/** One-click sign-in (spec §6.2 #29 polish): Terminal opens with the provider's own command; the copy box stays as the fallback. */
+function SignInButton(props: { readonly onSignIn: () => Promise<string | null> }) {
+  const [state, setState] = useState<{ readonly kind: 'idle' | 'opening' | 'opened' } | { readonly kind: 'failed'; readonly reason: string }>({ kind: 'idle' });
+  return (
+    <div class="one-click">
+      <button
+        type="button"
+        class="btn primary"
+        disabled={state.kind === 'opening'}
+        onClick={() => {
+          setState({ kind: 'opening' });
+          void props.onSignIn().then((reason) => {
+            setState(reason === null ? { kind: 'opened' } : { kind: 'failed', reason });
+          });
+        }}
+      >
+        <Icon name="keyboard" />
+        Sign in with Terminal
+      </button>
+      <span class="muted" role="status">
+        {state.kind === 'opened' ? 'Terminal is open. Finish signing in there, then come back.' : state.kind === 'failed' ? state.reason : "Opens Terminal with the provider's own sign-in command."}
+      </span>
+    </div>
+  );
+}
+
 /** Set up, sign in or update: what the provider needs before it can chat, ending with Recheck. */
 export function ProviderSetup(props: {
   readonly providerId: string;
@@ -56,15 +82,25 @@ export function ProviderSetup(props: {
   readonly redact: (text: string) => string;
   readonly onCopy: (text: string) => Promise<void>;
   readonly onOpenLink: (url: string) => void;
+  readonly onSignInTerminal: (() => Promise<string | null>) | null;
 }) {
   const { setup } = props;
   switch (setup.kind) {
     case 'sign-in': {
       const command = setupCommand(setup.argv, props.info);
-      if (command.kind === 'guide') return <Guide providerId={props.providerId} onOpenLink={props.onOpenLink} />;
+      const oneClick = props.onSignInTerminal === null ? null : <SignInButton onSignIn={props.onSignInTerminal} />;
+      if (command.kind === 'guide') {
+        return (
+          <div class="setup">
+            {oneClick}
+            <Guide providerId={props.providerId} onOpenLink={props.onOpenLink} />
+          </div>
+        );
+      }
       return (
         <div class="setup">
-          <p>Run this in a terminal to sign in:</p>
+          {oneClick}
+          <p>{oneClick === null ? 'Run this in a terminal to sign in:' : 'Or run it yourself in a terminal:'}</p>
           <CommandBox text={command.text} onCopy={props.onCopy} />
           <p class="muted">{AFTER_SETUP}</p>
         </div>
