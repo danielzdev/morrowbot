@@ -1,10 +1,11 @@
 import type { AgentAvatar } from '@morrowbot/contracts';
+import { validateAvatar, type AvatarDefinition } from 'open-bot-avatar';
 import { h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
 import { expect, it } from 'vitest';
 import { AvatarPicker } from './AvatarPicker.tsx';
 import { BotAvatar } from './BotAvatar.tsx';
-import { FINISHES } from './registry.ts';
+import { AVATARS, FINISHES } from './registry.ts';
 
 const AVATAR: AgentAvatar = { kind: 'bot', shape: 'mug', color: '#10b981', finish: 'flat' };
 
@@ -53,6 +54,33 @@ it('renders each finish: matte and metallic light the body with a filter of thei
     `);
 });
 
+it('gives every shape a definition the engine accepts', () => {
+  const verdict = (definition: AvatarDefinition | undefined) => {
+    if (definition === undefined) return 'missing';
+    const result = validateAvatar(definition);
+    return result.ok ? 'valid' : result.errors;
+  };
+  expect(Object.fromEntries(AVATARS.map(({ id, definition }) => [id, verdict(definition)]))).toMatchInlineSnapshot(`
+    {
+      "barbell": "valid",
+      "bolt": "valid",
+      "book": "valid",
+      "chat": "valid",
+      "cloud": "valid",
+      "controller": "valid",
+      "flame": "valid",
+      "ghost": "valid",
+      "heart": "valid",
+      "lightbulb": "valid",
+      "mug": "valid",
+      "shield": "valid",
+      "sprout": "valid",
+      "star": "valid",
+      "watering-can": "valid",
+    }
+  `);
+});
+
 /** Each picker radio as its name, marked when checked. */
 function buttons(html: string): string[] {
   return [...html.matchAll(/<button([^>]*)>([^<]*)/g)].flatMap(([, attributes = '', text]) => {
@@ -73,6 +101,14 @@ it('offers every shape, named swatch and finish in the picker and marks the chos
       "Lightbulb",
       "Sprout",
       "Watering can",
+      "Star",
+      "Cloud",
+      "Bolt",
+      "Flame",
+      "Heart",
+      "Book",
+      "Ghost",
+      "Shield",
       "Ocean",
       "Sky",
       "Mint",

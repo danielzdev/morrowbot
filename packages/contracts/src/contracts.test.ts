@@ -139,12 +139,12 @@ describe('AgentAvatar', () => {
     ]).toMatchInlineSnapshot(`
       [
         [
-          "shape: Invalid option: expected one of "chat"|"controller"|"barbell"|"mug"|"lightbulb"|"sprout"|"watering-can"",
+          "shape: Invalid option: expected one of "chat"|"controller"|"barbell"|"mug"|"lightbulb"|"sprout"|"watering-can"|"star"|"cloud"|"bolt"|"flame"|"heart"|"book"|"ghost"|"shield"",
           "color: Use a #rrggbb color",
           "finish: Invalid option: expected one of "flat"|"fluffy"|"matte"|"metallic"",
         ],
         [
-          "shape: Invalid option: expected one of "chat"|"controller"|"barbell"|"mug"|"lightbulb"|"sprout"|"watering-can"",
+          "shape: Invalid option: expected one of "chat"|"controller"|"barbell"|"mug"|"lightbulb"|"sprout"|"watering-can"|"star"|"cloud"|"bolt"|"flame"|"heart"|"book"|"ghost"|"shield"",
           "finish: Invalid option: expected one of "flat"|"fluffy"|"matte"|"metallic"",
         ],
         [
