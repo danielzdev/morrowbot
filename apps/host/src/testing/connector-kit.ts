@@ -88,6 +88,7 @@ export async function startConnectorKit(options: { readonly agentIds: readonly s
       agents: { list: () => storage.agents.list() },
       messages: { get: () => undefined, send: () => ({ kind: 'refused', reason: 'Messages are not part of connector tests' }) },
       memories: { list: () => undefined, create: () => undefined, update: () => undefined, delete: () => false },
+      vault: { list: () => [] },
       connectors: { tools: (agentId) => connectors.toolsFor(agentId), call: (agentId, name, args, signal) => connectors.call(agentId, name, args, signal) },
       subagents: {
         isSubagent: () => false,

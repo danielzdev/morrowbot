@@ -65,7 +65,7 @@ it('speaks MCP on loopback only to the running turn’s token', async () => {
                 "listChanged": false,
               },
             },
-            "instructions": "MorrowBot tools: message your teammate agents, keep your own memories, start sub-agents, and use the connectors the user gave you (named <connector>__<tool>). They act only as you, and only during this turn.",
+            "instructions": "MorrowBot tools: message your teammate agents, keep your own memories, see the names of the user's vault items, start sub-agents, and use the connectors the user gave you (named <connector>__<tool>). They act only as you, and only during this turn.",
             "protocolVersion": "2025-06-18",
             "serverInfo": {
               "name": "morrowbot",
@@ -214,6 +214,15 @@ it('speaks MCP on loopback only to the running turn’s token', async () => {
                   "type": "object",
                 },
                 "name": "forget_memory",
+              },
+              {
+                "description": "Lists the user's vault: saved website logins, API keys and HTTP header secrets, by id, kind, name and site. Passwords, keys, header values and two-step codes are never shown to you.",
+                "inputSchema": {
+                  "additionalProperties": false,
+                  "properties": {},
+                  "type": "object",
+                },
+                "name": "list_vault_items",
               },
               {
                 "description": "Starts a sub-agent: one background turn, in your workspace, that works on a prompt and replies, on your provider and model or on another one from list_subagents (for example a second opinion from a different model). It has at most your access and cannot start sub-agents itself. Up to 4 run at once, 12 per turn. Returns its runId at once; start several to work in parallel, then collect their replies with wait_subagents. Any still running when your turn ends are stopped.",

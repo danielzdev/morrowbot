@@ -3,7 +3,7 @@ import type { RefObject } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { AccessSegment } from '../../shared/binding-ui/AccessSegment.tsx';
 import { profileName } from '../../shared/binding-ui/access-copy.ts';
-import { accessState, changeCheck, modelState, needsConfirm, type ChangeCheck, type ModelState } from '../../shared/binding-ui/binding-state.ts';
+import { accessState, changeCheck, confirmLabel, modelState, needsConfirm, type ChangeCheck, type ModelState } from '../../shared/binding-ui/binding-state.ts';
 import { ModelList } from '../../shared/binding-ui/ModelList.tsx';
 import { OptionColumn } from '../../shared/binding-ui/OptionColumn.tsx';
 import { ProviderRail } from '../../shared/binding-ui/ProviderRail.tsx';
@@ -144,7 +144,7 @@ export function BindingPopover(props: {
               ))}
               <div class="row">
                 <button type="button" class="btn primary" data-autofocus onClick={() => void commit(confirm.next)}>
-                  {confirm.check.switched ? 'Switch' : 'Use it'}
+                  {confirmLabel(confirm.check, binding, confirm.next)}
                 </button>
                 <button type="button" class="btn secondary" onClick={() => { setConfirm(null); }}>Cancel</button>
               </div>

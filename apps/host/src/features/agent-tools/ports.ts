@@ -10,6 +10,7 @@ import type {
   SendAgentMessageRequest,
   SubagentRun,
   UpdateMemoryRequest,
+  VaultItem,
 } from '@morrowbot/contracts';
 import type { ToolGrant } from './grants.ts';
 
@@ -76,7 +77,7 @@ export type ConnectorCall =
     }
   | { readonly kind: 'refused'; readonly reason: string };
 
-/** What the tools act on (the agents, agent-messages, memories, sub-agents, connectors and plugins features provide it). */
+/** What the tools act on (the agents, agent-messages, memories, vault, sub-agents, connectors and plugins features provide it). */
 export interface ToolPorts {
   readonly agents: { list(): readonly Agent[] };
   readonly messages: {
@@ -91,6 +92,8 @@ export interface ToolPorts {
     update(agentId: string, id: string, request: UpdateMemoryRequest): Memory | undefined;
     delete(agentId: string, id: string): boolean;
   };
+  /** The vault's item names. Secret values never reach the tools. */
+  readonly vault: { list(): readonly VaultItem[] };
   /** Each call acts as the grant's turn, with every guardrail of the sub-agents feature. */
   readonly subagents: {
     /** A sub-agent's own chat, whose turns get only the read-only tools. */

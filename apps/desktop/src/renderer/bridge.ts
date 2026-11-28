@@ -20,6 +20,8 @@ export interface BridgeChannels {
   readonly checkForUpdates: 'morrowbot:check-for-updates';
   readonly restartToUpdate: 'morrowbot:restart-to-update';
   readonly signInTerminal: 'morrowbot:sign-in-terminal';
+  readonly resetPlan: 'morrowbot:reset-plan';
+  readonly runReset: 'morrowbot:run-reset';
   readonly serverMode: 'morrowbot:server-mode';
   readonly chooseServer: 'morrowbot:choose-server';
 }
@@ -67,6 +69,34 @@ export type UpdateStatus =
 
 /** A one-click sign-in: Terminal opened with the provider's own sign-in command, or why it could not. */
 export type SignInLaunch = { readonly kind: 'opened' } | { readonly kind: 'unavailable'; readonly reason: string };
+
+/** Settings › About › Reset or Uninstall: start fresh, remove the app, or remove the app and all its data. */
+export type ResetChoice = 'reset' | 'uninstall-app' | 'full-uninstall';
+
+/** One thing a reset or uninstall does, with the exact path or Keychain item. */
+export type ResetStep =
+  | { readonly kind: 'delete'; readonly path: string }
+  | { readonly kind: 'trash'; readonly path: string }
+  | { readonly kind: 'keychain'; readonly service: string; readonly account: string };
+
+/** A path that stays, and why. */
+export interface KeptPath {
+  readonly path: string;
+  readonly reason: string;
+}
+
+export type ResetOption =
+  | { readonly kind: 'available'; readonly choice: ResetChoice; readonly steps: readonly ResetStep[]; readonly kept: readonly KeptPath[] }
+  | { readonly kind: 'unavailable'; readonly choice: ResetChoice; readonly reason: string };
+
+/** Every choice as main resolved it just now. `token` names this exact list; running a choice needs it. */
+export interface ResetPlan {
+  readonly token: string;
+  readonly options: readonly ResetOption[];
+}
+
+/** `quitting`: the host stopped and MorrowBot is quitting to finish. `refused`: nothing was touched. */
+export type ResetOutcome = { readonly kind: 'quitting' } | { readonly kind: 'refused'; readonly reason: string };
 
 export type ApiMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -121,6 +151,10 @@ export interface MorrowbotBridge {
    * the host; the renderer names only the provider. Parse with `SignInLaunch`.
    */
   signInTerminal(providerId: string): Promise<unknown>;
+  /** Resolves every reset and uninstall choice to exact paths. Parse with `ResetPlan`. */
+  resetPlan(): Promise<unknown>;
+  /** Runs a choice from the plan `token` names, after main checks nothing changed. Parse with `ResetOutcome`. */
+  runReset(request: { readonly choice: ResetChoice; readonly token: string }): Promise<unknown>;
   /** Which server this app uses. Parse with `ServerMode` from `shared/server.ts`. */
   serverMode(): Promise<unknown>;
   /** Picks or switches the server; answers a `ServerAnswer`. */

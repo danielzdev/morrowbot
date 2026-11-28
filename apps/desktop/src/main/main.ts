@@ -1,3 +1,4 @@
+import { realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, shell, type IpcMainEvent, type IpcMainInvokeEvent, type OpenDialogOptions, type BrowserWindowConstructorOptions } from 'electron';
 import type { BridgeChannels } from '../renderer/bridge.ts';
@@ -14,7 +15,20 @@ import { NO_UPDATER, startUpdater, type Updater } from './updater.ts';
 import { hostEnvOf, profileOf, type UsableProfile } from './profile.ts';
 import { appInfoOf, loginItemOf, parseExternalUrl, parseOpenAtLogin, parseRelaunch, parseRevealTarget, pluginsDirOf, resolveReveal } from './shell-actions.ts';
 import { openSignInTerminal, parseSignInRequest } from './sign-in-terminal.ts';
+import { MAC_KEYCHAIN } from './reset/keychain.ts';
+import { parseResetRequest, resetFlow } from './reset/reset-flow.ts';
+import { resetInProgress } from './reset/reset-lock.ts';
+import { resetWorkspaces, startCleanupHelper } from './reset/start-helper.ts';
 
+/** The home folder with every link resolved, so the profile's data folder and every reset path agree with what the cleanup helper resolves. */
+function resolvedHome(): string {
+  try {
+    return realpathSync(homedir());
+  } catch {
+    return homedir();
+  }
+}
+const HOME_DIR = resolvedHome();
 const FILES = appFilesOf(app.isPackaged ? { kind: 'packaged', appPath: app.getAppPath() } : { kind: 'dev' });
 const RENDERER_URL = FILES.rendererUrl;
 
@@ -37,6 +51,8 @@ const CHANNELS: BridgeChannels = {
   checkForUpdates: 'morrowbot:check-for-updates',
   restartToUpdate: 'morrowbot:restart-to-update',
   signInTerminal: 'morrowbot:sign-in-terminal',
+  resetPlan: 'morrowbot:reset-plan',
+  runReset: 'morrowbot:run-reset',
   serverMode: 'morrowbot:server-mode',
   chooseServer: 'morrowbot:choose-server',
 };
@@ -265,6 +281,41 @@ function runApp(profile: UsableProfile): void {
     });
   }
 
+  const reset = resetFlow({
+    context: async () => ({
+      platform: process.platform,
+      homeDir: HOME_DIR,
+      profile: { kind: profile.kind, dataDir },
+      workspaces: await resetWorkspaces(server.mode(), server.target(), RENDERER_URL, dataDir),
+    }),
+    bundle: () => ({ packaged: app.isPackaged, execPath: process.execPath, updatePending: ['checking', 'downloading', 'ready'].includes(updater.status().kind) }),
+    keychain: MAC_KEYCHAIN,
+    updates: { pause: () => { updater.pause(); }, resume: () => { updater.resume(); } },
+    loginItem: { isOn: () => loginItems && app.getLoginItemSettings().openAtLogin, set: (on) => { if (loginItems) app.setLoginItemSettings({ openAtLogin: on }); } },
+    running: () => lifetime === 'running',
+    stopHost,
+    startHelper: (job) => startCleanupHelper(FILES.cleanupHelper, job),
+    trash: (target) => shell.trashItem(target),
+    relaunch: app.isPackaged ? { command: process.execPath, args: [], cwd: '/' } : { command: process.execPath, args: process.argv.slice(1), cwd: process.cwd() },
+    mainPid: process.pid,
+    quit: () => {
+      app.quit();
+    },
+    recover: (message, restart) => {
+      dialog.showErrorBox('MorrowBot could not finish', message);
+      if (restart) app.relaunch();
+      app.quit();
+    },
+  });
+  ipcMain.handle(CHANNELS.resetPlan, (event) => {
+    checkSender(senderOf(event), RENDERER_URL);
+    return reset.plan();
+  });
+  ipcMain.handle(CHANNELS.runReset, (event, input: unknown) => {
+    const { choice, token } = parseResetRequest(fromRenderer(event, input));
+    return reset.run(choice, token);
+  });
+
   ipcMain.handle(CHANNELS.restartToUpdate, async (event) => {
     checkSender(senderOf(event), RENDERER_URL);
     if (updater.status().kind !== 'ready' || lifetime !== 'running') return;
@@ -311,6 +362,11 @@ function runApp(profile: UsableProfile): void {
 
 /** One instance per profile: the installed app keeps Electron's own profile and lock, any other run uses its own. */
 function start(profile: UsableProfile): void {
+  if (resetInProgress(profile.dataDir)) {
+    dialog.showErrorBox('MorrowBot is finishing a reset', 'Open MorrowBot again in a moment. It reopens by itself once a reset is done.');
+    app.exit(0);
+    return;
+  }
   if (profile.kind === 'isolated') app.setPath('userData', profile.userDataDir);
   if (app.requestSingleInstanceLock()) runApp(profile);
   else app.quit();
@@ -318,7 +374,7 @@ function start(profile: UsableProfile): void {
 
 app.setName(PRODUCT_NAME);
 app.setAppUserModelId(APP_ID);
-const profile = profileOf({ packaged: app.isPackaged, env: process.env, homeDir: homedir() });
+const profile = profileOf({ packaged: app.isPackaged, env: process.env, homeDir: HOME_DIR });
 switch (profile.kind) {
   case 'invalid':
     dialog.showErrorBox('MorrowBot could not start', profile.problem);

@@ -2,6 +2,7 @@ import type { Agent, AgentAvatar, AgentWorkspaceRequest, ProviderBinding } from 
 import type { ComponentChildren } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import type { MorrowbotBridge } from '../../bridge.ts';
+import { FULL_ACCESS_WARNING } from '../../shared/binding-ui/access-copy.ts';
 import { newBinding, prefill, type ProviderChoice } from '../../shared/binding-ui/selection.ts';
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog.tsx';
 import { Modal } from '../../shared/ui/Modal.tsx';
@@ -41,6 +42,7 @@ export function NewAgentDialog(props: {
   const [problem, setProblem] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [leaving, setLeaving] = useState<(() => void) | null>(null);
+  const [confirmingFull, setConfirmingFull] = useState(false);
   const typed = touched || avatar !== initialAvatar || name !== '' || description !== '' || instructions !== '' || workspace.kind === 'shared';
   const leave = (then: () => void) => (): void => {
     if (typed) setLeaving(() => then);
@@ -52,6 +54,7 @@ export function NewAgentDialog(props: {
   }, [first?.id, first?.info]);
   const create = (): void => {
     if (saving || name.trim() === '') return;
+    setConfirmingFull(false);
     setSaving(true);
     setProblem(null);
     void props.model
@@ -68,7 +71,8 @@ export function NewAgentDialog(props: {
         class="new-agent-form"
         onSubmit={(event) => {
           event.preventDefault();
-          create();
+          if (binding.kind === 'bound' && binding.access === 'full') setConfirmingFull(true);
+          else create();
         }}
       >
         <h2 class="dialog-title">New agent</h2>
@@ -155,6 +159,16 @@ export function NewAgentDialog(props: {
           </button>
         </div>
       </form>
+      {confirmingFull && (
+        <ConfirmDialog
+          title={`Create ${name.trim()} with full access?`}
+          body={<p>{FULL_ACCESS_WARNING}</p>}
+          confirmLabel="Create with full access"
+          tone="danger"
+          onCancel={() => { setConfirmingFull(false); }}
+          onConfirm={create}
+        />
+      )}
       {leaving !== null && (
         <ConfirmDialog
           title="Discard this new agent?"

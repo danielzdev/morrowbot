@@ -1,9 +1,8 @@
 import { HOST_TOOLS_SERVER } from '@morrowbot/contracts';
 import { commandFilePath, type HostTools, type TurnMode, type TurnRequest } from '@morrowbot/plugin-sdk';
-import type { EffortLevel } from './info.ts';
 
-/** The access levels Claude Code runs in v1. There is no `full` (unsandboxed shell) profile. */
-export type ClaudeAccess = 'read-only' | 'workspace-write';
+type AccessLevel = TurnRequest['access'];
+import type { EffortLevel } from './info.ts';
 
 export interface Invocation {
   readonly args: readonly string[];
@@ -33,17 +32,20 @@ const BASE = [
 
 /**
  * MorrowBot owns the instructions: no CLAUDE.md, skills, commands, plugins, hooks or MCP servers of the
- * user's. `--restricted` (in every access profile) skips CLAUDE.md and the settings files that hold hooks
- * and plugins; `--strict-mcp-config` every MCP server but MorrowBot's own; `--disable-slash-commands` the
- * skills and commands. Not `--safe-mode`: it drops `--mcp-config` servers too (checked on 2.1.332).
+ * user's. `--setting-sources ''` skips CLAUDE.md and the settings files that hold hooks and plugins;
+ * `--strict-mcp-config` every MCP server but MorrowBot's own; `--disable-slash-commands` the skills and
+ * commands. Not `--safe-mode`: it drops `--mcp-config` servers too (checked on 2.1.332).
  */
 const ISOLATED = ['--strict-mcp-config', '--setting-sources', '', '--disable-slash-commands'] as const;
 
 /**
  * `--restricted` removes every tool that runs commands, ignores the user, project and local settings
  * files, and confines the file tools to the working folder. `--tools` names the only tools offered.
+ * `full` has no `--restricted` (it refuses `bypassPermissions`): Bash and the file tools run anywhere
+ * without asking, in either mode. Claude Code's own auto-memory, which `--restricted` keeps off, is
+ * turned off with `--settings`: the agent's memories are MorrowBot's.
  */
-function accessFlags(access: ClaudeAccess, mode: TurnMode): readonly string[] {
+function accessFlags(access: AccessLevel, mode: TurnMode): readonly string[] {
   switch (access) {
     case 'read-only':
       return ['--restricted', '--tools', 'Read,Glob,Grep', '--permission-mode', 'dontAsk', '--permission-prompts', 'none'];
@@ -55,6 +57,17 @@ function accessFlags(access: ClaudeAccess, mode: TurnMode): readonly string[] {
         '--permission-mode',
         'acceptEdits',
         ...approvalFlags(mode),
+      ];
+    case 'full':
+      return [
+        '--tools',
+        'Read,Glob,Grep,Edit,Write,Bash',
+        '--permission-mode',
+        'bypassPermissions',
+        '--permission-prompts',
+        'none',
+        '--settings',
+        JSON.stringify({ autoMemoryEnabled: false }),
       ];
   }
 }
@@ -88,8 +101,7 @@ function hostToolsConfig(tools: HostTools): string | null {
 
 /** Builds the `claude` command line and stdin frame for one stateless turn. */
 export function buildInvocation(
-  request: Pick<TurnRequest, 'mode' | 'selection' | 'system' | 'prompt' | 'images' | 'hostTools'> & {
-    readonly access: ClaudeAccess;
+  request: Pick<TurnRequest, 'access' | 'mode' | 'selection' | 'system' | 'prompt' | 'images' | 'hostTools'> & {
     readonly seed: string | null;
     /** Checked against the model's offered efforts already (`effortOf`). */
     readonly effort: EffortLevel | null;

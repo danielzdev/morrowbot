@@ -9,6 +9,7 @@ import { resolveTools } from './plugin-tools.ts';
 import type { ToolPorts } from './ports.ts';
 import { subagentTools } from './subagent-tools.ts';
 import type { Tool } from './tool.ts';
+import { vaultTools } from './vault-tools.ts';
 
 export const MCP_PATH = '/mcp';
 /** The tools a sub-agent's turn gets: it only reads, starts no sub-agents of its own and uses no connectors or tool plugins. */
@@ -46,7 +47,7 @@ type Answer = { readonly status: number; readonly body: object | null; readonly 
  */
 export async function startToolServer(options: ToolServerOptions): Promise<ToolServer> {
   const grants = createToolGrants();
-  const builtins: readonly Tool[] = [...messageTools(options.ports), ...memoryTools(options.ports), ...subagentTools(options.ports)];
+  const builtins: readonly Tool[] = [...messageTools(options.ports), ...memoryTools(options.ports), ...vaultTools(options.ports), ...subagentTools(options.ports)];
   const warn =
     options.warn ??
     ((message: string) => {

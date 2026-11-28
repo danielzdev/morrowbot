@@ -19,6 +19,7 @@ const STATIC_WITHHELD: readonly WithheldProfile[] = [
   { access: 'workspace-write', vendorSettings: 'isolated', reason: WRITE_REASON },
   { access: 'read-only', vendorSettings: 'personal', reason: PERSONAL_REASON },
   { access: 'workspace-write', vendorSettings: 'personal', reason: PERSONAL_REASON },
+  { access: 'full', vendorSettings: 'isolated', reason: 'MorrowBot has not yet checked with a fixture that Stop ends every command opencode starts, so OpenCode has no full access.' },
 ];
 
 /** Why read-only is held back on `platform`, or null. */

@@ -28,14 +28,16 @@ export function agentInbox(storage: Storage, agentMessages: AgentMessageService)
 }
 
 /**
- * What the agent tools act on: agents, agent-messages, memories, sub-agents, connectors and enabled tool plugins.
- * The sub-agents service is read when a tool is called: it is made after the chat service, which needs the tools first.
+ * What the agent tools act on: agents, agent-messages, memories, the vault's names, sub-agents, connectors and enabled
+ * tool plugins. The sub-agents service is read when a tool is called: it is made after the chat service, which needs
+ * the tools first.
  */
 export function agentToolPorts(
   storage: Storage,
   agents: ToolPorts['agents'],
   agentMessages: AgentMessageService,
   memories: MemoryService,
+  vault: ToolPorts['vault'],
   subagents: () => SubagentService,
   connectors: ConnectorService,
   plugins: PluginHost,
@@ -51,6 +53,7 @@ export function agentToolPorts(
       },
     },
     memories,
+    vault,
     subagents: {
       isSubagent: (threadId) => storage.subagents.get(threadId) !== undefined,
       spawn: (grant, input) => subagents().spawn(grant, input),

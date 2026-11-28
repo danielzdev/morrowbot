@@ -58,7 +58,7 @@ const guardBundle: Plugin = {
 await rm(out, { recursive: true, force: true });
 await mkdir(out, { recursive: true });
 const mainBundle = await build({
-  input: { main: `${desktop}src/main/main.ts` },
+  input: { main: `${desktop}src/main/main.ts`, 'cleanup-helper': `${desktop}src/main/reset/cleanup-helper.ts` },
   platform: 'node',
   external: ['electron'],
   tsconfig: `${desktop}tsconfig.json`,
