@@ -16,7 +16,7 @@ function state(seq: number, pending: readonly PendingApproval[] | null): ThreadS
   return {
     thread: { id: 't', agentId: 'a', title: 'Main', createdAt: AT, updatedAt: AT },
     messages: [],
-    activeTurn: pending === null ? null : { generationId: 'g', state: 'running', queueNote: null, text: '', pendingApprovals: [...pending] },
+    activeTurn: pending === null ? null : { generationId: 'g', trigger: { kind: 'chat' }, state: 'running', queueNote: null, text: '', pendingApprovals: [...pending] },
     blockedGroups: [],
     cursor: { hostEpoch: 'e1', seq },
   };
@@ -65,6 +65,9 @@ it('streams a turn: user message, status, deltas, a tool call, then the reply wi
         },
       ],
       "text": "Tram 28 runs east.",
+      "trigger": {
+        "kind": "chat",
+      },
     }
   `);
   const done = play(view, [
@@ -152,4 +155,17 @@ it('keeps a late answer as late on reload, and clears a card the host no longer 
     ['a1', { kind: 'late' }],
     ['a2', { kind: 'cleared' }],
   ]);
+});
+
+it('runs a background turn for another agent without a chat bubble, and clears it when it ends quietly', () => {
+  const started = play(viewOf(state(0, null)), [
+    { kind: 'generation.background-started', agentMessageId: 'am1', state: 'running' },
+    { kind: 'generation.delta', text: 'internal notes' },
+  ]);
+  const ended = play(started, [{ kind: 'generation.background-finished', outcome: { kind: 'completed', finishReason: 'stop' } }]);
+  expect({ trigger: started.activeTurn?.trigger, messages: ended.messages.length, activeTurn: ended.activeTurn }).toEqual({
+    trigger: { kind: 'agent-message', agentMessageId: 'am1' },
+    messages: 0,
+    activeTurn: null,
+  });
 });

@@ -121,7 +121,7 @@ export function createSampleChatHost(now: () => string = () => new Date().toISOS
 
   const start = (threadId: string, userMessage: UserMessage | null, prompt: string): string => {
     const generationId = nextId('gen');
-    const turn: Active = { generationId, state: 'running', queueNote: null, text: '', pendingApprovals: [] };
+    const turn: Active = { generationId, trigger: { kind: 'chat' }, state: 'running', queueNote: null, text: '', pendingApprovals: [] };
     active.set(threadId, turn);
     if (userMessage !== null) messages.set(threadId, [...(messages.get(threadId) ?? []), userMessage]);
     emit(threadId, generationId, { kind: 'generation.started', userMessage, state: 'running' });

@@ -101,7 +101,9 @@ export function MessageList(props: {
       {activeTurn === null ? null : (
         <View style={styles.assistant}>
           <ToolTimeline steps={tools(activeTurn.steps)} />
-          {activeTurn.text === '' ? (
+          {activeTurn.trigger.kind === 'agent-message' ? (
+            <Text style={[typography.ui, { color: colors.text3 }]}>Answering a message from another agent…</Text>
+          ) : activeTurn.text === '' ? (
             <Text style={[typography.ui, { color: colors.text3 }]}>
               {activeTurn.state === 'queued' ? (activeTurn.queueNote ?? 'Waiting to start…') : `${activeTurn.detail ?? 'Thinking'}…`}
             </Text>

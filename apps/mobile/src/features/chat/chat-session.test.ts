@@ -12,6 +12,7 @@ function state(seq: number, running: boolean, pending = running): ThreadState {
     activeTurn: running
       ? {
           generationId: 'g7',
+          trigger: { kind: 'chat' },
           state: 'running',
           queueNote: null,
           text: '',

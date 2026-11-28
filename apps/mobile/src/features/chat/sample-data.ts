@@ -110,6 +110,7 @@ export const SAMPLE_MESSAGES: Readonly<Record<string, readonly Message[]>> = {
 export const SAMPLE_ACTIVE: Readonly<Record<string, ThreadState['activeTurn']>> = {
   'errand-main': {
     generationId: 'gen-errand-1',
+    trigger: { kind: 'chat' },
     state: 'running',
     queueNote: null,
     text: 'I will write the plan to `notes/lisbon.md`.',

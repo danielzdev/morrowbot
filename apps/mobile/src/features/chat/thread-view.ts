@@ -7,6 +7,7 @@ import type {
   Thread,
   ThreadState,
   TurnState,
+  TurnTrigger,
 } from '@morrowbot/contracts';
 
 /** A tool call seen live. `unfinished`: its turn ended with no end event; `unknown`: it ended during a resync. */
@@ -36,6 +37,8 @@ export type TurnStep = ToolStep | ApprovalStep;
 
 export interface ActiveTurnView {
   readonly generationId: string;
+  /** `agent-message`: a background turn answering another agent; its text is not a reply to the user. */
+  readonly trigger: TurnTrigger;
   readonly state: TurnState;
   readonly queueNote: string | null;
   /** The provider's latest status line, such as "Thinking". */
@@ -95,6 +98,7 @@ export function viewOf(state: ThreadState, previous: ThreadView | null = null): 
       ? null
       : {
           generationId: active.generationId,
+          trigger: active.trigger,
           state: active.state,
           queueNote: active.queueNote,
           detail: null,
@@ -154,14 +158,16 @@ function endingOf(resolution: ApprovalResolution, approval: PendingApproval): Ap
 }
 
 function change(view: ThreadView, event: ThreadEvent): ThreadView | undefined {
-  if (event.kind === 'generation.started') {
-    const { userMessage } = event;
+  if (event.kind === 'generation.started' || event.kind === 'generation.background-started') {
+    const userMessage = event.kind === 'generation.started' ? event.userMessage : null;
     const messages =
       userMessage === null || view.messages.some(({ id }) => id === userMessage.id) ? view.messages : [...view.messages, userMessage];
+    const trigger: TurnTrigger =
+      event.kind === 'generation.started' ? { kind: 'chat' } : { kind: 'agent-message', agentMessageId: event.agentMessageId };
     return {
       ...view,
       messages,
-      activeTurn: { generationId: event.generationId, state: event.state, queueNote: null, detail: null, text: '', steps: [] },
+      activeTurn: { generationId: event.generationId, trigger, state: event.state, queueNote: null, detail: null, text: '', steps: [] },
     };
   }
   const active = view.activeTurn;
@@ -210,5 +216,7 @@ function change(view: ThreadView, event: ThreadEvent): ThreadView | undefined {
         finished: { ...view.finished, [event.message.id]: settled(active.steps, 'unfinished') },
       };
     }
+    case 'generation.background-finished':
+      return active.trigger.kind === 'agent-message' ? { ...view, activeTurn: null } : undefined;
   }
 }
