@@ -46,3 +46,4 @@ export * from './members.ts';
 export * from './subagents.ts';
 export * from './vault.ts';
 export * from './connectors.ts';
+export * from './avatar-outlines.ts';

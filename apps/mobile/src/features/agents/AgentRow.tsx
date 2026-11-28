@@ -1,9 +1,9 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { relativeTime } from '../../lib/relative-time.ts';
+import { BotAvatar } from '../../lib/bot-avatar/index.ts';
 import { RowIndicatorView } from '../../lib/RowIndicator.tsx';
-import { radii, spacing, typography } from '../../lib/theme.ts';
+import { AVATAR_SIZE, radii, spacing, typography } from '../../lib/theme.ts';
 import { useTheme } from '../../lib/useTheme.ts';
-import { AgentAvatar } from './AgentAvatar.tsx';
 import { agentIndicator, previewText, type AgentItem } from './agent-groups.ts';
 
 /** One agent: avatar, then name and age over the last message, with its badge or working dots. */
@@ -30,7 +30,7 @@ export function AgentRow(props: {
         (props.selected || pressed) && { backgroundColor: props.selected ? colors.selected : colors.hover },
       ]}
     >
-      <AgentAvatar name={agent.name} avatar={agent.avatar} />
+      <BotAvatar avatar={agent.avatar} size={AVATAR_SIZE} />
       <View style={styles.text}>
         <View style={styles.line}>
           <Text numberOfLines={1} style={[typography.ui, styles.grow, styles.name, { color: colors.text1 }]}>

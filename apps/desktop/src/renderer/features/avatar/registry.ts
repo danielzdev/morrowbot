@@ -1,6 +1,5 @@
-import { AvatarFinish, AvatarShape } from '@morrowbot/contracts';
+import { AvatarFinish, AvatarShape, CUSTOM_AVATAR_OUTLINES } from '@morrowbot/contracts';
 import { getExample, type AvatarDefinition } from 'open-bot-avatar';
-import { CUSTOM_SHAPES } from './custom-shapes.ts';
 
 /** One avatar shape: today's ids stay valid forever; new shapes and packs are new entries. */
 export interface AvatarEntry {
@@ -30,7 +29,7 @@ const LABELS: Readonly<Record<AvatarShape, string>> = {
   shield: 'Shield',
 };
 
-const definitionOf = (id: AvatarShape): AvatarDefinition | undefined => getExample(id) ?? CUSTOM_SHAPES.find((shape) => shape.id === id);
+const definitionOf = (id: AvatarShape): AvatarDefinition | undefined => getExample(id) ?? CUSTOM_AVATAR_OUTLINES.find((shape) => shape.id === id);
 
 /** The versioned avatar registry (spec §5.3): the engine's built-in examples, then Ori Kami's own shapes. */
 export const AVATARS: readonly AvatarEntry[] = AvatarShape.options.map((id) => ({ id, label: LABELS[id], version: 1, definition: definitionOf(id), pack: 'core' }));
