@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { EventServerFrame, ThreadState, type AgentMessage, type ChatEvent, type Cursor } from '@morrowbot/contracts';
+import { EventServerFrame, ThreadState, type AgentMessage, type ChatEvent, type Cursor, type ThreadSummary } from '@morrowbot/contracts';
 import WebSocket, { type RawData } from 'ws';
 import type { ChildGroupClock, PluginTimeouts, ProcessProbe } from '../features/plugins/index.ts';
 import type { RoutineClock } from '../features/routines/index.ts';
@@ -125,6 +125,8 @@ export class EventClient {
   readonly resyncs: string[] = [];
   /** Agent messages announced on the socket. */
   readonly posted: AgentMessage[] = [];
+  /** Thread summaries from `thread.changed`, in the order they came. */
+  readonly changed: ThreadSummary[] = [];
   private readonly waiters: { readonly match: (event: ChatEvent) => boolean; readonly resolve: () => void }[] = [];
   private readonly socket: WebSocket;
   private readonly call: (method: string, path: string) => Promise<Reply>;
@@ -140,6 +142,10 @@ export class EventClient {
       }
       if (frame.kind === 'agent-message.posted') {
         this.posted.push(frame.message);
+        return;
+      }
+      if (frame.kind === 'thread.changed') {
+        this.changed.push(frame.summary);
         return;
       }
       this.received.push(frame);
@@ -168,14 +174,15 @@ export class EventClient {
     return new Promise((resolve) => this.waiters.push({ match, resolve }));
   }
 
+  /** Resolves once the turn has ended, with a reply or (`generation.background-finished`) without one. */
   finished(generationId: string): Promise<void> {
-    return this.until((event) => event.kind === 'generation.finished' && event.generationId === generationId);
+    return this.until((event) => (event.kind === 'generation.finished' || event.kind === 'generation.background-finished') && event.generationId === generationId);
   }
 
   /** The thread events of one generation, without cursors. */
   of(generationId: string): unknown[] {
     return this.received
-      .filter((event) => event.kind !== 'usage.updated' && event.kind !== 'queue.changed' && event.generationId === generationId)
+      .filter((event) => 'generationId' in event && event.generationId === generationId)
       .map((event) => {
         if (event.kind === 'usage.updated') return event;
         return Object.fromEntries(Object.entries(event).filter(([key]) => key !== 'cursor'));

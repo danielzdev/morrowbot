@@ -1,11 +1,17 @@
-import { ConnectorSetup, ConnectorSetupEdit, type ComposioAccount, type ConnectorSetupView } from '@morrowbot/contracts';
+import { ConnectorSetup, ConnectorSetupEdit, type ComposioAccount, type ConnectorSecretView, type ConnectorSetupView } from '@morrowbot/contracts';
 import type { z } from 'zod';
 
-/** One environment variable or header being typed. */
+/** Where a secret's value comes from: typed into the form, or a Vault item the host reads when it connects. */
+export type SecretSource = { readonly kind: 'typed' } | { readonly kind: 'vault'; readonly vaultId: string };
+
+const TYPED: SecretSource = { kind: 'typed' };
+
+/** One environment variable or header being typed, or taken from the Vault. */
 export interface SecretRow {
   readonly key: string;
   readonly name: string;
   readonly value: string;
+  readonly source: SecretSource;
   /** The host already holds a value under this name: left blank, it is kept. */
   readonly saved: boolean;
 }
@@ -31,6 +37,7 @@ export interface ComposioDraft {
   readonly apiKey: string;
   /** The host already holds an API key: left blank, it is kept. */
   readonly keySaved: boolean;
+  readonly keySource: SecretSource;
   readonly accountKind: ComposioAccount['kind'];
   readonly accountId: string;
 }
@@ -40,24 +47,37 @@ export type SetupDraft = StdioDraft | HttpDraft | ComposioDraft;
 
 export const EMPTY_STDIO: StdioDraft = { kind: 'stdio', command: '', args: '', env: [] };
 export const EMPTY_HTTP: HttpDraft = { kind: 'http', url: '', headers: [] };
-export const EMPTY_COMPOSIO: ComposioDraft = { kind: 'composio', toolkit: '', serverUrl: '', apiKey: '', keySaved: false, accountKind: 'user', accountId: '' };
+export const EMPTY_COMPOSIO: ComposioDraft = { kind: 'composio', toolkit: '', serverUrl: '', apiKey: '', keySaved: false, keySource: TYPED, accountKind: 'user', accountId: '' };
 
-const savedRows = (names: readonly string[]): SecretRow[] => names.map((name) => ({ key: `saved:${name}`, name, value: '', saved: true }));
+const savedRows = (secrets: readonly ConnectorSecretView[]): SecretRow[] =>
+  secrets.map((secret) => ({
+    key: `saved:${secret.name}`,
+    name: secret.name,
+    value: '',
+    source: secret.kind === 'vault' ? { kind: 'vault', vaultId: secret.vaultId } : TYPED,
+    saved: secret.kind === 'inline',
+  }));
+
+/** The row with its value taken from `source`. A header still unnamed takes the name of the header secret picked. */
+export function withSource(row: SecretRow, source: SecretSource, headerName: string | null): SecretRow {
+  return { ...row, source, name: source.kind === 'vault' && row.name === '' && headerName !== null ? headerName : row.name };
+}
 
 /** The saved setup as an edit starts: secret values are never sent to a window, so their rows are blank. */
 export function draftOf(view: ConnectorSetupView): SetupDraft {
   switch (view.kind) {
     case 'stdio':
-      return { kind: 'stdio', command: view.command, args: view.args.join('\n'), env: savedRows(view.envNames) };
+      return { kind: 'stdio', command: view.command, args: view.args.join('\n'), env: savedRows(view.env) };
     case 'http':
-      return { kind: 'http', url: view.url, headers: savedRows(view.headerNames) };
+      return { kind: 'http', url: view.url, headers: savedRows(view.headers) };
     case 'composio':
       return {
         kind: 'composio',
         toolkit: view.toolkit,
         serverUrl: view.serverUrl,
         apiKey: '',
-        keySaved: true,
+        keySaved: view.apiKey.kind === 'inline',
+        keySource: view.apiKey.kind === 'vault' ? { kind: 'vault', vaultId: view.apiKey.vaultId } : TYPED,
         accountKind: view.account.kind,
         accountId: view.account.kind === 'user' ? view.account.userId : view.account.connectedAccountId,
       };
@@ -84,10 +104,15 @@ function linesOf(text: string): string[] {
   return lines;
 }
 
-const filled = (rows: readonly SecretRow[]): SecretRow[] => rows.filter((row) => row.saved || row.name.trim() !== '' || row.value !== '');
+const filled = (rows: readonly SecretRow[]): SecretRow[] => rows.filter((row) => row.saved || row.source.kind === 'vault' || row.name.trim() !== '' || row.value !== '');
 const unnamed = (rows: readonly SecretRow[]): boolean => rows.some((row) => row.name.trim() === '');
-const set = (row: SecretRow) => ({ name: row.name.trim(), value: row.value });
-const edit = (row: SecretRow) => (row.saved && row.value === '' ? { kind: 'keep', name: row.name } : { kind: 'set', ...set(row) });
+const inline = (row: SecretRow) => ({ kind: 'inline', name: row.name.trim(), value: row.value });
+const fromVault = (row: SecretRow, vaultId: string) => ({ kind: 'vault', name: row.name.trim(), vaultId });
+const create = (row: SecretRow) => (row.source.kind === 'vault' ? fromVault(row, row.source.vaultId) : inline(row));
+const edit = (row: SecretRow) => {
+  if (row.source.kind === 'vault') return fromVault(row, row.source.vaultId);
+  return row.saved && row.value === '' ? { kind: 'keep', name: row.name } : { kind: 'set', name: row.name.trim(), value: row.value };
+};
 
 const accountOf = (draft: ComposioDraft): ComposioAccount =>
   draft.accountKind === 'user' ? { kind: 'user', userId: draft.accountId } : { kind: 'connected-account', connectedAccountId: draft.accountId };
@@ -96,7 +121,7 @@ type SecretShape = 'new' | 'edit';
 
 /** The draft as an unchecked request body, or why it is not complete enough to check. */
 function candidateOf(draft: SetupDraft, shape: SecretShape, argsOf: (text: string) => string[]): Checked<unknown> {
-  const secret = (row: SecretRow) => (shape === 'new' ? set(row) : edit(row));
+  const secret = (row: SecretRow) => (shape === 'new' ? create(row) : edit(row));
   switch (draft.kind) {
     case 'stdio': {
       const env = filled(draft.env);
@@ -111,9 +136,11 @@ function candidateOf(draft: SetupDraft, shape: SecretShape, argsOf: (text: strin
       return { kind: 'ready', value: { kind: 'http', url: draft.url.trim(), headers: headers.map(secret) } };
     }
     case 'composio': {
-      const keeps = shape === 'edit' && draft.keySaved && draft.apiKey.trim() === '';
-      if (draft.toolkit.trim() === '' || draft.serverUrl.trim() === '' || draft.accountId.trim() === '' || (!keeps && draft.apiKey.trim() === '')) return MISSING;
-      const apiKey = shape === 'new' ? draft.apiKey : keeps ? { kind: 'keep' } : { kind: 'set', value: draft.apiKey };
+      const { keySource } = draft;
+      const keeps = shape === 'edit' && keySource.kind === 'typed' && draft.keySaved && draft.apiKey.trim() === '';
+      if (draft.toolkit.trim() === '' || draft.serverUrl.trim() === '' || draft.accountId.trim() === '' || (keySource.kind === 'typed' && !keeps && draft.apiKey.trim() === '')) return MISSING;
+      const apiKey =
+        keySource.kind === 'vault' ? { kind: 'vault', vaultId: keySource.vaultId } : shape === 'new' ? { kind: 'inline', value: draft.apiKey } : keeps ? { kind: 'keep' } : { kind: 'set', value: draft.apiKey };
       return { kind: 'ready', value: { kind: 'composio', toolkit: draft.toolkit.trim(), serverUrl: draft.serverUrl.trim(), apiKey, account: accountOf(draft) } };
     }
   }
@@ -153,7 +180,7 @@ function keepsSecrets(edit: ConnectorSetupEdit): boolean {
 export const RETARGET_LINE = 'This points the connector somewhere new: enter its keys and secret values again.';
 
 /**
- * An edit of the saved setup `saved`: blank saved secrets are kept, typed ones are set, removed names are dropped.
+ * An edit of the saved setup `saved`: blank saved secrets are kept, typed ones are set, Vault ones are sent as chosen, removed names are dropped.
  * Untouched arguments are sent exactly as saved. Pointing it somewhere new asks for every secret again.
  */
 export function setupEditOf(draft: SetupDraft, saved: ConnectorSetupView): Checked<ConnectorSetupEdit> {

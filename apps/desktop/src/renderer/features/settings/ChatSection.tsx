@@ -1,11 +1,13 @@
 import type { ChatPrefs, ChatPrefsModel, Notify, SendWith } from '../../shared/chat-prefs.ts';
+import type { ChatSettingsModel } from '../../shared/chat-settings.ts';
 import { sendKeyLabels, type Platform } from '../../shared/keys.ts';
 import { Segmented } from '../../shared/ui/Segmented.tsx';
+import { EmojiRepliesRow } from './EmojiRepliesRow.tsx';
 import { ROWS } from './settings-index.ts';
 import { SettingRow } from './SettingRow.tsx';
 
 /** Settings › Chat. */
-export function ChatSection(props: { readonly prefs: ChatPrefs; readonly onChange: ChatPrefsModel['set']; readonly platform: Platform }) {
+export function ChatSection(props: { readonly prefs: ChatPrefs; readonly onChange: ChatPrefsModel['set']; readonly platform: Platform; readonly chatSettings: ChatSettingsModel }) {
   return (
     <>
     <SettingRow entry={ROWS.sendWith}>
@@ -34,6 +36,7 @@ export function ChatSection(props: { readonly prefs: ChatPrefs; readonly onChang
         ]}
       />
     </SettingRow>
+    <EmojiRepliesRow model={props.chatSettings} />
     </>
   );
 }

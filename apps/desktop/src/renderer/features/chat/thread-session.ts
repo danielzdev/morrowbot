@@ -5,6 +5,7 @@ import { Store, type Loadable } from '../../shared/store.ts';
 import { attachmentImages, composerAttachments, type ComposerAttachments } from './composer-attachments.ts';
 import { memoryDrafts, type DraftStore } from './drafts.ts';
 import type { BannerReason } from './outcome-copy.ts';
+import { userReacted } from './reactions.ts';
 import { applyEvent, endApproval, pendingApprovals, viewOf, withAgentMessages, type ThreadView } from './thread-model.ts';
 
 /** Something the composer asked the host to start. Kept so it can be retried exactly. */
@@ -55,6 +56,8 @@ export interface ThreadSession {
   continueTurn(failedMessageId: string, sessionChoice: SessionChoice): Promise<void>;
   stop(): Promise<void>;
   answer(approvalId: string, choiceId: string): Promise<void>;
+  /** Puts the user's emoji on an agent reply, or takes it off when it is already there. */
+  react(messageId: string, emoji: string): Promise<void>;
   /** Steer now: the queued message goes into the running reply, or out as the next turn when nothing runs. */
   steer(queuedId: string): Promise<void>;
   /** Takes a queued message out of the queue and puts it back in the draft, above what is typed there. */
@@ -185,7 +188,7 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
   }
 
   function handle(frame: EventServerFrame): void {
-    if (closed || frame.kind === 'usage.updated') return;
+    if (closed || frame.kind === 'usage.updated' || frame.kind === 'thread.changed') return;
     if (frame.kind === 'agent-message.posted') {
       hear(frame.message);
       return;
@@ -321,6 +324,13 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
         await load();
       }
       else patch({ problem: { kind: 'error', message: result.error.message } });
+    },
+    react: async (messageId, emoji) => {
+      const current = screen.get().view;
+      if (current.kind !== 'loaded') return;
+      const reacted = !userReacted(current.value.reactions.filter((reaction) => reaction.messageId === messageId), emoji);
+      const result = await api.setReaction(threadId, { messageId, emoji, reacted });
+      if (result.kind === 'failed') patch({ problem: { kind: 'error', message: result.error.message } });
     },
     steer: async (queuedId) => {
       await onQueued(queuedId, () => api.steerQueued(threadId, queuedId));

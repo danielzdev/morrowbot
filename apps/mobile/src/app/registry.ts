@@ -3,7 +3,7 @@ import { chatDetail } from '../features/chat/index.ts';
 import { connection } from '../features/connection/index.ts';
 import { extensionDetail, extensionsTab } from '../features/extensions/index.ts';
 import { settingsDetail, settingsTab } from '../features/settings/index.ts';
-import { createHostDirectory, createSampleDirectory, createThreadsSlice } from '../features/threads/index.ts';
+import { createHostDirectory, createSampleDirectory, createThreadsSlice, trackChatOnScreen } from '../features/threads/index.ts';
 import type { WorkspaceRegistry } from '../lib/workspace.ts';
 
 /** The paired host's agents and threads; `HostProviders` attaches the host. */
@@ -24,6 +24,7 @@ export const registry: WorkspaceRegistry = {
   details: {
     chat: {
       ...chatDetail,
+      Body: trackChatOnScreen(directory, chatDetail.Body),
       actions: (route) => [
         threads.newThreadIn(route.agentId),
         ...chatDetail.actions(route).filter(({ id }) => id !== 'new-thread'),

@@ -22,6 +22,9 @@ import type { ToolGrant } from './grants.ts';
 
 export type SendAnswer = { readonly kind: 'sent'; readonly message: AgentMessage } | { readonly kind: 'refused'; readonly reason: string };
 
+/** A reply tool's outcome: a JSON value for the model, or why nothing was done. */
+export type ReplyAnswer = { readonly kind: 'done'; readonly value: object } | { readonly kind: 'refused'; readonly reason: string };
+
 export type Refused = { readonly kind: 'refused'; readonly reason: string };
 
 /** What a turn asks a sub-agent to be. Left out, the provider, model and access are the parent's. */
@@ -151,7 +154,7 @@ export interface T3WatchToolsPort {
   ack(agentId: string, ack: T3WatchAck): T3AckResult;
 }
 
-/** What the tools act on (the agents, agent-messages, memories, vault, routines, t3-watch, sub-agents, connectors and plugins features provide it). */
+/** What the tools act on (the agents, agent-messages, memories, chat, vault, routines, t3-watch, sub-agents, connectors and plugins features provide it). */
 export interface ToolPorts {
   readonly agents: { list(): readonly Agent[] };
   readonly messages: {
@@ -165,6 +168,11 @@ export interface ToolPorts {
     create(agentId: string, request: CreateMemoryRequest): Memory | undefined;
     update(agentId: string, id: string, request: UpdateMemoryRequest): Memory | undefined;
     delete(agentId: string, id: string): boolean;
+  };
+  /** The running turn `grant` stands for, in its chat. */
+  readonly replies: {
+    react(grant: ToolGrant, emoji: string): ReplyAnswer;
+    stayQuiet(grant: ToolGrant): ReplyAnswer;
   };
   /** The vault's item names. Secret values never reach the tools. */
   readonly vault: { list(): readonly VaultItem[] };

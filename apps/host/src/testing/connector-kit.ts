@@ -6,6 +6,7 @@ import { Connector, type ConnectorSetup, type CreateConnectorRequest } from '@mo
 import { startToolServer, type ToolServer } from '../features/agent-tools/index.ts';
 import { createConnectorRuntime, createConnectorService, type ConnectorService } from '../features/connectors/index.ts';
 import { openStorage, type Storage } from '../features/storage/index.ts';
+import { keyValue, openVault, vaultBackend, type VaultService } from '../features/vault/index.ts';
 import { postMcp } from './host-tools-client.ts';
 import { sequence } from './test-host.ts';
 
@@ -23,9 +24,9 @@ export function stdioSetup(account: string, log: string): ConnectorSetup {
     command: process.execPath,
     args: [STDIO_SERVER],
     env: [
-      { name: 'FIXTURE_ACCOUNT', value: account },
-      { name: 'FIXTURE_LOG', value: log },
-      { name: 'FIXTURE_TOKEN', value: FIXTURE_TOKEN },
+      { kind: 'inline', name: 'FIXTURE_ACCOUNT', value: account },
+      { kind: 'inline', name: 'FIXTURE_LOG', value: log },
+      { kind: 'inline', name: 'FIXTURE_TOKEN', value: FIXTURE_TOKEN },
     ],
   };
 }
@@ -43,6 +44,8 @@ export interface ConnectorKit {
   readonly dir: string;
   readonly storage: Storage;
   readonly connectors: ConnectorService;
+  /** A real vault (its key in a file in `dir`) that connectors read their Vault items from. */
+  readonly vault: VaultService;
   readonly tools: ToolServer;
   readonly errors: unknown[];
   /** Saves the connector, waits for its session to settle, and gives its id. */
@@ -65,6 +68,7 @@ export async function startConnectorKit(options: { readonly agentIds: readonly s
       avatar: { kind: 'bot', shape: 'mug', color: '#112233', finish: 'metallic' },
       provider: { kind: 'unbound' },
       folderId: null,
+      emojiReplies: 'allowed',
       createdAt: now(),
       updatedAt: now(),
     });
@@ -73,9 +77,10 @@ export async function startConnectorKit(options: { readonly agentIds: readonly s
   const report = (error: unknown): void => {
     errors.push(error);
   };
+  const vault = await openVault({ file: path.join(dir, 'vault.json'), secrets: (await vaultBackend('file', process.platform, dir)).secrets, newId, now, report });
   const connectors = createConnectorService({
     store: storage.connectors,
-    runtime: createConnectorRuntime({ path: process.env.PATH ?? '/usr/bin:/bin', version: '0.0.0-test' }),
+    runtime: createConnectorRuntime({ path: process.env.PATH ?? '/usr/bin:/bin', version: '0.0.0-test', vault: (vaultId) => keyValue(vault, vaultId) }),
     safeMode: options.safeMode ?? false,
     agentExists: (id) => storage.agents.get(id) !== undefined,
     sharedWithMembers: (agentId) => storage.members.allowlistsOf(agentId).length > 0,
@@ -88,6 +93,7 @@ export async function startConnectorKit(options: { readonly agentIds: readonly s
       agents: { list: () => storage.agents.list() },
       messages: { get: () => undefined, send: () => ({ kind: 'refused', reason: 'Messages are not part of connector tests' }) },
       memories: { list: () => undefined, create: () => undefined, update: () => undefined, delete: () => false },
+      replies: { react: () => ({ kind: 'refused', reason: 'Replies are not part of connector tests' }), stayQuiet: () => ({ kind: 'refused', reason: 'Replies are not part of connector tests' }) },
       vault: { list: () => [] },
       connectors: { tools: (agentId) => connectors.toolsFor(agentId), call: (agentId, name, args, signal) => connectors.call(agentId, name, args, signal) },
       subagents: {
@@ -105,6 +111,7 @@ export async function startConnectorKit(options: { readonly agentIds: readonly s
     dir,
     storage,
     connectors,
+    vault,
     tools,
     errors,
     add: async (request) => {

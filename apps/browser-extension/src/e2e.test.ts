@@ -20,7 +20,7 @@ let pages: Awaited<ReturnType<typeof servePages>>;
 let bridge: Bridge;
 let connection: Connection;
 const statuses: ConnectionStatus['kind'][] = [];
-const vault: SecretSource = { resolve: () => Promise.resolve({ kind: 'value', value: 'pw-e2e' }) };
+const vault: SecretSource = () => Promise.resolve({ kind: 'value', value: 'pw-e2e' });
 
 const nodeSocket: ConnectionDeps['openSocket'] = (url, protocols, handlers) => {
   const socket = new WebSocket(url, protocols, { origin: 'chrome-extension://morrowbot-test' });
@@ -66,21 +66,21 @@ afterAll(async () => {
   await bridge.close();
   await chrome.close();
   await pages.close();
-});
+}, 90_000);
 
 const text = (output: ToolOutput): string => (output.kind === 'image' ? `image ${output.mimeType}` : `${output.kind}: ${output.text}`.replaceAll(String(pages.port), '<port>'));
 
 it.skipIf(chromeMissing)('an agent fills and submits a login form through the plugin, the extension and a real Chrome', async () => {
   await bridge.whenConnected(null, 5000);
-  const tools = browserTools({ bridge, secrets: vault, uploads: { kind: 'off' } });
-  const tool = async (name: string, input: unknown): Promise<string> => text(await callTool(tools, name, input, new AbortController().signal));
+  const tools = browserTools({ bridge, uploads: { kind: 'off' } });
+  const tool = async (name: string, input: unknown): Promise<string> => text(await callTool(tools, name, input, { signal: new AbortController().signal, secrets: vault }));
 
   const opened = await tool('browser_open_tab', { url: pages.url('form') });
   const tabId = Number(/Tab (\d+)/.exec(opened)?.[1]);
   const snapshot = await tool('browser_snapshot', { tabId });
   const steps = [
     await tool('browser_type', { tabId, ref: 'e3', text: 'ada@example.com' }),
-    await tool('browser_fill_secret', { tabId, ref: 'e4', secret: { entryId: 'demo', field: 'password' } }),
+    await tool('browser_fill_secret', { tabId, ref: 'e4', secret: { vaultId: 'demo', field: 'password' } }),
     await tool('browser_select_option', { tabId, ref: 'e6', values: ['pro'] }),
     await tool('browser_click', { tabId, ref: 'e10' }),
     await tool('browser_screenshot', { tabId }),
@@ -110,7 +110,7 @@ it.skipIf(chromeMissing)('an agent fills and submits a login form through the pl
       ],
       "steps": [
         "text: Typed into e3.",
-        "text: Filled the password of vault entry demo into e4.",
+        "text: Filled the password of vault login demo into e4.",
         "text: Selected in e6.",
         "text: Clicked e10.",
         "image image/png",
@@ -172,13 +172,13 @@ it.skipIf(chromeMissing)('an agent uploads only files inside the folder the pers
   await writeFile(path.join(root, 'allowed', 'cv.pdf'), 'cv');
   await writeFile(path.join(root, 'secret.key'), 'key');
   await symlink(path.join(root, 'secret.key'), path.join(root, 'allowed', 'sneaky.pdf'));
-  const off = browserTools({ bridge, secrets: vault, uploads: { kind: 'off' } });
-  const on = browserTools({ bridge, secrets: vault, uploads: { kind: 'folder', path: path.join(root, 'allowed') } });
-  const opened = text(await callTool(on, 'browser_open_tab', { url: pages.url('form') }, new AbortController().signal));
+  const off = browserTools({ bridge, uploads: { kind: 'off' } });
+  const on = browserTools({ bridge, uploads: { kind: 'folder', path: path.join(root, 'allowed') } });
+  const opened = text(await callTool(on, 'browser_open_tab', { url: pages.url('form') }, { signal: new AbortController().signal, secrets: vault }));
   const tabId = Number(/Tab (\d+)/.exec(opened)?.[1]);
-  await callTool(on, 'browser_snapshot', { tabId }, new AbortController().signal);
+  await callTool(on, 'browser_snapshot', { tabId }, { signal: new AbortController().signal, secrets: vault });
   const upload = async (tools: typeof on, paths: string[]): Promise<string> =>
-    text(await callTool(tools, 'browser_upload_files', { tabId, ref: 'e9', paths }, new AbortController().signal)).replaceAll(root, '<root>');
+    text(await callTool(tools, 'browser_upload_files', { tabId, ref: 'e9', paths }, { signal: new AbortController().signal, secrets: vault })).replaceAll(root, '<root>');
   expect({
     off: await upload(off, ['cv.pdf']),
     outside: await upload(on, [path.join(root, 'secret.key')]),

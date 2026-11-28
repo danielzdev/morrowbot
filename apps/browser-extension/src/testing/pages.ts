@@ -49,6 +49,12 @@ export async function servePages(): Promise<{ readonly url: (page: string) => st
   return {
     port,
     url: (page) => `http://127.0.0.1:${String(port)}/${page}`,
-    close: () => new Promise((resolve) => server.close(() => { resolve(); })),
+    close: () =>
+      new Promise((resolve) => {
+        server.close(() => {
+          resolve();
+        });
+        server.closeAllConnections();
+      }),
   };
 }

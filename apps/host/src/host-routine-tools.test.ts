@@ -327,6 +327,8 @@ it('hides routine tools from agents shared with scoped members and refuses direc
         "spawn_subagent",
         "wait_subagents",
         "list_subagents",
+        "react_to_message",
+        "stay_quiet",
       ],
     }
   `);

@@ -32,6 +32,10 @@ Expo (dev client) + React Native app for iOS, built first for iPhone Duo folded 
   active again; a dropped socket retries with backoff (0.5 s doubling to 30 s). On every
   reconnect, and on `resync`, each watched thread fetches `/state` first and then subscribes
   from that cursor. Until then the thread is stale and its actions are disabled.
+- The Agents and Threads lists load `/api/agents` and `/api/threads` (each thread with its activity and newest
+  message) when the link comes online, then follow the host's global `thread.changed` frames: new chats,
+  previews, order, working dots and badges update live. A reply that arrives while its chat is not on screen is
+  unread on this phone until the chat is opened.
 - Host replies are parsed with `lenient()`, so newer hosts can add fields.
 
 ## Run

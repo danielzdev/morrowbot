@@ -16,6 +16,7 @@ const IDLE: ThreadState = {
   queue: [],
   blockedGroups: [],
   subagents: [],
+  reactions: [],
   cursor: { hostEpoch: 'e', seq: 0 },
 };
 const DISPLAY = { path: (path: string) => path, redact: (text: string) => text };
@@ -79,6 +80,8 @@ const CTX: TimelineContext = {
   actions: { openLink: () => undefined, copy: () => undefined },
   onAction: () => undefined,
   onAnswer: () => undefined,
+  onReact: () => undefined,
+  agentName: 'Friday',
   image: () => Promise.resolve(null),
   peers: { name: () => 'Peer', color: () => '#6b7280', avatar: () => null },
   engine: ({ pluginId }) => pluginId,

@@ -17,6 +17,7 @@ function state(pending: readonly PendingApproval[], seq: number, generationId: s
   return {
     thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT },
     messages: [],
+    reactions: [],
     activeTurn: generationId === null ? null : { generationId, trigger: { kind: 'chat' }, state: 'running', queueNote: null, text: '', pendingApprovals: [...pending] },
     queue: [],
     blockedGroups: [],
@@ -26,7 +27,7 @@ function state(pending: readonly PendingApproval[], seq: number, generationId: s
 }
 
 /** A thread event without the fields every event of turn `g` shares. */
-type EventBody = ThreadEvent extends infer E ? (E extends Exclude<ThreadEvent, { kind: 'queue.changed' }> ? Omit<E, 'threadId' | 'generationId' | 'cursor'> : never) : never;
+type EventBody = ThreadEvent extends infer E ? (E extends Exclude<ThreadEvent, { kind: 'queue.changed' | 'reactions.changed' }> ? Omit<E, 'threadId' | 'generationId' | 'cursor'> : never) : never;
 
 /** Applies events after `view`, numbering them from its cursor. */
 function apply(view: ThreadView, bodies: readonly EventBody[]): ThreadView {

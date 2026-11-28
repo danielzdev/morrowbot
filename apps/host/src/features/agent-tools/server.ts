@@ -7,6 +7,7 @@ import { memoryTools } from './memory-tools.ts';
 import { messageTools } from './message-tools.ts';
 import { resolveTools } from './plugin-tools.ts';
 import type { ToolPorts } from './ports.ts';
+import { replyTools } from './reply-tools.ts';
 import { subagentTools } from './subagent-tools.ts';
 import type { Tool } from './tool.ts';
 import { routineTools } from './routine-tools.ts';
@@ -56,6 +57,7 @@ export async function startToolServer(options: ToolServerOptions): Promise<ToolS
     ...routineTools(options.ports),
     ...t3WatchTools(options.ports),
     ...subagentTools(options.ports),
+    ...replyTools(options.ports),
   ];
   const warn =
     options.warn ??

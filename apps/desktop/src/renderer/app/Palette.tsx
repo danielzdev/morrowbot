@@ -50,7 +50,7 @@ export function Palette(props: {
   useEffect(() => {
     let current = true;
     void models.api.listAllThreads().then((result) => {
-      if (current) setChats(result.kind === 'ok' ? { kind: 'loaded', threads: result.value.threads } : { kind: 'failed' });
+      if (current) setChats(result.kind === 'ok' ? { kind: 'loaded', threads: result.value.threads.map(({ thread }) => thread) } : { kind: 'failed' });
     });
     return () => {
       current = false;

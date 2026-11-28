@@ -1,11 +1,14 @@
-import { AgentList, Thread, ThreadList, type CreateThreadRequest } from '@morrowbot/contracts';
+import { AgentList, Thread, ThreadSummaryList, type CreateThreadRequest } from '@morrowbot/contracts';
 import type { HostResult, HostTransport } from '../../lib/host-connection.ts';
-import { createStore } from '../../lib/store.ts';
-import { hostKey, type CreatedThread, type Directory, type DirectorySource, type ThreadActivity, type ThreadRecord } from './directory.ts';
+import { createStore, type ReadableStore } from '../../lib/store.ts';
+import type { CreatedThread, Directory, DirectorySource } from './directory.ts';
+import { changed, listed, NO_THREADS, threadRecords, viewed, withLastMessage, type ChatOnScreen, type LiveThreads } from './live-threads.ts';
 
 export interface LiveDirectory extends DirectorySource {
   /** Loads the host's agents, folders and threads again. A failed load keeps what was shown. */
   readonly refresh: () => Promise<void>;
+  /** Stops following the host's thread changes. */
+  readonly close: () => void;
 }
 
 function problemOf(reply: Exclude<HostResult<unknown>, { readonly kind: 'ok' }>): string {
@@ -23,9 +26,17 @@ function problemOf(reply: Exclude<HostResult<unknown>, { readonly kind: 'ok' }>)
   }
 }
 
-/** The agents and threads of the paired host behind `transport`. It loads on the first `refresh`. */
-export function createLiveDirectory(transport: HostTransport, report: (problem: string) => void): LiveDirectory {
+/**
+ * The agents and threads of the paired host behind `transport`. It loads on the first `refresh`, then follows the
+ * host's `thread.changed` frames; a reply that comes while its chat is not in `screens` is unread until it is.
+ */
+export function createLiveDirectory(
+  transport: HostTransport,
+  screens: ReadableStore<readonly ChatOnScreen[]>,
+  report: (problem: string) => void,
+): LiveDirectory {
   const hostId = transport.host.deviceId;
+  let threads: LiveThreads = NO_THREADS;
   const store = createStore<Directory>({
     hosts: [{ id: hostId, name: transport.host.hostName }],
     agents: [],
@@ -33,28 +44,41 @@ export function createLiveDirectory(transport: HostTransport, report: (problem: 
     lastMessages: [],
     threads: [],
   });
-  const activityOf = (directory: Directory, thread: Thread): ThreadActivity =>
-    directory.threads.find((each) => hostKey(each.hostId, each.thread.id) === hostKey(hostId, thread.id))?.activity ?? { kind: 'idle' };
-  const record = (directory: Directory, thread: Thread): ThreadRecord => ({ hostId, thread, activity: activityOf(directory, thread) });
+  const setThreads = (next: LiveThreads, change: (directory: Directory) => Directory = (directory) => directory): void => {
+    threads = next;
+    store.update((directory) => ({ ...change(directory), threads: threadRecords(next, hostId) }));
+  };
+
+  const stopScreens = screens.subscribe(() => {
+    const next = viewed(threads, screens.get());
+    if (next !== threads) setThreads(next);
+  });
+  const stopListening = transport.listen((event) => {
+    if (event.kind !== 'thread.changed') return;
+    const { summary } = event;
+    const { lastMessage } = summary;
+    setThreads(changed(threads, summary, screens.get()), (directory) =>
+      lastMessage === null ? directory : { ...directory, lastMessages: withLastMessage(directory.lastMessages, hostId, lastMessage) },
+    );
+  });
 
   const refresh = async (): Promise<void> => {
-    const [agents, threads] = await Promise.all([
+    const [agents, list] = await Promise.all([
       transport.request({ method: 'GET', path: '/api/agents', reply: AgentList }),
-      transport.request({ method: 'GET', path: '/api/threads', reply: ThreadList }),
+      transport.request({ method: 'GET', path: '/api/threads', reply: ThreadSummaryList }),
     ]);
     if (agents.kind !== 'ok') report(`Could not load agents: ${problemOf(agents)}`);
-    if (threads.kind !== 'ok') report(`Could not load threads: ${problemOf(threads)}`);
-    store.update((directory) => ({
-      ...directory,
-      ...(agents.kind === 'ok'
+    if (list.kind !== 'ok') report(`Could not load threads: ${problemOf(list)}`);
+    setThreads(list.kind === 'ok' ? listed(threads, list.value.threads) : threads, (directory) =>
+      agents.kind === 'ok'
         ? {
+            ...directory,
             agents: agents.value.agents.map((agent) => ({ hostId, agent })),
             folders: agents.value.folders.map((folder) => ({ hostId, folder })),
             lastMessages: agents.value.lastMessages.map((message) => ({ hostId, message })),
           }
-        : {}),
-      ...(threads.kind === 'ok' ? { threads: threads.value.threads.map((thread) => record(directory, thread)) } : {}),
-    }));
+        : directory,
+    );
   };
 
   return {
@@ -64,8 +88,13 @@ export function createLiveDirectory(transport: HostTransport, report: (problem: 
       const body: CreateThreadRequest = { title: 'New chat' };
       const reply = await transport.request({ method: 'POST', path: `/api/agents/${encodeURIComponent(agentId)}/threads`, reply: Thread, body });
       if (reply.kind !== 'ok') return { kind: 'failed', message: problemOf(reply) };
-      store.update((directory) => ({ ...directory, threads: [...directory.threads, record(directory, reply.value)] }));
+      const known = threads.summaries.some(({ thread }) => thread.id === reply.value.id);
+      if (!known) setThreads(changed(threads, { thread: reply.value, activity: { kind: 'idle' }, lastMessage: null }, screens.get()));
       return { kind: 'created', thread: reply.value };
+    },
+    close: () => {
+      stopScreens();
+      stopListening();
     },
   };
 }

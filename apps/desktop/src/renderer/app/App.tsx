@@ -283,6 +283,7 @@ export function App({ bridge, server, role }: AppProps) {
           onClose={() => { setSettings(null); }}
           appearance={models.appearance}
           chatPrefs={models.chatPrefs}
+          chatSettings={models.chatSettings}
           info={info}
           updates={models.updates}
           bridge={bridge}

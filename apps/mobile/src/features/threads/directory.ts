@@ -1,4 +1,4 @@
-import type { Agent, EntityId, Folder, LastMessage, Thread } from '@morrowbot/contracts';
+import type { Agent, EntityId, Folder, ThreadActivity as HostActivity, LastMessage, Thread } from '@morrowbot/contracts';
 import type { ReadableStore } from '../../lib/store.ts';
 
 /**
@@ -26,14 +26,8 @@ export interface LastMessageRecord {
   readonly message: LastMessage;
 }
 
-/** What a thread is doing, as the event stream last said. */
-export type ThreadActivity =
-  | { readonly kind: 'needs-approval'; readonly summary: string }
-  | { readonly kind: 'failed' }
-  | { readonly kind: 'working' }
-  | { readonly kind: 'queued' }
-  | { readonly kind: 'unread' }
-  | { readonly kind: 'idle' };
+/** What a thread is doing, as its host last said, or `unread`: a reply came while its chat was not on screen. */
+export type ThreadActivity = HostActivity | { readonly kind: 'unread' };
 
 export interface ThreadRecord {
   readonly hostId: EntityId;

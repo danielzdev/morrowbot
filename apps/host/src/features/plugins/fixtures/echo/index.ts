@@ -11,6 +11,7 @@ import { defineProvider, runPlugin, z, type AccessProfile, type PluginConfig, ty
  * A prompt whose first line is `nothing-new` gets only the stay-quiet marker back, as a routine's agent would send.
  * Each prompt line `host-tool <name> <json arguments>` calls that MorrowBot tool over the turn's MCP endpoint
  * and answers with the results; `{{message}}` in the arguments is the id of the agent message being read.
+ * In the turn a user's reaction starts, each quoted line ending `on-reaction <name> <json arguments>` is such a call.
  * Every turn saves its `hostTools` as `host-tools.json` in the data folder.
  */
 let config: PluginConfig = {};
@@ -92,18 +93,24 @@ runPlugin((runtime) =>
       if (keepsSessions() && request.session.kind === 'new' && request.expectedAccountKey !== '') {
         emit({ kind: 'session-bound', ref: `ref-${request.turnId}`, accountKey: current, routeKey: request.expectedRouteKey });
       }
-      const toolCalls = prompt.split('\n').flatMap((line) => {
-        const [, name, args] = /^host-tool (\S+) (\{.*\})$/.exec(line.trim()) ?? [];
-        return name === undefined || args === undefined ? [] : [{ name, args }];
-      });
-      if (toolCalls.length > 0) {
-        const reading = /^Message (\S+) from the agent/m.exec(prompt)?.[1];
-        for (const [at, call] of toolCalls.entries()) {
+      const reaction = /^The user reacted /m.test(prompt);
+      const toolCalls = (text: string, pattern: RegExp) =>
+        text.split('\n').flatMap((line) => {
+          const [, name, args] = pattern.exec(line.trim()) ?? [];
+          return name === undefined || args === undefined ? [] : [{ name, args }];
+        });
+      const runTools = async (calls: readonly { name: string; args: string }[], reading: string | undefined, first: boolean) => {
+        for (const [at, call] of calls.entries()) {
           const args: unknown = JSON.parse(reading === undefined ? call.args : call.args.replaceAll('{{message}}', reading));
-          emit({ kind: 'text', text: `${at === 0 ? '' : '\n'}${call.name}: ${await callHostTool(request.hostTools, call.name, args)}` });
+          emit({ kind: 'text', text: `${at === 0 && first ? '' : '\n'}${call.name}: ${await callHostTool(request.hostTools, call.name, args)}` });
         }
+      };
+      const calls = toolCalls(prompt, reaction ? / on-reaction (\S+) (\{.*\})$/ : /^host-tool (\S+) (\{.*\})$/);
+      if (calls.length > 0) {
+        await runTools(calls, /^Message (\S+) from the agent/m.exec(prompt)?.[1], true);
         return end({ kind: 'completed', finishReason: 'stop' }, current);
       }
+      const command = reaction ? (/ on-reaction (\S+)$/m.exec(prompt)?.[1] ?? prompt) : prompt;
       if (prompt.split('\n')[0] === 'nothing-new') return end({ kind: 'completed', finishReason: 'stop' }, current, { finalText: QUIET_MARKER });
       emit({ kind: 'text', text: `${String(config.greeting)} from pid ${String(process.pid)}:` });
       if (prompt.endsWith('describe-input')) {
@@ -111,7 +118,7 @@ runPlugin((runtime) =>
         emit({ kind: 'text', text: ` ${JSON.stringify({ prompt, images })}` });
         return end({ kind: 'completed', finishReason: 'stop' }, current);
       }
-      switch (prompt) {
+      switch (command) {
         case 'crash':
           process.exit(3);
           break;
@@ -167,6 +174,7 @@ runPlugin((runtime) =>
           });
           if (steered === null) return end({ kind: 'cancelled' }, current);
           emit({ kind: 'text', text: ` heard: ${steered}` });
+          await runTools(toolCalls(steered, /^host-tool (\S+) (\{.*\})$/), undefined, false);
           return end({ kind: 'completed', finishReason: 'stop' }, current);
         }
         case 'gate':

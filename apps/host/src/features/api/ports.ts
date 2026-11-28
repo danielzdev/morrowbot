@@ -21,6 +21,9 @@ import type {
   CreateRoutineRequest,
   BlockedGroup,
   ChatEvent,
+  ChatSettings,
+  MessageReaction,
+  SetReactionRequest,
   CreateAgentRequest,
   CreateFolderRequest,
   CreateThreadRequest,
@@ -50,6 +53,7 @@ import type {
   T3WatchAck,
   Thread,
   ThreadState,
+  ThreadSummary,
   TokenRange,
   TokenUsageResponse,
   UpdateAgentRequest,
@@ -123,7 +127,7 @@ export type ApiReplay = { readonly kind: 'events'; readonly events: readonly Cha
 
 export interface ApiChat {
   listThreads(agentId: string): Thread[] | undefined;
-  listAllThreads(): Thread[];
+  listThreadSummaries(): ThreadSummary[];
   createThread(agentId: string, request: CreateThreadRequest): Thread | undefined;
   getThread(id: string): Thread | undefined;
   renameThread(id: string, title: string): Thread | undefined;
@@ -132,6 +136,10 @@ export interface ApiChat {
   listMessages(threadId: string): Message[] | undefined;
   state(threadId: string): ThreadState | undefined;
   send(threadId: string, text: string, attachmentIds: readonly string[], choice: SessionChoice): Promise<ApiSendResult>;
+  setReaction(
+    threadId: string,
+    request: SetReactionRequest,
+  ): { readonly kind: 'set'; readonly reactions: MessageReaction[] } | { readonly kind: 'not_found' } | { readonly kind: 'conflict'; readonly reason: string };
   cancelQueued(threadId: string, queuedId: string): ApiQueueAnswer;
   steerQueued(threadId: string, queuedId: string): ApiQueueAnswer;
   continueTurn(threadId: string, failedMessageId: string, choice: SessionChoice): Promise<ApiAdmitResult>;
@@ -156,6 +164,7 @@ export interface ApiChat {
   ): Promise<{ readonly kind: 'ok'; readonly response: UsageResponse } | { readonly kind: 'unavailable'; readonly reason: string }>;
   replay(threadId: string, since: Cursor): ApiReplay;
   subscribe(listener: (event: ChatEvent) => void): () => void;
+  watchThreads(listener: (summary: ThreadSummary) => void): () => void;
 }
 
 /** The plugin host, plus the settings it saved. */
@@ -284,6 +293,12 @@ export interface ApiT3Watches {
   ack(ack: T3WatchAck): { readonly kind: 'acked' | 'already_acked' | 'unknown_batch' };
 }
 
+/** Settings › Chat. */
+export interface ApiSettings {
+  chat(): ChatSettings;
+  setChat(settings: ChatSettings): ChatSettings;
+}
+
 export type ApiVaultSave = { readonly kind: 'saved'; readonly item: VaultItem } | { readonly kind: 'not-found' } | { readonly kind: 'invalid'; readonly reason: string };
 
 /** The owner's saved logins, API keys and header secrets: names in and out, secret values only in. */
@@ -338,5 +353,6 @@ export interface ApiServices {
   readonly agentMessages: ApiAgentMessages;
   readonly routines: ApiRoutines;
   readonly t3Watches: ApiT3Watches;
+  readonly settings: ApiSettings;
   readonly vault: ApiVault;
 }

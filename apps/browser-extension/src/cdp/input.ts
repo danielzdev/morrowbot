@@ -7,6 +7,82 @@ const Metrics = z.object({
   cssVisualViewport: z.object({ clientWidth: z.number(), clientHeight: z.number(), pageX: z.number(), pageY: z.number() }),
   cssContentSize: z.object({ width: z.number(), height: z.number() }),
 });
+const WheelOutcome = z.object({
+  result: z.object({ value: z.enum(['scrolled', 'wheel-only', 'no-wheel']).optional() }),
+});
+
+const WHEEL_WAIT_KEY = '__morrowbotScrollWait';
+
+const ARM_WHEEL_WAIT = `(() => {
+  const key = '${WHEEL_WAIT_KEY}';
+  if (typeof window[key]?.cancel === 'function') window[key].cancel();
+  let sawWheel = false;
+  let sawScroll = false;
+  let settleTimer = 0;
+  let done = false;
+  let resolvePromise;
+  const promise = new Promise((resolve) => {
+    resolvePromise = resolve;
+  });
+  const finish = (status) => {
+    if (done) return;
+    done = true;
+    clearTimeout(settleTimer);
+    clearTimeout(hardTimer);
+    window.removeEventListener('wheel', onWheel, true);
+    window.removeEventListener('scroll', onScroll, true);
+    window.removeEventListener('scrollend', onScrollEnd, true);
+    resolvePromise(status);
+  };
+  const schedule = (ms, status) => {
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(() => finish(status), ms);
+  };
+  const onWheel = () => {
+    sawWheel = true;
+    if (sawScroll) return;
+    if (document.visibilityState === 'visible') {
+      schedule(1000, 'wheel-only');
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (!sawScroll) schedule(150, 'wheel-only');
+        });
+      });
+    } else {
+      schedule(250, 'wheel-only');
+    }
+  };
+  const onScroll = () => {
+    sawScroll = true;
+    schedule('onscrollend' in window ? 800 : 200, 'scrolled');
+  };
+  const onScrollEnd = () => {
+    finish('scrolled');
+  };
+  window.addEventListener('wheel', onWheel, true);
+  window.addEventListener('scroll', onScroll, true);
+  window.addEventListener('scrollend', onScrollEnd, true);
+  schedule(600, 'no-wheel');
+  const hardTimer = setTimeout(() => finish(sawScroll ? 'scrolled' : sawWheel ? 'wheel-only' : 'no-wheel'), 3000);
+  window[key] = { promise, cancel: () => finish('no-wheel') };
+})()`;
+
+const AWAIT_WHEEL_WAIT = `(() => {
+  const key = '${WHEEL_WAIT_KEY}';
+  const entry = window[key];
+  if (!entry) return 'no-wheel';
+  return entry.promise.finally(() => {
+    if (window[key] === entry) delete window[key];
+  });
+})()`;
+
+const CANCEL_WHEEL_WAIT = `(() => {
+  const key = '${WHEEL_WAIT_KEY}';
+  const entry = window[key];
+  if (!entry) return;
+  entry.cancel();
+  if (window[key] === entry) delete window[key];
+})()`;
 
 export interface Point {
   readonly x: number;
@@ -64,16 +140,30 @@ export async function scroll(session: CdpSession, to: ScrollTarget, nodeOf: (ref
       const { cssVisualViewport: viewport } = await layoutMetrics(session);
       const sign = to.direction === 'up' || to.direction === 'left' ? -1 : 1;
       const vertical = to.direction === 'up' || to.direction === 'down';
-      await session.send('Input.dispatchMouseEvent', {
-        type: 'mouseWheel',
-        x: viewport.clientWidth / 2,
-        y: viewport.clientHeight / 2,
-        deltaX: vertical ? 0 : sign * to.pixels,
-        deltaY: vertical ? sign * to.pixels : 0,
-      });
+      const x = viewport.clientWidth / 2;
+      const y = viewport.clientHeight / 2;
+      const deltaX = vertical ? 0 : sign * to.pixels;
+      const deltaY = vertical ? sign * to.pixels : 0;
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const outcome = await dispatchWheelAndSettle(session, x, y, deltaX, deltaY);
+        if (outcome !== 'no-wheel') return;
+      }
       return;
     }
   }
+}
+
+async function dispatchWheelAndSettle(session: CdpSession, x: number, y: number, deltaX: number, deltaY: number): Promise<'scrolled' | 'wheel-only' | 'no-wheel'> {
+  await session.send('Runtime.evaluate', { expression: ARM_WHEEL_WAIT });
+  try {
+    await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
+    await session.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x, y, deltaX, deltaY });
+  } catch (error) {
+    await session.send('Runtime.evaluate', { expression: CANCEL_WHEEL_WAIT }).catch(() => undefined);
+    throw error;
+  }
+  const { result } = await call(session, 'Runtime.evaluate', { expression: AWAIT_WHEEL_WAIT, returnByValue: true, awaitPromise: true }, WheelOutcome);
+  return result.value ?? 'no-wheel';
 }
 
 /** Drags with the mouse: Chrome runs HTML drag-and-drop and pointer drags alike from DevTools mouse events. */

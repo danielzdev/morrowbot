@@ -100,7 +100,7 @@ export function createChatHub(options: ChatHubOptions): ChatHub {
     setActivity(threadId, undefined);
   };
   const stopEvents = options.bridge.onEvent((frame) => {
-    if (frame.kind === 'usage.updated') return;
+    if (frame.kind === 'usage.updated' || frame.kind === 'thread.changed') return;
     if (frame.kind === 'agent-message.posted') {
       sessions.get(frame.message.from.threadId)?.handle(frame);
       sessions.get(frame.message.to.threadId)?.handle(frame);

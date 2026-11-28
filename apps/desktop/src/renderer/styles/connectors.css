@@ -70,6 +70,30 @@
   align-items: center;
   gap: var(--s-2);
 }
+.secret-row.with-source {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) minmax(0, 11rem) 2.5rem auto;
+}
+.secret-row.from-vault .vault-select {
+  grid-column: 2 / 4;
+}
+.secret-row .vault-select {
+  min-width: 0;
+}
+.key-source {
+  display: flex;
+  gap: var(--s-2);
+}
+.key-source input {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.key-source .vault-select {
+  flex: 0 1 11rem;
+  min-width: 0;
+}
+.key-source.from-vault .vault-select {
+  flex: 1 1 0;
+}
 .secret-row input:read-only {
   border-color: var(--hairline-strong);
   color: var(--text-2);
