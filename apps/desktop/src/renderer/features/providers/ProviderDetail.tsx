@@ -1,4 +1,5 @@
 import type { PluginConfig } from '@morrowbot/contracts';
+import type { ProviderInstallCapability, ProviderInstallMode, ProviderInstallResult } from '../../bridge.ts';
 import { BlockedBanner } from '../../shared/BlockedBanner.tsx';
 import type { AppInfo } from '../../shared/privacy.ts';
 import { DetailSection, Pill } from '../../shared/ui/ListDetail.tsx';
@@ -24,9 +25,12 @@ export interface ProviderActions {
   readonly onSaveConfig: (config: PluginConfig) => void;
   readonly onRelease: (regId: string) => void;
   readonly onCopy: (text: string) => Promise<void>;
-  readonly onOpenLink: (url: string) => void;
+  readonly onOpenLink: (url: string) => Promise<string | null>;
   /** Opens Terminal with the provider's own sign-in command and returns why it could not; null where one-click sign-in isn't offered. */
   readonly onSignInTerminal: (() => Promise<string | null>) | null;
+  readonly installCapability?: ProviderInstallCapability | null;
+  readonly onInstall?: ((mode: ProviderInstallMode) => Promise<ProviderInstallResult>) | null;
+  readonly onCancelInstall?: (() => Promise<void>) | null;
   readonly onDirty: (dirty: boolean) => void;
 }
 
@@ -35,7 +39,9 @@ export function ProviderDetail(props: { readonly card: ProviderCard; readonly in
   const { card, redact, actions } = props;
   const { entry } = card;
   const { manifest } = entry;
-  const status = providerStatus(entry, card.info, card.busy === 'rechecking');
+  const installing: ProviderInstallMode | null = card.busy === 'installing' ? 'install' : card.busy === 'updating' ? 'update' : null;
+  const status = providerStatus(entry, card.info, card.busy === 'rechecking', installing);
+  const activeSetup = status.setup ?? (installing !== null ? providerStatus(entry, card.info, false).setup : null);
   const version = versionOf(card.info);
   const age = ageLine(card.age);
   return (
@@ -57,7 +63,7 @@ export function ProviderDetail(props: { readonly card: ProviderCard; readonly in
           <Pill tone={status.tone}>{status.title}</Pill>
           {age !== null && <span class="muted">{age}</span>}
           <span class="spacer" />
-          <button type="button" class="btn secondary" disabled={card.busy === 'rechecking'} onClick={actions.onRecheck}>
+          <button type="button" class="btn secondary" disabled={card.busy !== null} onClick={actions.onRecheck}>
             {card.busy === 'rechecking' ? 'Rechecking…' : 'Recheck'}
           </button>
         </div>
@@ -72,9 +78,23 @@ export function ProviderDetail(props: { readonly card: ProviderCard; readonly in
 
       <BlockedBanner groups={entry.blockedGroups} busy={card.busy !== null} onRelease={actions.onRelease} />
 
-      {status.setup !== null && (
-        <DetailSection title={status.setup.kind === 'sign-in' ? 'Sign in' : status.setup.kind === 'update' ? 'Update' : 'Set up'}>
-          <ProviderSetup providerId={manifest.id} setup={status.setup} info={props.info} redact={redact} onCopy={actions.onCopy} onOpenLink={actions.onOpenLink} onSignInTerminal={actions.onSignInTerminal} />
+      {activeSetup !== null && (
+        <DetailSection title={activeSetup.kind === 'sign-in' ? 'Sign in' : activeSetup.kind === 'update' ? 'Update' : 'Install'}>
+          <ProviderSetup
+            providerId={manifest.id}
+            isBuiltin={entry.source === 'built-in'}
+            setup={activeSetup}
+            info={props.info}
+            redact={redact}
+            onCopy={actions.onCopy}
+            onOpenLink={actions.onOpenLink}
+            onSignInTerminal={actions.onSignInTerminal}
+            installCapability={actions.installCapability ?? null}
+            installing={installing}
+            installDetail={card.installDetail ?? null}
+            onInstall={actions.onInstall ?? null}
+            onCancelInstall={actions.onCancelInstall ?? null}
+          />
         </DetailSection>
       )}
 

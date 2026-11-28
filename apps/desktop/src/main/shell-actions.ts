@@ -1,10 +1,15 @@
+import { execFile } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
 import { homedir, userInfo } from 'node:os';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import { AgentList, INSTRUCTIONS_COPY_NAME } from '@morrowbot/contracts';
 import { z } from 'zod';
-import type { LoginItem, RevealTarget } from '../renderer/bridge.ts';
+import type { ExternalOpenResult, LoginItem, RevealTarget } from '../renderer/bridge.ts';
 import { checkSender, IpcRefusedError, proxyRequest, type HostTarget, type IpcSender } from './ipc-proxy.ts';
+
+const execFileAsync = promisify(execFile);
+const EXTERNAL_OPEN_TIMEOUT_MS = 10_000;
 
 export interface FromRenderer {
   readonly sender: IpcSender;
@@ -19,6 +24,41 @@ export function parseExternalUrl(options: FromRenderer): string {
   const url = text.success ? URL.parse(text.data) : null;
   if (url === null || (url.protocol !== 'http:' && url.protocol !== 'https:')) throw new IpcRefusedError('Only http and https links open externally');
   return url.href;
+}
+
+export interface OpenExternalDeps {
+  readonly platform: NodeJS.Platform;
+  readonly openWithElectron: (url: string) => Promise<void>;
+  readonly openWithMacFallback?: (url: string) => Promise<void>;
+  readonly report?: (error: unknown) => void;
+}
+
+/** Opens an already-validated http(s) URL in the default browser, falling back to `/usr/bin/open` on macOS if Electron fails. */
+export async function openExternalUrl(url: string, deps: OpenExternalDeps): Promise<ExternalOpenResult> {
+  try {
+    await deps.openWithElectron(url);
+    return { kind: 'opened' };
+  } catch (primary) {
+    deps.report?.(primary);
+    if (deps.platform === 'darwin') {
+      const fallback = deps.openWithMacFallback ?? (async (target: string) => {
+        await execFileAsync('/usr/bin/open', [target], { timeout: EXTERNAL_OPEN_TIMEOUT_MS });
+      });
+      try {
+        await fallback(url);
+        return { kind: 'opened' };
+      } catch (secondary) {
+        deps.report?.(secondary);
+        return { kind: 'failed', reason: externalErrorReason(secondary) };
+      }
+    }
+    return { kind: 'failed', reason: externalErrorReason(primary) };
+  }
+}
+
+function externalErrorReason(error: unknown): string {
+  const detail = error instanceof Error ? error.message.trim() : '';
+  return detail === '' ? "MorrowBot couldn't open your browser." : `MorrowBot couldn't open your browser (${detail}).`;
 }
 
 const RevealInput = z.discriminatedUnion('kind', [

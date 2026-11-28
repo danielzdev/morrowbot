@@ -1,25 +1,69 @@
 import { useState } from 'preact/hooks';
+import type { ProviderInstallResult } from '../../bridge.ts';
 import type { EngineRow, EngineTone } from '../../shared/engine-setup.ts';
 import type { Loadable } from '../../shared/store.ts';
-import { Icon, type IconName } from '../../shared/ui/Icon.tsx';
-import { Pill } from '../../shared/ui/ListDetail.tsx';
+import { Icon } from '../../shared/ui/Icon.tsx';
 
 /** What the checklist's buttons do; the app owns each one. */
 export interface EngineActions {
   /** Opens Terminal with the engine's own sign-in command; resolves to why it could not, or null. */
   readonly signIn: (id: string) => Promise<string | null>;
   readonly copy: (id: string, text: string) => Promise<void>;
-  readonly openGuide: (id: string, url: string) => void;
+  /** Opens a verified external download or setup link; resolves to an error message, or null when opened. */
+  readonly openGuide: (id: string, url: string) => Promise<string | null>;
+  /** Runs the allowlisted 1-click installer and rechecks on success so the row flips straight to Sign in or Ready. */
+  readonly install: (id: string) => Promise<ProviderInstallResult>;
+  readonly cancelInstall: (id: string) => Promise<void>;
   readonly recheck: (id: string) => void;
   readonly turnOn: (id: string) => void;
 }
 
-const ICON: Readonly<Record<EngineTone, IconName>> = { ok: 'check', muted: 'info', warning: 'warning', error: 'warning' };
+type RowNote =
+  | { readonly kind: 'status'; readonly text: string }
+  | { readonly kind: 'error'; readonly text: string; readonly downloadUrl: string | null };
 
-/** The one button a not-ready engine gets, and the note it leaves behind. */
+/** One calm status indicator on the left: green check when ready, subtle dot otherwise (no duplicate warning triangle + yellow badge). */
+function EngineIndicator(props: { readonly tone: EngineTone }) {
+  switch (props.tone) {
+    case 'ok':
+      return (
+        <span class="engine-indicator ok" aria-hidden="true">
+          <Icon name="check" size={15} />
+        </span>
+      );
+    case 'muted':
+      return (
+        <span class="engine-indicator muted" aria-hidden="true">
+          <span class="status-dot muted" />
+        </span>
+      );
+    case 'warning':
+      return (
+        <span class="engine-indicator warning" aria-hidden="true">
+          <span class="status-dot warn" />
+        </span>
+      );
+    case 'error':
+      return (
+        <span class="engine-indicator error" aria-hidden="true">
+          <span class="status-dot danger" />
+        </span>
+      );
+  }
+}
+
+/** The one action a not-ready engine gets, and any inline status or error note below the row. */
 function EngineAction(props: { readonly row: EngineRow; readonly actions: EngineActions }) {
   const { row, actions } = props;
-  const [note, setNote] = useState<string | null>(null);
+  const [note, setNote] = useState<RowNote | null>(null);
+
+  const openExternal = (url: string): void => {
+    void actions.openGuide(row.id, url).then((reason) => {
+      if (reason === null) setNote({ kind: 'status', text: 'MorrowBot rechecks when you come back.' });
+      else setNote({ kind: 'error', text: reason, downloadUrl: null });
+    });
+  };
+
   const button = (label: string, run: () => void, options: { readonly primary: boolean; readonly external: boolean; readonly describedBy: boolean }) => (
     <button
       type="button"
@@ -32,31 +76,74 @@ function EngineAction(props: { readonly row: EngineRow; readonly actions: Engine
       {row.busy ? 'Checking…' : `${label}${options.external ? ' ↗' : ''}`}
     </button>
   );
+
   const plain = { primary: false, external: false, describedBy: false };
+
   const control = (() => {
+    if (row.installing) {
+      return (
+        <>
+          <button type="button" class="btn secondary" disabled>
+            Installing…
+          </button>
+          <button
+            type="button"
+            class="btn ghost"
+            aria-label={`Cancel install, ${row.name}`}
+            onClick={() => {
+              void actions.cancelInstall(row.id);
+            }}
+          >
+            Cancel
+          </button>
+        </>
+      );
+    }
     switch (row.action.kind) {
       case 'none':
         return null;
+      case 'install': {
+        const { downloadUrl } = row.action;
+        return button('Install', () => {
+          setNote(null);
+          void actions.install(row.id).then((result) => {
+            switch (result.kind) {
+              case 'installed':
+                setNote(null);
+                break;
+              case 'cancelled':
+                setNote({ kind: 'status', text: 'Install cancelled.' });
+                break;
+              case 'failed':
+                setNote({ kind: 'error', text: result.reason, downloadUrl: result.downloadUrl ?? downloadUrl });
+                break;
+            }
+          });
+        }, plain);
+      }
       case 'sign-in-terminal':
         return button('Sign in', () => {
-          setNote('Opening Terminal…');
+          setNote({ kind: 'status', text: 'Opening Terminal…' });
           void actions.signIn(row.id).then((reason) => {
-            setNote(reason ?? 'Finish signing in in Terminal, then come back here.');
+            setNote(
+              reason === null
+                ? { kind: 'status', text: 'Finish signing in in Terminal, then come back here.' }
+                : { kind: 'error', text: reason, downloadUrl: null },
+            );
           });
         }, { ...plain, primary: true });
       case 'copy': {
         const { text } = row.action;
         return button('Copy command', () => {
           void actions.copy(row.id, text).then(() => {
-            setNote('Copied. Run it in a terminal, then come back here.');
+            setNote({ kind: 'status', text: 'Copied. Run it in a terminal, then come back here.' });
           });
         }, { ...plain, describedBy: true });
       }
       case 'guide': {
         const { label, url } = row.action;
         return button(label, () => {
-          actions.openGuide(row.id, url);
-          setNote('MorrowBot rechecks when you come back.');
+          openExternal(url);
         }, { ...plain, external: true });
       }
       case 'recheck':
@@ -69,6 +156,7 @@ function EngineAction(props: { readonly row: EngineRow; readonly actions: Engine
         }, plain);
     }
   })();
+
   return (
     <>
       <div class="engine-action">{control}</div>
@@ -77,16 +165,36 @@ function EngineAction(props: { readonly row: EngineRow; readonly actions: Engine
           {row.action.text}
         </code>
       )}
-      {note !== null && (
+      {row.installing && row.progress !== null && (
         <p class="engine-note" role="status">
-          {note}
+          {row.progress}
+        </p>
+      )}
+      {!row.installing && note === null && row.note != null && <p class="engine-note">{row.note}</p>}
+      {!row.installing && note !== null && (
+        <p class={`engine-note${note.kind === 'error' ? ' error' : ''}`} role={note.kind === 'error' ? 'alert' : 'status'}>
+          {note.text}
+          {note.kind === 'error' && note.downloadUrl !== null && (
+            <>
+              {' '}
+              <button
+                type="button"
+                class="engine-note-link"
+                onClick={() => {
+                  openExternal(note.downloadUrl ?? '');
+                }}
+              >
+                Download ↗
+              </button>
+            </>
+          )}
         </p>
       )}
     </>
   );
 }
 
-/** Step 1 of first run (spec §7): the built-in engines, their live status, and one action each when not ready. */
+/** Step 1 of first run (spec §7): the built-in engines, their live status, and one calm action each when not ready. */
 export function SetupChecklist(props: { readonly engines: Loadable<readonly EngineRow[]>; readonly actions: EngineActions }) {
   const { engines } = props;
   switch (engines.kind) {
@@ -103,11 +211,9 @@ export function SetupChecklist(props: { readonly engines: Loadable<readonly Engi
         <ul class="engine-list" aria-label="Your AI engines">
           {engines.value.map((row) => (
             <li key={row.id} class="engine-row">
-              <span class={`engine-icon ${row.tone}`} aria-hidden="true">
-                <Icon name={ICON[row.tone]} />
-              </span>
+              <EngineIndicator tone={row.tone} />
               <span class="engine-name">{row.name}</span>
-              <Pill tone={row.tone}>{row.status}</Pill>
+              <span class={`engine-status ${row.tone}`}>{row.status}</span>
               <EngineAction row={row} actions={props.actions} />
             </li>
           ))}

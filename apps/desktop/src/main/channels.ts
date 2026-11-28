@@ -1,0 +1,31 @@
+import type { BridgeChannels } from '../renderer/bridge.ts';
+
+/** IPC channel names shared by Electron main and the preload bridge. */
+export const CHANNELS: BridgeChannels = {
+  request: 'morrowbot:request',
+  event: 'morrowbot:event',
+  subscribe: 'morrowbot:subscribe',
+  hostReady: 'morrowbot:host-ready',
+  hostLost: 'morrowbot:host-lost',
+  pickFolder: 'morrowbot:pick-folder',
+  copyText: 'morrowbot:copy-text',
+  openExternal: 'morrowbot:open-external',
+  revealPath: 'morrowbot:reveal-path',
+  appInfo: 'morrowbot:app-info',
+  loginItem: 'morrowbot:login-item',
+  setOpenAtLogin: 'morrowbot:set-open-at-login',
+  relaunch: 'morrowbot:relaunch',
+  updateStatus: 'morrowbot:update-status',
+  updateChanged: 'morrowbot:update-changed',
+  checkForUpdates: 'morrowbot:check-for-updates',
+  restartToUpdate: 'morrowbot:restart-to-update',
+  signInTerminal: 'morrowbot:sign-in-terminal',
+  providerInstallCapabilities: 'morrowbot:provider-install-capabilities',
+  installProvider: 'morrowbot:install-provider',
+  cancelProviderInstall: 'morrowbot:cancel-provider-install',
+  providerInstallProgress: 'morrowbot:provider-install-progress',
+  resetPlan: 'morrowbot:reset-plan',
+  runReset: 'morrowbot:run-reset',
+  serverMode: 'morrowbot:server-mode',
+  chooseServer: 'morrowbot:choose-server',
+};

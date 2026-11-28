@@ -1,5 +1,14 @@
+import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+
+function resolveReal(target: string): string {
+  try {
+    return realpathSync(target);
+  } catch {
+    return target;
+  }
+}
 
 export interface AppFiles {
   readonly rendererUrl: string;
@@ -26,13 +35,15 @@ export function appFilesOf(build: { readonly kind: 'dev' } | { readonly kind: 'p
         cleanupHelper: fileURLToPath(new URL('./reset/cleanup-helper.ts', import.meta.url)),
         builtinPluginsDir: fileURLToPath(new URL('../../../../plugins', import.meta.url)),
       };
-    case 'packaged':
+    case 'packaged': {
+      const appPath = resolveReal(build.appPath);
       return {
-        rendererUrl: pathToFileURL(path.join(build.appPath, 'renderer', 'index.html')).href,
-        preload: path.join(build.appPath, 'main', 'preload.cjs'),
-        hostMain: path.join(build.appPath, 'host', 'main.js'),
-        cleanupHelper: path.join(build.appPath, 'main', 'cleanup-helper.js'),
+        rendererUrl: pathToFileURL(path.join(appPath, 'renderer', 'index.html')).href,
+        preload: path.join(appPath, 'main', 'preload.cjs'),
+        hostMain: path.join(appPath, 'host', 'main.js'),
+        cleanupHelper: path.join(appPath, 'main', 'cleanup-helper.js'),
         builtinPluginsDir: null,
       };
+    }
   }
 }
