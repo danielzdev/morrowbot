@@ -9,6 +9,8 @@ const THUMB = 40;
 
 function nameOf(item: ComposerAttachment): string {
   switch (item.kind) {
+    case 'picking':
+      return 'Adding files';
     case 'preparing':
     case 'uploading':
     case 'refused':
@@ -21,11 +23,12 @@ function nameOf(item: ComposerAttachment): string {
 }
 
 function previewOf(item: ComposerAttachment): string | null {
-  return item.kind === 'refused' ? null : item.preview;
+  return item.kind === 'refused' || item.kind === 'picking' ? null : item.preview;
 }
 
 function statusOf(item: ComposerAttachment): string {
   switch (item.kind) {
+    case 'picking':
     case 'preparing':
       return 'Preparing…';
     case 'uploading':
@@ -45,7 +48,7 @@ function Tile(props: { readonly item: ComposerAttachment; readonly onRetry: () =
   const name = nameOf(item);
   const preview = previewOf(item);
   const problem = item.kind === 'failed' || item.kind === 'refused';
-  const busy = item.kind === 'preparing' || item.kind === 'uploading';
+  const busy = item.kind === 'picking' || item.kind === 'preparing' || item.kind === 'uploading';
   const status = statusOf(item);
   return (
     <View style={[styles.tile, { backgroundColor: colors.surface3, borderColor: problem ? colors.danger : colors.hairlineStrong }]}>

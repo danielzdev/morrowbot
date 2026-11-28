@@ -13,7 +13,7 @@ import { AttachmentStrip } from './AttachmentStrip.tsx';
 import { chatRequests, useChatHub } from './chat-context.tsx';
 import { threadFor } from './chat-hub.ts';
 import { composerButton } from './chat-session.ts';
-import { roomLeft } from './composer-attachments.ts';
+import { canPick, roomLeft } from './composer-attachments.ts';
 import { Composer } from './Composer.tsx';
 import { useKeyboardOverlap } from './keyboard-overlap.ts';
 import { MessageList } from './MessageList.tsx';
@@ -126,7 +126,7 @@ function ChatThread(props: {
               }}
             />
           }
-          canAttach={view.kind === 'loaded' && !stale && roomLeft(screen.attachments) > 0}
+          canAttach={view.kind === 'loaded' && !stale && canPick(screen.attachments)}
           onAttach={() => {
             openAttachMenu(session.attachments, roomLeft(screen.attachments));
           }}

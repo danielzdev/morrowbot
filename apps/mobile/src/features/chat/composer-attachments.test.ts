@@ -33,6 +33,7 @@ function picker() {
   let reading = 0;
   let most = 0;
   const pick = (name: string, file: PickedFile = { kind: 'upload', request: { kind: 'text', name, text: 'abc' }, preview: null }): Pick => ({
+    kind: 'file',
     name,
     preview: null,
     read: async () => {
@@ -49,7 +50,21 @@ function picker() {
 function trayWith(port: ReturnType<typeof uploads>) {
   let items: readonly ComposerAttachment[] = [];
   const tray = attachmentTray(port.upload, { get: () => items, set: (next) => (items = next) });
-  const tiles = () => items.map((item) => `${item.kind === 'ready' ? item.attachment.name : item.kind === 'failed' ? item.request.name : item.name}: ${item.kind === 'ready' ? `ready ${item.attachment.id}` : item.kind}`);
+  const nameOf = (item: ComposerAttachment): string => {
+    switch (item.kind) {
+      case 'picking':
+        return '(picker)';
+      case 'ready':
+        return item.attachment.name;
+      case 'failed':
+        return item.request.name;
+      case 'preparing':
+      case 'uploading':
+      case 'refused':
+        return item.name;
+    }
+  };
+  const tiles = () => items.map((item) => `${nameOf(item)}: ${item.kind === 'ready' ? `ready ${item.attachment.id}` : item.kind}`);
   return { tray, items: () => items, tiles };
 }
 
@@ -57,24 +72,28 @@ it('shows a tile per pick at once, reads one file at a time, and refuses picks p
   const port = uploads();
   const { tray, items, tiles } = trayWith(port);
   const { pick, most } = picker();
-  tray.add([pick('a.md'), pick('big.txt', { kind: 'refused', name: 'big.txt', reason: 'Text files can be up to 256 KB.' })]);
+  tray.add([
+    pick('a.md'),
+    { kind: 'refused', name: 'report.pdf', reason: 'Only photos and text files can be attached.' },
+    pick('big.txt', { kind: 'refused', name: 'big.txt', reason: 'Text files can be up to 256 KB.' }),
+  ]);
   tray.add(['b', 'c', 'd', 'e', 'f', 'g', 'h'].map((name) => pick(`${name}.md`)));
   const picked = { tiles: tiles(), sendable: sendableIds(items()), room: roomLeft(items()) };
   for (let step = 0; step < 20; step += 1) await settle();
   for (let done = 0; done < 7; done += 1) await port.saved();
   expect({ picked, after: tiles(), readsAtOnce: most(), sendable: sendableIds(items()) }).toEqual({
     picked: {
-      tiles: ['a.md: preparing', 'big.txt: preparing', 'b.md: preparing', 'c.md: preparing', 'd.md: preparing', 'e.md: preparing', 'f.md: preparing', 'g.md: preparing', 'h.md: refused'],
+      tiles: ['a.md: preparing', 'report.pdf: refused', 'big.txt: preparing', 'b.md: preparing', 'c.md: preparing', 'd.md: preparing', 'e.md: preparing', 'f.md: preparing', 'g.md: preparing', 'h.md: refused'],
       sendable: null,
       room: 0,
     },
-    after: ['a.md: ready f1', 'big.txt: refused', 'b.md: ready f2', 'c.md: ready f3', 'd.md: ready f4', 'e.md: ready f5', 'f.md: ready f6', 'g.md: ready f7', 'h.md: refused'],
+    after: ['a.md: ready f1', 'report.pdf: refused', 'big.txt: refused', 'b.md: ready f2', 'c.md: ready f3', 'd.md: ready f4', 'e.md: ready f5', 'f.md: ready f6', 'g.md: ready f7', 'h.md: refused'],
     readsAtOnce: 1,
     sendable: null,
   });
 });
 
-it('keeps a failed upload to retry, and forgets a file removed while it was still being read or uploaded', async () => {
+it('keeps a failed upload to retry, and forgets a file removed before its read or while it uploads', async () => {
   const port = uploads();
   const { tray, items, tiles } = trayWith(port);
   const { pick } = picker();
@@ -98,6 +117,26 @@ it('keeps a failed upload to retry, and forgets a file removed while it was stil
     retrying: ['notes.md: uploading'],
     after: ['notes.md: ready f2'],
     sendable: ['f2'],
+  });
+});
+
+it('holds Send from opening a picker until its picks arrive, drops nothing on cancel, and keeps reading after a read throws', async () => {
+  const port = uploads();
+  const { tray, items, tiles } = trayWith(port);
+  const { pick } = picker();
+  let hand: (picks: readonly Pick[]) => void = () => undefined;
+  const opened = tray.pickFrom(() => new Promise((resolve) => (hand = resolve)));
+  const whilePicking = { tiles: tiles(), sendable: sendableIds(items()) };
+  const broken: Pick = { kind: 'file', name: 'broken.md', preview: null, read: () => { throw new Error('gone'); } };
+  hand([broken, pick('next.md')]);
+  await opened;
+  for (let step = 0; step < 6; step += 1) await settle();
+  await tray.pickFrom(() => Promise.resolve([]));
+  const failedOpen = await tray.pickFrom(() => Promise.reject(new Error('denied'))).then(() => 'opened', () => 'rejected');
+  expect({ whilePicking, after: tiles(), failedOpen }).toEqual({
+    whilePicking: { tiles: ['(picker): picking'], sendable: null },
+    after: ['broken.md: refused', 'next.md: uploading'],
+    failedOpen: 'rejected',
   });
 });
 
