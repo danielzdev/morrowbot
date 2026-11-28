@@ -1,5 +1,6 @@
-import type { ApiError, EventServerFrame } from '@morrowbot/contracts';
-import type { ChatHost } from './chat-host.ts';
+import type { ApiError } from '@morrowbot/contracts';
+import type { ChatHost } from '../../lib/chat-host.ts';
+import type { ThreadEvent } from '../../lib/host-connection.ts';
 import { Store, type Loadable } from './store.ts';
 import { applyEvent, endApproval, pendingApprovals, viewOf, type ThreadView } from './thread-view.ts';
 
@@ -20,6 +21,8 @@ export interface ChatScreen {
   /** Approval ids whose answer is on its way to the host. */
   readonly answering: readonly string[];
   readonly problem: ComposerProblem | null;
+  /** The link dropped or is catching up: the view is the last one seen, and every action waits for the next `/state`. */
+  readonly stale: boolean;
 }
 
 /** The composer's one main button. */
@@ -27,11 +30,12 @@ export type ComposerButton =
   | { readonly kind: 'send'; readonly enabled: boolean }
   | { readonly kind: 'stop'; readonly enabled: boolean };
 
-/** Send while the thread is idle, Stop while a turn is queued or running. */
+/** Send while the thread is idle, Stop while a turn is queued or running; neither while stale. */
 export function composerButton(screen: ChatScreen): ComposerButton {
   if (screen.view.kind !== 'loaded') return { kind: 'send', enabled: false };
-  if (screen.view.value.activeTurn !== null || screen.busy === 'stopping') return { kind: 'stop', enabled: screen.busy === null };
-  return { kind: 'send', enabled: screen.busy === null && screen.draft.trim() !== '' };
+  const ready = screen.busy === null && !screen.stale;
+  if (screen.view.value.activeTurn !== null || screen.busy === 'stopping') return { kind: 'stop', enabled: ready };
+  return { kind: 'send', enabled: ready && screen.draft.trim() !== '' };
 }
 
 function problemOf(error: ApiError['error'], action: PendingAction): ComposerProblem {
@@ -58,8 +62,8 @@ const stillPending = (view: ChatScreen['view'], approvalId: string): boolean =>
 export interface ChatSession {
   readonly threadId: string;
   readonly screen: Store<ChatScreen>;
-  /** Fetches `/state`, replaces the view, and follows events from its cursor. */
-  load(): Promise<void>;
+  /** Watches the thread again from a fresh `/state`, replacing the view when it arrives. */
+  load(): void;
   setDraft(text: string): void;
   send(): Promise<void>;
   /** Runs the failed or interrupted latest turn again. */
@@ -72,56 +76,61 @@ export interface ChatSession {
 }
 
 export function openChatSession(host: ChatHost, threadId: string): ChatSession {
-  const screen = new Store<ChatScreen>({ view: { kind: 'loading' }, draft: '', busy: null, answering: [], problem: null });
+  const screen = new Store<ChatScreen>({ view: { kind: 'loading' }, draft: '', busy: null, answering: [], problem: null, stale: false });
   const patch = (change: Partial<ChatScreen>): void => {
     screen.update((current) => {
       const next = { ...current, ...change };
       return change.view === undefined ? next : { ...next, answering: next.answering.filter((id) => stillPending(next.view, id)) };
     });
   };
-  let loads = 0;
-  let loading = false;
   let closed = false;
-  let unfollow: () => void = () => undefined;
+  let unwatch: () => void = () => undefined;
 
-  async function load(): Promise<void> {
-    const mine = ++loads;
-    loading = true;
-    unfollow();
-    const result = await host.threadState(threadId);
-    if (mine !== loads || closed) return;
-    loading = false;
-    if (result.kind === 'failed') {
-      patch({ view: { kind: 'failed', message: result.status === 404 ? 'This chat no longer exists.' : result.error.message } });
-      return;
-    }
-    const before = screen.get().view;
-    patch({ view: { kind: 'loaded', value: viewOf(result.value, before.kind === 'loaded' ? before.value : null) } });
-    unfollow = host.follow(threadId, result.value.cursor, handle);
+  function load(): void {
+    unwatch();
+    if (closed) return;
+    let mine = true;
+    const stop = host.watch(threadId, {
+      onFresh: (state) => {
+        if (!mine) return;
+        const before = screen.get().view;
+        patch({ view: { kind: 'loaded', value: viewOf(state, before.kind === 'loaded' ? before.value : null) }, stale: false });
+      },
+      onEvent: (event) => {
+        if (mine) handle(event);
+      },
+      onStale: () => {
+        if (mine) patch({ stale: true });
+      },
+      onGone: () => {
+        if (mine) patch({ view: { kind: 'failed', message: 'This chat no longer exists.' }, stale: false });
+      },
+    });
+    unwatch = () => {
+      mine = false;
+      stop();
+    };
   }
 
-  function handle(frame: EventServerFrame): void {
-    if (closed || frame.kind === 'usage.updated' || frame.kind === 'agent-message.posted' || frame.threadId !== threadId) return;
-    if (frame.kind === 'resync') {
-      void load();
-      return;
-    }
+  function handle(event: ThreadEvent): void {
     const current = screen.get().view;
-    if (loading || current.kind !== 'loaded') return;
-    const applied = applyEvent(current.value, frame);
+    if (current.kind !== 'loaded') return;
+    const applied = applyEvent(current.value, event);
     switch (applied.kind) {
       case 'ignored':
         return;
       case 'resync':
-        void load();
+        load();
         return;
       case 'applied':
         patch({ view: { kind: 'loaded', value: applied.view } });
     }
   }
 
+  const idle = (): boolean => screen.get().busy === null && !screen.get().stale;
+
   async function run(action: PendingAction): Promise<void> {
-    if (screen.get().busy !== null) return;
+    if (!idle()) return;
     patch({ busy: 'sending', problem: null });
     const result =
       action.kind === 'send' ? await host.send(threadId, action.text) : await host.continueTurn(threadId, action.failedMessageId);
@@ -131,7 +140,7 @@ export function openChatSession(host: ChatHost, threadId: string): ChatSession {
       return;
     }
     patch({ busy: null, problem: problemOf(result.error, action) });
-    if (result.error.kind === 'conflict') await load();
+    if (result.error.kind === 'conflict') load();
   }
 
   return {
@@ -158,16 +167,16 @@ export function openChatSession(host: ChatHost, threadId: string): ChatSession {
       else await run({ kind: 'send', text });
     },
     stop: async () => {
-      if (screen.get().busy !== null) return;
+      if (!idle()) return;
       patch({ busy: 'stopping', problem: null });
       const result = await host.stop(threadId);
       patch({ busy: null, problem: result.kind === 'ok' ? null : { kind: 'error', message: result.error.message } });
-      await load();
+      load();
     },
     answer: async (approvalId, choiceId) => {
       const current = screen.get().view;
       const generationId = current.kind === 'loaded' ? current.value.activeTurn?.generationId : undefined;
-      if (generationId === undefined || screen.get().answering.includes(approvalId) || !stillPending(current, approvalId)) return;
+      if (generationId === undefined || screen.get().stale || screen.get().answering.includes(approvalId) || !stillPending(current, approvalId)) return;
       patch({ answering: [...screen.get().answering, approvalId] });
       const result = await host.answerApproval(threadId, approvalId, { generationId, choiceId });
       if (result.kind === 'ok') return;
@@ -175,14 +184,14 @@ export function openChatSession(host: ChatHost, threadId: string): ChatSession {
       if (result.status === 404) {
         const view = screen.get().view;
         if (view.kind === 'loaded') patch({ view: { kind: 'loaded', value: endApproval(view.value, approvalId, { kind: 'late' }) } });
-        await load();
+        load();
         return;
       }
       patch({ problem: { kind: 'error', message: result.error.message } });
     },
     close: () => {
       closed = true;
-      unfollow();
+      unwatch();
     },
   };
 }

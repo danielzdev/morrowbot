@@ -1,0 +1,130 @@
+/* Settings › Devices: the pairing code with its QR, and the paired-device list. */
+.pair-panel {
+  display: flex;
+  gap: var(--s-5);
+  margin: var(--s-3) 0;
+  padding: var(--s-4);
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+}
+.qr-code {
+  flex: none;
+  width: 184px;
+  height: 184px;
+  border-radius: var(--r-md);
+  transition: opacity var(--dur-fast) var(--ease);
+}
+.qr-code.faded {
+  opacity: 0.25;
+}
+.qr-paper {
+  fill: var(--qr-paper);
+}
+.qr-ink {
+  fill: var(--qr-ink);
+}
+.pair-info {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
+}
+.pair-code {
+  font: 600 2rem/2.5rem var(--font-mono);
+  letter-spacing: 0.08em;
+}
+.pair-expiry {
+  color: var(--text-2);
+  font: var(--t-ui);
+  font-variant-numeric: tabular-nums;
+}
+.pair-expiry.expired {
+  color: var(--warn);
+}
+.pair-address {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-2);
+  overflow-wrap: anywhere;
+}
+.pair-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  margin-top: auto;
+  padding-top: var(--s-2);
+}
+.pair-actions .setting-note {
+  margin-right: auto;
+}
+.pair-warning {
+  flex: none;
+  color: var(--warn);
+}
+.pair-needs-url .field input {
+  max-width: 22rem;
+  font: var(--t-mono);
+}
+.pair-error {
+  color: var(--danger);
+  font: var(--t-small);
+}
+.devices-notice {
+  padding-top: var(--s-2);
+}
+.devices-empty {
+  padding: var(--s-3) 0;
+}
+.devices-banner {
+  margin: var(--s-3) 0 0;
+}
+.device-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.device-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid var(--hairline);
+}
+.device-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  background: var(--surface-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  color: var(--text-2);
+}
+.device-text {
+  flex: 1;
+  min-width: 0;
+}
+.device-name {
+  overflow: hidden;
+  font: var(--t-ui-strong);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.device-detail {
+  margin-top: 2px;
+  color: var(--text-3);
+  font: var(--t-small);
+}
+@media (max-width: 599px) {
+  .pair-panel {
+    flex-direction: column;
+    align-items: center;
+  }
+}

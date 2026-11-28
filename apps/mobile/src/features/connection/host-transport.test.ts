@@ -1,52 +1,17 @@
-import { Agent, EventClientFrame, PairingCodeResponse, SendMessageResponse, Thread, ThreadState } from '@morrowbot/contracts';
+import { SendMessageResponse, ThreadState } from '@morrowbot/contracts';
 import { afterEach, expect, it } from 'vitest';
-import WebSocket from 'ws';
 import type { ThreadWatcher } from '../../lib/host-connection.ts';
 import { claimPairing, probeHost } from './claim.ts';
 import type { OpenSocket } from './event-stream.ts';
 import type { HttpFetch } from './host-http.ts';
 import { connectHost, type LiveTransport } from './host-transport.ts';
-import { startRealHost, type RealHost } from './real-host.test-support.ts';
+import { echoThread, newCode, pair, realSockets, startRealHost, until, type RealHost } from './real-host.test-support.ts';
 import type { HostProfile } from './saved-hosts.ts';
 
 const cleanup: (() => Promise<void> | void)[] = [];
 afterEach(async () => {
   for (const step of cleanup.splice(0).reverse()) await step();
 });
-
-/**
- * Real sockets to the real host. `log` records each frame the app sends and each socket closing;
- * `drop` cuts the newest socket the way a lost network does.
- */
-function realSockets(log: string[]): { readonly open: OpenSocket; readonly drop: () => void } {
-  const sockets: WebSocket[] = [];
-  return {
-    open: (url, token, handlers) => {
-      const ws = new WebSocket(url, { headers: { authorization: `Bearer ${token}` } });
-      sockets.push(ws);
-      ws.on('open', handlers.onOpen);
-      ws.on('message', (data: Buffer) => {
-        handlers.onMessage(data.toString('utf8'));
-      });
-      ws.on('close', (code: number) => {
-        log.push('socket closed');
-        handlers.onClose(code);
-      });
-      ws.on('error', () => undefined);
-      return {
-        send: (text) => {
-          const frame = EventClientFrame.parse(JSON.parse(text));
-          log.push(frame.kind === 'subscribe' ? `subscribe since ${String(frame.since?.seq ?? null)}` : 'unsubscribe');
-          ws.send(text);
-        },
-        close: () => {
-          ws.terminate();
-        },
-      };
-    },
-    drop: () => sockets.at(-1)?.terminate(),
-  };
-}
 
 /** `fetch`, noting each thread state request in `log`. */
 function loggingFetch(log: string[]): HttpFetch {
@@ -62,34 +27,14 @@ function recorder(log: string[]): ThreadWatcher {
     onFresh: (state) => log.push(`fresh: ${String(state.messages.length)} messages at seq ${String(state.cursor.seq)}`),
     onEvent: (event) => log.push(`event ${event.kind}`),
     onStale: () => log.push('stale'),
+    onGone: () => log.push('gone'),
   };
-}
-
-async function until(check: () => boolean): Promise<void> {
-  while (!check()) await new Promise((resolve) => setTimeout(resolve, 10));
 }
 
 async function startHost(): Promise<RealHost> {
   const host = await startRealHost();
   cleanup.push(host.close);
   return host;
-}
-
-async function newCode(host: RealHost): Promise<string> {
-  return PairingCodeResponse.parse((await host.call('POST', '/api/pairing/codes', { url: host.url })).body).code;
-}
-
-async function pair(host: RealHost): Promise<HostProfile> {
-  const claim = await claimPairing(fetch, { url: host.url, code: await newCode(host) }, 'iPhone');
-  if (claim.kind !== 'claimed') throw new Error(`claim failed: ${claim.kind}`);
-  return claim.profile;
-}
-
-/** A thread on an agent bound to the fixture `echo` provider. */
-async function echoThread(host: RealHost): Promise<Thread> {
-  const provider = { kind: 'bound', pluginId: 'echo', selection: { kind: 'default' }, access: 'read-only', vendorSettings: 'isolated' };
-  const agent = Agent.parse((await host.call('POST', '/api/agents', { name: 'Helper', provider })).body);
-  return Thread.parse((await host.call('POST', `/api/agents/${agent.id}/threads`, { title: 'Chat' })).body);
 }
 
 interface App {

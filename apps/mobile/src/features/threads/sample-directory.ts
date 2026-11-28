@@ -45,10 +45,7 @@ function lastMessages(now: number): readonly LastMessage[] {
   ];
 }
 
-/**
- * Made-up agents and threads on one host, shown until the live host client lands (#72).
- * Ages are relative to `now` so the lists look current.
- */
+/** Made-up agents and threads on one host, shown while no host is paired. Ages are relative to `now` so the lists look current. */
 export function sampleDirectory(now: number): Directory {
   const hostId = 'studio-host';
   const rows: readonly (readonly [Thread, ThreadActivity])[] = [
@@ -93,7 +90,7 @@ export function createSampleDirectory(clock: () => number = Date.now): Directory
         ...directory,
         threads: [...directory.threads, { hostId, thread: fresh, activity: { kind: 'idle' } }],
       }));
-      return fresh;
+      return Promise.resolve({ kind: 'created', thread: fresh });
     },
   };
 }

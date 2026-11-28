@@ -24,11 +24,13 @@ export function endingCopy(ending: ApprovalEnding): string {
 /** An approval request inline in its turn: big buttons while pending, then its ending as text. */
 export function ApprovalCard(props: {
   readonly step: ApprovalStep;
-  readonly sending: boolean;
+  /** `paused`: the chat is stale, so the buttons wait for the host's latest state. */
+  readonly answer: 'ready' | 'sending' | 'paused';
   readonly onAnswer: (choiceId: string) => void;
 }) {
   const { colors } = useTheme();
   const { approval, ending } = props.step;
+  const disabled = props.answer !== 'ready';
   return (
     <View
       accessibilityRole="summary"
@@ -46,8 +48,8 @@ export function ApprovalCard(props: {
               <Pressable
                 key={choice.id}
                 accessibilityRole="button"
-                accessibilityState={{ disabled: props.sending }}
-                disabled={props.sending}
+                accessibilityState={{ disabled }}
+                disabled={disabled}
                 onPress={() => {
                   props.onAnswer(choice.id);
                 }}
@@ -56,7 +58,7 @@ export function ApprovalCard(props: {
                   primary
                     ? { backgroundColor: pressed ? colors.accentPressed : colors.accent }
                     : { backgroundColor: pressed ? colors.selected : colors.surface3, borderColor: colors.hairlineStrong, borderWidth: 1 },
-                  props.sending && styles.disabled,
+                  disabled && styles.disabled,
                 ]}
               >
                 <Text style={[typography.body, styles.label, { color: primary ? colors.onAccent : colors.text1 }]}>{choice.label}</Text>
@@ -67,7 +69,7 @@ export function ApprovalCard(props: {
       ) : (
         <Text style={[typography.ui, { color: colors.text2 }]}>{endingCopy(ending)}</Text>
       )}
-      {props.sending ? <Text style={[typography.small, { color: colors.text3 }]}>Sending…</Text> : null}
+      {props.answer === 'sending' ? <Text style={[typography.small, { color: colors.text3 }]}>Sending…</Text> : null}
     </View>
   );
 }

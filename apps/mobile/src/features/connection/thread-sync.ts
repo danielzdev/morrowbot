@@ -62,9 +62,10 @@ export function createThreadSync(deps: ThreadSyncDeps): ThreadSync {
         return;
       }
       deps.report(`Could not load thread ${threadId}: ${reply.kind}`);
-      const gone = reply.kind === 'unauthorized' || (reply.kind === 'failed' && reply.status === 404);
-      if (gone) {
+      const missing = reply.kind === 'failed' && reply.status === 404;
+      if (missing || reply.kind === 'unauthorized') {
         setPhase(threadId, current, { kind: 'stale' });
+        if (missing) for (const watcher of current.watchers) watcher.onGone();
         return;
       }
       const failures = current.failures + 1;
