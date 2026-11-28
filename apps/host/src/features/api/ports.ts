@@ -94,6 +94,7 @@ export interface WriteFailure {
 export type ApiUpdateAgentResult =
   | { readonly kind: 'updated'; readonly agent: Agent }
   | { readonly kind: 'not-found' }
+  | { readonly kind: 'conflict'; readonly current: Agent }
   | { readonly kind: 'invalid'; readonly reason: string };
 
 export interface ApiFolders {

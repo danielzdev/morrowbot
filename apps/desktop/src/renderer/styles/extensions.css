@@ -199,3 +199,76 @@
 .catalog-row .item-text {
   flex: 1;
 }
+
+/* Per-agent extension toggles beside app-wide toggles */
+.agent-plugins,
+.plugin-agents {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.agent-plugins {
+  margin-bottom: var(--s-4);
+}
+.agent-plugin-row,
+.plugin-agent-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding: var(--s-2) 0;
+  border-bottom: 1px solid var(--hairline);
+  font: var(--t-ui);
+}
+.agent-plugin-row p,
+.plugin-agent-row p {
+  margin: 0;
+}
+.agent-plugin-line,
+.plugin-agent-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+.agent-plugin-info {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 11rem;
+}
+.agent-plugin-name,
+.plugin-agent-name {
+  min-width: 0;
+  overflow: hidden;
+  font: var(--t-ui-strong);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.agent-plugin-toggles {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+.toggle-pair {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  cursor: pointer;
+}
+.toggle-pair-label {
+  color: var(--text-2);
+  font: var(--t-small);
+  white-space: nowrap;
+}
+.agent-plugin-row.dimmed .agent-plugin-name,
+.plugin-agent-row.dimmed .plugin-agent-name {
+  color: var(--text-3);
+}
+.agent-plugin-row.dimmed .item-mark {
+  background: var(--selected);
+  color: var(--text-3);
+}

@@ -53,6 +53,7 @@ function problemOf(error: ApiError['error'], action: PendingAction): ComposerPro
     case 'internal':
     case 'instructions-conflict':
     case 'scope-conflict':
+    case 'agent-conflict':
       return { kind: 'error', message: error.message };
   }
 }

@@ -12,6 +12,7 @@ import { Icon } from '../../shared/ui/Icon.tsx';
 import { MenuButton } from '../../shared/ui/Menu.tsx';
 import { isTextField } from '../../shared/ui/SettingsShell.tsx';
 import { useStore } from '../../shared/use-store.ts';
+import type { AgentExtensionsPort } from './agent-extensions.ts';
 import { MarketplaceTab, type CatalogFilter } from './MarketplaceTab.tsx';
 import { pluginItems, PluginsTab } from './PluginsTab.tsx';
 import { isListedPlugin } from './plugin-health.ts';
@@ -37,6 +38,8 @@ export interface ConnectorsSlot {
 export interface ExtensionsViewProps {
   readonly model: PluginsModel;
   readonly info: AppInfo | null;
+  /** Per-agent toggle port for tool plugins on the Plugins tab. */
+  readonly agentExtensions?: AgentExtensionsPort;
   /** The Connectors tab, which the connectors feature draws, and how many connectors match the search. */
   readonly connectors: { readonly count: (query: string) => number | null; readonly tab: (slot: ConnectorsSlot) => ComponentChildren };
   /** Another screen sent the user to Connectors: each new `id` shows that tab, then calls `arrive`, after the dirty check. */
@@ -217,6 +220,7 @@ export function ExtensionsView(props: ExtensionsViewProps) {
             selected={selected}
             searching={searching}
             pluginsDir={displayPath(list.pluginsDir, info)}
+            {...(props.agentExtensions === undefined ? {} : { agentExtensions: props.agentExtensions })}
             redact={safe}
             onSelect={(key) => { guarded.current(() => { setSelectedKey(key); }); }}
             onRescan={rescan}

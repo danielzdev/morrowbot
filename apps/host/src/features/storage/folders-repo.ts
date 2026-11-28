@@ -10,7 +10,7 @@ const FolderRow = z
 export interface FolderRepository {
   insert(folder: Folder): void;
   rename(id: string, name: string): Folder | undefined;
-  /** Agents in the folder stay, outside any folder. */
+  /** Agents in the folder stay, outside any folder, with their revision bumped. */
   delete(id: string): boolean;
   get(id: string): Folder | undefined;
   list(): Folder[];
@@ -19,6 +19,7 @@ export interface FolderRepository {
 export function folderRepository(db: DatabaseSync): FolderRepository {
   const insert = db.prepare('INSERT INTO folders (id, name, created_at) VALUES (:id, :name, :createdAt)');
   const rename = db.prepare('UPDATE folders SET name = ? WHERE id = ? RETURNING *');
+  const detachAgents = db.prepare('UPDATE agents SET folder_id = NULL, revision = revision + 1 WHERE folder_id = ?');
   const remove = db.prepare('DELETE FROM folders WHERE id = ?');
   const get = db.prepare('SELECT * FROM folders WHERE id = ?');
   const list = db.prepare('SELECT * FROM folders ORDER BY created_at, rowid');
@@ -30,7 +31,18 @@ export function folderRepository(db: DatabaseSync): FolderRepository {
       const row = rename.get(name, id);
       return row === undefined ? undefined : FolderRow.parse(row);
     },
-    delete: (id) => remove.run(id).changes > 0,
+    delete: (id) => {
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        detachAgents.run(id);
+        const deleted = remove.run(id).changes > 0;
+        db.exec('COMMIT');
+        return deleted;
+      } catch (error) {
+        db.exec('ROLLBACK');
+        throw error;
+      }
+    },
     get: (id) => {
       const row = get.get(id);
       return row === undefined ? undefined : FolderRow.parse(row);

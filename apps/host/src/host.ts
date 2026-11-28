@@ -254,7 +254,12 @@ export async function startHost(options: HostOptions): Promise<Host> {
           t3Watches,
           t3Clock,
           defaultT3RoutineId: config.t3Watch.routineId,
-          ...(options.isPluginAllowedForAgent === undefined ? {} : { isPluginAllowedForAgent: options.isPluginAllowedForAgent }),
+          isPluginAllowedForAgent: (agentId, pluginId) => {
+            const agent = agents.get(agentId);
+            if (agent === undefined) return false;
+            if (agent.disabledExtensions.includes(pluginId)) return false;
+            return options.isPluginAllowedForAgent === undefined ? true : options.isPluginAllowedForAgent(agentId, pluginId);
+          },
         }),
         version: options.version,
         report,

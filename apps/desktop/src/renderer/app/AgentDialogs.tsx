@@ -3,6 +3,7 @@ import type { MorrowbotBridge } from '../bridge.ts';
 import { AgentSettingsDialog, NewAgentDialog, type AgentSection, type AvatarEditor } from '../features/agents/index.ts';
 import { AvatarPicker, freshAvatar } from '../features/avatar/index.ts';
 import { AgentExtensionsSection, type ConnectorTarget } from '../features/connectors/index.ts';
+import { AgentPluginsSection } from '../features/plugins/index.ts';
 import { RoutinesSection } from '../features/routines/index.ts';
 import { displayPath, redact, type AppInfo } from '../shared/privacy.ts';
 import { useStore } from '../shared/use-store.ts';
@@ -98,16 +99,26 @@ export function AgentDialogs(props: {
                     });
                   };
                   return (
-                    <AgentExtensionsSection
-                      model={models.connectors}
-                      agent={agent}
-                      agents={state.agents.kind === 'loaded' ? state.agents.value : []}
-                      personalProvider={personal === null ? null : (choices.find(({ id }) => id === personal)?.name ?? null)}
-                      redact={safe}
-                      onDirty={onDirty}
-                      onManage={(id) => { go({ kind: 'connector', id }); }}
-                      onAddExtensions={() => { go({ kind: 'list', installFor: agent.id }); }}
-                    />
+                    <>
+                      <AgentPluginsSection
+                        model={models.plugins}
+                        agent={agent}
+                        savingAgent={state.savingExtensions.includes(agent.id)}
+                        setDisabled={(agentId, disabledExtensions, revision) => models.agents.setExtensions(agentId, disabledExtensions, revision)}
+                        adopt={(next) => { models.agents.adoptAgent(next); }}
+                        redact={safe}
+                      />
+                      <AgentExtensionsSection
+                        model={models.connectors}
+                        agent={agent}
+                        agents={state.agents.kind === 'loaded' ? state.agents.value : []}
+                        personalProvider={personal === null ? null : (choices.find(({ id }) => id === personal)?.name ?? null)}
+                        redact={safe}
+                        onDirty={onDirty}
+                        onManage={(id) => { go({ kind: 'connector', id }); }}
+                        onAddExtensions={() => { go({ kind: 'list', installFor: agent.id }); }}
+                      />
+                    </>
                   );
                 }
           }

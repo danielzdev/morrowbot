@@ -50,7 +50,12 @@ const part = encodeURIComponent;
  */
 export function createLiveChatHost(transport: HostTransport): ChatHost {
   const call = async <T>(request: HostRequest<T>): Promise<ChatResult<T>> => toChat(await transport.request(request));
+  const agentListeners = new Set<(agent: Agent) => void>();
+  const agentDeletedListeners = new Set<(agentId: string) => void>();
   const pluginListeners = new Set<(entry: PluginEntry) => void>();
+  const emitAgent = (agent: Agent): void => {
+    for (const listener of [...agentListeners]) listener(agent);
+  };
 
   return {
     hostName: transport.host.hostName,
@@ -72,8 +77,17 @@ export function createLiveChatHost(transport: HostTransport): ChatHost {
     answerApproval: (threadId, approvalId, body) =>
       call({ method: 'POST', path: `/api/threads/${part(threadId)}/approvals/${part(approvalId)}`, reply: NoContent, body }),
     providerInfo: (pluginId) => call({ method: 'GET', path: `/api/plugins/${part(pluginId)}/info`, reply: ProviderInfoResponse }),
-    updateAgent: (agentId, body) => call({ method: 'PATCH', path: `/api/agents/${part(agentId)}`, reply: Agent, body }),
-    deleteAgent: (agentId) => call({ method: 'DELETE', path: `/api/agents/${part(agentId)}`, reply: NoContent }),
+    updateAgent: async (agentId, body) => {
+      const result = await call({ method: 'PATCH', path: `/api/agents/${part(agentId)}`, reply: Agent, body });
+      if (result.kind === 'ok') emitAgent(result.value);
+      return result;
+    },
+    deleteAgent: async (agentId) => {
+      const result = await call({ method: 'DELETE', path: `/api/agents/${part(agentId)}`, reply: NoContent });
+      if (result.kind === 'ok') for (const listener of [...agentDeletedListeners]) listener(agentId);
+      return result;
+    },
+    adoptAgent: emitAgent,
     instructions: (agentId) => call({ method: 'GET', path: `/api/agents/${part(agentId)}/instructions`, reply: AgentInstructionsView }),
     plugins: () => call({ method: 'GET', path: '/api/plugins', reply: PluginList }),
     setPluginEnabled: async (pluginId, enabled) => {
@@ -81,6 +95,18 @@ export function createLiveChatHost(transport: HostTransport): ChatHost {
       const result = await call({ method: 'PUT', path: `/api/plugins/${part(pluginId)}/enabled`, reply: PluginEntry, body });
       if (result.kind === 'ok') for (const listener of [...pluginListeners]) listener(result.value);
       return result;
+    },
+    onAgentChanged: (listener) => {
+      agentListeners.add(listener);
+      return () => {
+        agentListeners.delete(listener);
+      };
+    },
+    onAgentDeleted: (listener) => {
+      agentDeletedListeners.add(listener);
+      return () => {
+        agentDeletedListeners.delete(listener);
+      };
     },
     onPluginChanged: (listener) => {
       pluginListeners.add(listener);

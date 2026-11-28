@@ -19,10 +19,17 @@ export interface AgentsState {
   readonly openThread: Readonly<Record<string, string>>;
   /** Chats whose turn finished while they were not on screen, by chat id, with their agent's id. */
   readonly unread: Readonly<Record<string, string>>;
+  /** Agent ids whose per-agent extension write is currently in flight. */
+  readonly savingExtensions: readonly string[];
   readonly problem: string | null;
 }
 
 export type Saved<T> = { readonly kind: 'saved'; readonly value: T } | { readonly kind: 'refused'; readonly message: string };
+
+export type AgentExtensionSaved =
+  | { readonly kind: 'saved'; readonly agent: Agent }
+  | { readonly kind: 'conflict'; readonly current: Agent }
+  | { readonly kind: 'refused'; readonly message: string };
 
 export interface AgentsModel {
   readonly state: Store<AgentsState>;
@@ -30,6 +37,10 @@ export interface AgentsModel {
   selectAgent(id: string): void;
   createAgent(request: z.input<typeof CreateAgentRequest>): Promise<Saved<Agent>>;
   updateAgent(id: string, request: UpdateAgentRequest): Promise<Saved<Agent>>;
+  /** Updates per-agent disabled extensions at `revision`; returns `conflict` with the newer agent when stale. */
+  setExtensions(id: string, disabledExtensions: readonly string[], revision: number): Promise<AgentExtensionSaved>;
+  /** Adopts a newer agent record reported by a conflict without writing anything. */
+  adoptAgent(agent: Agent): void;
   deleteAgent(id: string): Promise<void>;
   createFolder(name: string): Promise<Saved<Folder>>;
   renameFolder(id: string, name: string): Promise<void>;
@@ -75,16 +86,27 @@ const applied = (agent: Agent, request: UpdateAgentRequest): Agent => ({
   emojiReplies: request.emojiReplies ?? agent.emojiReplies,
 });
 
-/** `agent` with the fields `request` names taken from `source`; other fields, maybe still saving, stay. */
-const withFields = (agent: Agent, request: UpdateAgentRequest, source: Agent): Agent => ({
-  ...agent,
-  name: request.name === undefined ? agent.name : source.name,
-  description: request.description === undefined ? agent.description : source.description,
-  avatar: request.avatar === undefined ? agent.avatar : source.avatar,
-  provider: request.provider === undefined ? agent.provider : source.provider,
-  folderId: request.folderId === undefined ? agent.folderId : source.folderId,
-  emojiReplies: request.emojiReplies === undefined ? agent.emojiReplies : source.emojiReplies,
-});
+/**
+ * Merges `request`'s fields from `source` into `agent` while preserving other fields that may still
+ * have optimistic edits in flight. Whenever `source` is at least as new as `agent`, also adopts
+ * `source.disabledExtensions` and `source.revision` together so `revision` can never advance past
+ * stale local `disabledExtensions`.
+ */
+const withFields = (agent: Agent, request: UpdateAgentRequest, source: Agent): Agent => {
+  const newer = source.revision >= agent.revision;
+  return {
+    ...agent,
+    name: request.name === undefined ? agent.name : source.name,
+    description: request.description === undefined ? agent.description : source.description,
+    avatar: request.avatar === undefined ? agent.avatar : source.avatar,
+    provider: request.provider === undefined ? agent.provider : source.provider,
+    folderId: request.folderId === undefined ? agent.folderId : source.folderId,
+    emojiReplies: request.emojiReplies === undefined ? agent.emojiReplies : source.emojiReplies,
+    disabledExtensions: newer ? source.disabledExtensions : agent.disabledExtensions,
+    revision: newer ? source.revision : agent.revision,
+    updatedAt: newer ? source.updatedAt : agent.updatedAt,
+  };
+};
 
 const lastByAgent = (list: AgentList): AgentsState['lastMessages'] => Object.fromEntries(list.lastMessages.map((last) => [last.agentId, last]));
 
@@ -111,7 +133,7 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
    * order; only the last one's reply is shown, and a refused one shows what the host kept.
    */
   const updates = new Map<string, Promise<unknown>>();
-  const state = new Store<AgentsState>({ agents: { kind: 'loading' }, folders: [], lastMessages: {}, selectedAgentId: null, threads: {}, openThread: {}, unread: {}, problem: null });
+  const state = new Store<AgentsState>({ agents: { kind: 'loading' }, folders: [], lastMessages: {}, selectedAgentId: null, threads: {}, openThread: {}, unread: {}, savingExtensions: [], problem: null });
   let summaries = 0;
   const patch = (change: Partial<AgentsState>): void => {
     state.update((current) => ({ ...current, ...change }));
@@ -163,7 +185,9 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
       patch({ agents: { kind: 'failed', message: result.error.message } });
       return;
     }
-    const agents = result.value.agents;
+    const prev = state.get().agents;
+    const known = new Map(prev.kind === 'loaded' ? prev.value.map((each) => [each.id, each]) : []);
+    const agents = result.value.agents.map((each) => ((known.get(each.id)?.revision ?? -1) > each.revision ? (known.get(each.id) ?? each) : each));
     const selected = state.get().selectedAgentId;
     summaries++;
     patch({ agents: { kind: 'loaded', value: agents }, folders: result.value.folders, lastMessages: lastByAgent(result.value), threads: {} });
@@ -249,6 +273,41 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
       void next.then(clear, clear);
       return next;
     },
+    setExtensions: async (id, disabledExtensions, revision) => {
+      state.update((current) => ({
+        ...current,
+        savingExtensions: current.savingExtensions.includes(id) ? current.savingExtensions : [...current.savingExtensions, id],
+      }));
+      try {
+        const result = await api.updateAgent(id, { disabledExtensions: [...disabledExtensions], revision });
+        if (result.kind === 'failed') {
+          return result.error.kind === 'agent-conflict'
+            ? { kind: 'conflict', current: result.error.current }
+            : { kind: 'refused', message: result.error.message };
+        }
+        const now = agentOf(id);
+        if (now !== undefined) {
+          if (result.value.revision >= now.revision) {
+            changeAgent(withFields(now, { disabledExtensions: result.value.disabledExtensions }, result.value));
+          } else {
+            const fresh = await hostAgent(id);
+            const latest = agentOf(id);
+            if (fresh !== undefined && latest !== undefined && fresh.revision >= latest.revision) {
+              changeAgent(withFields(latest, { disabledExtensions: fresh.disabledExtensions }, fresh));
+            }
+          }
+        }
+        return { kind: 'saved', agent: result.value };
+      } finally {
+        state.update((current) => ({ ...current, savingExtensions: current.savingExtensions.filter((each) => each !== id) }));
+      }
+    },
+    adoptAgent: (agent) => {
+      const existing = agentOf(agent.id);
+      if (existing !== undefined && agent.revision >= existing.revision) {
+        changeAgent(withFields(existing, { disabledExtensions: agent.disabledExtensions }, agent));
+      }
+    },
     deleteAgent: async (id) => {
       const open = state.get().openThread[id];
       const threadIds = [...threadsOf(id).map((thread) => thread.id), ...(open === undefined ? [] : [open])];
@@ -284,7 +343,9 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
       const agents = state.get().agents;
       patch({
         folders: state.get().folders.filter((folder) => folder.id !== id),
-        ...(agents.kind === 'loaded' ? { agents: { kind: 'loaded', value: agents.value.map((agent) => (agent.folderId === id ? { ...agent, folderId: null } : agent)) } } : {}),
+        ...(agents.kind === 'loaded'
+          ? { agents: { kind: 'loaded', value: agents.value.map((agent) => (agent.folderId === id ? { ...agent, folderId: null, revision: agent.revision + 1 } : agent)) } }
+          : {}),
       });
     },
     newThread,

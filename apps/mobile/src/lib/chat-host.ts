@@ -41,6 +41,12 @@ export interface ChatHost {
   instructions(agentId: string): Promise<ChatResult<AgentInstructionsView>>;
   plugins(): Promise<ChatResult<PluginList>>;
   setPluginEnabled(pluginId: string, enabled: boolean): Promise<ChatResult<PluginEntry>>;
+  /** Broadcasts a newer agent record (e.g. from an `agent-conflict` Reload row) to all subscribers. */
+  adoptAgent(agent: Agent): void;
+  /** Hears every agent change the host reports, including this app's own `updateAgent` and `adoptAgent`. Returns the unsubscribe. */
+  onAgentChanged(listener: (agent: Agent) => void): () => void;
+  /** Hears when an agent is deleted via `deleteAgent`. Returns the unsubscribe. */
+  onAgentDeleted(listener: (agentId: string) => void): () => void;
   /** Hears every plugin change the host reports, including this app's own `setPluginEnabled`. Returns the unsubscribe. */
   onPluginChanged(listener: (entry: PluginEntry) => void): () => void;
   /**
