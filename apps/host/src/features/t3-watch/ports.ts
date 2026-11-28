@@ -51,9 +51,11 @@ export type SinkAnswer = { readonly kind: 'sent' } | { readonly kind: 'busy' } |
 
 /** Where batches go: one background routine of the orchestrator, never an interactive chat. */
 export interface T3DeliverySink {
+  /** Resolves a watch's bound routine (or null for unbound/service events) to a target routine id, or null to hold in outbox. */
+  targetFor?(watchRoutineId: string | null): string | null;
   /** True while that routine or any turn of the orchestrator agent runs; batches hold until it has been idle 5 s. */
-  busy(): boolean;
-  deliver(batch: T3WatchBatch): Promise<SinkAnswer>;
+  busy(routineId?: string | null): boolean;
+  deliver(batch: T3WatchBatch, routineId?: string | null): Promise<SinkAnswer>;
 }
 
 /** Where watches, their events and the outbox are kept (the storage feature provides them). */

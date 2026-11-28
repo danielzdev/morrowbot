@@ -42,14 +42,19 @@ export async function answerMcp(message: unknown, scope: McpScope, version: stri
         capabilities: { tools: { listChanged: false } },
         serverInfo: { name: HOST_TOOLS_SERVER, title: 'MorrowBot', version },
         instructions:
-          'MorrowBot tools: message your teammate agents, keep your own memories, and use the connectors the user gave you (named <connector>__<tool>). They act only as you, and only during this turn.',
+          'MorrowBot tools: message your teammate agents, keep your own memories, manage your own routines and T3 Code watches, and use the connectors the user gave you (named <connector>__<tool>). They act only as you, and only during this turn.',
       });
     }
     case 'ping':
       return result(id, {});
     case 'tools/list':
       return result(id, {
-        tools: [...tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })), ...scope.connectors.tools(grant.agentId)],
+        tools: [
+          ...tools
+            .filter(({ visible }) => visible === undefined || visible(grant.agentId))
+            .map(({ name, description, inputSchema }) => ({ name, description, inputSchema })),
+          ...scope.connectors.tools(grant.agentId),
+        ],
       });
     case 'tools/call':
       return callTool(id, params, scope);

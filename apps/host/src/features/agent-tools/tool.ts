@@ -18,6 +18,8 @@ export interface Tool {
   readonly name: string;
   readonly description: string;
   readonly inputSchema: Readonly<Record<string, unknown>>;
+  /** When set, hides the tool from `tools/list` for agents where this returns false. */
+  readonly visible?: (agentId: string) => boolean;
   call(grant: ToolGrant, args: unknown, signal: AbortSignal): ToolResult | Promise<ToolResult>;
 }
 
@@ -25,6 +27,7 @@ export function tool<S extends z.ZodType>(definition: {
   readonly name: string;
   readonly description: string;
   readonly input: S;
+  readonly visible?: (agentId: string) => boolean;
   readonly run: (grant: ToolGrant, input: z.output<S>) => ToolResult;
 }): Tool {
   const inputSchema = z.toJSONSchema(definition.input, { io: 'input' });
@@ -33,6 +36,7 @@ export function tool<S extends z.ZodType>(definition: {
     name: definition.name,
     description: definition.description,
     inputSchema,
+    ...(definition.visible === undefined ? {} : { visible: definition.visible }),
     call: (grant, args) => {
       const parsed = definition.input.safeParse(args ?? {});
       return parsed.success ? definition.run(grant, parsed.data) : refused(z.prettifyError(parsed.error));
