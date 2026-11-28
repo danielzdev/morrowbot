@@ -29,12 +29,13 @@ export function agentInbox(storage: Storage, agentMessages: AgentMessageService)
   };
 }
 
-/** What the agent tools act on: agents, agent-messages, memories, the vault's names, routines, T3 watches, sub-agents, connectors and enabled tool plugins. */
+/** What the agent tools act on: agents, agent-messages, memories, the turn's chat, the vault's names, routines, T3 watches, sub-agents, connectors and enabled tool plugins. */
 export function agentToolPorts(options: {
   readonly storage: Storage;
   readonly agents: ToolPorts['agents'];
   readonly agentMessages: AgentMessageService;
   readonly memories: MemoryService;
+  readonly replies: ToolPorts['replies'];
   readonly vault: ToolPorts['vault'];
   readonly subagents: SubagentService;
   readonly connectors: ConnectorService;
@@ -45,7 +46,7 @@ export function agentToolPorts(options: {
   readonly defaultT3RoutineId: string | null;
   readonly isPluginAllowedForAgent?: (agentId: string, pluginId: string) => boolean;
 }): ToolPorts {
-  const { storage, agents, agentMessages, memories, vault, subagents, connectors, plugins, routines, t3Watches, t3Clock, defaultT3RoutineId, isPluginAllowedForAgent } =
+  const { storage, agents, agentMessages, memories, replies, vault, subagents, connectors, plugins, routines, t3Watches, t3Clock, defaultT3RoutineId, isPluginAllowedForAgent } =
     options;
   const sharedWithMembers = (agentId: string): boolean => storage.members.allowlistsOf(agentId).length > 0;
   return {
@@ -58,6 +59,7 @@ export function agentToolPorts(options: {
       },
     },
     memories,
+    replies,
     vault,
     routines: routineToolPort(storage, routines, sharedWithMembers),
     t3Watches: t3WatchToolPort(storage, t3Watches, t3Clock, defaultT3RoutineId, sharedWithMembers),
@@ -197,6 +199,8 @@ export function chatStore(storage: Storage): ChatOptions['store'] {
     attachments: storage.attachments,
     threads: storage.threads,
     messages: storage.messages,
+    reactions: storage.reactions,
+    settings: storage.chatSettings,
     queued: storage.queued,
     generations: storage.generations,
     sessions: storage.sessions,

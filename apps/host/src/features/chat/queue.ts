@@ -122,8 +122,10 @@ export function steerDelivered(core: ChatCore, turn: Turn, steerId: string): voi
     return;
   }
   turn.steer = null;
+  turn.source = { kind: 'chat', message: userMessage, prompt: item.text };
   turn.text = '';
   turn.seedTruncated = false;
+  turn.silent = false;
   core.queueStates.delete(item.id);
   core.events.publish({ kind: 'generation.steered', threadId: turn.threadId, generationId: turn.generationId, segment, userMessage });
   publishQueue(core, turn.threadId);

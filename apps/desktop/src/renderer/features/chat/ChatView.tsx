@@ -73,11 +73,13 @@ export function ChatView(props: ChatViewProps) {
         else latest.current.onOpenProviders();
       },
       onAnswer: (approvalId, choiceId) => void session.answer(approvalId, choiceId),
+      onReact: (messageId, emoji) => void session.react(messageId, emoji),
+      agentName: props.agentName,
       image: session.image,
       peers: props.peers,
       engine: props.engine,
     }),
-    [session, props.display, props.providerName, props.peers, props.engine],
+    [session, props.display, props.providerName, props.peers, props.agentName, props.engine],
   );
 
   const announce = (text: string): void => { setSaid((before) => ({ text, n: before.n + 1 })); };

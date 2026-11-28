@@ -6,6 +6,7 @@ import type {
   Message,
   QueuedMessage,
   SessionChoice,
+  SetReactionRequest,
   StopGenerationResponse,
   SubagentRun,
   Thread,
@@ -17,6 +18,7 @@ import { parentTurn, publishSubagent, stopChildren, stopTurn as stopWithChildren
 import { dispatch } from './dispatch.ts';
 import { EventLog, type Replay } from './event-log.ts';
 import type { ChatListener, ChatServiceOptions, RecheckAnswer } from './ports.ts';
+import { agentReact, dropNote, emojiReplies, nextNote, reactionPrompt, readOrGone, setUserReaction, stayQuiet, type ReplyToolAnswer, type SetReactionAnswer, type TurnGrant } from './reactions.ts';
 import { afterTurn, cancelQueued, enqueue, queueOf, sendsQueue, steerQueued, type QueueAnswer } from './queue.ts';
 import { laneOf, queueNote, type ChatCore, type StoredReply, type Turn } from './turn.ts';
 import { readUsage, type UsageAnswer } from './usage.ts';
@@ -55,6 +57,15 @@ export interface ChatService {
   sendUnattended(threadId: string, text: string, choice: SessionChoice): Promise<AdmitResult>;
   /** Takes a message the agent has not seen out of the queue. */
   cancelQueued(threadId: string, queuedId: string): QueueAnswer;
+  /**
+   * Puts the user's emoji on one of the agent's replies, or takes it off. A new one also reaches the agent, in a turn
+   * of its own once the chat is idle, where it may act on it or end quietly.
+   */
+  setReaction(threadId: string, request: SetReactionRequest): SetReactionAnswer;
+  /** `react_to_message` for a running turn: its agent reacts to the user's message. */
+  agentReact(grant: TurnGrant, emoji: string): ReplyToolAnswer;
+  /** `stay_quiet` for a running turn: it ends with no message, if the agent may answer that way. */
+  stayQuiet(grant: TurnGrant): ReplyToolAnswer;
   /** Delivers a queued message now: into the running reply, or as the next turn when nothing runs. */
   steerQueued(threadId: string, queuedId: string): QueueAnswer;
   continueTurn(threadId: string, failedMessageId: string, choice: SessionChoice): Promise<AdmitResult>;
@@ -102,6 +113,7 @@ export function createChatService(options: ChatServiceOptions): ChatService {
     deletingAgents: new Set(),
     queueStates: new Map(),
     draining: new Map(),
+    reactionNotes: new Map(),
     dispatch: (turn) => dispatch(core, turn),
     afterTurn: (turn, outcome) => {
       afterTurn(core, turn, outcome);
@@ -124,10 +136,30 @@ export function createChatService(options: ChatServiceOptions): ChatService {
    * waiting, as it does while the user's queued message is being sent.
    */
   function readNext(threadId: string): void {
+    if (core.closed || core.active.has(threadId) || core.draining.has(threadId)) return;
     const [message] = options.inbox.waiting(threadId);
-    if (message === undefined || core.closed || core.active.has(threadId) || core.draining.has(threadId)) return;
-    const sender = agents.get(message.from.agentId)?.name ?? 'another agent';
-    admit(core, threadId, { kind: 'agent-message', message, prompt: backgroundPrompt(message, sender) }, { kind: 'auto' }).catch(options.report);
+    if (message !== undefined) {
+      const sender = agents.get(message.from.agentId)?.name ?? 'another agent';
+      admit(core, threadId, { kind: 'agent-message', message, prompt: backgroundPrompt(message, sender) }, { kind: 'auto' }).catch(options.report);
+      return;
+    }
+    readReaction(threadId);
+  }
+
+  /** Starts a turn on the user's oldest unread reaction. One that finds the chat busy waits for the next idle moment. */
+  function readReaction(threadId: string): void {
+    const note = nextNote(core, threadId);
+    if (note === undefined) return;
+    const message = store.messages.get(note.messageId);
+    const thread = store.threads.get(threadId);
+    if (message?.kind !== 'assistant' || thread === undefined) {
+      dropNote(core, threadId, note);
+      return;
+    }
+    const prompt = reactionPrompt(message, note.emoji, emojiReplies(core, thread.agentId));
+    admit(core, threadId, { kind: 'reaction', message, emoji: note.emoji, prompt }, { kind: 'auto' }).then((result) => {
+      if (readOrGone(result)) dropNote(core, threadId, note);
+    }, options.report);
   }
   recover(options);
 
@@ -163,7 +195,7 @@ export function createChatService(options: ChatServiceOptions): ChatService {
     if (turn === undefined || turn.state === 'settled') return null;
     return {
       generationId: turn.generationId,
-      trigger: turn.source.kind === 'chat' ? { kind: 'chat' } : { kind: 'agent-message', agentMessageId: turn.source.message.id },
+      trigger: turn.source.kind === 'agent-message' ? { kind: 'agent-message', agentMessageId: turn.source.message.id } : { kind: 'chat' },
       state: turn.state === 'queued' ? 'queued' : 'running',
       queueNote: turn.state === 'queued' ? queueNote(laneOf(core, turn)) : null,
       text: turn.text,
@@ -196,7 +228,10 @@ export function createChatService(options: ChatServiceOptions): ChatService {
         (turn) => turn.threadId === id || turn.parent?.threadId === id,
         () => store.threads.delete(id),
       );
-      if (removed) core.events.forget(id);
+      if (removed) {
+        core.events.forget(id);
+        core.reactionNotes.delete(id);
+      }
       return removed;
     },
     deleteAgent: (id) => exclusively(core.deletingAgents, id, (turn) => turn.agentId === id, () => agents.delete(id)),
@@ -207,6 +242,7 @@ export function createChatService(options: ChatServiceOptions): ChatService {
       return {
         thread,
         messages: store.messages.listByThread(threadId),
+        reactions: store.reactions.listByThread(threadId),
         activeTurn: activeTurn(threadId),
         queue: queueOf(core, threadId),
         blockedGroups: options.plugins.blockedGroups(store.generations.idsByThread(threadId)),
@@ -221,6 +257,9 @@ export function createChatService(options: ChatServiceOptions): ChatService {
       return { kind: 'queued', queued: enqueue(core, threadId, text) };
     },
     sendUnattended: (threadId, text, choice) => admit(core, threadId, { kind: 'send', text, attachmentIds: [], mode: 'background' }, choice),
+    setReaction: (threadId, request) => setUserReaction(core, threadId, request),
+    agentReact: (grant, emoji) => agentReact(core, grant, emoji),
+    stayQuiet: (grant) => stayQuiet(core, grant),
     cancelQueued: (threadId, queuedId) => cancelQueued(core, threadId, queuedId),
     steerQueued: (threadId, queuedId) => steerQueued(core, threadId, queuedId),
     continueTurn: (threadId, failedMessageId, choice) => admit(core, threadId, { kind: 'continue', failedMessageId }, choice),

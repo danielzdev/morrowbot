@@ -7,6 +7,7 @@ const AT = '2026-01-01T00:00:00.000Z';
 const STATE: ThreadState = {
   thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT },
   messages: [],
+  reactions: [],
   activeTurn: {
     generationId: 'g',
     trigger: { kind: 'chat' },
@@ -119,6 +120,37 @@ it('keeps a background turn out of the messages, notes how it ended early, and n
         "generation.background-started: thinking, agent-message """,
         "generation.background-finished: idle, idle",
       ],
+    }
+  `);
+});
+
+it("replaces one message's reactions from an event, even with no turn running, and leaves the others alone", () => {
+  const reaction = (messageId: string, actor: 'user' | 'agent', emoji: string) => ({ messageId, actor, emoji, createdAt: AT });
+  let view = viewOf({ ...STATE, activeTurn: null, reactions: [reaction('m1', 'agent', '👍'), reaction('m2', 'user', '❤️')] });
+  const events: ThreadEvent[] = [
+    { kind: 'reactions.changed', threadId: 't', cursor: { hostEpoch: 'e1', seq: 5 }, messageId: 'm2', reactions: [reaction('m2', 'user', '❤️'), reaction('m2', 'user', '🎉')] },
+    { kind: 'reactions.changed', threadId: 't', cursor: { hostEpoch: 'e1', seq: 6 }, messageId: 'm1', reactions: [] },
+  ];
+  for (const event of events) {
+    const applied = applyEvent(view, event, 0);
+    if (applied.kind !== 'applied') throw new Error(`${event.kind}: ${applied.kind}`);
+    view = applied.view;
+  }
+  expect(view.reactions.map(({ messageId, actor, emoji }) => `${messageId} ${actor} ${emoji}`)).toMatchInlineSnapshot(`
+    [
+      "m2 user ❤️",
+      "m2 user 🎉",
+    ]
+  `);
+});
+
+it('ends a chat turn the agent left quiet without a new message, and does not resync', () => {
+  const result = applyEvent(viewOf(STATE), { kind: 'generation.background-finished', ...at(5), outcome: { kind: 'completed', finishReason: 'stop' } }, 0);
+  expect(result.kind === 'applied' ? { activeTurn: result.view.activeTurn, messages: result.view.messages, quietEnds: result.view.quietEnds } : result).toMatchInlineSnapshot(`
+    {
+      "activeTurn": null,
+      "messages": [],
+      "quietEnds": {},
     }
   `);
 });

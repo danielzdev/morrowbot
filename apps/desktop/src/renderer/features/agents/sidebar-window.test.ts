@@ -16,6 +16,7 @@ function many(count: number): readonly AgentFacts[] {
       avatar: { kind: 'bot', shape: 'chat', color: '#6b7280', finish: 'flat' },
       provider: { kind: 'bound', pluginId: 'provider-echo', selection: { kind: 'default' }, access: 'read-only', vendorSettings: 'isolated' },
       folderId: index >= 150 ? LATER.id : null,
+      emojiReplies: 'allowed',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
     };

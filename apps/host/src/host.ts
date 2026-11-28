@@ -240,6 +240,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
           agents,
           agentMessages,
           memories,
+          replies: { react: (grant, emoji) => chat.agentReact(grant, emoji), stayQuiet: (grant) => chat.stayQuiet(grant) },
           vault,
           subagents,
           connectors,
@@ -329,6 +330,13 @@ export async function startHost(options: HostOptions): Promise<Host> {
         agentMessages,
         routines,
         t3Watches,
+        settings: {
+          chat: () => storage.chatSettings.get(),
+          setChat: (settings) => {
+            storage.chatSettings.set(settings);
+            return storage.chatSettings.get();
+          },
+        },
         vault,
       },
       fallback: healthListener(options.version),

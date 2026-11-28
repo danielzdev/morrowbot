@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
-import { Agent, AgentAvatar, AgentWorkspace, ProviderBinding } from '@morrowbot/contracts';
+import { Agent, AgentAvatar, AgentEmojiReplies, AgentWorkspace, ProviderBinding } from '@morrowbot/contracts';
 import { z } from 'zod';
 import { jsonColumn } from './columns.ts';
 
@@ -12,6 +12,7 @@ const AgentRow = z
     avatar: jsonColumn(AgentAvatar),
     provider: jsonColumn(ProviderBinding),
     folder_id: z.string().nullable(),
+    emoji_replies: AgentEmojiReplies,
     created_at: z.string(),
     updated_at: z.string(),
   })
@@ -23,10 +24,11 @@ const AgentRow = z
     avatar: row.avatar,
     provider: row.provider,
     folderId: row.folder_id,
+    emojiReplies: row.emoji_replies,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }))
-  .pipe(Agent);
+  .transform((agent) => Agent.parse(agent));
 
 export interface AgentRepository {
   insert(agent: Agent): void;
@@ -38,12 +40,12 @@ export interface AgentRepository {
 
 export function agentRepository(db: DatabaseSync): AgentRepository {
   const insert = db.prepare(
-    `INSERT INTO agents (id, name, description, workspace, avatar, provider, folder_id, created_at, updated_at)
-     VALUES (:id, :name, :description, :workspace, :avatar, :provider, :folderId, :createdAt, :updatedAt)`,
+    `INSERT INTO agents (id, name, description, workspace, avatar, provider, folder_id, emoji_replies, created_at, updated_at)
+     VALUES (:id, :name, :description, :workspace, :avatar, :provider, :folderId, :emojiReplies, :createdAt, :updatedAt)`,
   );
   const update = db.prepare(
     `UPDATE agents SET name = :name, description = :description, workspace = :workspace, avatar = :avatar,
-       provider = :provider, folder_id = :folderId, updated_at = :updatedAt WHERE id = :id`,
+       provider = :provider, folder_id = :folderId, emoji_replies = :emojiReplies, updated_at = :updatedAt WHERE id = :id`,
   );
   const remove = db.prepare('DELETE FROM agents WHERE id = ?');
   const get = db.prepare('SELECT * FROM agents WHERE id = ?');
@@ -56,6 +58,7 @@ export function agentRepository(db: DatabaseSync): AgentRepository {
     avatar: JSON.stringify(agent.avatar),
     provider: JSON.stringify(agent.provider),
     folderId: agent.folderId,
+    emojiReplies: agent.emojiReplies,
     createdAt: agent.createdAt,
     updatedAt: agent.updatedAt,
   });
@@ -64,8 +67,8 @@ export function agentRepository(db: DatabaseSync): AgentRepository {
       insert.run(params(agent));
     },
     update: (agent) => {
-      const { id, name, description, workspace, avatar, provider, folderId, updatedAt } = params(agent);
-      update.run({ id, name, description, workspace, avatar, provider, folderId, updatedAt });
+      const { id, name, description, workspace, avatar, provider, folderId, emojiReplies, updatedAt } = params(agent);
+      update.run({ id, name, description, workspace, avatar, provider, folderId, emojiReplies, updatedAt });
     },
     delete: (id) => remove.run(id).changes > 0,
     get: (id) => {

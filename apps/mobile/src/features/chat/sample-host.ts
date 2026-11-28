@@ -137,6 +137,7 @@ export function createSampleChatHost(now: () => string = () => new Date().toISOS
     return {
       thread,
       messages: [...(messages.get(thread.id) ?? [])],
+      reactions: [],
       activeTurn: turn === undefined ? null : copy(turn),
       blockedGroups: [],
       subagents: [],

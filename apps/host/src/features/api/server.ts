@@ -19,6 +19,7 @@ import type { ApiServices } from './ports.ts';
 import { failure, readJson, send, type Reply } from './reply.ts';
 import { matchPath, type Params, type Route } from './route.ts';
 import { routineRoutes } from './routine-routes.ts';
+import { settingsRoutes } from './settings-routes.ts';
 import { skillRoutes } from './skill-routes.ts';
 import { t3WatchRoutes } from './t3-watch-routes.ts';
 import { threadRoutes } from './thread-routes.ts';
@@ -87,6 +88,7 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
     ...usageRoutes(options.services),
     ...routineRoutes(options.services),
     ...t3WatchRoutes(options.services),
+    ...settingsRoutes(options.services),
     ...vaultRoutes(options.services),
     ...pairingRoutes({
       pairing: options.services.pairing,

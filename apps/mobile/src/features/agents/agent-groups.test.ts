@@ -22,6 +22,7 @@ function agent(id: string, name: string, folderId: string | null, bound = true):
       ? { kind: 'bound', pluginId: 'claude-code', selection: { kind: 'default' }, access: 'workspace-write', vendorSettings: 'isolated' }
       : { kind: 'unbound' },
     folderId,
+    emojiReplies: 'allowed',
     createdAt: TIME,
     updatedAt: TIME,
   };
