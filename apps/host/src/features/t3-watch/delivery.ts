@@ -33,9 +33,14 @@ type Check = { readonly kind: 'reading' } | { readonly kind: 'read'; readonly re
 
 const iso = (at: number): string => new Date(at).toISOString();
 
-/** Events the host confirms with a fresh read before they first go out. */
+/** The kinds a fresh read confirms, on both sides; only these can be deferred, and so only these go out `unverified`. */
+function checkedKind(event: T3WatchEvent): event is WatchEvent {
+  return event.scope === 'watch' && (event.kind === 'finished' || event.kind === 'needs_you');
+}
+
+/** Events the host confirms with a fresh read before they go out. */
 function needsCheck(entry: T3OutboxEntry): entry is T3OutboxEntry & { readonly event: WatchEvent } {
-  return entry.event.scope === 'watch' && !entry.unverified && (entry.event.kind === 'finished' || entry.event.kind === 'needs_you');
+  return !entry.unverified && checkedKind(entry.event);
 }
 
 /**
@@ -63,8 +68,8 @@ export function createDeliveryLane(options: DeliveryOptions): DeliveryLane {
     sending = true;
     const attempt = batch.attempts + 1;
     options.track(
-      target
-        .deliver(batchPayload(batch, attempt, now, status(), options.dir))
+      Promise.resolve()
+        .then(() => target.deliver(batchPayload(batch, attempt, now, status(), options.dir)))
         .then((answer) => {
           const at = clock.now();
           switch (answer.kind) {
@@ -100,9 +105,13 @@ export function createDeliveryLane(options: DeliveryOptions): DeliveryLane {
       if (reading === undefined) continue;
       checks.set(event.eventId, { kind: 'reading' });
       options.track(
-        reading.then((result) => {
-          if (checks.has(event.eventId)) checks.set(event.eventId, { kind: 'read', result, at: clock.now() });
-        }),
+        reading
+          .then((result) => {
+            if (checks.has(event.eventId)) checks.set(event.eventId, { kind: 'read', result, at: clock.now() });
+          })
+          .finally(() => {
+            if (checks.get(event.eventId)?.kind === 'reading') checks.delete(event.eventId);
+          }),
       );
     }
     return done;
@@ -169,10 +178,12 @@ export function createDeliveryLane(options: DeliveryOptions): DeliveryLane {
       const inBatch = new Set(batch.entries.map(({ event }) => event.eventId));
       const strays = [...deferredIds, ...goneIds].filter((id) => !inBatch.has(id));
       if (strays.length > 0) options.warn(`Ack for batch ${batch.batchId} names events not in it: ${strays.join(', ')}`);
+      const unchecked = batch.entries.filter(({ event }) => deferredIds.has(event.eventId) && !checkedKind(event)).map(({ event }) => event.eventId);
+      if (unchecked.length > 0) options.warn(`Ack for batch ${batch.batchId} defers events that are never re-checked; taken as handled: ${unchecked.join(', ')}`);
       const at = clock.now();
       for (const { event, unverified } of batch.entries) {
         if (unverified) registry.noticed(event, at);
-        else if (deferredIds.has(event.eventId)) {
+        else if (deferredIds.has(event.eventId) && checkedKind(event)) {
           const entry = store.outbox.entry(event.eventId);
           if (entry !== undefined) store.outbox.reschedule(event.eventId, deferred(entry, at));
         } else if (goneIds.has(event.eventId)) registry.gone(event, at);

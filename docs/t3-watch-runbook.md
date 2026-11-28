@@ -72,8 +72,8 @@ POST /api/t3-watches/acks {"batchId":"…","deferredEventIds":[],"goneEventIds":
 or append the same JSON as one line to `acks.jsonl`.
 
 - Plain ack: the batch settles, and so does each watch whose ending (`finished`, `failed`, `idle_unverified`, `watch_missing`) it carried.
-- `deferredEventIds` come back in a later batch, under the same ids, after their retry spacing. After three deferrals an event comes back once more, `unverified`.
-- `goneEventIds` settle nothing; the host keeps reading those threads.
+- `deferredEventIds` come back in a later batch, under the same ids, after their retry spacing. After three deferrals an event comes back once more, `unverified`. Only `finished` and `needs_you` can be deferred; any other id listed there is taken as handled (with a warning in the host log).
+- `goneEventIds` settle nothing; the host keeps reading those threads, until it sees `watch_missing` itself or the same ending again.
 - Acking a batch twice is harmless (`already_acked`). An unknown `batchId` gets 404 (or a warning for a file line).
 - Without an ack, the batch is sent again when its 10 min lease runs out, and stays the only one in flight.
 

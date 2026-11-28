@@ -70,6 +70,7 @@ export function createT3WatchService(options: T3WatchServiceOptions): T3WatchSer
   const discoveryQueue: string[] = [];
   let discoveryDueAt = clock.now();
   const reading = new Set<string>();
+  let checkCount = 0;
   let inOutage = false;
   let closed = false;
 
@@ -175,7 +176,7 @@ export function createT3WatchService(options: T3WatchServiceOptions): T3WatchSer
   const freshRead = (threadId: string): Promise<ProbeResult> | undefined => {
     const now = clock.now();
     if (!slot(now)) return undefined;
-    const key = `check:${threadId}`;
+    const key = `check:${String((checkCount += 1))}`;
     inFlight.add(key);
     starts.push(now);
     return probe

@@ -60,8 +60,9 @@ export interface Registry {
   /** An acknowledged event: off the queue, and its watch settled if the event ended it. The caller runs the transaction. */
   settle(event: T3WatchEvent, at: number): void;
   /**
-   * An event the orchestrator found gone (two `NotFound` reads): off the queue, its watch unsettled and read again
-   * until the host sees `watch_missing` itself. The caller runs the transaction.
+   * An event the orchestrator found gone (two `NotFound` reads): off the queue with its transition key freed, its
+   * watch unsettled and read again until the host sees `watch_missing` itself (or the same ending, if the thread is
+   * back). The caller runs the transaction.
    */
   gone(event: T3WatchEvent, at: number): void;
   /**
@@ -189,6 +190,7 @@ export function createRegistry(store: T3WatchStore, newId: () => string): Regist
     },
     gone: (event, at) => {
       store.outbox.acknowledge(event.eventId);
+      store.outbox.release(event.eventId);
       reopen(event, at, null);
     },
     noticed: (event, at) => {
@@ -197,7 +199,7 @@ export function createRegistry(store: T3WatchStore, newId: () => string): Regist
       if (event.kind === 'needs_you' || event.kind === 'finished') reopen(event, at, event.kind);
     },
     revalidate: (event, result, at) => {
-      if (result.kind !== 'observation') return 'unverifiable';
+      if (result.kind !== 'observation' || !complete(event, result.observation)) return 'unverifiable';
       const watch = store.watches.get(event.watchId);
       if (watch !== undefined && holds(event, watch, StoredMemory.parse(watch.memory), result.observation)) return 'holds';
       store.outbox.drop(event.eventId);
@@ -217,6 +219,11 @@ export function createRegistry(store: T3WatchStore, newId: () => string): Regist
     },
     current: () => new Map(store.watches.currentAll().map((watch) => [watch.threadId, watch.watchId])),
   };
+}
+
+/** Whether a read reports every signal the event's check needs; a missing one is never guessed. */
+function complete(event: Extract<T3WatchEvent, { scope: 'watch' }>, observation: Observation): boolean {
+  return observation.pendingRequests.kind === 'known' && (event.kind !== 'finished' || observation.background.kind === 'known');
 }
 
 /** Whether a fresh read still shows what the event reported: the same pending requests, or the same clean finish. */

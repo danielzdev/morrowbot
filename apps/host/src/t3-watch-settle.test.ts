@@ -177,3 +177,123 @@ it('picks up after a host restart with a batch in flight: resent under the same 
     }
   `);
 });
+
+it('defers a queued finished whose fresh read lacks a signal, instead of dropping it as superseded', async () => {
+  finishing('mcp:partial');
+  await kit.until(() => kit.events().length === 1);
+  const [queued] = kit.service.pending();
+  kit.t3.get('mcp:partial').omit = ['pendingRequestCount'];
+  await kit.run(40_000);
+  const kept = kit.service.pending().some((event) => event.eventId === queued?.eventId);
+  expect({ kept, sent: kit.sent(), watches: kit.watches().map((each) => each.state) }).toMatchInlineSnapshot(`
+    {
+      "kept": true,
+      "sent": [
+        {
+          "asOf": "+47s",
+          "attempt": 1,
+          "batchId": "id-4",
+          "events": [
+            {
+              "eventId": "id-3",
+              "kind": "t3_degraded",
+            },
+          ],
+          "status": [
+            "mcp:partial finished",
+          ],
+        },
+      ],
+      "watches": [
+        "finished",
+      ],
+    }
+  `);
+});
+
+it('treats a deferral of an event the receiver never re-checks as a plain ack, with a warning', async () => {
+  watch('mcp:broke', { status: 'failed', activeRunId: null });
+  await nextSend();
+  const batch = sink.sent[0];
+  const failedId = batch?.events[0]?.event.eventId ?? '';
+  appendFileSync(path.join(kit.dir, ACKS_FILE), `${JSON.stringify({ batchId: batch?.batchId, deferredEventIds: [failedId] })}\n`);
+  await kit.step();
+  await kit.run(LEASE_MS);
+  expect({ sends: sink.sent.length, watches: kit.watches(), pending: kit.events(), warnings: kit.warnings }).toMatchInlineSnapshot(`
+    {
+      "pending": [],
+      "sends": 1,
+      "warnings": [
+        "Ack for batch id-3 defers events that are never re-checked; taken as handled: id-2",
+      ],
+      "watches": [
+        {
+          "reason": "failed",
+          "run": "#1",
+          "settled": true,
+          "source": "registered",
+          "state": "failed",
+          "thread": "mcp:broke",
+        },
+      ],
+    }
+  `);
+});
+
+it('keeps reading a thread the receiver called gone while the host still sees it, and its finished goes out again', async () => {
+  finishing('mcp:ghost');
+  await nextSend();
+  const batch = sink.sent[0];
+  appendFileSync(path.join(kit.dir, ACKS_FILE), `${JSON.stringify({ batchId: batch?.batchId, goneEventIds: [batch?.events[0]?.event.eventId] })}\n`);
+  await kit.step();
+  const resentAt = await nextSend();
+  await handleLast();
+  expect({ resentAt, sent: kit.sent(), watches: kit.watches(), pending: kit.events() }).toMatchInlineSnapshot(`
+    {
+      "pending": [],
+      "resentAt": 95,
+      "sent": [
+        {
+          "asOf": "+47s",
+          "attempt": 1,
+          "batchId": "id-3",
+          "events": [
+            {
+              "eventId": "id-2",
+              "kind": "finished",
+              "thread": "mcp:ghost",
+            },
+          ],
+          "status": [
+            "mcp:ghost finished",
+          ],
+        },
+        {
+          "asOf": "+95s",
+          "attempt": 1,
+          "batchId": "id-5",
+          "events": [
+            {
+              "eventId": "id-4",
+              "kind": "finished",
+              "thread": "mcp:ghost",
+            },
+          ],
+          "status": [
+            "mcp:ghost finished",
+          ],
+        },
+      ],
+      "watches": [
+        {
+          "reason": null,
+          "run": "#1",
+          "settled": true,
+          "source": "registered",
+          "state": "finished",
+          "thread": "mcp:ghost",
+        },
+      ],
+    }
+  `);
+});
