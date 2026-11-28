@@ -13,9 +13,32 @@ starts it and registers it with the host before any turn uses it. `--gemini-dir`
 Antigravity settings, permission grants, hooks, plugins and MCP servers, apart from your
 `~/.gemini`. The sign-in is still yours: agy keeps it in the system keychain.
 
-**No Ori Bot tools yet.** agy 1.5.18 reports no HTTP MCP support (`mcpCapabilities`), and a
-stdio bridge would run a process agy starts outside Ori Bot's process guard, so its sessions
-open with no MCP servers and its agents cannot message other agents or keep memories from a turn.
+**Ori Bot's tools.** agy 1.5.18 connects to MCP servers only over stdio (it reports no
+`mcpCapabilities`), so each turn's session opens, on `session/new` and on `session/load`, with
+one stdio server named `oribot`: the SDK's host-tools bridge (`acp.openHostToolsBridge`). agy
+starts it with the host's own Node (`--disable-sigusr1`, no `PATH` lookup) and calls its tools
+`mcp_oribot_<tool>` (`mcp_oribot_<8 hex>_<tool>` while another session's server of that name
+still runs). The bridge relays each MCP message to the host's MCP endpoint for that turn.
+Checked on agy 1.5.18:
+
+- agy saves each stdio server's `env` with the session in its conversation database
+  (`--gemini-dir`), so the env holds no token: only a one-time key and the path of a socket in a
+  private temporary folder. The bridge trades the key there for the turn's token; the key is then
+  spent, and a copy started with it again exits.
+- agy keeps a session's servers running after `session/close`, and a loaded session keeps calling
+  an earlier turn's server while it runs. So Ori Bot ends the socket when the turn ends, and the
+  bridge exits with it; it also exits when its stdin closes (the daemon ended) or the host refuses
+  its token. On `session/load` agy starts the session's earlier servers again: their keys are spent
+  and their sockets gone, so they exit before they answer, and the loaded session calls this turn's.
+- agy starts the bridge as its own child, so it runs behind the same fence (#146): it cannot read
+  the data folder's `vault*`, `oribot.sqlite*` or `server.json*`.
+- agy asks before each call (kind `other`). A call to a `mcp_oribot_` tool is allowed once without
+  a card, in read-only and full access; it finishes as kind `other`, so it never trips the
+  read-only rule. Any other MCP tool is handled as before. A server named `oribot_…` in Ori Bot's
+  Antigravity folder would match too; only a full-access turn can put one there, and agy already
+  runs such a server's code without asking (see **Full**).
+
+The provider-info probe opens its session with no MCP servers.
 
 **Models.** agy lists its models, each model's thinking levels (they differ by model) and the plan
 only inside a session. While none are known, or the user was signed out, provider-info opens a probe
@@ -55,7 +78,8 @@ run with what it set, such as a hook or an MCP server.
 
 **Read-only** (interactive):
 
-- every write and every command agy asks permission for is denied without a card;
+- every write and every command agy asks permission for is denied without a card; a call to Ori
+  Bot's own tools runs once without one;
 - a read, search or fetch it asks for (agy asks when one reaches outside the workspace) goes to an
   approval card, "Allow once" or "Deny". `allow_always` is never chosen;
 - requests from agy to write a file or run a terminal through Ori Bot (`fs/write_text_file`,
@@ -90,6 +114,7 @@ Settings:
 **Fixtures.** `fixtures/1.5.18/` holds redacted real ACP traffic: `initialize`, a `session/new`
 reply with its models, and six prompts (a reply, a read inside the workspace, and denied writes,
 commands and reads outside it). `session-replay.test.ts` and `models.test.ts` replay them. The host
-tests run `apps/host/src/features/providers/fixtures/fake-agy.ts`. With `ORIBOT_LIVE_AGY=1` (and
+tests run `apps/host/src/features/providers/fixtures/fake-agy.ts`, which starts the stdio
+servers it is given as agy does (`fake-agy-mcp.ts`). With `ORIBOT_LIVE_AGY=1` (and
 `ORIBOT_AGY_PATH`), `provider-antigravity-live.test.ts` runs the checks on your real agy. The
 live check spends a little of your plan.

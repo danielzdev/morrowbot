@@ -4,9 +4,9 @@ import { z } from 'zod';
 
 /**
  * The stdio MCP servers of the fake agy, as agy 1.5.18 runs them (checked on the real one): each
- * session starts the servers it is opened with, `session/close` leaves them running, `session/load`
- * starts the session's earlier servers again beside the new ones, and a call goes to the session's
- * oldest server that is still running.
+ * session starts the servers it is opened with and answers once each has answered `initialize` or
+ * exited, `session/close` leaves them running, `session/load` starts the session's earlier servers
+ * again beside the new ones, and a call goes to the session's oldest server that is still running.
  */
 const StdioServer = z.looseObject({ name: z.string(), command: z.string(), args: z.array(z.string()), env: z.array(z.looseObject({ name: z.string(), value: z.string() })) });
 type StdioServer = z.infer<typeof StdioServer>;
@@ -15,6 +15,8 @@ const CallResult = z.looseObject({ content: z.array(z.looseObject({ type: z.stri
 
 interface Running {
   readonly child: ChildProcess;
+  /** Settles once the server answered `initialize` or exited. */
+  readonly started: Promise<void>;
   ready: boolean;
   exited: boolean;
   call(method: string, params: unknown): Promise<z.infer<typeof Reply> | null>;
@@ -29,8 +31,10 @@ function start(server: StdioServer): Running {
   const child = spawn(server.command, server.args, { env, stdio: ['pipe', 'pipe', 'ignore'] });
   const waiting = new Map<number, (reply: z.infer<typeof Reply> | null) => void>();
   let next = 0;
+  const started = Promise.withResolvers<undefined>();
   const entry: Running = {
     child,
+    started: started.promise,
     ready: false,
     exited: false,
     call: (method, params) =>
@@ -58,27 +62,30 @@ function start(server: StdioServer): Running {
     waiting.delete(reply.data.id);
   });
   void entry.call('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'fake-agy', version: '1.5.18' } }).then((reply) => {
-    if (reply?.result === undefined) return;
-    entry.ready = true;
-    child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' })}\n`);
+    if (reply?.result !== undefined) {
+      entry.ready = true;
+      child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' })}\n`);
+    }
+    started.resolve(undefined);
   });
   return entry;
 }
 
-/** Starts the stdio servers `session/new` (`loaded` false) or `session/load` named, and the session's saved ones on a load. */
-export function openServers(sessionId: string, raw: unknown, loaded: boolean): void {
+/** Starts the stdio servers `session/new` (`loaded` false) or `session/load` named, and the session's saved ones on a load; settles once each has started or exited. */
+export async function openServers(sessionId: string, raw: unknown, loaded: boolean): Promise<void> {
   const given = z.array(z.unknown()).catch([]).parse(raw).flatMap((each) => {
     const server = StdioServer.safeParse(each);
     return server.success ? [server.data] : [];
   });
   const earlier = loaded ? (saved.get(sessionId) ?? []) : [];
   saved.set(sessionId, [...earlier, ...given]);
-  running.set(sessionId, [...(running.get(sessionId) ?? []), ...[...earlier, ...given].map(start)]);
+  const opened = [...earlier, ...given].map(start);
+  running.set(sessionId, [...(running.get(sessionId) ?? []), ...opened]);
+  await Promise.all(opened.map(({ started }) => started));
 }
 
 /** Calls `tool` on the session's oldest running server: its first text, or why there was none. */
 export async function callTool(sessionId: string, tool: string): Promise<string> {
-  await new Promise((resolve) => setTimeout(resolve, 300));
   const server = (running.get(sessionId) ?? []).find((each) => each.ready && !each.exited);
   if (server === undefined) return 'no server';
   const reply = await server.call('tools/call', { name: tool, arguments: {} });
@@ -88,7 +95,10 @@ export async function callTool(sessionId: string, tool: string): Promise<string>
   return result.success ? result.data.content.map((part) => part.text ?? '').join('') : 'unreadable';
 }
 
-/** How many of every server started so far are still running. */
-export function runningCount(): number {
-  return [...running.values()].flat().filter((each) => !each.exited).length;
+/** How many of every server started so far still run, once none does or after `withinMs`. */
+export async function runningCount(withinMs: number): Promise<number> {
+  const count = (): number => [...running.values()].flat().filter((each) => !each.exited).length;
+  const until = Date.now() + withinMs;
+  while (count() > 0 && Date.now() < until) await new Promise((resolve) => setTimeout(resolve, 20));
+  return count();
 }

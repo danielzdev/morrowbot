@@ -1,3 +1,5 @@
+export { openHostToolsBridge } from './bridge.ts';
+export type { AcpStdioServer, HostToolsBridge } from './bridge.ts';
 export { startAcpClient } from './client.ts';
 export type { AcpClient, AcpStart, Call, SessionHandlers } from './client.ts';
 export { createFence } from './fence.ts';

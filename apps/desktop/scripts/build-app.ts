@@ -8,7 +8,7 @@ import { bundleRenderer } from './renderer-bundle.ts';
 
 /**
  * Lays out the app electron-builder packs into Ori Bot.app, at `dist/app/`: `main/` (Electron main and
- * the preload), `renderer/` (the window page) and `host/` (the host and the command guard it forks),
+ * the preload), `renderer/` (the window page) and `host/` (the host, the command guard it forks and the host-tools bridge agents run),
  * each bundled with its dependencies, beside a package.json with no dependencies to install. That
  * package.json also names the releases repo (`ORIBOT_RELEASES_REPO`, else the default) the app updates from.
  * Ori Bot's licence, and the licence of every npm package a bundle contains, ship beside them.
@@ -44,14 +44,19 @@ async function licenceText({ name, license, dir }: Bundled): Promise<string> {
   return `Licensed under ${license} (declared in its package.json; it ships no licence file).`;
 }
 
-const GUARD_SOURCE = "new URL('./command-guard.ts', import.meta.url)";
-/** The plugin SDK forks its guard by file name, and the bundle ships the guard as `host/command-guard.js`. */
-const guardBundle: Plugin = {
-  name: 'oribot-guard-bundle',
+/** Programs the host bundle runs by file name: the plugin SDK forks its command guard and hands agents its host-tools bridge. */
+const HELPERS = [
+  { module: '/packages/plugin-sdk/src/command.ts', source: "new URL('./command-guard.ts', import.meta.url)", bundled: "new URL('./command-guard.js', import.meta.url)" },
+  { module: '/packages/plugin-sdk/src/acp/bridge.ts', source: "new URL('./bridge-process.ts', import.meta.url)", bundled: "new URL('./bridge-process.js', import.meta.url)" },
+];
+/** Points each helper's URL at the file the bundle ships it as, next to the host: `host/command-guard.js`, `host/bridge-process.js`. */
+const helperBundle: Plugin = {
+  name: 'oribot-helper-bundle',
   transform(code, id) {
-    if (!id.endsWith('/packages/plugin-sdk/src/command.ts')) return null;
-    if (!code.includes(GUARD_SOURCE)) this.error(`command.ts no longer forks ${GUARD_SOURCE}; update scripts/build-app.ts to match`);
-    return code.replace(GUARD_SOURCE, "new URL('./command-guard.js', import.meta.url)");
+    const helper = HELPERS.find(({ module }) => id.endsWith(module));
+    if (helper === undefined) return null;
+    if (!code.includes(helper.source)) this.error(`${helper.module} no longer runs ${helper.source}; update scripts/build-app.ts to match`);
+    return code.replace(helper.source, helper.bundled);
   },
 };
 
@@ -66,10 +71,14 @@ const mainBundle = await build({
 });
 await copyFile(`${desktop}src/preload/preload.cjs`, `${out}main/preload.cjs`);
 const hostBundle = await build({
-  input: { main: `${repo}apps/host/src/main.ts`, 'command-guard': `${repo}packages/plugin-sdk/src/command-guard.ts` },
+  input: {
+    main: `${repo}apps/host/src/main.ts`,
+    'command-guard': `${repo}packages/plugin-sdk/src/command-guard.ts`,
+    'bridge-process': `${repo}packages/plugin-sdk/src/acp/bridge-process.ts`,
+  },
   platform: 'node',
   tsconfig: `${repo}apps/host/tsconfig.json`,
-  plugins: [guardBundle],
+  plugins: [helperBundle],
   output: { dir: `${out}host`, format: 'esm', entryFileNames: '[name].js', chunkFileNames: '[name]-[hash].js' },
 });
 const rendererBundle = await bundleRenderer(`${out}renderer/`);

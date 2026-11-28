@@ -10,7 +10,7 @@
  * `log.jsonl`, and every launch's arguments to `launches.jsonl`. The prompt picks a turn's behavior:
  * `think` thinks first; `host-tool` asks to run Ori Bot's `list_agents` and calls it on the session's
  * stdio MCP server (`fake-agy-mcp.ts`), `other-tool` asks to run another server's tool, and
- * `servers` tells how many stdio servers still run; `write`, `command` and `read-outside` ask for permission (an allowed write or
+ * `servers` tells how many stdio servers still run 5 s later at most; `write`, `command` and `read-outside` ask for permission (an allowed write or
  * command really writes `inside.txt` or `ran.txt` in the session's folder); `sneaky` reports an edit
  * it never asked for, and `switch-mode` leaves Default mode, both then ignoring `session/cancel`;
  * `fs-write` asks the client to write a file; `spawn` asks to run a command and, once allowed, runs
@@ -217,7 +217,7 @@ async function prompt(sessionId: string, session: Session, sent: string): Promis
     return permitted(sessionId, { id: 'call-other', kind: 'other', title: 'Run mcp_elsewhere_list', path: null, name: 'mcp_elsewhere_list' }, () => 'ran another tool');
   }
   if (text.includes('servers')) {
-    update(sessionId, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: `servers running: ${String(runningCount())}` } });
+    update(sessionId, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: `servers running: ${String(await runningCount(5_000))}` } });
     return { stopReason: 'end_turn', usage: USAGE };
   }
   if (text.includes('fs-write')) {
@@ -277,7 +277,7 @@ async function answer(method: string, raw: unknown): Promise<unknown> {
       const id = `sess-${String(process.pid)}-${String(++opened)}`;
       const session: Session = { cwd: params.cwd ?? home, model: 'fake-pro', thought: 'high', mode: state().startMode, cancel: null };
       sessions.set(id, session);
-      openServers(id, params.mcpServers, false);
+      await openServers(id, params.mcpServers, false);
       if (state().sneakOnNew) update(id, { sessionUpdate: 'tool_call', toolCallId: 'call-early', title: 'File early.txt', kind: 'edit', status: 'completed' });
       setImmediate(() => {
         update(id, { sessionUpdate: 'available_commands_update', availableCommands: [{ name: 'goal', description: 'Run until done.' }] });
@@ -288,7 +288,7 @@ async function answer(method: string, raw: unknown): Promise<unknown> {
       const id = params.sessionId ?? '';
       const session: Session = { cwd: params.cwd ?? home, model: 'fake-pro', thought: 'high', mode: state().startMode, cancel: null };
       sessions.set(id, session);
-      openServers(id, params.mcpServers, true);
+      await openServers(id, params.mcpServers, true);
       update(id, { sessionUpdate: 'user_message_chunk', content: { type: 'text', text: 'an earlier question' } });
       update(id, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'an earlier answer' } });
       update(id, { sessionUpdate: 'tool_call', toolCallId: 'old-call', title: 'File old.txt', kind: 'edit', status: 'completed' });

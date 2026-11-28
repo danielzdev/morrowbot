@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, expect, it } from 'vitest';
+import { z } from 'zod';
 import { type AgyFixture, FAKE_AGY, startAgyFixture, turnMethods } from '../../testing/agy-fixture.ts';
 
 let agy: AgyFixture;
@@ -182,6 +183,9 @@ it('reports ready with every model, its thinking levels and the plan on the firs
   `);
 });
 
+/** A turn's `session/new`, with each MCP server by name (`provider-antigravity-tools.test.ts` checks the rest). */
+const SessionNew = z.object({ cwd: z.string(), mcpServers: z.array(z.looseObject({ name: z.string() }).transform(({ name }) => name)) });
+
 it('streams a new session in Default mode, counts its tokens, closes it, and seeds the next turn with the conversation', async () => {
   const thread = await agy.thread(await agy.agent());
   const reply = await agy.start(thread, 'think hello');
@@ -196,7 +200,7 @@ it('streams a new session in Default mode, counts its tokens, closes it, and see
       usage: [usageOf(reply), usageOf(next)],
       methods: turnMethods(log),
       initialize: log.find((entry) => entry.method === 'initialize')?.params,
-      sessionNew: log.find((entry) => entry.method === 'session/new' && JSON.stringify(entry.params).includes('/workspaces/'))?.params,
+      sessionNew: SessionNew.parse(log.find((entry) => entry.method === 'session/new' && JSON.stringify(entry.params).includes('/workspaces/'))?.params),
       prompts: log.filter((entry) => entry.method === 'session/prompt').map((entry) => entry.params),
     }),
   ).toMatchInlineSnapshot(`
@@ -316,7 +320,9 @@ it('streams a new session in Default mode, counts its tokens, closes it, and see
       ],
       "sessionNew": {
         "cwd": "$HOME/data/workspaces/id-1",
-        "mcpServers": [],
+        "mcpServers": [
+          "oribot",
+        ],
       },
       "usage": [
         {

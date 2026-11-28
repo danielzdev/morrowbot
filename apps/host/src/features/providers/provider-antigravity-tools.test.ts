@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { z } from 'zod';
-import { type AgyFixture, startAgyFixture } from '../../testing/agy-fixture.ts';
+import { AGY, type AgyFixture, startAgyFixture } from '../../testing/agy-fixture.ts';
 
 let agy: AgyFixture;
 
@@ -38,7 +38,7 @@ it("a read-only turn runs Ori Bot's own tool without a card, and another MCP ser
 
 const Opened = z.looseObject({ mcpServers: z.array(z.looseObject({ name: z.string(), command: z.string(), args: z.array(z.string()), env: z.array(z.looseObject({ name: z.string(), value: z.string() })) })) });
 
-it("opens each turn's session with Ori Bot's tools as one stdio server named oribot on this Node, holding a one-time key and no token", async () => {
+it("opens each turn's session with Ori Bot's tools as one stdio server named oribot on this Node, holding a one-time key and no token; the provider-info probe opens none", async () => {
   const thread = await agy.thread(await agy.agent());
   await agy.events.finished(await agy.start(thread, 'hello'));
   await agy.events.finished(await agy.start(thread, 'again'));
@@ -55,8 +55,19 @@ it("opens each turn's session with Ori Bot's tools as one stdio server named ori
   expect({ distinctKeys: keys.size, shown }).toEqual({
     distinctKeys: 2,
     shown: [
+      [],
       [{ name: 'oribot', command: '<this node>', args: ['--disable-sigusr1', '<sdk>/acp/bridge-process.ts'], env: ['ORIBOT_BRIDGE_SOCKET=<private dir>/bridge.sock', 'ORIBOT_BRIDGE_KEY=<key>'] }],
       [{ name: 'oribot', command: '<this node>', args: ['--disable-sigusr1', '<sdk>/acp/bridge-process.ts'], env: ['ORIBOT_BRIDGE_SOCKET=<private dir>/bridge.sock', 'ORIBOT_BRIDGE_KEY=<key>'] }],
     ],
+  });
+});
+
+it("a full-access turn runs Ori Bot's own tool without a card too", async () => {
+  const thread = await agy.thread(await agy.agent({ ...AGY, access: 'full' }));
+  const turn = await agy.start(thread, 'host-tool');
+  await agy.events.finished(turn);
+  expect({ steps: agy.steps(turn), listedAgents: /^host tool: \{"you":\{"id":"[^"]+"/.test(replyOf(turn)) }).toEqual({
+    steps: ['tool-start Tool: {"title":"Run mcp_oribot_list_agents"}', 'tool-end: ok'],
+    listedAgents: true,
   });
 });
