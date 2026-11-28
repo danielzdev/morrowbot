@@ -12,12 +12,36 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
+env:
+  ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+  NODE_OPTIONS: --max-old-space-size=4096
+
 jobs:
-  check:
+  changes:
     runs-on: ubuntu-latest
-    env:
-      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
-      NODE_OPTIONS: --max-old-space-size=4096
+    outputs:
+      test_packages: ${{ steps.detect.outputs.test_packages }}
+      test_plugins: ${{ steps.detect.outputs.test_plugins }}
+      test_host: ${{ steps.detect.outputs.test_host }}
+      test_desktop: ${{ steps.detect.outputs.test_desktop }}
+      test_mobile: ${{ steps.detect.outputs.test_mobile }}
+      test_browser: ${{ steps.detect.outputs.test_browser }}
+      claude_range: ${{ steps.detect.outputs.claude_range }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - id: detect
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node .github/scripts/ci-changes.mjs
+
+  lint:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -25,6 +49,154 @@ jobs:
           node-version: 26
           cache: npm
       - run: npm ci
-      - run: npm run check
+      - run: npm run lint
+      - run: npx vitest run --dir tools
+
+  typecheck-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build -w apps/desktop
+      - run: npm run build -w apps/browser-extension
+
+  test-packages:
+    needs: changes
+    if: needs.changes.outputs.test_packages == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+      - run: npm ci
+      - run: npx vitest run --dir packages
+
+  test-plugins:
+    needs: changes
+    if: needs.changes.outputs.test_plugins == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+      - run: npm ci
+      - run: npx vitest run --dir plugins
+
+  test-host:
+    needs: changes
+    if: needs.changes.outputs.test_host == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+      - run: npm ci
+      - run: npx vitest run --dir apps/host --shard=${{ matrix.shard }}/2
+
+  test-desktop:
+    needs: changes
+    if: needs.changes.outputs.test_desktop == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+      - run: npm ci
+      - run: npx vitest run --dir apps/desktop
+
+  test-mobile:
+    needs: changes
+    if: needs.changes.outputs.test_mobile == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+      - run: npm ci
+      - run: npx vitest run --dir apps/mobile
+
+  test-browser:
+    needs: changes
+    if: needs.changes.outputs.test_browser == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+      - run: npm ci
+      - run: npx vitest run --dir apps/browser-extension
+
+  claude-range:
+    needs: changes
+    if: needs.changes.outputs.claude_range == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+      - run: npm ci
       - name: Claude Code on npm is inside the tested range
         run: node packages/providers/scripts/check-latest-claude.ts
+
+  check:
+    name: check
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - changes
+      - lint
+      - typecheck-build
+      - test-packages
+      - test-plugins
+      - test-host
+      - test-desktop
+      - test-mobile
+      - test-browser
+      - claude-range
+    steps:
+      - name: Verify all required and affected jobs succeeded
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          node -e '
+            const needs = JSON.parse(process.env.NEEDS_JSON || "{}");
+            const entries = Object.entries(needs);
+            if (entries.length === 0) {
+              console.error("No upstream jobs found in needs context.");
+              process.exit(1);
+            }
+            let failed = false;
+            for (const [job, info] of entries) {
+              const result = info?.result ?? "unknown";
+              console.log(`${job}: ${result}`);
+              if (result !== "success" && result !== "skipped") {
+                failed = true;
+              }
+            }
+            if (failed) {
+              process.exit(1);
+            }
+          '

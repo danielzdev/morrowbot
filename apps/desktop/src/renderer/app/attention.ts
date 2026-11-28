@@ -2,7 +2,7 @@ import type { ThreadActivity } from '../features/chat/index.ts';
 
 type Activity = Readonly<Record<string, ThreadActivity>>;
 
-const BUSY: ReadonlySet<ThreadActivity['activity']> = new Set(['thinking', 'streaming', 'queued', 'needs-approval']);
+const BUSY: ReadonlySet<ThreadActivity['activity']> = new Set(['thinking', 'running-tool', 'streaming', 'queued', 'needs-approval']);
 
 /**
  * The window title (spec §9 "title prefix"): what needs the user first, so the Dock, Mission Control
