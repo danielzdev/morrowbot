@@ -191,3 +191,21 @@ it('splits a steered turn: the reply so far is saved, the queued message joins t
     segmentSteps: view.finished.s1?.map((step) => (step.kind === 'tool' ? `${step.name}:${step.outcome}` : step.kind)),
   }).toEqual({ messages: ['assistant:s1', 'user:q1'], text: 'Tram 28.', segmentSteps: ['search_notes:unfinished'] });
 });
+
+it('appends a message.posted assistant message without disturbing an active turn', () => {
+  const posted = {
+    kind: 'assistant' as const,
+    id: 'm-report',
+    threadId: 't',
+    text: 'Build finished.',
+    outcome: { kind: 'completed' as const, finishReason: 'stop' as const },
+    attachments: [],
+    createdAt: AT,
+  };
+  const first = applyEvent(viewOf(state(4, [])), { kind: 'message.posted', threadId: 't', cursor: { hostEpoch: 'e1', seq: 5 }, message: posted });
+  if (first.kind !== 'applied') throw new Error(first.kind);
+  expect({
+    activeTurnId: first.view.activeTurn?.generationId,
+    messages: first.view.messages.map(({ id, text }) => `${id}: ${text}`),
+  }).toEqual({ activeTurnId: 'g', messages: ['m-report: Build finished.'] });
+});

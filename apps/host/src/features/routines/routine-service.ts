@@ -8,7 +8,7 @@ import type {
   Wait,
 } from '@morrowbot/contracts';
 import type { RoutineChat, RoutineClock, RoutineRecord, RoutineStore } from './ports.ts';
-import { startRun, type RunInput } from './run.ts';
+import { startRun, type RunInput, type RunSettled } from './run.ts';
 import { GRACE_MS, nextAfter, normalized, scheduleProblem, TICK_MS } from './schedule.ts';
 
 export interface RoutineServiceOptions {
@@ -41,6 +41,17 @@ export type NoUpdateResult =
   | { readonly kind: 'marked'; readonly routineId: string; readonly runId: string }
   | { readonly kind: 'not-a-routine-run' };
 
+export interface RunDeliveryOptions {
+  /** Optional target chat thread to inherit if the run registers follow-up T3 watches. */
+  readonly replyThreadId?: string | null;
+  /** Called right before the run is marked finished in storage. */
+  readonly onSettled?: (outcome: RunSettled, runThreadId: string) => void;
+}
+
+export type RoutineChatOrigin =
+  | { readonly isRoutineThread: false }
+  | { readonly isRoutineThread: true; readonly replyThreadId: string | null };
+
 export interface RoutineService {
   list(agentId?: string): Routine[];
   get(id: string): Routine | undefined;
@@ -48,9 +59,11 @@ export interface RoutineService {
   update(id: string, request: UpdateRoutineRequest): SaveResult;
   delete(id: string): boolean;
   /** Runs a routine now, paused or not; resolves once the provider admitted (or refused) the run. */
-  run(id: string, request: RunRoutineRequest): Promise<RunResult>;
+  run(id: string, request: RunRoutineRequest, delivery?: RunDeliveryOptions): Promise<RunResult>;
   /** Marks an active routine run in `threadId` owned by `agentId` as silent (nothing to report). */
   markNoUpdate(agentId: string, threadId: string): NoUpdateResult;
+  /** Whether `threadId` is an active routine run's temporary chat, and which chat it reports back to. */
+  originChatOf(threadId: string): RoutineChatOrigin;
   listWaits(): Wait[];
   openWait(request: OpenWaitRequest): OpenWaitResult;
   /** Closes a wait without waking anything. False when no such wait exists. */
@@ -70,7 +83,10 @@ const STOPPED = 'The host stopped during this run.';
 export function createRoutineService(options: RoutineServiceOptions): RoutineService {
   const { store, chat, clock } = options;
   const running = new Map<string, string>();
-  const activeRuns = new Map<string, { readonly runId: string; readonly routineId: string; readonly agentId: string; silent: boolean }>();
+  const activeRuns = new Map<
+    string,
+    { readonly runId: string; readonly routineId: string; readonly agentId: string; readonly replyThreadId: string | null; silent: boolean }
+  >();
   const listeners = new Set<() => void>();
   const followed: RoutineChat = {
     ...chat,
@@ -89,8 +105,20 @@ export function createRoutineService(options: RoutineServiceOptions): RoutineSer
     newId: options.newId,
     now: options.now,
     report: options.report,
-    onRunOpen: (run: { readonly runId: string; readonly routineId: string; readonly agentId: string; readonly threadId: string }) => {
-      activeRuns.set(run.threadId, { runId: run.runId, routineId: run.routineId, agentId: run.agentId, silent: false });
+    onRunOpen: (run: {
+      readonly runId: string;
+      readonly routineId: string;
+      readonly agentId: string;
+      readonly threadId: string;
+      readonly replyThreadId: string | null;
+    }) => {
+      activeRuns.set(run.threadId, {
+        runId: run.runId,
+        routineId: run.routineId,
+        agentId: run.agentId,
+        replyThreadId: run.replyThreadId,
+        silent: false,
+      });
     },
     onRunClose: (threadId: string) => {
       const active = activeRuns.get(threadId);
@@ -219,7 +247,7 @@ export function createRoutineService(options: RoutineServiceOptions): RoutineSer
       return store.routines.update(record) ? { kind: 'saved', routine: view(record) } : { kind: 'not-found' };
     },
     delete: (id) => store.routines.delete(id),
-    run: async (id, request) => {
+    run: async (id, request, delivery) => {
       const record = store.routines.get(id);
       if (record === undefined) return { kind: 'not-found' };
       let wait: Wait | null = null;
@@ -239,6 +267,8 @@ export function createRoutineService(options: RoutineServiceOptions): RoutineSer
         trigger: woken ? 'wake' : 'manual',
         payload: request.payload === undefined ? { kind: 'none' } : { kind: 'json', value: request.payload },
         wait,
+        ...(delivery?.replyThreadId === undefined ? {} : { replyThreadId: delivery.replyThreadId }),
+        ...(delivery?.onSettled === undefined ? {} : { onSettled: delivery.onSettled }),
       });
       return { kind: 'started', run };
     },
@@ -247,6 +277,10 @@ export function createRoutineService(options: RoutineServiceOptions): RoutineSer
       if (active?.agentId !== agentId) return { kind: 'not-a-routine-run' };
       active.silent = true;
       return { kind: 'marked', routineId: active.routineId, runId: active.runId };
+    },
+    originChatOf: (threadId) => {
+      const active = activeRuns.get(threadId);
+      return active === undefined ? { isRoutineThread: false } : { isRoutineThread: true, replyThreadId: active.replyThreadId };
     },
     listWaits: () => store.waits.listOpen(),
     openWait: (request) => {

@@ -7,7 +7,7 @@ How an orchestrator agent launches T3 Code threads, has the Ori Bot host watch t
 ## The pieces
 
 - **The orchestrator:** one Ori Bot agent. It launches and steers T3 Code threads with the `t3` CLI.
-- **Its updates routine:** a *manual* routine of that agent (for example "T3 updates"), used only for watch batches. Each batch runs as one routine run in a chat of its own. Batches never post to the orchestrator's interactive chat, never reload it and never cancel a turn there.
+- **Its updates routine:** a *manual* routine of that agent (for example "T3 updates"), used only for watch batches. Each batch runs as one routine run in a chat of its own (so raw batch payloads never interrupt or clutter the interactive chat), and the host delivers the routine's posted report as a normal assistant message to the chat that created the watch (falling back to the agent's main chat when registered externally or if the creating chat was archived/removed).
 - **The sink:** the host's `routine` sink. Set `ORIBOT_T3_ROUTINE_ID` to that routine's id and restart the host. Without it, delivery is off: events wait in the host's outbox and nothing reaches any chat.
 - **The watch folder:** `ORIBOT_T3_WATCH_DIR`, else `t3-watch/` in the host's data folder. Point it at a folder the orchestrator can write. It holds:
 
@@ -30,6 +30,7 @@ The host reads `requests.jsonl` and `acks.jsonl` every second, only up to the la
    - Optional: `stallAfterMin` (default 15).
 4. **One queued turn per thread:** never `send` to a thread that already has a queued turn. Wait for that turn's update first.
 5. Registering a thread again replaces its watch. Its unsent ending is dropped, and an ack for the old watch never settles the new one.
+6. **T3 server restarts and run resumptions:** once a watch has a run id, if the same thread resumes under a newer run id (for example after a T3 Code server restart), the watch switches tracking to the newer run id and stays open until a real terminal state (`finished`, `failed`, `stalled`, or `needs_you`).
 
 ## What a batch looks like
 
@@ -53,7 +54,7 @@ A resend (after the 10 min lease, or after a failed send) keeps `batchId` and ev
    - **Two `NotFound` reads at least 5 s apart:** the thread is gone. Record `gone` and list the event in `goneEventIds`. Its watch stays open until the host sees `watch_missing` itself.
    - **Any other failed or incomplete read:** defer. Record no `done`, and list the event in `deferredEventIds`. The host sends it again after 1 min (`needs_you`, `failed`) or 10 min (others).
 4. **`unverified` events:** the host could not confirm them three times. Show the user the update as unconfirmed, take no action, record `done` with disposition `unverified`, and ack. Never revalidate or defer one. Once the thread reads again, the host sends one verified event under a new `eventId`.
-5. Other events (`failed`, `stalled`, `idle_unverified`, `watch_missing`, `t3_unreachable`, `t3_degraded`): tell the user, or act as your instructions say.
+5. Other events (`failed`, `stalled`, `idle_unverified`, `watch_missing`, `t3_unreachable`, `t3_degraded`): tell the user, or act as your instructions say. For `idle_unverified`, always report clearly that tracking stopped without confirming the thread finished (never stay quiet or call `routine_no_update`); if a routine stays quiet or fails on an `idle_unverified` batch, the host posts a clear fallback notice to the creating chat (or main chat) itself.
 
 ## Recording (at least once, retry-safe)
 

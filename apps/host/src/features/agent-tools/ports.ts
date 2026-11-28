@@ -157,7 +157,7 @@ export type T3AckResult =
 export interface T3WatchToolsPort {
   sharedWithMembers(agentId: string): boolean;
   list(agentId: string, includeSettled: boolean): T3WatchListView;
-  watch(agentId: string, request: WatchT3Request): WatchT3Result;
+  watch(agentId: string, request: WatchT3Request, sourceThreadId?: string | null): WatchT3Result;
   unwatch(agentId: string, target: { readonly threadId?: string; readonly watchId?: string }): UnwatchT3Result;
   ack(agentId: string, ack: T3WatchAck): T3AckResult;
 }

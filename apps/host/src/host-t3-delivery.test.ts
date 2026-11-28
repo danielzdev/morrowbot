@@ -60,7 +60,7 @@ async function settledRun(host: ChatFixture['host'], routineId: string): Promise
   throw new Error('The routine run did not finish');
 }
 
-it('delivers one batch to the orchestrator’s own routine, never its chat, held while the user’s turn runs and sent 5 s after it ends', async () => {
+it('delivers one batch to the orchestrator’s own routine, held while the user’s turn runs and sent 5 s after it ends, and posts the report to the agent’s main chat', async () => {
   const clock = new TickingClock();
   const t3 = new FakeT3(clock);
   const setup = await startChatFixture({ dataDir, sequence: ids, t3Watch: { probe: t3, clock } });
@@ -94,6 +94,7 @@ it('delivers one batch to the orchestrator’s own routine, never its chat, held
   const malformed = await host.call('POST', '/api/t3-watches/acks', { batchId: batch.batchId, deferredEventIds: 'all' });
   await clock.advance(60_000, settle);
   const { watches } = T3WatchList.parse((await host.call('GET', '/api/t3-watches')).body);
+  const livePosted = fixture.events.received.filter((event) => event.kind === 'message.posted' && event.threadId === chat.id);
   expect({
     typing: typing.status,
     runWhileTyping,
@@ -103,7 +104,8 @@ it('delivers one batch to the orchestrator’s own routine, never its chat, held
     events: batch.events.map(({ event, unverified }) => `${event.kind} ${event.scope === 'watch' ? event.threadId : ''} unverified=${String(unverified)}`),
     replies: [acked, again, unknown, malformed.status],
     watches: watches.map((watch) => `${watch.threadId} ${watch.state} settled=${String(watch.settledAt !== null)}`),
-    userChat: await fixture.history(chat),
+    userChat: (await fixture.history(chat)).map((line) => line.split('\n')[0]),
+    livePostedCount: livePosted.length,
     noSecondRun: (await lastRun(host, routine.id))?.id === run.id,
   }).toMatchInlineSnapshot(`
     {
@@ -111,6 +113,7 @@ it('delivers one batch to the orchestrator’s own routine, never its chat, held
         "needs_you mcp:ask unverified=false",
         "finished mcp:done unverified=false",
       ],
+      "livePostedCount": 1,
       "noSecondRun": true,
       "prompt": "Handle this T3 watch batch.",
       "replies": [
@@ -148,11 +151,114 @@ it('delivers one batch to the orchestrator’s own routine, never its chat, held
       "userChat": [
         "user: stall-polite",
         "assistant(cancelled): hello from pid <pid>:",
+        "assistant(completed): hello from pid <pid>: Handle this T3 watch batch.",
       ],
       "watches": [
         "mcp:done finished settled=true",
         "mcp:ask needs_you settled=false",
       ],
+    }
+  `);
+});
+
+it('delivers watch reports to the creating chat (not another chat) and falls back to the main chat when the creating chat is archived', async () => {
+  const clock = new TickingClock();
+  const t3 = new FakeT3(clock);
+  fixture = await startChatFixture({ dataDir, sequence: ids, t3Watch: { probe: t3, clock } });
+  const { host } = fixture;
+  const agent = await fixture.agent();
+  const mainChat = await fixture.thread(agent, 'Main');
+  const workChat = await fixture.thread(agent, 'Feature work');
+  const routine = Routine.parse(
+    (await host.call('POST', '/api/routines', { agentId: agent.id, title: 'T3 updates', instruction: 'Watch report.', schedule: { kind: 'manual' } })).body,
+  );
+  const settle = () => host.host.t3Watches.idle();
+
+  t3.thread('mcp:feature', { status: 'completed', activeRunId: null });
+  t3.thread('mcp:archived-chat', { status: 'running' });
+  await fixture.send(
+    workChat,
+    [
+      `host-tool watch_t3_thread ${JSON.stringify({ threadId: 'mcp:feature', runId: runOf('mcp:feature', 1), routineId: routine.id, label: 'Feature PR' })}`,
+      `host-tool watch_t3_thread ${JSON.stringify({ threadId: 'mcp:archived-chat', runId: runOf('mcp:archived-chat', 1), routineId: routine.id, label: 'Follow-up' })}`,
+    ].join('\n'),
+  );
+
+  await clock.advance(60_000, settle);
+  const firstRun = await settledRun(host, routine.id);
+  const firstPrompt = MessageList.parse((await host.call('GET', `/api/threads/${firstRun.threadId ?? ''}/messages`)).body).messages[0]?.text ?? '';
+  const firstBatch = T3WatchBatch.parse(JSON.parse(/```json\n([\s\S]*)\n```/.exec(firstPrompt)?.[1] ?? 'null'));
+  await host.call('POST', '/api/t3-watches/acks', { batchId: firstBatch.batchId });
+
+  const afterCreatingChatDelivery = {
+    mainMessages: (await fixture.history(mainChat)).length,
+    workLastMessage: (await fixture.history(workChat)).at(-1)?.split('\n')[0] ?? null,
+    workLivePosted: fixture.events.received.filter((event) => event.kind === 'message.posted' && event.threadId === workChat.id).length,
+  };
+
+  await host.call('POST', `/api/threads/${workChat.id}/archive`);
+  t3.finish('mcp:archived-chat');
+  await clock.advance(60_000, settle);
+  await settledRun(host, routine.id);
+
+  expect({
+    afterCreatingChatDelivery,
+    mainAfterArchiveFallback: (await fixture.history(mainChat)).map((line) => line.split('\n')[0]),
+    mainLivePosted: fixture.events.received.filter((event) => event.kind === 'message.posted' && event.threadId === mainChat.id).length,
+  }).toMatchInlineSnapshot(`
+    {
+      "afterCreatingChatDelivery": {
+        "mainMessages": 0,
+        "workLastMessage": "assistant(completed): hello from pid <pid>: Watch report.",
+        "workLivePosted": 1,
+      },
+      "mainAfterArchiveFallback": [
+        "assistant(completed): hello from pid <pid>: Watch report.",
+      ],
+      "mainLivePosted": 1,
+    }
+  `);
+});
+
+it('reports idle_unverified clearly in the creating chat even when the routine stays quiet', async () => {
+  const clock = new TickingClock();
+  const t3 = new FakeT3(clock);
+  fixture = await startChatFixture({ dataDir, sequence: ids, t3Watch: { probe: t3, clock } });
+  const { host } = fixture;
+  const agent = await fixture.agent();
+  const mainChat = await fixture.thread(agent, 'Main');
+  const workChat = await fixture.thread(agent, 'Shared work');
+  const routine = Routine.parse(
+    (
+      await host.call('POST', '/api/routines', {
+        agentId: agent.id,
+        title: 'Quiet T3 updates',
+        instruction: `host-tool routine_no_update ${JSON.stringify({ reason: 'nothing new' })}`,
+        schedule: { kind: 'manual' },
+      })
+    ).body,
+  );
+  const settle = () => host.host.t3Watches.idle();
+
+  t3.thread('mcp:shared', { status: 'completed', activeRunId: null });
+  await fixture.send(
+    workChat,
+    `host-tool watch_t3_thread ${JSON.stringify({ threadId: 'mcp:shared', priorRunId: runOf('mcp:shared', 1), routineId: routine.id, label: 'Shared deploy' })}`,
+  );
+  await clock.advance(60_000, settle);
+  const run = await settledRun(host, routine.id);
+
+  expect({
+    routineResult: run.result.kind,
+    mainMessages: await fixture.history(mainChat),
+    workNotice: (await fixture.history(workChat)).at(-1),
+    workLivePosted: fixture.events.received.filter((event) => event.kind === 'message.posted' && event.threadId === workChat.id).length,
+  }).toMatchInlineSnapshot(`
+    {
+      "mainMessages": [],
+      "routineResult": "quiet",
+      "workLivePosted": 1,
+      "workNotice": "assistant(completed): Stopped tracking Shared deploy (mcp:shared), not confirmed finished (send to a shared thread without a run id).",
     }
   `);
 });

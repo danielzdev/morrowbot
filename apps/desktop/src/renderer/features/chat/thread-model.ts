@@ -255,6 +255,9 @@ function change(view: ThreadView, event: ThreadEvent, now: number): ThreadView |
   if (event.kind === 'reactions.changed') return { ...view, reactions: replaceReactions(view.reactions, event.messageId, event.reactions) };
   if (event.kind === 'subagent.changed') return { ...view, subagents: withRun(view.subagents, event.run) };
   if (event.kind === 'card.changed') return { ...view, cards: withCard(view.cards, event.card) };
+  if (event.kind === 'message.posted') {
+    return view.messages.some(({ id }) => id === event.message.id) ? view : { ...view, messages: [...view.messages, event.message] };
+  }
   if (event.kind === 'generation.started' || event.kind === 'generation.background-started') {
     const started = event.kind === 'generation.started' ? event.userMessage : null;
     const messages = started === null || view.messages.some(({ id }) => id === started.id) ? view.messages : [...view.messages, started];
