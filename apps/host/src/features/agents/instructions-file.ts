@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { constants, type BigIntStats } from 'node:fs';
-import { link, lstat, mkdir, open, realpath, unlink } from 'node:fs/promises';
+import { link, lstat, mkdir, open, readdir, realpath, unlink, type FileHandle } from 'node:fs/promises';
 import path from 'node:path';
 import type { AgentInstructionsView } from '@morrowbot/contracts';
 
@@ -18,7 +18,7 @@ const hashOf = (bytes: Buffer): string => createHash('sha256').update(bytes).dig
 
 /**
  * An opaque revision of the `SOUL.md` entry: its own `lstat` identity, plus the identity and
- * content hash of what it resolves to when that can be read, or the read error's code.
+ * content hash of the file as opened when it can be read, or the read error's code.
  */
 function revisionOf(entry: string | null, target: string | null, content: string | null, problem: string | null): string {
   return createHash('sha256').update(JSON.stringify([entry, target, content, problem])).digest('hex');
@@ -55,16 +55,37 @@ type Target = { readonly kind: 'read'; readonly identity: string; readonly bytes
 
 const refusal = (code: string): Error => Object.assign(new Error(code), { code });
 
+/** The name `publish` stages `name` under before linking it into place. */
+const stagingName = (name: string): string => `.${name}.${randomUUID()}.tmp`;
+const STAGED_INSTRUCTIONS = new RegExp(`^\\.${INSTRUCTIONS_FILE.replaceAll('.', '\\.')}\\.[0-9a-f-]{36}\\.tmp$`);
+
+/**
+ * Removes the staging links of `SOUL.md` that a create cut short (a crash between linking it into place and
+ * unlinking the staging name) left in `root`, so the file has one link again. Other entries are not touched.
+ */
+async function dropStagedLinks(root: string, handle: FileHandle): Promise<BigIntStats> {
+  const opened = await handle.stat({ bigint: true });
+  for (const name of await readdir(root)) {
+    if (!STAGED_INSTRUCTIONS.test(name)) continue;
+    const staged = path.join(root, name);
+    const stats = await lstat(staged, { bigint: true }).catch(() => undefined);
+    if (stats?.ino === opened.ino && stats.dev === opened.dev) await unlink(staged).catch(() => undefined);
+  }
+  return handle.stat({ bigint: true });
+}
+
 /**
  * Reads `dir/SOUL.md` only when it is a regular file of its own right in `dir`: never through a symlink
  * (`O_NOFOLLOW` fails with ELOOP) or a second hard link. The host runs outside the Fence, so it must not
  * read a file the agent pointed it at, such as the vault or the database.
  */
 async function readTarget(dir: string): Promise<Target> {
-  const handle = await open(path.join(await realpath(dir), INSTRUCTIONS_FILE), constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+  const root = await realpath(dir);
+  const handle = await open(path.join(root, INSTRUCTIONS_FILE), constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
-    const stats = await handle.stat({ bigint: true });
-    if (!stats.isFile()) throw refusal('not-a-file');
+    const first = await handle.stat({ bigint: true });
+    if (!first.isFile()) throw refusal('not-a-file');
+    const stats = first.nlink > 1n ? await dropStagedLinks(root, handle) : first;
     if (stats.nlink > 1n) throw refusal('hard-link');
     const identity = identityOf(stats);
     if (stats.size > BigInt(MAX_BYTES)) return { kind: 'too-large', identity };
@@ -85,15 +106,21 @@ async function readTarget(dir: string): Promise<Target> {
 /** What `dir/SOUL.md` holds now. Occupancy comes from the entry itself, so a dangling link is present. */
 export async function readInstructionsView(dir: string): Promise<AgentInstructionsView> {
   const file = path.join(dir, INSTRUCTIONS_FILE);
-  let entry: string;
+  let entry: BigIntStats;
   try {
-    entry = identityOf(await lstat(file, { bigint: true }));
+    entry = await lstat(file, { bigint: true });
   } catch (error) {
     const code = codeOf(error);
     if (code === 'ENOENT') return MISSING;
     return { content: null, revision: revisionOf(null, null, null, code), canReplace: false, readError: readError(code) };
   }
+  return readEntry(dir, identityOf(entry), entry.isSymbolicLink());
+}
+
+/** Reads the `SOUL.md` entry `lstat` found; a symlink is refused before opening, also where `O_NOFOLLOW` does nothing (Windows). */
+async function readEntry(dir: string, entry: string, symlink: boolean): Promise<AgentInstructionsView> {
   try {
+    if (symlink) throw refusal('ELOOP');
     const target = await readTarget(dir);
     const tooLarge = { content: null, revision: revisionOf(entry, target.identity, null, 'too-large'), canReplace: false, readError: readError('too-large') };
     if (target.kind === 'too-large') return tooLarge;
@@ -175,7 +202,7 @@ async function writeExclusive(file: string, bytes: Buffer): Promise<Published> {
  * existing entry), so a crash never leaves a partial file and nothing else's file is ever removed.
  */
 async function publish(dir: string, name: string, bytes: Buffer): Promise<Published> {
-  const staging = path.join(dir, `.${name}.${randomUUID()}.tmp`);
+  const staging = path.join(dir, stagingName(name));
   const handle = await open(staging, 'wx');
   try {
     let identity: string;

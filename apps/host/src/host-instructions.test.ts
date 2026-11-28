@@ -244,6 +244,25 @@ it('never reads SOUL.md through a symlink or a second hard link, even to a file 
   `);
 });
 
+it('reads a SOUL.md that a create cut short left with its staging link, and removes only that link', async () => {
+  const { agent, file } = await sharedAgent('cut-short');
+  const dir = path.dirname(file);
+  await writeFile(file, 'kept');
+  await link(file, path.join(dir, '.SOUL.md.00000000-0000-4000-8000-000000000000.tmp'));
+  await writeFile(path.join(dir, '.SOUL.md.other.tmp'), 'not ours');
+  const read = await view(agent);
+  expect({ content: read.content, readError: read.readError, left: (await readdir(dir)).sort() }).toMatchInlineSnapshot(`
+    {
+      "content": "kept",
+      "left": [
+        ".SOUL.md.other.tmp",
+        "SOUL.md",
+      ],
+      "readError": undefined,
+    }
+  `);
+});
+
 it('keeps Save a copy in the data folder with a counter, never touching the live file', async () => {
   await host.close();
   host = await startTestHost({ dataDir, sequence: { ...sequence(), now: () => '2026-01-01T00:00:00.000Z' } });
