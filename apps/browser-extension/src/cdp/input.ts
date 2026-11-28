@@ -10,9 +10,9 @@ const Metrics = z.object({
 const WheelOutcome = z.object({
   result: z.object({ value: z.enum(['scrolled', 'wheel-only', 'no-wheel']).optional() }),
 });
-const DragData = z.object({
+const DragData = z.looseObject({
   items: z.array(
-    z.object({
+    z.looseObject({
       mimeType: z.string(),
       data: z.string(),
       title: z.string().optional(),
@@ -20,9 +20,9 @@ const DragData = z.object({
     }),
   ),
   files: z.array(z.string()).optional(),
-  dragOperationsMask: z.number(),
+  dragOperationsMask: z.number().optional(),
 });
-const DragIntercepted = z.object({ data: DragData });
+const DragIntercepted = z.looseObject({ data: DragData });
 
 const WHEEL_WAIT_KEY = '__morrowbotScrollWait';
 
@@ -200,12 +200,16 @@ async function waitForFrame(session: CdpSession): Promise<void> {
 }
 
 /** Drags with the mouse: intercepts HTML5 drags via CDP so off-screen scrolls and headless Linux cannot drop them, and falls back to pointer moves otherwise. */
-export async function drag(session: CdpSession, from: Point, target: () => Promise<Point>): Promise<void> {
+export async function drag(session: CdpSession, source: () => Promise<Point>, target: () => Promise<Point>): Promise<void> {
   const move = (point: Point): Promise<unknown> => session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: point.x, y: point.y, button: 'left', buttons: 1 });
   const dragState: { data: z.output<typeof DragData> | null } = { data: null };
+  const intercepted = Promise.withResolvers<z.output<typeof DragData>>();
   const stopListening = session.on('Input.dragIntercepted', (params) => {
     const parsed = DragIntercepted.safeParse(params);
-    if (parsed.success) dragState.data = parsed.data.data;
+    if (parsed.success) {
+      dragState.data = parsed.data.data;
+      intercepted.resolve(parsed.data.data);
+    }
   });
   let interceptEnabled = false;
   try {
@@ -215,21 +219,24 @@ export async function drag(session: CdpSession, from: Point, target: () => Promi
     } catch {
       interceptEnabled = false;
     }
+    await source();
     await waitForFrame(session);
+    const from = await source();
     await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: from.x, y: from.y });
     await session.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: from.x, y: from.y, button: 'left', buttons: 1, clickCount: 1 });
     for (let step = 1; step <= 4; step += 1) {
       await move({ x: from.x + step * 4, y: from.y + step * 4 });
       if (dragState.data !== null) break;
     }
-    if (interceptEnabled && dragState.data === null) await waitForFrame(session);
+    if (interceptEnabled && dragState.data === null) await Promise.race([intercepted.promise, waitForFrame(session)]);
     await target();
     await waitForFrame(session);
     const to = await target();
     if (dragState.data !== null) {
-      await session.send('Input.dispatchDragEvent', { type: 'dragEnter', x: to.x, y: to.y, data: dragState.data });
-      await session.send('Input.dispatchDragEvent', { type: 'dragOver', x: to.x, y: to.y, data: dragState.data });
-      await session.send('Input.dispatchDragEvent', { type: 'drop', x: to.x, y: to.y, data: dragState.data });
+      const data = { ...dragState.data, dragOperationsMask: dragState.data.dragOperationsMask ?? 1 };
+      await session.send('Input.dispatchDragEvent', { type: 'dragEnter', x: to.x, y: to.y, data });
+      await session.send('Input.dispatchDragEvent', { type: 'dragOver', x: to.x, y: to.y, data });
+      await session.send('Input.dispatchDragEvent', { type: 'drop', x: to.x, y: to.y, data });
       await session.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: to.x, y: to.y, button: 'left', buttons: 0, clickCount: 1 });
     } else {
       const steps = 5;
