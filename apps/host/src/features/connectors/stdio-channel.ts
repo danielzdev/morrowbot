@@ -35,7 +35,12 @@ export function openStdioChannel(options: StdioOptions): McpChannel {
     if (value !== undefined) env[name] = value;
   }
   Object.assign(env, options.env);
-  const child: ChildProcess = spawn(options.command, [...options.args], { cwd: homedir(), env, detached: true, stdio: ['pipe', 'pipe', 'ignore'] });
+  let child: ChildProcess;
+  try {
+    child = spawn(options.command, [...options.args], { cwd: homedir(), env, detached: true, stdio: ['pipe', 'pipe', 'ignore'] });
+  } catch {
+    return failedChannel(new McpFailure('exited', 'The command could not start; check its path, arguments and variables'));
+  }
   const pending = new Map<number, Pending>();
   const endListeners: ((failure: McpFailure) => void)[] = [];
   let nextId = 1;
@@ -49,6 +54,9 @@ export function openStdioChannel(options: StdioOptions): McpChannel {
     for (const each of pending.values()) each.reject(failure);
     pending.clear();
     killGroup(child, 'SIGTERM');
+    setTimeout(() => {
+      killGroup(child, 'SIGKILL');
+    }, STOP_GRACE_MS).unref();
     if (!closing) for (const listener of endListeners) listener(failure);
   };
   const write = (message: object): void => {
@@ -135,7 +143,11 @@ export function openStdioChannel(options: StdioOptions): McpChannel {
       const exited = child.exitCode !== null || child.signalCode !== null;
       child.stdin?.end();
       end(new McpFailure('aborted', 'The connector was disconnected'));
-      if (exited) return;
+      if (exited) {
+        if (groupAlive(child)) await new Promise((resolve) => setTimeout(resolve, STOP_GRACE_MS));
+        killGroup(child, 'SIGKILL');
+        return;
+      }
       await new Promise<void>((resolve) => {
         const kill = setTimeout(() => {
           killGroup(child, 'SIGKILL');
@@ -148,6 +160,28 @@ export function openStdioChannel(options: StdioOptions): McpChannel {
         });
       });
     },
+  };
+}
+
+/** Whether anything is left in the server's process group. */
+function groupAlive(child: ChildProcess): boolean {
+  if (child.pid === undefined) return false;
+  try {
+    process.kill(-child.pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** A channel whose server never started: every request fails with why. */
+function failedChannel(failure: McpFailure): McpChannel {
+  return {
+    request: () => Promise.reject(failure),
+    notify: () => Promise.resolve(),
+    onEnd: () => undefined,
+    setProtocolVersion: () => undefined,
+    close: () => Promise.resolve(),
   };
 }
 

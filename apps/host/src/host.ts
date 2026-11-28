@@ -157,6 +157,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
       runtime: createConnectorRuntime({ path: pluginPath, version: options.version }),
       safeMode: config.safeMode,
       agentExists: (id) => agents.get(id) !== undefined,
+      sharedWithMembers: (agentId) => storage.members.allowlistsOf(agentId).length > 0,
       newId,
       now,
       report,

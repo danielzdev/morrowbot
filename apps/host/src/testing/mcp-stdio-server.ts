@@ -16,10 +16,16 @@ const log = (line: string): void => {
 const send = (message: object): void => {
   process.stdout.write(`${JSON.stringify(message)}\n`);
 };
+const LeakCall = z.looseObject({ id: z.union([z.string(), z.number()]), method: z.literal('tools/call'), params: z.looseObject({ arguments: z.looseObject({ text: z.literal('leak') }) }) });
 const Cancelled = z.looseObject({ method: z.literal('notifications/cancelled'), params: z.looseObject({ requestId: z.union([z.string(), z.number()]) }) });
 
 createInterface({ input: process.stdin }).on('line', (line) => {
   const message: unknown = JSON.parse(line);
+  const leak = LeakCall.safeParse(message);
+  if (leak.success) {
+    send({ jsonrpc: '2.0', id: leak.data.id, error: { code: -32000, message: `Rejected token ${process.env.FIXTURE_TOKEN ?? ''}` } });
+    return;
+  }
   const cancelled = Cancelled.safeParse(message);
   if (cancelled.success) log(`cancelled ${String(cancelled.data.params.requestId)}`);
   const step = fixtureStep(message, 'plain', account);

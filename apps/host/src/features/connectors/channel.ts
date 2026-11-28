@@ -28,8 +28,6 @@ export interface McpChannel {
   close(): Promise<void>;
 }
 
-export const describe = (error: unknown): string => (error instanceof Error ? error.message : String(error));
-
 /** `signal`, also aborted after `ms`; a timeout reads as `unreachable`. */
 export function withTimeout(signal: AbortSignal, ms: number): AbortSignal {
   return AbortSignal.any([signal, AbortSignal.timeout(ms)]);

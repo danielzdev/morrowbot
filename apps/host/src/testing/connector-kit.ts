@@ -11,6 +11,9 @@ import { sequence } from './test-host.ts';
 
 export const STDIO_SERVER = fileURLToPath(new URL('./mcp-stdio-server.ts', import.meta.url));
 
+/** The secret every fixture stdio server is given; `echo` with text `leak` answers with an error quoting it. */
+export const FIXTURE_TOKEN = 'fixture-token-123';
+
 /** A local stdio connector running the fixture server as `account`, logging to `log`. */
 export function stdioSetup(account: string, log: string): ConnectorSetup {
   return {
@@ -20,6 +23,7 @@ export function stdioSetup(account: string, log: string): ConnectorSetup {
     env: [
       { name: 'FIXTURE_ACCOUNT', value: account },
       { name: 'FIXTURE_LOG', value: log },
+      { name: 'FIXTURE_TOKEN', value: FIXTURE_TOKEN },
     ],
   };
 }
@@ -72,6 +76,7 @@ export async function startConnectorKit(options: { readonly agentIds: readonly s
     runtime: createConnectorRuntime({ path: process.env.PATH ?? '/usr/bin:/bin', version: '0.0.0-test' }),
     safeMode: options.safeMode ?? false,
     agentExists: (id) => storage.agents.get(id) !== undefined,
+    sharedWithMembers: (agentId) => storage.members.allowlistsOf(agentId).length > 0,
     newId,
     now,
     report,

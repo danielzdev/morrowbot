@@ -26,7 +26,7 @@ export interface ConnectorRepository {
   get(id: string): ConnectorRecord | undefined;
   /** Saves the connector and its scope together. */
   insert(connector: NewConnector): 'saved' | 'label-taken';
-  /** Saves a new label and setup; `scopeReviewRequired: true` also pauses its scope until a scope is saved. */
+  /** Saves a new label and setup; `scopeReviewRequired: true` also pauses its scope (a new revision) until a scope is saved. */
   updateAccount(id: string, account: { readonly label: string; readonly labelKey: string; readonly setup: ConnectorSetup; readonly scopeReviewRequired: boolean; readonly updatedAt: string }): LabelWrite;
   setEnabled(id: string, enabled: boolean, updatedAt: string): boolean;
   setConnected(id: string, connected: boolean, updatedAt: string): boolean;
@@ -66,7 +66,7 @@ export function connectorRepository(db: DatabaseSync): ConnectorRepository {
   const clearAgents = db.prepare('DELETE FROM connector_scope_agents WHERE connector_id = ?');
   const updateAccount = db.prepare(
     `UPDATE connectors SET label = :label, label_key = :labelKey, setup = :setup, updated_at = :updatedAt,
-       scope_review_required = MAX(scope_review_required, :review)
+       scope_review_required = MAX(scope_review_required, :review), scope_revision = scope_revision + :review
      WHERE id = :id`,
   );
   const setEnabled = db.prepare('UPDATE connectors SET enabled = ?, updated_at = ? WHERE id = ?');

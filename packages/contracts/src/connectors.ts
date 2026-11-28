@@ -31,7 +31,10 @@ export const ConnectorLabel = z
 
 const EnvName = z.string().regex(/^[A-Za-z_][A-Za-z0-9_]{0,127}$/, 'Use letters, digits and _ for a variable name');
 const HeaderName = z.string().regex(/^[A-Za-z0-9!#$%&'*+.^_`|~-]{1,128}$/, 'Use a valid header name');
-const SecretValue = z.string().max(8192);
+const SecretValue = z
+  .string()
+  .max(8192)
+  .refine((value) => !/[\p{Cc}]/u.test(value.replaceAll('\t', '')), { error: 'Remove line breaks and other control characters' });
 
 /** One named value the host keeps write-only: it is saved, but never sent back to a window. */
 const NamedSecret = <N extends z.ZodType<string>>(name: N) => z.strictObject({ name, value: SecretValue });

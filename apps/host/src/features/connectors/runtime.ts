@@ -1,7 +1,7 @@
 import type { ConnectorSetup } from '@morrowbot/contracts';
-import { describe, McpFailure, type FailureKind } from './channel.ts';
+import { McpFailure, type FailureKind } from './channel.ts';
 import { startSession, type McpCallResult, type McpSession, type McpTool } from './mcp-session.ts';
-import { offeredTools, openChannel } from './reach.ts';
+import { hideSecrets, offeredTools, openChannel } from './reach.ts';
 
 /** Where one connector's connection stands. `failed` keeps why, for its status pill. */
 export type RuntimeState =
@@ -23,6 +23,7 @@ export interface ConnectorRuntime {
 }
 
 interface Slot {
+  readonly hide: (text: string) => string;
   /** Bumped on every connect and disconnect, so a session that settles late knows it is stale. */
   readonly attempt: number;
   readonly state: RuntimeState;
@@ -44,7 +45,7 @@ export function createConnectorRuntime(options: { readonly path: string; readonl
   const fail = (id: string, attempt: number, failure: McpFailure): void => {
     const slot = slots.get(id);
     if (slot?.attempt !== attempt || failure.kind === 'aborted' || failure.kind === 'rpc') return;
-    slots.set(id, { ...slot, state: { kind: 'failed', failure: failure.kind, message: failure.message }, session: null });
+    slots.set(id, { ...slot, state: { kind: 'failed', failure: failure.kind, message: slot.hide(failure.message) }, session: null });
     void slot.session?.close();
   };
 
@@ -54,7 +55,8 @@ export function createConnectorRuntime(options: { readonly path: string; readonl
       const previous = slots.get(id);
       const attempt = ++attempts;
       const stop = new AbortController();
-      slots.set(id, { attempt, state: { kind: 'starting' }, session: null, stop });
+      const hide = (text: string): string => hideSecrets(setup, text);
+      slots.set(id, { attempt, state: { kind: 'starting' }, session: null, stop, hide });
       await release(previous);
       let session: McpSession;
       try {
@@ -64,14 +66,15 @@ export function createConnectorRuntime(options: { readonly path: string; readonl
         });
         session = await startSession(channel, options.version, stop.signal);
       } catch (error) {
-        fail(id, attempt, error instanceof McpFailure ? error : new McpFailure('unreachable', describe(error)));
+        const failure = error instanceof McpFailure ? error : new McpFailure('unreachable', 'The connector could not start');
+        fail(id, attempt, failure.kind === 'rpc' ? new McpFailure('protocol', failure.message) : failure);
         return;
       }
       if (slots.get(id)?.attempt !== attempt) {
         await session.close();
         return;
       }
-      slots.set(id, { attempt, state: { kind: 'ready', tools: offeredTools(setup, session.tools) }, session, stop });
+      slots.set(id, { attempt, state: { kind: 'ready', tools: offeredTools(setup, session.tools) }, session, stop, hide });
     },
     disconnect: async (id) => {
       const slot = slots.get(id);
@@ -85,9 +88,9 @@ export function createConnectorRuntime(options: { readonly path: string; readonl
       try {
         return await session.call(toolName, args, signal);
       } catch (error) {
-        const failure = error instanceof McpFailure ? error : new McpFailure('unreachable', describe(error));
+        const failure = error instanceof McpFailure ? error : new McpFailure('unreachable', 'The tool call failed');
         if (LOST.includes(failure.kind)) fail(id, slot.attempt, failure);
-        throw failure;
+        throw new McpFailure(failure.kind, slot.hide(failure.message));
       }
     },
     closeAll: async () => {

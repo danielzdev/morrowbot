@@ -16,8 +16,9 @@ export async function* readEvents(body: ReadableStream<Uint8Array>, limit: numbe
     size += chunk.byteLength;
     if (size > limit) throw new McpFailure('protocol', 'The server sent more than this host reads');
     buffer += decoder.decode(chunk, { stream: true });
-    const lines = buffer.split(/\r\n|\r|\n/);
-    buffer = lines.pop() ?? '';
+    const end = buffer.endsWith('\r') ? buffer.length - 1 : buffer.length;
+    const lines = buffer.slice(0, end).split(/\r\n|\r|\n/);
+    buffer = (lines.pop() ?? '') + buffer.slice(end);
     for (const line of lines) {
       if (line === '') {
         if (data.length > 0) yield { event: event === '' ? 'message' : event, data: data.join('\n') };

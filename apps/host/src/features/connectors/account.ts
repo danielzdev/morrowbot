@@ -45,6 +45,18 @@ export function mergeSetup(saved: ConnectorSetup, edit: ConnectorSetupEdit): Mer
   }
 }
 
+/** Whether the edit keeps any saved secret instead of entering it again. */
+export function keepsSecrets(edit: ConnectorSetupEdit): boolean {
+  switch (edit.kind) {
+    case 'stdio':
+      return edit.env.some(({ kind }) => kind === 'keep');
+    case 'http':
+      return edit.headers.some(({ kind }) => kind === 'keep');
+    case 'composio':
+      return edit.apiKey.kind === 'keep';
+  }
+}
+
 /** What the connector reaches, without its secrets: a change here points its tools at another server or account. */
 export function targetOf(setup: ConnectorSetup): string {
   switch (setup.kind) {

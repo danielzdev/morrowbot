@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import type { ConnectorSetupEdit } from '@morrowbot/contracts';
 import { afterEach, expect, it } from 'vitest';
-import { connectorToolNames, startConnectorKit, STDIO_SERVER, stdioSetup, type ConnectorKit } from './testing/connector-kit.ts';
+import { connectorToolNames, FIXTURE_TOKEN, startConnectorKit, STDIO_SERVER, stdioSetup, type ConnectorKit } from './testing/connector-kit.ts';
 
 let kit: ConnectorKit | undefined;
 afterEach(async () => {
@@ -14,6 +14,13 @@ afterEach(async () => {
 const KEEP_ENV: Extract<ConnectorSetupEdit, { kind: 'stdio' }>['env'] = [
   { kind: 'keep', name: 'FIXTURE_ACCOUNT' },
   { kind: 'keep', name: 'FIXTURE_LOG' },
+  { kind: 'keep', name: 'FIXTURE_TOKEN' },
+];
+/** The same variables entered again, as a change of command requires. */
+const setEnv = (log: string): Extract<ConnectorSetupEdit, { kind: 'stdio' }>['env'] => [
+  { kind: 'set', name: 'FIXTURE_ACCOUNT', value: 'work' },
+  { kind: 'set', name: 'FIXTURE_LOG', value: log },
+  { kind: 'set', name: 'FIXTURE_TOKEN', value: FIXTURE_TOKEN },
 ];
 
 /** The text of a `tools/call` answer, or of its refusal. */
@@ -167,18 +174,24 @@ it('pauses a Selected scope when the connector is pointed elsewhere, until a sco
   await kit.connectors.settled(id);
   const a = kit.turn('agent-a');
   const afterRename = { status: kit.view(id).status, review: kit.view(id).scope.scopeReviewRequired, tools: connectorToolNames(await a.list()).length };
-  kit.connectors.updateAccount(id, {
+  const keptWhileRetargeting = kit.connectors.updateAccount(id, {
     label: 'Notes · Work',
     setup: { kind: 'stdio', command: process.execPath, args: [STDIO_SERVER, '--other-account'], env: KEEP_ENV },
   });
+  const readBefore = kit.view(id).scope.revision;
+  kit.connectors.updateAccount(id, {
+    label: 'Notes · Work',
+    setup: { kind: 'stdio', command: process.execPath, args: [STDIO_SERVER, '--other-account'], env: setEnv(log) },
+  });
   await kit.connectors.settled(id);
+  const staleClear = kit.connectors.setScope(id, { mode: 'selected', agentIds: ['agent-a'], revision: readBefore });
   const retargeted = { status: kit.view(id).status, tools: connectorToolNames(await a.list()), call: said(await a.call('notes_work__echo', {})) };
   const missingSecret = kit.connectors.updateAccount(id, { label: 'Notes · Work', setup: { kind: 'stdio', command: 'x', args: [], env: [{ kind: 'keep', name: 'NEVER_SET' }] } });
   const scope = kit.view(id).scope;
   kit.connectors.setScope(id, { mode: 'selected', agentIds: ['agent-a'], revision: scope.revision });
   const reviewed = { status: kit.view(id).status, tools: connectorToolNames(await a.list()) };
 
-  expect({ renamed: renamed.kind, afterRename, retargeted, missingSecret, reviewed }).toMatchInlineSnapshot(`
+  expect({ renamed: renamed.kind, afterRename, keptWhileRetargeting, staleClear: staleClear.kind, retargeted, missingSecret, reviewed }).toMatchInlineSnapshot(`
     {
       "afterRename": {
         "review": false,
@@ -187,6 +200,10 @@ it('pauses a Selected scope when the connector is pointed elsewhere, until a sco
           "toolCount": 4,
         },
         "tools": 4,
+      },
+      "keptWhileRetargeting": {
+        "kind": "invalid",
+        "reason": "This points the connector somewhere new: enter its keys and secret values again.",
       },
       "missingSecret": {
         "kind": "invalid",
@@ -212,6 +229,7 @@ it('pauses a Selected scope when the connector is pointed elsewhere, until a sco
           "notes_work__env",
         ],
       },
+      "staleClear": "conflict",
     }
   `);
 });
@@ -257,6 +275,31 @@ it('refuses a label already in use by another connector, compared by its tool-na
       ],
       "renameOnto": "label-taken",
       "sameKey": "label-taken",
+    }
+  `);
+});
+
+it('gives no connectors to an agent shared with a member, and hides secret values a server echoes in an error', async () => {
+  kit = await startConnectorKit({ agentIds: ['agent-a', 'agent-shared'] });
+  await kit.add({ label: 'Notes', setup: stdioSetup('work', path.join(kit.dir, 'log')), scope: { mode: 'all', agentIds: [] } });
+  kit.storage.members.insert(
+    { memberId: 'member-1', name: 'Guest', access: { kind: 'scoped', agents: [{ agentId: 'agent-shared', canEdit: false, workspace: 'read-only', interAgentAllowlist: [] }] }, createdAt: '2026-01-01T00:00:00.000Z' },
+    'code-hash',
+    '2099-01-01T00:00:00.000Z',
+  );
+  const shared = kit.turn('agent-shared');
+  const a = kit.turn('agent-a');
+  expect({
+    sharedTools: connectorToolNames(await shared.list()),
+    sharedCall: said(await shared.call('notes__echo', { text: 'hi' })),
+    ownTools: connectorToolNames(await a.list()).length,
+    leak: said(await a.call('notes__echo', { text: 'leak' })),
+  }).toMatchInlineSnapshot(`
+    {
+      "leak": "Notes: The server answered with error -32000: Rejected token [hidden]",
+      "ownTools": 4,
+      "sharedCall": "Connectors are not given to agents shared with other people.",
+      "sharedTools": [],
     }
   `);
 });

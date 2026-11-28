@@ -6,8 +6,8 @@ import {
   type SetConnectorScopeRequest,
   type UpdateConnectorAccountRequest,
 } from '@morrowbot/contracts';
-import { mergeSetup, targetOf } from './account.ts';
-import { agentTools, callAgentTool } from './agent-access.ts';
+import { keepsSecrets, mergeSetup, targetOf } from './account.ts';
+import { agentTools, callAgentTool, type AccessContext } from './agent-access.ts';
 import { bindTools } from './bindings.ts';
 import type { AgentConnectorCall, AgentConnectorTool, ConnectorStore, ScopeChoice, StoredConnector } from './ports.ts';
 import type { ConnectorRuntime } from './runtime.ts';
@@ -57,6 +57,7 @@ export interface ConnectorServiceOptions {
   readonly runtime: ConnectorRuntime;
   readonly safeMode: boolean;
   readonly agentExists: (id: string) => boolean;
+  readonly sharedWithMembers: AccessContext['sharedWithMembers'];
   readonly newId: () => string;
   readonly now: () => string;
   readonly report: (error: unknown) => void;
@@ -64,6 +65,7 @@ export interface ConnectorServiceOptions {
 
 export function createConnectorService(options: ConnectorServiceOptions): ConnectorService {
   const { store, runtime, safeMode } = options;
+  const access: AccessContext = { safeMode, sharedWithMembers: options.sharedWithMembers, runtime };
 
   const view = (record: StoredConnector): Connector => {
     const state = runtime.state(record.id);
@@ -129,6 +131,7 @@ export function createConnectorService(options: ConnectorServiceOptions): Connec
       const merged = mergeSetup(record.setup, request.setup);
       if (merged.kind === 'invalid') return merged;
       const retargeted = targetOf(merged.setup) !== targetOf(record.setup);
+      if (retargeted && keepsSecrets(request.setup)) return { kind: 'invalid', reason: 'This points the connector somewhere new: enter its keys and secret values again.' };
       const saved = store.updateAccount(id, {
         label: request.label,
         labelKey: connectorLabelKey(request.label),
@@ -165,8 +168,9 @@ export function createConnectorService(options: ConnectorServiceOptions): Connec
       return viewOf(id);
     },
     remove: async (id) => {
+      const removed = store.delete(id);
       await runtime.disconnect(id);
-      return store.delete(id);
+      return removed;
     },
     settled: async (id) => {
       await syncing.get(id);
@@ -178,7 +182,7 @@ export function createConnectorService(options: ConnectorServiceOptions): Connec
       await runtime.closeAll();
       await Promise.all(syncing.values());
     },
-    toolsFor: (agentId) => agentTools(store.list(), agentId, safeMode, runtime),
-    call: (agentId, name, args, signal) => callAgentTool(store.list(), agentId, name, args, signal, safeMode, runtime),
+    toolsFor: (agentId) => agentTools(store.list(), agentId, access),
+    call: (agentId, name, args, signal) => callAgentTool(store.list(), agentId, name, args, signal, access),
   };
 }
