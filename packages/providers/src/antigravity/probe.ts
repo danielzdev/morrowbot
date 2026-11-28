@@ -25,8 +25,9 @@ export async function probeSession(live: Live, cwd: string, deadline: number): P
     const options = configOptions ?? [];
     catalog.observe(options, true);
     const model = acp.selectOf(options, MODEL);
-    for (const { value } of model?.values ?? []) {
-      if (value === model?.current) continue;
+    if (model === null) return;
+    for (const { value } of model.values) {
+      if (value === model.current) continue;
       if (Date.now() >= deadline) return;
       const reply = await daemon.call('session/set_config_option', { sessionId, configId: MODEL, value }, acp.SetConfigResponse, left());
       if (reply.kind === 'unanswered') return;

@@ -21,8 +21,8 @@ open with no MCP servers and its agents cannot message other agents or keep memo
 only inside a session. While none are known, or the user was signed out, provider-info opens a probe
 session in the provider's data folder that never prompts: `session/new`, each model set in turn,
 `session/close` (about 1 s on agy 1.5.18). A model agy will not switch to is skipped; the probe runs
-again on the next provider-info until every model was tried. It fits in one 27 s budget with the
-version check and daemon start, under the host's 30 s provider-info deadline. A `session/new`
+again on the next provider-info until every model was tried. It uses what is left of a 27 s
+budget that starts with provider-info, under the host's 30 s deadline. A `session/new`
 refused for sign-in (`-32000`) answers `signed-out` at once. If the probe cannot run in time,
 provider-info answers `ready-models-later`.
 

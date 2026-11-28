@@ -44,7 +44,7 @@ export interface AcpClient {
   attach(sessionId: string, handlers: SessionHandlers): () => void;
   /**
    * Marks a session the provider runs with full access: the changes it makes are allowed, so the
-   * tripwire stops watching it until the returned function is called (once the session is closed).
+   * tripwire stops watching it until the returned function is called (once the agent closed it).
    * Every other session stays fenced.
    */
   trust(sessionId: string): () => void;
