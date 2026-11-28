@@ -1,9 +1,9 @@
-import { rm } from 'node:fs/promises';
+import { chmod, rm } from 'node:fs/promises';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import type { CleanupJob } from './cleanup-job.ts';
 import { fakeHome, fakeKeychain, type FakeHome } from './reset-fixture.ts';
 import { RELEASE_TOKEN, SAFE_STORAGE } from './reset-paths.ts';
-import { dataPlanOf, type DataChoice } from './reset-plan.ts';
+import { dataPlanOf, deleteRefusalNow, type DataChoice } from './reset-plan.ts';
 import { runCleanup, type CleanupDeps } from './run-cleanup.ts';
 
 let fake: FakeHome;
@@ -14,7 +14,7 @@ afterEach(async () => {
   await fake.remove();
 });
 
-const exited = (keychain = fakeKeychain([])): CleanupDeps => ({ keychain, isAlive: () => false, sleep: () => Promise.resolve() });
+const exited = (keychain = fakeKeychain([])): CleanupDeps => ({ keychain, isAlive: () => false, sleep: () => Promise.resolve(), beat: () => undefined });
 
 /** The steps the user would confirm for `context` right now. */
 async function confirmed(context: CleanupJob['context'], keychain = fakeKeychain([]), choice: DataChoice = 'full-uninstall'): Promise<CleanupJob> {
@@ -71,7 +71,7 @@ it('removes exactly the confirmed MorrowBot files and Keychain items, and leaves
             "path": "~/Library/Application Support/MorrowBot",
           },
           {
-            "account": "MorrowBot",
+            "account": "MorrowBot Key",
             "kind": "keychain",
             "service": "MorrowBot Safe Storage",
           },
@@ -214,6 +214,50 @@ it('checks each path on disk again just before deleting it, and reports a Keycha
           },
         ],
       },
+    }
+  `);
+});
+
+it("keeps Electron's Safe Storage key when its profile folder could not be deleted, and never deletes a path it cannot check", async () => {
+  await fake.file('.morrowbot/attachments/a.png');
+  await fake.file('Library/Application Support/MorrowBot/Cookies');
+  const keychain = fakeKeychain([SAFE_STORAGE]);
+  const job = await confirmed(fake.context('installed', '.morrowbot'), keychain);
+  const profile = `${fake.home}/Library/Application Support/MorrowBot`;
+  await chmod(profile, 0o500);
+  const report = await runCleanup(job, exited(keychain));
+  await chmod(profile, 0o700);
+  await chmod(`${fake.home}/.morrowbot`, 0o000);
+  const unreadable = await deleteRefusalNow(job.context, `${fake.home}/.morrowbot/attachments`);
+  await chmod(`${fake.home}/.morrowbot`, 0o700);
+  const summary = report.kind === 'done' ? { done: report.done, skipped: report.skipped, failed: report.failed.map(({ step }) => step) } : report;
+  expect(fake.short({ summary, keychain: [...keychain.items], unreadable })).toMatchInlineSnapshot(`
+    {
+      "keychain": [
+        "MorrowBot Safe Storage / MorrowBot Key",
+      ],
+      "summary": {
+        "done": [
+          {
+            "kind": "delete",
+            "path": "~/.morrowbot/attachments",
+          },
+        ],
+        "failed": [
+          {
+            "kind": "delete",
+            "path": "~/Library/Application Support/MorrowBot",
+          },
+        ],
+        "skipped": [
+          {
+            "account": "MorrowBot Key",
+            "kind": "keychain",
+            "service": "MorrowBot Safe Storage",
+          },
+        ],
+      },
+      "unreadable": "MorrowBot could not check it, so it stays.",
     }
   `);
 });

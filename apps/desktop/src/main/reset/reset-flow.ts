@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { z } from 'zod';
-import type { ResetChoice, ResetOutcome, ResetPlan, ResetStep } from '../../renderer/bridge.ts';
+import type { ResetChoice, ResetOption, ResetOutcome, ResetPlan, ResetStep } from '../../renderer/bridge.ts';
 import { checkSender, IpcRefusedError } from '../ipc-proxy.ts';
 import type { FromRenderer } from '../shell-actions.ts';
 import type { CleanupJob, Relaunch } from './cleanup-job.ts';
@@ -24,8 +24,8 @@ export interface ResetDeps {
   /** Where the app runs from, and whether an update is pending, right now. */
   readonly bundle: () => BundleInput;
   readonly keychain: Keychain;
-  /** Stops new update checks, so none starts between the last check and quitting. */
-  readonly pauseUpdates: () => void;
+  /** Holds update checks, timed or asked for, while a run decides; resumed when it is refused. */
+  readonly updates: { readonly pause: () => void; readonly resume: () => void };
   /** Open at Login, which uninstalling turns off so macOS does not keep a login item for a trashed app. */
   readonly loginItem: { readonly isOn: () => boolean; readonly set: (on: boolean) => void };
   /** False once MorrowBot has begun quitting or restarting. */
@@ -37,8 +37,8 @@ export interface ResetDeps {
   readonly relaunch: Relaunch;
   readonly mainPid: number;
   readonly quit: () => void;
-  /** After a failure with the host already stopped: tell the user and restart MorrowBot. */
-  readonly recover: (message: string) => void;
+  /** After a failure with the host already stopped: tell the user, then restart MorrowBot (or just quit once the app is in the Trash). */
+  readonly recover: (message: string, restart: boolean) => void;
 }
 
 export interface ResetFlow {
@@ -50,8 +50,8 @@ const refused = (reason: string): ResetOutcome => ({ kind: 'refused', reason });
 
 /**
  * Settings › About › Reset or Uninstall, in main. `plan` resolves every choice and remembers that
- * exact list under a new token; `run` pauses update checks, then acts only on a choice from the latest
- * list, and only when resolving it again gives the same steps. It stops the host, starts the cleanup helper for any
+ * exact list under a new token; `run` holds update checks, then acts only on a choice from the latest
+ * list, and only when resolving it again gives the same steps; a refusal resumes them. It stops the host, starts the cleanup helper for any
  * deletion (it runs after main exits), moves the app to the Trash itself, then quits.
  */
 export function resetFlow(deps: ResetDeps): ResetFlow {
@@ -63,34 +63,35 @@ export function resetFlow(deps: ResetDeps): ResetFlow {
     return { context, options: await resetOptionsOf(context, deps.bundle(), deps.keychain) };
   };
 
-  /** Moves the app to the Trash after checking the bundle on disk once more, with Open at Login off; restores it on failure. */
+  /** Checks the bundle on disk once more, turns Open at Login off, and moves the app to the Trash; turns it back on if that fails. */
   async function uninstall(trash: readonly string[], context: ResetContext): Promise<void> {
+    for (const target of trash) {
+      const bundle = await bundlePlanOf(context, deps.bundle());
+      if (bundle.kind === 'refused') throw new Error(bundle.reason);
+      if (bundle.path !== target) throw new Error('MorrowBot.app moved since the list was made.');
+    }
     const wasOn = deps.loginItem.isOn();
     if (wasOn) deps.loginItem.set(false);
     try {
-      for (const target of trash) {
-        const bundle = await bundlePlanOf(context, deps.bundle());
-        if (bundle.kind === 'refused') throw new Error(bundle.reason);
-        if (bundle.path !== target) throw new Error('MorrowBot.app moved since the list was made.');
-        await deps.trash(target);
-      }
+      for (const target of trash) await deps.trash(target);
     } catch (error) {
       if (wasOn) deps.loginItem.set(true);
       throw error;
     }
   }
 
-  async function act(choice: ResetChoice, steps: readonly ResetStep[], context: ResetContext): Promise<void> {
+  /** Runs a confirmed choice. `data-kept`: the app is already in the Trash but the helper could not be told to go ahead. */
+  async function act(choice: ResetChoice, steps: readonly ResetStep[], context: ResetContext): Promise<{ readonly kind: 'done' } | { readonly kind: 'data-kept'; readonly reason: string }> {
     const trash = steps.flatMap((step) => (step.kind === 'trash' ? [step.path] : []));
     const approved = steps.filter((step) => step.kind !== 'trash');
     const job = (jobChoice: CleanupJob['choice']): CleanupJob => ({ choice: jobChoice, context, approved, waitPids: [deps.mainPid] });
     switch (choice) {
       case 'reset':
         await (await deps.startHelper(job({ kind: 'reset', relaunch: deps.relaunch }))).release();
-        return;
+        return { kind: 'done' };
       case 'uninstall-app':
         await uninstall(trash, context);
-        return;
+        return { kind: 'done' };
       case 'full-uninstall': {
         const helper = await deps.startHelper(job({ kind: 'full-uninstall' }));
         try {
@@ -99,8 +100,12 @@ export function resetFlow(deps: ResetDeps): ResetFlow {
           helper.cancel();
           throw error;
         }
-        await helper.release();
-        return;
+        try {
+          await helper.release();
+        } catch (error) {
+          return { kind: 'data-kept', reason: error instanceof Error ? error.message : String(error) };
+        }
+        return { kind: 'done' };
       }
     }
   }
@@ -116,32 +121,43 @@ export function resetFlow(deps: ResetDeps): ResetFlow {
       if (shown === null || shown.token !== token) return refused('This list is out of date. Review it again.');
       const before = shown.options.find((option) => option.choice === choice);
       busy = true;
-      try {
-        deps.pauseUpdates();
-        const { context, options } = await optionsNow();
-        const now = options.find((option) => option.choice === choice);
-        if (now === undefined || !isDeepStrictEqual(before, now)) {
-          shown = null;
-          busy = false;
-          return refused('Something changed since this list was made. Review it again.');
-        }
-        if (now.kind === 'unavailable') {
-          busy = false;
-          return refused(now.reason);
-        }
-        await deps.stopHost();
-        try {
-          await act(choice, now.steps, context);
-        } catch (error) {
-          deps.recover(error instanceof Error ? error.message : String(error));
-          return refused('MorrowBot could not finish, so it is restarting with everything as it was.');
-        }
-        deps.quit();
-        return { kind: 'quitting' };
-      } catch (error) {
+      deps.updates.pause();
+      const handBack = (): void => {
         busy = false;
+        deps.updates.resume();
+      };
+      const giveBack = (outcome: ResetOutcome): ResetOutcome => {
+        handBack();
+        return outcome;
+      };
+      let now: ResetOption | undefined;
+      let context: ResetContext;
+      try {
+        const fresh = await optionsNow();
+        context = fresh.context;
+        now = fresh.options.find((option) => option.choice === choice);
+      } catch (error) {
+        handBack();
         throw error;
       }
+      if (now === undefined || !isDeepStrictEqual(before, now)) {
+        shown = null;
+        return giveBack(refused('Something changed since this list was made. Review it again.'));
+      }
+      if (now.kind === 'unavailable') return giveBack(refused(now.reason));
+      await deps.stopHost();
+      try {
+        const result = await act(choice, now.steps, context);
+        if (result.kind === 'data-kept') {
+          deps.recover(`MorrowBot.app is in the Trash, but its data could not be removed: ${result.reason}`, false);
+          return refused('MorrowBot.app is in the Trash, but its data was not removed. MorrowBot is quitting.');
+        }
+      } catch (error) {
+        deps.recover(error instanceof Error ? error.message : String(error), true);
+        return refused('MorrowBot could not finish, so it is restarting with everything as it was.');
+      }
+      deps.quit();
+      return { kind: 'quitting' };
     },
   };
 }

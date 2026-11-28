@@ -54,13 +54,13 @@ it('lists every choice with unavailable ones disabled and explained, then every 
       "choose": [
         "Choose what to do. You see every file before anything happens.",
         "(disabled) Reset & start fresh Deletes MorrowBot's chats, settings, plugins and caches, then reopens it like new. The app stays installed. MorrowBot's host isn't running.",
-        "( ) Uninstall app (keep data) Moves MorrowBot.app to the Trash and quits. Your data stays for a future reinstall.",
-        "( ) Full uninstall (app + all data) Moves MorrowBot.app to the Trash, quits, then deletes all of MorrowBot's data, caches and Keychain items.",
+        "( ) Uninstall app (keep data) Turns off Open at Login, moves MorrowBot.app to the Trash and quits. Your data stays for a future reinstall.",
+        "( ) Full uninstall (app + all data) Turns off Open at Login, moves MorrowBot.app to the Trash, quits, then deletes all of MorrowBot's data, caches and Keychain items.",
         "[Cancel]",
         "[Continue…, disabled]",
       ],
       "confirm": [
-        "Moves MorrowBot.app to the Trash, quits, then deletes all of MorrowBot's data, caches and Keychain items.",
+        "Turns off Open at Login, moves MorrowBot.app to the Trash, quits, then deletes all of MorrowBot's data, caches and Keychain items.",
         "Moved to the Trash",
         "/Applications/MorrowBot.app",
         "Deleted for good",

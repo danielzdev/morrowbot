@@ -64,13 +64,13 @@ export const CHOICE_COPY: Readonly<Record<ResetChoice, ChoiceCopy>> = {
   },
   'uninstall-app': {
     title: 'Uninstall app (keep data)',
-    summary: 'Moves MorrowBot.app to the Trash and quits. Your data stays for a future reinstall.',
+    summary: 'Turns off Open at Login, moves MorrowBot.app to the Trash and quits. Your data stays for a future reinstall.',
     confirm: 'Move to Trash & quit',
     understand: 'I understand MorrowBot quits and moves to the Trash.',
   },
   'full-uninstall': {
     title: 'Full uninstall (app + all data)',
-    summary: "Moves MorrowBot.app to the Trash, quits, then deletes all of MorrowBot's data, caches and Keychain items.",
+    summary: "Turns off Open at Login, moves MorrowBot.app to the Trash, quits, then deletes all of MorrowBot's data, caches and Keychain items.",
     confirm: 'Uninstall everything',
     understand: 'I understand the deleted items cannot be recovered.',
   },

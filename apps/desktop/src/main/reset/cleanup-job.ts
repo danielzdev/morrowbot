@@ -53,24 +53,22 @@ const Job: z.ZodType<CleanupJob> = z.strictObject({
   waitPids: z.array(z.number().int().positive()).min(1).max(10),
 });
 
-/** Reads the job from the helper's command line, or null when it is not one. */
-export function parseCleanupJob(text: string | undefined): CleanupJob | null {
-  if (text === undefined) return null;
-  try {
-    const parsed = Job.safeParse(JSON.parse(text));
-    return parsed.success ? parsed.data : null;
-  } catch {
-    return null;
-  }
+const JobMessage = z.strictObject({ kind: z.literal('job'), job: Job });
+
+/** Reads the job from main's first IPC message (too big for a command line), or null when it is not one. */
+export function parseJobMessage(message: unknown): CleanupJob | null {
+  const parsed = JobMessage.safeParse(message);
+  return parsed.success ? parsed.data.job : null;
 }
 
-/** Why the helper must not run this job, or null: its platform, home and relaunch program must be the helper's own. */
+/** Why the helper must not run this job, or null: its platform, home and relaunch program must be the helper's own, and the installed app relaunches with no arguments. */
 export function jobRefusal(job: CleanupJob, facts: HelperFacts): string | null {
   if (job.context.platform !== facts.platform) return 'The job names another platform.';
   if (job.context.homeDir !== facts.homeDir) return 'The job names another home folder.';
   switch (job.choice.kind) {
     case 'reset':
-      return job.choice.relaunch.command === facts.execPath ? null : 'The job would start another program.';
+      if (job.choice.relaunch.command !== facts.execPath) return 'The job would start another program.';
+      return job.context.profile.kind === 'installed' && job.choice.relaunch.args.length > 0 ? 'The installed app relaunches with no arguments.' : null;
     case 'full-uninstall':
       return null;
   }

@@ -65,18 +65,19 @@ export interface KeychainItem {
 /** The release feed token RELEASING.md has testers add. Reset keeps it so updates keep working; only Full uninstall removes it. */
 export const RELEASE_TOKEN: KeychainItem = { service: `${APP_ID}.releases`, account: 'releases' };
 
-/** Electron's key for the files in `ELECTRON_PROFILE`; removed only together with them. */
-export const SAFE_STORAGE: KeychainItem = { service: `${PRODUCT_NAME} Safe Storage`, account: PRODUCT_NAME };
+/** Electron's key for the files in `ELECTRON_PROFILE` (Chromium names the account `<app> Key`); removed only once they are gone. */
+export const SAFE_STORAGE: KeychainItem = { service: `${PRODUCT_NAME} Safe Storage`, account: `${PRODUCT_NAME} Key` };
 
 /**
- * A path as APFS compares it by default: normalised, no trailing separator, one Unicode form, any case. Every
- * protection check compares these, so `~/.MorrowBot` is `~/.morrowbot` and a workspace spelt in another case
- * is still that workspace. Comparing more paths as equal only ever refuses more.
+ * A path as APFS compares it by default: normalised, no trailing separator, one Unicode form, any case (folded
+ * through upper case too, so `ſ` is `s`). Every protection check compares these, so `~/.MorrowBot` is
+ * `~/.morrowbot` and a workspace spelt in another case is still that workspace. Folding more paths together
+ * only ever refuses more: every target is built inside its root, and must also equal its own `realpath`.
  */
-function comparable(target: string): string {
+export function comparable(target: string): string {
   const normal = path.normalize(target);
   const trimmed = normal.length > 1 && normal.endsWith(path.sep) ? normal.slice(0, -1) : normal;
-  return trimmed.normalize('NFC').toLowerCase();
+  return trimmed.normalize('NFC').toUpperCase().toLowerCase().normalize('NFC');
 }
 
 /** True when `inner` is `outer` or inside it, compared as APFS would (see `comparable`). */
@@ -124,9 +125,10 @@ export function deleteCandidatesOf(context: ResetContext): readonly DeleteCandid
   }
 }
 
-/** What the disk says about a path, read with `lstat` and `realpath`. */
+/** What the disk says about a path, read with `lstat` and `realpath`. `unreadable`: either failed for a reason but absence. */
 export type PathFacts =
   | { readonly kind: 'missing' }
+  | { readonly kind: 'unreadable' }
   | { readonly kind: 'symlink' }
   | { readonly kind: 'present'; readonly realPath: string };
 
@@ -145,6 +147,8 @@ export function refusalOf(target: string, root: string, homeDir: string, facts: 
   if (!strictlyInside(target, root) || !strictlyInside(target, homeDir)) return "Outside MorrowBot's own folders.";
   if (workspaces.some((workspace) => isWithin(target, workspace) || isWithin(workspace, target))) return 'An agent workspace, or holds one. Workspaces are never touched.';
   switch (facts.kind) {
+    case 'unreadable':
+      return 'MorrowBot could not check it, so it stays.';
     case 'symlink':
       return 'A symbolic link. MorrowBot does not follow it.';
     case 'present':

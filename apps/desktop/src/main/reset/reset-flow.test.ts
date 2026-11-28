@@ -14,14 +14,14 @@ afterEach(async () => {
 });
 
 /** The flow with Electron's part recorded as calls; `failTrash` makes moving to the Trash fail, `atStop` runs while the host stops. */
-function flow(options: { readonly failTrash?: boolean; readonly atStop?: () => Promise<unknown> } = {}): { readonly reset: ResetFlow; readonly calls: unknown[] } {
+function flow(options: { readonly failTrash?: boolean; readonly failRelease?: boolean; readonly atStop?: () => Promise<unknown> } = {}): { readonly reset: ResetFlow; readonly calls: unknown[] } {
   const calls: unknown[] = [];
   let openAtLogin = true;
   const deps: ResetDeps = {
     context: () => Promise.resolve(fake.context('installed', '.morrowbot')),
     bundle: () => ({ packaged: true, execPath: `${fake.home}/Applications/MorrowBot.app/Contents/MacOS/MorrowBot`, updatePending: false }),
     keychain: fakeKeychain([]),
-    pauseUpdates: () => calls.push('pause updates'),
+    updates: { pause: () => calls.push('pause updates'), resume: () => calls.push('resume updates') },
     loginItem: {
       isOn: () => openAtLogin,
       set: (on) => {
@@ -39,7 +39,7 @@ function flow(options: { readonly failTrash?: boolean; readonly atStop?: () => P
       return Promise.resolve({
         release: () => {
           calls.push('release helper');
-          return Promise.resolve();
+          return options.failRelease === true ? Promise.reject(new Error('The cleanup helper stopped before it could go ahead.')) : Promise.resolve();
         },
         cancel: () => calls.push('cancel helper'),
       });
@@ -51,7 +51,7 @@ function flow(options: { readonly failTrash?: boolean; readonly atStop?: () => P
     relaunch: { command: '/Applications/MorrowBot.app/Contents/MacOS/MorrowBot', args: [], cwd: '/' },
     mainPid: 100,
     quit: () => calls.push('quit'),
-    recover: (message) => calls.push({ recover: message }),
+    recover: (message, restart) => calls.push({ recover: message, restart }),
   };
   return { reset: resetFlow(deps), calls };
 }
@@ -145,7 +145,7 @@ it('runs each choice in order: stop the host, start the helper for deletions, mo
   `);
 });
 
-it('refuses a stale token or a list that changed since it was shown, before stopping anything; a failed Trash, or a bundle that changed while the host stopped, cancels the helper, turns Open at Login back on and restarts', async () => {
+it('refuses a stale token or a list that changed since it was shown, before stopping anything; a failed Trash, or a bundle that changed while the host stopped, cancels the helper, turns Open at Login back on and restarts; a helper lost after the Trash quits and says so', async () => {
   const stale = flow();
   await stale.reset.plan();
   const staleOutcome = await stale.reset.run('reset', 'not-the-token');
@@ -167,17 +167,23 @@ it('refuses a stale token or a list that changed since it was shown, before stop
   const swapped = flow({ atStop: () => fake.file('Applications/MorrowBot.app/Contents/Info.plist', INFO_PLIST('com.other.app')) });
   const swappedOutcome = await swapped.reset.run('uninstall-app', (await swapped.reset.plan()).token);
 
+  await fake.file('Applications/MorrowBot.app/Contents/Info.plist', INFO_PLIST('com.legendarykoi.morrowbot'));
+  const unreleased = flow({ failRelease: true });
+  const unreleasedOutcome = await unreleased.reset.run('full-uninstall', (await unreleased.reset.plan()).token);
+
   expect({
     stale: { outcome: staleOutcome, calls: stale.calls },
     changed: { outcome: changedOutcome, calls: changed.calls },
     failedTrash: { outcome: failedOutcome, calls: failing.calls.filter((call) => typeof call === 'string' || 'recover' in Object(call)) },
     appGone: { outcome: goneOutcome, calls: gone.calls },
     bundleSwappedWhileStopping: { outcome: swappedOutcome, calls: swapped.calls },
+    helperLostAfterTrash: { outcome: unreleasedOutcome, calls: unreleased.calls.filter((call) => typeof call === 'string' || 'recover' in Object(call)) },
   }).toMatchInlineSnapshot(`
     {
       "appGone": {
         "calls": [
           "pause updates",
+          "resume updates",
         ],
         "outcome": {
           "kind": "refused",
@@ -188,10 +194,9 @@ it('refuses a stale token or a list that changed since it was shown, before stop
         "calls": [
           "pause updates",
           "stop host",
-          "open at login off",
-          "open at login on",
           {
             "recover": "This app bundle is not com.legendarykoi.morrowbot.",
+            "restart": true,
           },
         ],
         "outcome": {
@@ -202,6 +207,7 @@ it('refuses a stale token or a list that changed since it was shown, before stop
       "changed": {
         "calls": [
           "pause updates",
+          "resume updates",
         ],
         "outcome": {
           "kind": "refused",
@@ -217,11 +223,28 @@ it('refuses a stale token or a list that changed since it was shown, before stop
           "cancel helper",
           {
             "recover": "The Finder refused",
+            "restart": true,
           },
         ],
         "outcome": {
           "kind": "refused",
           "reason": "MorrowBot could not finish, so it is restarting with everything as it was.",
+        },
+      },
+      "helperLostAfterTrash": {
+        "calls": [
+          "pause updates",
+          "stop host",
+          "open at login off",
+          "release helper",
+          {
+            "recover": "MorrowBot.app is in the Trash, but its data could not be removed: The cleanup helper stopped before it could go ahead.",
+            "restart": false,
+          },
+        ],
+        "outcome": {
+          "kind": "refused",
+          "reason": "MorrowBot.app is in the Trash, but its data was not removed. MorrowBot is quitting.",
         },
       },
       "stale": {

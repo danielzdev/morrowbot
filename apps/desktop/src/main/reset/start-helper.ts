@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { lstat, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { AgentList } from '@morrowbot/contracts';
@@ -7,65 +7,102 @@ import type { ServerMode } from '../../renderer/bridge.ts';
 import { proxyRequest, type HostTarget } from '../ipc-proxy.ts';
 import type { CleanupJob } from './cleanup-job.ts';
 import type { HelperHandle } from './reset-flow.ts';
-import { writeResetLock } from './reset-lock.ts';
+import { clearResetLock, writeResetLock } from './reset-lock.ts';
 
 const READY_MS = 15_000;
+const Ready = z.strictObject({ kind: z.literal('ready') });
+const Committed = z.strictObject({ kind: z.literal('committed') });
 
 /**
- * Starts the cleanup helper detached under Electron-as-Node, so it outlives main, and waits until it
- * has loaded every module it needs: after that, moving MorrowBot.app to the Trash cannot break it.
- * It acts only once `release` has written the reset lock and sent `commit`.
+ * Starts the cleanup helper detached under Electron-as-Node, so it outlives main, sends it the job over IPC, and
+ * waits until it has checked the job and loaded every module it needs: after that, moving MorrowBot.app to the
+ * Trash cannot break it. The reset lock is written before this resolves; `release` sends `commit` and waits for
+ * `committed`; `cancel` and any failed release kill the helper and remove the lock.
  */
 export function startCleanupHelper(script: string, job: CleanupJob): Promise<HelperHandle> {
-  const child = spawn(process.execPath, [script, JSON.stringify(job)], {
+  const dataDir = job.context.profile.dataDir;
+  const child = spawn(process.execPath, [script], {
     detached: true,
     stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
     env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
   });
+  const kill = (): void => {
+    child.kill('SIGKILL');
+    clearResetLock(dataDir);
+  };
+  let started = false;
   return new Promise((resolve, reject) => {
     const fail = (message: string): void => {
+      if (started) return;
+      started = true;
       clearTimeout(timer);
-      child.kill('SIGKILL');
+      kill();
       reject(new Error(message));
     };
     const timer = setTimeout(() => {
       fail('The cleanup helper did not start in time.');
     }, READY_MS);
-    child.once('error', (error) => {
+    child.on('error', (error) => {
       fail(`The cleanup helper could not start: ${error.message}`);
     });
     child.once('exit', (code) => {
       fail(`The cleanup helper exited early (${String(code)}).`);
     });
     child.once('message', (message) => {
-      if (!z.strictObject({ kind: z.literal('ready') }).safeParse(message).success) {
+      if (!Ready.safeParse(message).success || child.pid === undefined) {
         fail('The cleanup helper sent an unexpected message.');
         return;
       }
+      try {
+        writeResetLock(dataDir, child.pid);
+      } catch (error) {
+        fail(`MorrowBot could not write its reset lock: ${error instanceof Error ? error.message : String(error)}`);
+        return;
+      }
+      started = true;
       clearTimeout(timer);
       child.removeAllListeners('exit');
-      resolve({
-        release: () =>
-          new Promise<void>((done, failed) => {
-            if (child.pid === undefined || !child.connected) {
-              failed(new Error('The cleanup helper is no longer running.'));
-              return;
-            }
-            writeResetLock(job.context.profile.dataDir, child.pid);
-            child.send({ kind: 'commit' }, (error) => {
-              if (error !== null) {
-                failed(error);
-                return;
-              }
-              child.disconnect();
-              child.unref();
-              done();
-            });
-          }),
-        cancel: () => {
-          child.kill('SIGKILL');
-        },
-      });
+      resolve({ release: () => commit(child, kill), cancel: kill });
+    });
+    child.send({ kind: 'job', job }, (error) => {
+      if (error !== null) fail(`MorrowBot could not hand the job to the cleanup helper: ${error.message}`);
+    });
+  });
+}
+
+/** Sends `commit` and resolves once the helper confirms it; anything else kills the helper. */
+function commit(child: ChildProcess, kill: () => void): Promise<void> {
+  return new Promise((done, failed) => {
+    let finished = false;
+    const finish = (error: Error | null): void => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      child.removeAllListeners('exit');
+      if (error !== null) {
+        kill();
+        failed(error);
+        return;
+      }
+      if (child.connected) child.disconnect();
+      child.unref();
+      done();
+    };
+    const timer = setTimeout(() => {
+      finish(new Error('The cleanup helper did not confirm in time.'));
+    }, READY_MS);
+    child.once('exit', () => {
+      finish(new Error('The cleanup helper stopped before it could go ahead.'));
+    });
+    child.once('message', (message) => {
+      finish(Committed.safeParse(message).success ? null : new Error('The cleanup helper sent an unexpected message.'));
+    });
+    if (!child.connected) {
+      finish(new Error('The cleanup helper is no longer running.'));
+      return;
+    }
+    child.send({ kind: 'commit' }, (error) => {
+      if (error !== null) finish(error);
     });
   });
 }
@@ -83,8 +120,8 @@ async function fileState(target: string): Promise<'present' | 'absent' | 'unknow
 /**
  * The agent workspaces a reset must never touch, or null when they cannot be known. With its own host, the host's
  * agents. Without one (joined a server, or still choosing), a data folder that still holds a local database (or may:
- * it could not be checked) has local agents nobody can list, so null; otherwise there are no local agents, and the joined server's list, when it gives
- * one, is kept too.
+ * it could not be checked) has local agents nobody can list, so null. Otherwise there are no local agents, but a joined
+ * server's agents may still work in folders on this Mac, so its list is needed too: null when it does not answer.
  */
 export async function resetWorkspaces(mode: ServerMode, target: HostTarget | undefined, rendererUrl: string, dataDir: string): Promise<readonly string[] | null> {
   switch (mode.kind) {
@@ -93,7 +130,7 @@ export async function resetWorkspaces(mode: ServerMode, target: HostTarget | und
     case 'remote':
     case 'choosing': {
       if ((await fileState(path.join(dataDir, 'morrowbot.sqlite'))) !== 'absent') return null;
-      return mode.kind === 'remote' ? ((await hostWorkspaces(target, rendererUrl)) ?? []) : [];
+      return mode.kind === 'remote' ? hostWorkspaces(target, rendererUrl) : [];
     }
   }
 }

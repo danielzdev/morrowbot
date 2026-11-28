@@ -94,7 +94,7 @@ it('resolves every choice for the installed app to exact paths, keeping workspac
             "path": "~/Library/Preferences/com.legendarykoi.morrowbot.plist",
           },
           {
-            "account": "MorrowBot",
+            "account": "MorrowBot Key",
             "kind": "keychain",
             "service": "MorrowBot Safe Storage",
           },
@@ -171,7 +171,7 @@ it('resolves every choice for the installed app to exact paths, keeping workspac
             "path": "~/Library/Preferences/com.legendarykoi.morrowbot.plist",
           },
           {
-            "account": "MorrowBot",
+            "account": "MorrowBot Key",
             "kind": "keychain",
             "service": "MorrowBot Safe Storage",
           },
@@ -273,9 +273,9 @@ it('refuses to delete data while the host cannot list workspaces, and to trash t
   expect({ hostDown, updatePending, notInApplications, wrongBundleId, linkedBundle, workspaceInBundle }).toMatchInlineSnapshot(`
     {
       "hostDown": [
-        "MorrowBot can't list which folders its agents use right now, so it deletes nothing. Make sure this Mac's own server is running (Settings › Server), then try again.",
+        "MorrowBot can't list which folders its agents use right now, so it deletes nothing. Make sure its server is running and reachable (Settings › Server), then try again.",
         "available",
-        "MorrowBot can't list which folders its agents use right now, so it deletes nothing. Make sure this Mac's own server is running (Settings › Server), then try again.",
+        "MorrowBot can't list which folders its agents use right now, so it deletes nothing. Make sure its server is running and reachable (Settings › Server), then try again.",
       ],
       "linkedBundle": [
         "available",

@@ -3,7 +3,7 @@ import path from 'node:path';
 import type { KeptPath, ResetOption, ResetStep } from '../../renderer/bridge.ts';
 import { APP_ID } from '../app-identity.ts';
 import type { Keychain } from './keychain.ts';
-import { bundleIdIn, bundleOf, dataDirRefusal, deleteCandidatesOf, ELECTRON_PROFILE, isWithin, RELEASE_TOKEN, refusalOf, SAFE_STORAGE, WORKSPACES_ENTRY, workspacesOf, type KeychainItem, type PathFacts, type ResetContext } from './reset-paths.ts';
+import { bundleIdIn, bundleOf, comparable, dataDirRefusal, deleteCandidatesOf, ELECTRON_PROFILE, isWithin, RELEASE_TOKEN, refusalOf, SAFE_STORAGE, WORKSPACES_ENTRY, workspacesOf, type KeychainItem, type PathFacts, type ResetContext } from './reset-paths.ts';
 
 /** Where this process runs from, for finding the app bundle. */
 export interface BundleInput {
@@ -28,14 +28,16 @@ const UPDATE_PENDING = 'An update is on its way. Restart to update, or wait unti
 
 const keychainStep = (item: KeychainItem): ResetStep => ({ kind: 'keychain', service: item.service, account: item.account });
 
-/** `lstat` then `realpath`, without following a final symbolic link. Anything unreadable counts as missing, so it is never touched. */
+const isAbsence = (error: unknown): boolean => error instanceof Error && 'code' in error && (error.code === 'ENOENT' || error.code === 'ENOTDIR');
+
+/** `lstat` then `realpath`, without following a final symbolic link. Only ENOENT and ENOTDIR mean missing; any other failure is `unreadable`. */
 export async function factsOf(target: string): Promise<PathFacts> {
   try {
     const stats = await lstat(target);
     if (stats.isSymbolicLink()) return { kind: 'symlink' };
     return { kind: 'present', realPath: await realpath(target) };
-  } catch {
-    return { kind: 'missing' };
+  } catch (error) {
+    return isAbsence(error) ? { kind: 'missing' } : { kind: 'unreadable' };
   }
 }
 
@@ -48,14 +50,20 @@ async function entriesOf(dir: string): Promise<readonly string[]> {
 }
 
 /**
- * Why `target` may not be deleted right now, read from disk again: null when it may (or is already gone).
- * The helper asks this just before each deletion, so a path swapped for a link since the plan is skipped.
+ * Why `target` may not be deleted right now, read from disk again: null only when it is there and passes
+ * `refusalOf`. The helper asks this just before each deletion, so a path swapped for a link since the plan,
+ * gone, or no longer readable is skipped.
  */
 export async function deleteRefusalNow(context: ResetContext, target: string): Promise<string | null> {
   const candidate = deleteCandidatesOf(context).find((each) => each.path === target);
   if (candidate === undefined) return "Not one of MorrowBot's own files.";
   const facts = await factsOf(target);
-  return facts.kind === 'missing' ? null : refusalOf(target, candidate.root, context.homeDir, facts, workspacesOf(context));
+  return facts.kind === 'missing' ? 'Already gone.' : refusalOf(target, candidate.root, context.homeDir, facts, workspacesOf(context));
+}
+
+/** True only when Electron's profile folder is verifiably gone, so its Safe Storage key protects nothing any more. */
+export async function electronProfileGone(context: ResetContext): Promise<boolean> {
+  return (await factsOf(path.join(context.homeDir, ELECTRON_PROFILE))).kind === 'missing';
 }
 
 /**
@@ -67,7 +75,7 @@ export async function dataPlanOf(context: ResetContext, choice: DataChoice, keyc
   const refusal = dataDirRefusal(context);
   if (refusal !== null) return { kind: 'refused', reason: refusal };
   if (context.workspaces === null) {
-    return { kind: 'refused', reason: "MorrowBot can't list which folders its agents use right now, so it deletes nothing. Make sure this Mac's own server is running (Settings › Server), then try again." };
+    return { kind: 'refused', reason: "MorrowBot can't list which folders its agents use right now, so it deletes nothing. Make sure its server is running and reachable (Settings › Server), then try again." };
   }
   const workspaces = workspacesOf(context);
   const steps: ResetStep[] = [];
@@ -79,11 +87,11 @@ export async function dataPlanOf(context: ResetContext, choice: DataChoice, keyc
     if (reason === null) steps.push({ kind: 'delete', path: candidate.path });
     else kept.push({ path: candidate.path, reason });
   }
-  const own = new Set(deleteCandidatesOf(context).map((candidate) => candidate.path));
+  const own = new Set(deleteCandidatesOf(context).map((candidate) => comparable(candidate.path)));
   for (const name of await entriesOf(context.profile.dataDir)) {
     const entry = path.join(context.profile.dataDir, name);
-    if (own.has(entry)) continue;
-    kept.push({ path: entry, reason: name === WORKSPACES_ENTRY ? 'Agent workspaces are never touched.' : "Not one of MorrowBot's own files." });
+    if (own.has(comparable(entry))) continue;
+    kept.push({ path: entry, reason: comparable(name) === WORKSPACES_ENTRY ? 'Agent workspaces are never touched.' : "Not one of MorrowBot's own files." });
   }
   if (context.profile.kind === 'installed') {
     const electronProfile = path.join(context.homeDir, ELECTRON_PROFILE);

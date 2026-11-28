@@ -1,23 +1,31 @@
+import { utimesSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { expect, it } from 'vitest';
-import { clearResetLock, resetInProgress, writeResetLock } from './reset-lock.ts';
+import { clearResetLock, resetInProgress, resetLockOf, touchResetLock, writeResetLock } from './reset-lock.ts';
 
-it('blocks starting only while a live helper holds a fresh lock for that data folder', () => {
+it('blocks starting only while a live helper holds a recently refreshed lock for that data folder, spelt in any case', () => {
   const dataDir = `/Users/tester/.morrowbot-${randomUUID()}`;
   const alive = (pid: number) => pid === 4242;
   const none = resetInProgress(dataDir, alive);
   writeResetLock(dataDir, 4242);
   const running = resetInProgress(dataDir, alive);
+  const otherCase = resetInProgress(dataDir.toUpperCase(), alive);
   const otherFolder = resetInProgress(`${dataDir}-other`, alive);
-  const stale = resetInProgress(dataDir, alive, Date.now() + 10 * 60_000);
+  const old = new Date(Date.now() - 31 * 60_000);
+  utimesSync(resetLockOf(dataDir), old, old);
+  const stale = resetInProgress(dataDir, alive);
+  touchResetLock(dataDir);
+  const refreshed = resetInProgress(dataDir, alive);
   writeResetLock(dataDir, 999);
   const helperGone = resetInProgress(dataDir, alive);
   clearResetLock(dataDir);
-  expect({ none, running, otherFolder, stale, helperGone, cleared: resetInProgress(dataDir, alive) }).toEqual({
+  expect({ none, running, otherCase, otherFolder, stale, refreshed, helperGone, cleared: resetInProgress(dataDir, alive) }).toEqual({
     none: false,
     running: true,
+    otherCase: true,
     otherFolder: false,
     stale: false,
+    refreshed: true,
     helperGone: false,
     cleared: false,
   });

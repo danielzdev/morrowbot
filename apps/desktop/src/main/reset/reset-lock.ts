@@ -1,14 +1,18 @@
 import { createHash } from 'node:crypto';
-import { readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { comparable } from './reset-paths.ts';
 
-/** A helper still running after this long is not cleaning up anymore; its lock no longer counts. */
-const STALE_MS = 5 * 60_000;
+/** The helper refreshes its lock before every step; one not refreshed for this long belongs to no running cleanup. */
+const STALE_MS = 30 * 60_000;
 
-/** The lock a running cleanup holds for one data folder, in the temp folder so deleting the data folder leaves it. */
+/**
+ * The lock a running cleanup holds for one data folder, in the temp folder so deleting the data folder leaves it.
+ * Keyed by the folder as APFS compares it, so `~/.MorrowBot` finds the lock for `~/.morrowbot`.
+ */
 export const resetLockOf = (dataDir: string): string =>
-  path.join(tmpdir(), `morrowbot-reset-${createHash('sha256').update(dataDir).digest('hex').slice(0, 16)}.lock`);
+  path.join(tmpdir(), `morrowbot-reset-${createHash('sha256').update(comparable(dataDir)).digest('hex').slice(0, 16)}.lock`);
 
 /** True while `pid` runs (EPERM: it runs as another user). */
 export function isAlive(pid: number): boolean {
@@ -22,6 +26,13 @@ export function isAlive(pid: number): boolean {
 
 export function writeResetLock(dataDir: string, helperPid: number): void {
   writeFileSync(resetLockOf(dataDir), String(helperPid));
+}
+
+/** Marks the lock fresh again; a lock that is gone stays gone. */
+export function touchResetLock(dataDir: string): void {
+  const lock = resetLockOf(dataDir);
+  const now = new Date();
+  if (existsSync(lock)) utimesSync(lock, now, now);
 }
 
 export function clearResetLock(dataDir: string): void {

@@ -1,4 +1,4 @@
-import { realpath } from 'node:fs/promises';
+import { realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, shell, type IpcMainEvent, type IpcMainInvokeEvent, type OpenDialogOptions, type BrowserWindowConstructorOptions } from 'electron';
 import type { BridgeChannels } from '../renderer/bridge.ts';
@@ -20,6 +20,15 @@ import { parseResetRequest, resetFlow } from './reset/reset-flow.ts';
 import { resetInProgress } from './reset/reset-lock.ts';
 import { resetWorkspaces, startCleanupHelper } from './reset/start-helper.ts';
 
+/** The home folder with every link resolved, so the profile's data folder and every reset path agree with what the cleanup helper resolves. */
+function resolvedHome(): string {
+  try {
+    return realpathSync(homedir());
+  } catch {
+    return homedir();
+  }
+}
+const HOME_DIR = resolvedHome();
 const FILES = appFilesOf(app.isPackaged ? { kind: 'packaged', appPath: app.getAppPath() } : { kind: 'dev' });
 const RENDERER_URL = FILES.rendererUrl;
 
@@ -275,28 +284,26 @@ function runApp(profile: UsableProfile): void {
   const reset = resetFlow({
     context: async () => ({
       platform: process.platform,
-      homeDir: await realpath(homedir()),
+      homeDir: HOME_DIR,
       profile: { kind: profile.kind, dataDir },
       workspaces: await resetWorkspaces(server.mode(), server.target(), RENDERER_URL, dataDir),
     }),
     bundle: () => ({ packaged: app.isPackaged, execPath: process.execPath, updatePending: ['checking', 'downloading', 'ready'].includes(updater.status().kind) }),
     keychain: MAC_KEYCHAIN,
-    pauseUpdates: () => {
-      updater.stop();
-    },
+    updates: { pause: () => { updater.pause(); }, resume: () => { updater.resume(); } },
     loginItem: { isOn: () => loginItems && app.getLoginItemSettings().openAtLogin, set: (on) => { if (loginItems) app.setLoginItemSettings({ openAtLogin: on }); } },
     running: () => lifetime === 'running',
     stopHost,
     startHelper: (job) => startCleanupHelper(FILES.cleanupHelper, job),
     trash: (target) => shell.trashItem(target),
-    relaunch: { command: process.execPath, args: app.isPackaged ? [] : process.argv.slice(1), cwd: process.cwd() },
+    relaunch: app.isPackaged ? { command: process.execPath, args: [], cwd: '/' } : { command: process.execPath, args: process.argv.slice(1), cwd: process.cwd() },
     mainPid: process.pid,
     quit: () => {
       app.quit();
     },
-    recover: (message) => {
+    recover: (message, restart) => {
       dialog.showErrorBox('MorrowBot could not finish', message);
-      app.relaunch();
+      if (restart) app.relaunch();
       app.quit();
     },
   });
@@ -367,7 +374,7 @@ function start(profile: UsableProfile): void {
 
 app.setName(PRODUCT_NAME);
 app.setAppUserModelId(APP_ID);
-const profile = profileOf({ packaged: app.isPackaged, env: process.env, homeDir: homedir() });
+const profile = profileOf({ packaged: app.isPackaged, env: process.env, homeDir: HOME_DIR });
 switch (profile.kind) {
   case 'invalid':
     dialog.showErrorBox('MorrowBot could not start', profile.problem);

@@ -12,7 +12,7 @@ afterEach(async () => {
   await fake.remove();
 });
 
-it('knows no workspaces (so resets nothing) without a server to ask, unless a client-only app has no local agents at all', async () => {
+it('knows no workspaces (so resets nothing) without a server to ask, unless an app still choosing a server has no local agents at all', async () => {
   const dataDir = `${fake.home}/.morrowbot`;
   const remote: ServerMode = { kind: 'remote', url: 'http://100.64.0.1:47800', hostName: 'studio' };
   const ask = (mode: ServerMode) => resetWorkspaces(mode, undefined, 'file:///index.html', dataDir);
@@ -20,7 +20,7 @@ it('knows no workspaces (so resets nothing) without a server to ask, unless a cl
   await fake.file('.morrowbot/morrowbot.sqlite');
   const after = { choosing: await ask({ kind: 'choosing' }), joined: await ask(remote) };
   expect({ noLocalDatabase: before, localDatabaseLeft: after }).toEqual({
-    noLocalDatabase: { localHostDown: null, choosing: [], joinedUnreachable: [] },
+    noLocalDatabase: { localHostDown: null, choosing: [], joinedUnreachable: null },
     localDatabaseLeft: { choosing: null, joined: null },
   });
 });
