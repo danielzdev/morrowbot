@@ -49,7 +49,7 @@ export async function joinServer(request: JoinRequest, device: { readonly name: 
     return { kind: 'failed', message: parsed.success ? parsed.data.error.message : `The server answered ${String(response.status)}.` };
   }
   const claimed = (target.kind === 'invite' ? ClaimInviteResponse : ClaimPairingResponse).safeParse(body);
-  if (!claimed.success) return { kind: 'failed', message: "That address answered, but it isn't a MorrowBot server." };
+  if (!claimed.success) return { kind: 'failed', message: "That address answered, but it isn't an Ori Kami server." };
   return { kind: 'joined', choice: { kind: 'remote', url: target.url, token: claimed.data.token, hostName: claimed.data.hostName } };
 }
 
@@ -59,7 +59,7 @@ export async function pickServer(
   platform: NodeJS.Platform,
 ): Promise<{ readonly kind: 'picked'; readonly choice: ServerChoice } | { readonly kind: 'failed'; readonly message: string }> {
   if (request.kind === 'local') return { kind: 'picked', choice: request };
-  const joined = await joinServer(request, { name: 'MorrowBot desktop', platform: platformOf(platform) });
+  const joined = await joinServer(request, { name: 'Ori Kami desktop', platform: platformOf(platform) });
   return joined.kind === 'joined' ? { kind: 'picked', choice: joined.choice } : joined;
 }
 

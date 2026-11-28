@@ -22,10 +22,10 @@ export function judgeVersion(version: string): Version {
       return {
         kind: 'above',
         version,
-        reason: `Antigravity ${version} isn't tested with MorrowBot yet. Update MorrowBot, or point "Antigravity CLI path" at an agy 1.5.x install.`,
+        reason: `Antigravity ${version} isn't tested with Ori Kami yet. Update Ori Kami, or point "Antigravity CLI path" at an agy 1.5.x install.`,
       };
     case 'unparsable':
-      return { kind: 'unreadable', reason: `Antigravity reported a version MorrowBot cannot read ("${version}").` };
+      return { kind: 'unreadable', reason: `Antigravity reported a version Ori Kami cannot read ("${version}").` };
   }
 }
 

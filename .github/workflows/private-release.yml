@@ -1,6 +1,6 @@
 name: Private release
 
-# Builds, signs, notarizes and publishes MorrowBot.app (arm64 .dmg, .zip and latest-mac.yml) to the
+# Builds, signs, notarizes and publishes Ori Kami.app (arm64 .dmg, .zip and latest-mac.yml) to the
 # private releases repo on every push to main (Protect Main & CI already run npm run check). Repos without the release
 # secrets (forks included) and other branches skip it instead of failing. Setup: apps/desktop/RELEASING.md.
 
@@ -49,7 +49,7 @@ jobs:
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       NODE_OPTIONS: --max-old-space-size=4096
-      MORROWBOT_RELEASES_REPO: ${{ vars.MORROWBOT_RELEASES_REPO || 'danielzdev/morrowbot-releases' }}
+      ORIKAMI_RELEASES_REPO: ${{ vars.ORIKAMI_RELEASES_REPO || 'danielzdev/ori-kami-releases' }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -66,17 +66,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PRIVATE_RELEASES_TOKEN }}
         run: |
-          if ! gh api "repos/$MORROWBOT_RELEASES_REPO/commits?per_page=1" > /dev/null 2>&1; then
-            gh api --method PUT "repos/$MORROWBOT_RELEASES_REPO/contents/README.md" \
-              -f message='Start the MorrowBot release feed' \
-              -f content="$(printf '# MorrowBot releases\n\nSigned builds published by the private release workflow.\n' | base64)"
+          if ! gh api "repos/$ORIKAMI_RELEASES_REPO/commits?per_page=1" > /dev/null 2>&1; then
+            gh api --method PUT "repos/$ORIKAMI_RELEASES_REPO/contents/README.md" \
+              -f message='Start the Ori Kami release feed' \
+              -f content="$(printf '# Ori Kami releases\n\nSigned builds published by the private release workflow.\n' | base64)"
           fi
       - name: Ensure a single draft release exists before uploading
         env:
           GH_TOKEN: ${{ secrets.PRIVATE_RELEASES_TOKEN }}
         run: |
-          if ! gh release view "v$VERSION" --repo "$MORROWBOT_RELEASES_REPO" > /dev/null 2>&1; then
-            gh api --method POST "repos/$MORROWBOT_RELEASES_REPO/releases" \
+          if ! gh release view "v$VERSION" --repo "$ORIKAMI_RELEASES_REPO" > /dev/null 2>&1; then
+            gh api --method POST "repos/$ORIKAMI_RELEASES_REPO/releases" \
               -f tag_name="v$VERSION" \
               -f name="$VERSION" \
               -F draft=true \
@@ -96,21 +96,21 @@ jobs:
           node scripts/build-app.ts
           npx electron-builder --mac --publish always \
             -c.forceCodeSigning=true \
-            -c.publish.owner="${MORROWBOT_RELEASES_REPO%%/*}" \
-            -c.publish.repo="${MORROWBOT_RELEASES_REPO#*/}"
+            -c.publish.owner="${ORIKAMI_RELEASES_REPO%%/*}" \
+            -c.publish.repo="${ORIKAMI_RELEASES_REPO#*/}"
       - name: Publish the draft once every file is uploaded; only a newer version becomes latest
         env:
           GH_TOKEN: ${{ secrets.PRIVATE_RELEASES_TOKEN }}
         run: |
-          draft="$(gh release view "v$VERSION" --repo "$MORROWBOT_RELEASES_REPO" --json isDraft --jq .isDraft)"
+          draft="$(gh release view "v$VERSION" --repo "$ORIKAMI_RELEASES_REPO" --json isDraft --jq .isDraft)"
           if [ "$draft" != "true" ]; then
             echo "::notice::v$VERSION is already published; leaving it as it is"
             exit 0
           fi
-          latest="$(gh release view --repo "$MORROWBOT_RELEASES_REPO" --json tagName --jq .tagName 2>/dev/null || true)"
+          latest="$(gh release view --repo "$ORIKAMI_RELEASES_REPO" --json tagName --jq .tagName 2>/dev/null || true)"
           newest="$(printf '%s\n%s\n' "${latest#v}" "$VERSION" | sort -V | tail -n 1)"
           if [ -z "$latest" ] || { [ "$newest" = "$VERSION" ] && [ "${latest#v}" != "$VERSION" ]; }; then
-            gh release edit "v$VERSION" --draft=false --latest --repo "$MORROWBOT_RELEASES_REPO"
+            gh release edit "v$VERSION" --draft=false --latest --repo "$ORIKAMI_RELEASES_REPO"
           else
-            gh release edit "v$VERSION" --draft=false --latest=false --repo "$MORROWBOT_RELEASES_REPO"
+            gh release edit "v$VERSION" --draft=false --latest=false --repo "$ORIKAMI_RELEASES_REPO"
           fi

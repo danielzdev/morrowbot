@@ -9,7 +9,7 @@ import { startTestHost, type TestHost } from './testing/test-host.ts';
 let dataDir: string;
 let host: TestHost;
 beforeEach(async () => {
-  dataDir = await mkdtemp(path.join(tmpdir(), 'morrowbot-t3-api-'));
+  dataDir = await mkdtemp(path.join(tmpdir(), 'orikami-t3-api-'));
   const clock = new FakeClock();
   host = await startTestHost({ dataDir, t3Watch: { probe: new FakeT3(clock), clock } });
 });

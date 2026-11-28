@@ -23,7 +23,7 @@ function without(event: object, keys: readonly string[]): unknown {
 }
 
 function usageOf(generationId: string): unknown {
-  const db = new DatabaseSync(path.join(agy.home, 'data', 'morrowbot.sqlite'), { readOnly: true });
+  const db = new DatabaseSync(path.join(agy.home, 'data', 'orikami.sqlite'), { readOnly: true });
   const row = db
     .prepare('SELECT actual_model, input_tokens, cached_input_tokens, cache_write_tokens, output_tokens, reasoning_tokens FROM turn_usage WHERE generation_id = ?')
     .get(generationId);
@@ -77,22 +77,22 @@ it('reports ready with every model, its thinking levels and the plan on the firs
             "withheld": [
               {
                 "access": "workspace-write",
-                "reason": "MorrowBot can't yet confine Antigravity's file writes to the workspace, and agy runs commands outside any sandbox. Use Full access instead.",
+                "reason": "Ori Kami can't yet confine Antigravity's file writes to the workspace, and agy runs commands outside any sandbox. Use Full access instead.",
                 "vendorSettings": "personal",
               },
               {
                 "access": "read-only",
-                "reason": "Antigravity always loads the workspace's own AGENTS.md (checked on agy 1.5.18), so MorrowBot cannot replace its instructions. The agent's AGENTS.md still applies.",
+                "reason": "Antigravity always loads the workspace's own AGENTS.md (checked on agy 1.5.18), so Ori Kami cannot replace its instructions. The agent's AGENTS.md still applies.",
                 "vendorSettings": "isolated",
               },
               {
                 "access": "workspace-write",
-                "reason": "Antigravity always loads the workspace's own AGENTS.md (checked on agy 1.5.18), so MorrowBot cannot replace its instructions. The agent's AGENTS.md still applies.",
+                "reason": "Antigravity always loads the workspace's own AGENTS.md (checked on agy 1.5.18), so Ori Kami cannot replace its instructions. The agent's AGENTS.md still applies.",
                 "vendorSettings": "isolated",
               },
               {
                 "access": "full",
-                "reason": "Antigravity always loads the workspace's own AGENTS.md (checked on agy 1.5.18), so MorrowBot cannot replace its instructions. The agent's AGENTS.md still applies.",
+                "reason": "Antigravity always loads the workspace's own AGENTS.md (checked on agy 1.5.18), so Ori Kami cannot replace its instructions. The agent's AGENTS.md still applies.",
                 "vendorSettings": "isolated",
               },
             ],
@@ -264,8 +264,8 @@ it('streams a new session in Default mode, counts its tokens, closes it, and see
           "terminal": false,
         },
         "clientInfo": {
-          "name": "morrowbot",
-          "title": "MorrowBot",
+          "name": "orikami",
+          "title": "Ori Kami",
           "version": "0.1.0",
         },
         "protocolVersion": 1,

@@ -2,7 +2,7 @@ import type { AvatarDefinition } from 'open-bot-avatar';
 
 const shape = (id: string, name: string, path: string, eyes: AvatarDefinition['eyes']): AvatarDefinition => ({ version: 1, id, name, body: { path }, eyes });
 
-/** MorrowBot's own silhouettes beside the engine's starter examples: outlines wind clockwise, corners rounded. */
+/** Ori Kami's own silhouettes beside the engine's starter examples: outlines wind clockwise, corners rounded. */
 export const CUSTOM_SHAPES: readonly AvatarDefinition[] = [
   shape(
     'star',

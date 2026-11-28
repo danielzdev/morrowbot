@@ -43,7 +43,7 @@ const RECONNECT_MS = 1_000;
 const RECONNECT_MAX_MS = 30_000;
 
 function report(error: unknown): void {
-  console.error('MorrowBot:', error);
+  console.error('Ori Kami:', error);
 }
 
 function runApp(profile: UsableProfile): void {
@@ -114,8 +114,8 @@ function runApp(profile: UsableProfile): void {
   const { dataDir } = profile;
   const hostEnv: NodeJS.ProcessEnv = {
     ...hostEnvOf(profile, process.env),
-    ...(FILES.builtinPluginsDir === null ? {} : { MORROWBOT_BUILTIN_PLUGINS_DIR: FILES.builtinPluginsDir }),
-    ...(readSafeMode(dataDir) ? { MORROWBOT_SAFE_MODE: '1' } : {}),
+    ...(FILES.builtinPluginsDir === null ? {} : { ORIKAMI_BUILTIN_PLUGINS_DIR: FILES.builtinPluginsDir }),
+    ...(readSafeMode(dataDir) ? { ORIKAMI_SAFE_MODE: '1' } : {}),
   };
   const startLocal = () => superviseHost({ main: FILES.hostMain, env: hostEnv }, {
     ready: (target) => {
@@ -123,7 +123,7 @@ function runApp(profile: UsableProfile): void {
     },
     alreadyRunning: () => {
       void dialog
-        .showMessageBox({ type: 'info', message: 'MorrowBot is already running', buttons: ['Quit'] })
+        .showMessageBox({ type: 'info', message: 'Ori Kami is already running', buttons: ['Quit'] })
         .then(() => {
           app.quit();
         });
@@ -131,7 +131,7 @@ function runApp(profile: UsableProfile): void {
     fatal: (message) => {
       events?.close();
       events = undefined;
-      dialog.showErrorBox('MorrowBot host stopped', message);
+      dialog.showErrorBox('Ori Kami host stopped', message);
     },
   });
   const server = openServerConnection(serverPlanOf(readServerChoice(dataDir), dataDir), {
@@ -147,7 +147,7 @@ function runApp(profile: UsableProfile): void {
     try {
       return await proxyRequest({ sender: senderOf(event), rendererUrl: RENDERER_URL, input, host: server.target() });
     } catch (error) {
-      if (error instanceof IpcRefusedError) console.warn(`MorrowBot: refused an IPC request: ${error.message}`);
+      if (error instanceof IpcRefusedError) console.warn(`Ori Kami: refused an IPC request: ${error.message}`);
       throw error;
     }
   });
@@ -156,7 +156,7 @@ function runApp(profile: UsableProfile): void {
     try {
       events?.send(parseSubscription({ sender: senderOf(event), rendererUrl: RENDERER_URL, input }));
     } catch (error) {
-      if (error instanceof IpcRefusedError) console.warn(`MorrowBot: refused an IPC subscription: ${error.message}`);
+      if (error instanceof IpcRefusedError) console.warn(`Ori Kami: refused an IPC subscription: ${error.message}`);
       else report(error);
     }
   });
@@ -301,7 +301,7 @@ function runApp(profile: UsableProfile): void {
       app.quit();
     },
     recover: (message, restart) => {
-      dialog.showErrorBox('MorrowBot could not finish', message);
+      dialog.showErrorBox('Ori Kami could not finish', message);
       if (restart) app.relaunch();
       app.quit();
     },
@@ -362,7 +362,7 @@ function runApp(profile: UsableProfile): void {
 /** One instance per profile: the installed app keeps Electron's own profile and lock, any other run uses its own. */
 function start(profile: UsableProfile): void {
   if (resetInProgress(profile.dataDir)) {
-    dialog.showErrorBox('MorrowBot is finishing a reset', 'Open MorrowBot again in a moment. It reopens by itself once a reset is done.');
+    dialog.showErrorBox('Ori Kami is finishing a reset', 'Open Ori Kami again in a moment. It reopens by itself once a reset is done.');
     app.exit(0);
     return;
   }
@@ -376,7 +376,7 @@ app.setAppUserModelId(APP_ID);
 const profile = profileOf({ packaged: app.isPackaged, env: process.env, homeDir: HOME_DIR });
 switch (profile.kind) {
   case 'invalid':
-    dialog.showErrorBox('MorrowBot could not start', profile.problem);
+    dialog.showErrorBox('Ori Kami could not start', profile.problem);
     app.exit(1);
     break;
   case 'installed':

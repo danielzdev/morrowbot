@@ -8,7 +8,7 @@ import type { WorkspaceRegistry } from '../lib/workspace.ts';
 
 /** The paired host's agents and threads; `HostProviders` attaches the host. */
 export const directory = createHostDirectory(createSampleDirectory(), (problem) => {
-  console.warn(`MorrowBot directory: ${problem}`);
+  console.warn(`Ori Kami directory: ${problem}`);
 });
 const threads = createThreadsSlice(directory.source);
 

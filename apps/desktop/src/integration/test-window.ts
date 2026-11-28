@@ -3,7 +3,7 @@ import { openEventStream, type EventStream } from '../main/event-stream.ts';
 import { parseSubscription, proxyRequest, type HostTarget, type IpcSender } from '../main/ipc-proxy.ts';
 import type { MorrowbotBridge } from '../renderer/bridge.ts';
 
-const RENDERER_URL = 'file:///Applications/MorrowBot.app/Contents/Resources/app/dist/renderer/index.html';
+const RENDERER_URL = 'file:///Applications/Ori Kami.app/Contents/Resources/app/dist/renderer/index.html';
 const PAGE: IpcSender = { kind: 'frame', url: RENDERER_URL, isMainFrame: true };
 
 /**
@@ -69,7 +69,7 @@ export function openTestWindow(target: HostTarget): TestWindow {
     copyText: () => Promise.resolve(),
     openExternal: () => Promise.resolve({ kind: 'opened' }),
     revealPath: () => Promise.resolve(),
-    appInfo: () => Promise.resolve({ appVersion: '0.0.0', homeDir: '/Users/tester', userName: 'tester', dataDir: '/Users/tester/.morrowbot' }),
+    appInfo: () => Promise.resolve({ appVersion: '0.0.0', homeDir: '/Users/tester', userName: 'tester', dataDir: '/Users/tester/.orikami' }),
     loginItem: () => Promise.resolve({ kind: 'unsupported' }),
     setOpenAtLogin: () => Promise.resolve({ kind: 'unsupported' }),
     relaunch: (options) => {

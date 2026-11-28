@@ -188,7 +188,7 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
         const id = params.get('id');
         if (chat.getThread(id) === undefined) return notFound('Thread');
         const stopped = await chat.stop(id);
-        if (stopped.kind === 'not_stored') return failure('internal', 'The reply could not be saved. Restart MorrowBot to finish this turn.');
+        if (stopped.kind === 'not_stored') return failure('internal', 'The reply could not be saved. Restart Ori Kami to finish this turn.');
         return json(200, stopped);
       },
     },

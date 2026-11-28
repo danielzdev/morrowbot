@@ -1,7 +1,7 @@
-# MorrowBot.app for Apple Silicon. `npm run package:mac -w apps/desktop` builds it into release/.
+# Ori Kami.app for Apple Silicon. `npm run package:mac -w apps/desktop` builds it into release/.
 # Signing and notarization switch on by themselves when their env vars are set (see RELEASING.md).
-appId: com.legendarykoi.morrowbot
-productName: MorrowBot
+appId: com.legendarykoi.orikami
+productName: Ori Kami
 copyright: Copyright © 2026 Legendary Koi
 directories:
   app: dist/app
@@ -27,10 +27,10 @@ mac:
   hardenedRuntime: true
   entitlements: resources/entitlements.mac.plist
   entitlementsInherit: resources/entitlements.mac.plist
-  artifactName: MorrowBot-${version}-${arch}.${ext}
+  artifactName: Ori-Kami-${version}-${arch}.${ext}
 publish:
   provider: github
   owner: danielzdev
-  repo: morrowbot-releases
+  repo: ori-kami-releases
   private: true
   releaseType: draft

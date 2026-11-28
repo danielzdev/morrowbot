@@ -22,7 +22,7 @@ function problemOf(reply: Exclude<HostResult<unknown>, { readonly kind: 'ok' }>)
     case 'unsupported':
       return 'This host does not offer this yet.';
     case 'malformed':
-      return 'The host sent something this app cannot read. Update MorrowBot on both devices.';
+      return 'The host sent something this app cannot read. Update Ori Kami on both devices.';
   }
 }
 

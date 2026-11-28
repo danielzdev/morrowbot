@@ -15,7 +15,7 @@ const Committed = z.strictObject({ kind: z.literal('committed') });
 
 /**
  * Starts the cleanup helper detached under Electron-as-Node, so it outlives main, sends it the job over IPC, and
- * waits until it has checked the job and loaded every module it needs: after that, moving MorrowBot.app to the
+ * waits until it has checked the job and loaded every module it needs: after that, moving Ori Kami.app to the
  * Trash cannot break it. The reset lock is written before this resolves; `release` sends `commit` and waits for
  * `committed`; `cancel` and any failed release kill the helper and remove the lock.
  */
@@ -56,7 +56,7 @@ export function startCleanupHelper(script: string, job: CleanupJob): Promise<Hel
       try {
         writeResetLock(dataDir, child.pid);
       } catch (error) {
-        fail(`MorrowBot could not write its reset lock: ${error instanceof Error ? error.message : String(error)}`);
+        fail(`Ori Kami could not write its reset lock: ${error instanceof Error ? error.message : String(error)}`);
         return;
       }
       started = true;
@@ -65,7 +65,7 @@ export function startCleanupHelper(script: string, job: CleanupJob): Promise<Hel
       resolve({ release: () => commit(child, kill), cancel: kill });
     });
     child.send({ kind: 'job', job }, (error) => {
-      if (error !== null) fail(`MorrowBot could not hand the job to the cleanup helper: ${error.message}`);
+      if (error !== null) fail(`Ori Kami could not hand the job to the cleanup helper: ${error.message}`);
     });
   });
 }
@@ -129,7 +129,7 @@ export async function resetWorkspaces(mode: ServerMode, target: HostTarget | und
       return hostWorkspaces(target, rendererUrl);
     case 'remote':
     case 'choosing': {
-      if ((await fileState(path.join(dataDir, 'morrowbot.sqlite'))) !== 'absent') return null;
+      if ((await fileState(path.join(dataDir, 'orikami.sqlite'))) !== 'absent') return null;
       return mode.kind === 'remote' ? hostWorkspaces(target, rendererUrl) : [];
     }
   }

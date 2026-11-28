@@ -28,16 +28,16 @@ export interface ResetDeps {
   readonly updates: { readonly pause: () => void; readonly resume: () => void };
   /** Open at Login, which uninstalling turns off so macOS does not keep a login item for a trashed app. */
   readonly loginItem: { readonly isOn: () => boolean; readonly set: (on: boolean) => void };
-  /** False once MorrowBot has begun quitting or restarting. */
+  /** False once Ori Kami has begun quitting or restarting. */
   readonly running: () => boolean;
   readonly stopHost: () => Promise<void>;
   readonly startHelper: (job: CleanupJob) => Promise<HelperHandle>;
   readonly trash: (target: string) => Promise<void>;
-  /** How to open MorrowBot again after a reset. */
+  /** How to open Ori Kami again after a reset. */
   readonly relaunch: Relaunch;
   readonly mainPid: number;
   readonly quit: () => void;
-  /** After a failure with the host already stopped: tell the user, then restart MorrowBot (or just quit once the app is in the Trash). */
+  /** After a failure with the host already stopped: tell the user, then restart Ori Kami (or just quit once the app is in the Trash). */
   readonly recover: (message: string, restart: boolean) => void;
 }
 
@@ -68,7 +68,7 @@ export function resetFlow(deps: ResetDeps): ResetFlow {
     for (const target of trash) {
       const bundle = await bundlePlanOf(context, deps.bundle());
       if (bundle.kind === 'refused') throw new Error(bundle.reason);
-      if (bundle.path !== target) throw new Error('MorrowBot.app moved since the list was made.');
+      if (bundle.path !== target) throw new Error('Ori Kami.app moved since the list was made.');
     }
     const wasOn = deps.loginItem.isOn();
     if (wasOn) deps.loginItem.set(false);
@@ -117,7 +117,7 @@ export function resetFlow(deps: ResetDeps): ResetFlow {
       return shown;
     },
     run: async (choice, token) => {
-      if (busy || !deps.running()) return refused('MorrowBot is already quitting.');
+      if (busy || !deps.running()) return refused('Ori Kami is already quitting.');
       if (shown === null || shown.token !== token) return refused('This list is out of date. Review it again.');
       const before = shown.options.find((option) => option.choice === choice);
       busy = true;
@@ -145,17 +145,17 @@ export function resetFlow(deps: ResetDeps): ResetFlow {
         return giveBack(refused('Something changed since this list was made. Review it again.'));
       }
       if (now.kind === 'unavailable') return giveBack(refused(now.reason));
-      if (!deps.running()) return giveBack(refused('MorrowBot is already quitting.'));
+      if (!deps.running()) return giveBack(refused('Ori Kami is already quitting.'));
       await deps.stopHost();
       try {
         const result = await act(choice, now.steps, context);
         if (result.kind === 'data-kept') {
-          deps.recover(`MorrowBot.app is in the Trash, but its data could not be removed: ${result.reason}`, false);
-          return refused('MorrowBot.app is in the Trash, but its data was not removed. MorrowBot is quitting.');
+          deps.recover(`Ori Kami.app is in the Trash, but its data could not be removed: ${result.reason}`, false);
+          return refused('Ori Kami.app is in the Trash, but its data was not removed. Ori Kami is quitting.');
         }
       } catch (error) {
         deps.recover(error instanceof Error ? error.message : String(error), true);
-        return refused('MorrowBot could not finish, so it is restarting with everything as it was.');
+        return refused('Ori Kami could not finish, so it is restarting with everything as it was.');
       }
       deps.quit();
       return { kind: 'quitting' };

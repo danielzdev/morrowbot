@@ -50,7 +50,7 @@ export interface Connection {
   stop(): void;
 }
 
-/** Keeps one bridge connection to the MorrowBot plugin, reconnecting with backoff. */
+/** Keeps one bridge connection to the Ori Kami plugin, reconnecting with backoff. */
 export function startConnection(deps: ConnectionDeps): Connection {
   let socket: BridgeSocket | null = null;
   let retryMs = RETRY_MIN_MS;
@@ -120,7 +120,7 @@ export function startConnection(deps: ConnectionDeps): Connection {
         clearInterval(pingTimer);
         if (socket === opened) socket = null;
         if (mine !== generation) return;
-        scheduleRetry(port, code === 1006 ? 'MorrowBot is not running, or the pairing token or port does not match.' : reason || `Closed (${String(code)})`);
+        scheduleRetry(port, code === 1006 ? 'Ori Kami is not running, or the pairing token or port does not match.' : reason || `Closed (${String(code)})`);
       },
     });
     socket = opened;
@@ -158,7 +158,7 @@ function parseFrame(text: string): PluginBridgeMessage | null {
   }
   const parsed = PluginBridgeMessage.safeParse(json);
   if (!parsed.success) {
-    console.warn(`MorrowBot: ignored a malformed frame from the plugin: ${parsed.error.message}`);
+    console.warn(`Ori Kami: ignored a malformed frame from the plugin: ${parsed.error.message}`);
     return null;
   }
   return parsed.data;

@@ -7,7 +7,7 @@ import { EntityId, Timestamp } from './ids.ts';
 export const AccessLevel = z.enum(['read-only', 'workspace-write', 'full']);
 export type AccessLevel = z.infer<typeof AccessLevel>;
 
-/** Who owns the CLI's instructions: MorrowBot (`isolated`) or the user's own CLI setup (`personal`). */
+/** Who owns the CLI's instructions: Ori Kami (`isolated`) or the user's own CLI setup (`personal`). */
 export const VendorSettings = z.enum(['isolated', 'personal']);
 export type VendorSettings = z.infer<typeof VendorSettings>;
 
@@ -259,7 +259,7 @@ export const TurnRequest = z.strictObject({
   prompt: z.string().min(1),
   /** Images the user attached to the prompt, for providers whose models can see them. */
   images: z.array(TurnImage).max(MAX_ATTACHMENTS).default([]),
-  /** MorrowBot's own tools (agent messages, memories) for this turn only. */
+  /** Ori Kami's own tools (agent messages, memories) for this turn only. */
   hostTools: HostTools.default({ kind: 'none' }),
 });
 export type TurnRequest = z.infer<typeof TurnRequest>;

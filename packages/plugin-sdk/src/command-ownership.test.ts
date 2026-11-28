@@ -14,7 +14,7 @@ let temp: string;
 const plugins: PluginUnderTest[] = [];
 
 beforeEach(async () => {
-  base = await realpath(await mkdtemp(path.join(tmpdir(), 'morrowbot-sdk-')));
+  base = await realpath(await mkdtemp(path.join(tmpdir(), 'orikami-sdk-')));
   work = path.join(base, 'work');
   temp = path.join(base, 'tmp');
   await mkdir(work);

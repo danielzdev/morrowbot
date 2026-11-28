@@ -101,7 +101,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
     options.signal?.throwIfAborted();
     const platform = options.platform ?? process.platform;
     const backend = await vaultBackend(options.vaultKeys ?? 'system', process.platform, dataDir);
-    if (backend.headless !== null) console.warn(`MorrowBot host: the vault key is kept in the data folder because ${backend.headless}`);
+    if (backend.headless !== null) console.warn(`Ori Kami host: the vault key is kept in the data folder because ${backend.headless}`);
     const vault = await openVault({
       file: path.join(dataDir, 'vault.json'),
       secrets: backend.secrets,
@@ -235,7 +235,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
       newId,
       report,
       warn: (message) => {
-        console.warn(`MorrowBot host: ${message}`);
+        console.warn(`Ori Kami host: ${message}`);
       },
     });
     try {

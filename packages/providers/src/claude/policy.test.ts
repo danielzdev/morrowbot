@@ -134,7 +134,7 @@ it('withholds for cached server-managed settings in the config folder that appli
       },
       "notJson": {
         "kind": "withheld",
-        "reason": "MorrowBot could not read <root>/home/tester/.claude/remote-settings.json: Unterminated string in JSON at position 6 (line 1 column 7)",
+        "reason": "Ori Kami could not read <root>/home/tester/.claude/remote-settings.json: Unterminated string in JSON at position 6 (line 1 column 7)",
       },
       "remote": {
         "kind": "withheld",
@@ -152,11 +152,11 @@ it('withholds when a source exists but cannot be read', async () => {
     {
       "lockedRemote": {
         "kind": "withheld",
-        "reason": "MorrowBot could not read <root>/home/tester/.claude/remote-settings.json: EACCES: permission denied, open '<root>/home/tester/.claude/remote-settings.json'",
+        "reason": "Ori Kami could not read <root>/home/tester/.claude/remote-settings.json: EACCES: permission denied, open '<root>/home/tester/.claude/remote-settings.json'",
       },
       "unsupportedOs": {
         "kind": "withheld",
-        "reason": "MorrowBot cannot check Claude Code's managed settings on win32.",
+        "reason": "Ori Kami cannot check Claude Code's managed settings on win32.",
       },
     }
   `);
@@ -208,7 +208,7 @@ it.runIf(process.platform === 'darwin')('reads the macOS managed preferences wit
       },
       "garbled": {
         "kind": "withheld",
-        "reason": "MorrowBot could not read /Library/Managed Preferences/tester/com.anthropic.claudecode.plist: plutil exited with code 1: <root>/Library/Managed Preferences/tester/com.anthropic.claudecode.plist: Property List error: Unexpected character n at line 1 / JSON error: JSON text did not start with array or object and option to allow fragments not set. around line 1, column 0.",
+        "reason": "Ori Kami could not read /Library/Managed Preferences/tester/com.anthropic.claudecode.plist: plutil exited with code 1: <root>/Library/Managed Preferences/tester/com.anthropic.claudecode.plist: Property List error: Unexpected character n at line 1 / JSON error: JSON text did not start with array or object and option to allow fragments not set. around line 1, column 0.",
       },
       "managedFolder": {
         "kind": "withheld",

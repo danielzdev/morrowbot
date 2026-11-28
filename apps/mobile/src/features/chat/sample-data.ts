@@ -10,7 +10,7 @@ export const SAMPLE_AGENTS: readonly Agent[] = [
     id: 'errand-bot',
     name: 'Errand Bot',
     description: 'Plans trips and weekend errands.',
-    workspace: { kind: 'dedicated', dir: '/srv/morrowbot/agents/errands' },
+    workspace: { kind: 'dedicated', dir: '/srv/orikami/agents/errands' },
     avatar: { kind: 'bot', shape: 'lightbulb', color: '#7c5cff', finish: 'matte' },
     provider: {
       kind: 'bound',
@@ -28,7 +28,7 @@ export const SAMPLE_AGENTS: readonly Agent[] = [
     id: 'reading-buddy',
     name: 'Reading Buddy',
     description: 'Keeps book notes and summaries.',
-    workspace: { kind: 'dedicated', dir: '/srv/morrowbot/agents/reading' },
+    workspace: { kind: 'dedicated', dir: '/srv/orikami/agents/reading' },
     avatar: { kind: 'bot', shape: 'sprout', color: '#22a06b', finish: 'flat' },
     provider: { kind: 'bound', pluginId: 'openai', selection: { kind: 'default' }, access: 'read-only', vendorSettings: 'isolated' },
     folderId: null,

@@ -71,8 +71,8 @@ export const InviteResponse = z.strictObject({
   member: Member,
   code: InviteCode,
   url: HostUrl,
-  /** The link to send: `morrowbot://join?url=<url>&code=<code>`. */
-  inviteUri: z.string().startsWith('morrowbot://join?'),
+  /** The link to send: `orikami://join?url=<url>&code=<code>`. */
+  inviteUri: z.string().startsWith('orikami://join?'),
 });
 export type InviteResponse = z.infer<typeof InviteResponse>;
 
@@ -101,7 +101,7 @@ export type WhoAmI = z.infer<typeof WhoAmI>;
 
 /** The link an invite is sent as. */
 export function inviteUri(url: HostUrl, code: InviteCode): string {
-  return `morrowbot://join?${new URLSearchParams({ url, code }).toString()}`;
+  return `orikami://join?${new URLSearchParams({ url, code }).toString()}`;
 }
 
 /** What someone joining a server typed or pasted: an invite, or a device pairing code (the owner's own other computer). */
@@ -110,13 +110,13 @@ export type JoinTarget =
   | { readonly kind: 'pairing'; readonly url: HostUrl; readonly code: string }
   | { readonly kind: 'invalid'; readonly reason: string };
 
-/** Reads a pasted `morrowbot://join` or `morrowbot://pair` link, or a host address plus an invite or 6-digit pairing code. */
+/** Reads a pasted `orikami://join` or `orikami://pair` link, or a host address plus an invite or 6-digit pairing code. */
 export function parseJoinTarget(link: string, typedUrl: string, typedCode: string): JoinTarget {
   const pasted = link.trim();
   if (pasted !== '') {
     const parsed = urlOf(pasted);
-    const kind = parsed?.protocol === 'morrowbot:' ? parsed.host : '';
-    if (parsed === null || (kind !== 'join' && kind !== 'pair')) return { kind: 'invalid', reason: 'Paste a morrowbot://join link' };
+    const kind = parsed?.protocol === 'orikami:' ? parsed.host : '';
+    if (parsed === null || (kind !== 'join' && kind !== 'pair')) return { kind: 'invalid', reason: 'Paste a orikami://join link' };
     return targetOf(parsed.searchParams.get('url') ?? '', parsed.searchParams.get('code') ?? '');
   }
   return targetOf(typedUrl.trim(), typedCode.trim().replaceAll(' ', ''));

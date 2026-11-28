@@ -94,7 +94,7 @@ function EnginesStep(props: WelcomeProps & { readonly title: RefObject<HTMLHeadi
         <h2 class="welcome-title" ref={props.title} tabIndex={-1}>
           Connect an AI engine
         </h2>
-        <p class="welcome-lede">MorrowBot uses the AI tools already on this computer. One is enough.</p>
+        <p class="welcome-lede">Ori Kami uses the AI tools already on this computer. One is enough.</p>
       </header>
       <section class="welcome-step" aria-label="Your AI engines">
         {props.engines.kind === 'loaded' && (

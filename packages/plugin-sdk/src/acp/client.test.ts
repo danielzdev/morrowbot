@@ -85,8 +85,8 @@ it('keeps active allowChanges sessions exempt across >1000 detached full session
   detachReadOnly();
 
   expect({ fullWriteError, readOnlyWriteError, breaches }).toEqual({
-    fullWriteError: 'MorrowBot does not answer fs/write_text_file.',
-    readOnlyWriteError: 'MorrowBot runs OpenCode read-only: it writes no files.',
+    fullWriteError: 'Ori Kami does not answer fs/write_text_file.',
+    readOnlyWriteError: 'Ori Kami runs OpenCode read-only: it writes no files.',
     breaches: [{ kind: 'unasked-change', tool: 'Shell bash' }],
   });
 });

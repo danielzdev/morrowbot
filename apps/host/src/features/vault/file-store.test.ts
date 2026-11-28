@@ -14,7 +14,7 @@ let dir: string;
 let keyFile: string;
 let options: { readonly file: string; readonly keys: MasterKeyStore };
 beforeEach(async () => {
-  dir = await mkdtemp(path.join(tmpdir(), 'morrowbot-vault-store-'));
+  dir = await mkdtemp(path.join(tmpdir(), 'orikami-vault-store-'));
   keyFile = path.join(dir, 'vault.key');
   options = { file: path.join(dir, 'vault-secrets.json'), keys: keyFileStore(keyFile) };
 });

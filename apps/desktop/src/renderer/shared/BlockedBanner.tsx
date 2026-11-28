@@ -9,7 +9,7 @@ export function BlockedBanner(props: { readonly groups: readonly BlockedGroup[];
         <div key={group.regId} class="banner-row">
           <span>
             {group.releasable
-              ? `A previous MorrowBot process is still running (pgid ${String(group.pgid)}). End it, or release it anyway.`
+              ? `A previous Ori Kami process is still running (pgid ${String(group.pgid)}). End it, or release it anyway.`
               : 'Waiting for an earlier provider process to exit…'}
           </span>
           {group.releasable && (

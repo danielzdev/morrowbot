@@ -12,7 +12,7 @@ const AVATAR = JSON.stringify({ kind: 'initials', color: '#112233' });
 
 let dir: string;
 beforeEach(async () => {
-  dir = await mkdtemp(path.join(tmpdir(), 'morrowbot-migration-'));
+  dir = await mkdtemp(path.join(tmpdir(), 'orikami-migration-'));
 });
 afterEach(async () => {
   await rm(dir, { recursive: true, force: true });

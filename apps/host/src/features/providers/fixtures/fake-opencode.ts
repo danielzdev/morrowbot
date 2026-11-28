@@ -2,7 +2,7 @@
 /**
  * A stand-in for `opencode` 2.4.1 that speaks `opencode acp` (the Agent Client Protocol) over stdio,
  * shaped like the recorded real transcripts in `packages/providers/src/opencode/fixtures/2.4.1/`.
- * It keeps its state in `$MORROWBOT_FAKE_HOME/fake-opencode/` (`$HOME` when unset): `state.json` (read on every request) can start
+ * It keeps its state in `$ORIKAMI_FAKE_HOME/fake-opencode/` (`$HOME` when unset): `state.json` (read on every request) can start
  * sessions in another mode (`startMode`) or report another ACP version (`protocolVersion`); every
  * request is appended to `log.jsonl`, and every launch's arguments, `HOME` and opencode variables to
  * `launches.jsonl`. The prompt picks a turn's behavior: `think` thinks first; `read-outside` asks to
@@ -19,7 +19,7 @@ import path from 'node:path';
 import { createInterface } from 'node:readline';
 import { z } from 'zod';
 
-const home = process.env.MORROWBOT_FAKE_HOME ?? process.env.HOME ?? '/nonexistent';
+const home = process.env.ORIKAMI_FAKE_HOME ?? process.env.HOME ?? '/nonexistent';
 const dir = path.join(home, 'fake-opencode');
 mkdirSync(dir, { recursive: true });
 const file = (name: string): string => path.join(dir, name);
@@ -117,7 +117,7 @@ function cancelled(session: Session): Promise<void> {
   });
 }
 
-/** The prompt itself, or the last `<user>` block of a seeded prompt, without MorrowBot's instructions. */
+/** The prompt itself, or the last `<user>` block of a seeded prompt, without Ori Kami's instructions. */
 function lastUserMessage(prompt: string): string {
   const body = prompt.startsWith('<instructions>\n') ? prompt.slice(prompt.indexOf('\n</instructions>\n\n') + '\n</instructions>\n\n'.length) : prompt;
   const start = body.lastIndexOf('<user>\n');

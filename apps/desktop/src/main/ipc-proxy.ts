@@ -77,7 +77,7 @@ function apiPath(path: string): string {
 
 const HOST_DOWN: ApiReply = {
   status: 503,
-  body: { error: { kind: 'internal', message: 'The MorrowBot host is not running' } },
+  body: { error: { kind: 'internal', message: 'The Ori Kami host is not running' } },
 };
 
 /**

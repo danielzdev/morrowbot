@@ -15,7 +15,7 @@ export function QrScanner(props: { readonly onScan: (text: string) => void }) {
     return (
       <View style={[styles.frame, styles.center, { backgroundColor: colors.surface3 }]}>
         <Text style={[typography.ui, styles.centerText, { color: colors.text2 }]}>
-          {permission.canAskAgain ? 'MorrowBot needs the camera to scan the pairing QR code.' : 'Allow camera access for MorrowBot in the Settings app, or type the code instead.'}
+          {permission.canAskAgain ? 'Ori Kami needs the camera to scan the pairing QR code.' : 'Allow camera access for Ori Kami in the Settings app, or type the code instead.'}
         </Text>
         {permission.canAskAgain ? (
           <Pressable

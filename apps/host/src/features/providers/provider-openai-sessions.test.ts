@@ -24,7 +24,7 @@ async function sendAndWait(thread: { readonly id: string }, text: string, sessio
 }
 
 function tokens(generationId: string): unknown {
-  const db = new DatabaseSync(path.join(codex.home, 'data', 'morrowbot.sqlite'), { readOnly: true });
+  const db = new DatabaseSync(path.join(codex.home, 'data', 'orikami.sqlite'), { readOnly: true });
   const row = db.prepare('SELECT input_tokens, cached_input_tokens, output_tokens FROM turn_usage WHERE generation_id = ?').get(generationId);
   db.close();
   return row;
@@ -77,7 +77,8 @@ it('after Recheck, cold-resumes the thread with its overrides and counts a repla
           "features.shell_tool": false,
           "features.skill_mcp_dependency_install": false,
           "features.unified_exec": false,
-          "mcp_servers.morrowbot": {
+          "mcp_servers.node_repl.enabled": false,
+          "mcp_servers.orikami": {
             "default_tools_approval_mode": "approve",
             "enabled": true,
             "http_headers": {
@@ -85,7 +86,6 @@ it('after Recheck, cold-resumes the thread with its overrides and counts a repla
             },
             "url": "http://127.0.0.1:<port>/mcp",
           },
-          "mcp_servers.node_repl.enabled": false,
         },
         "cwd": "$HOME/data/workspaces/id-1",
         "excludeTurns": true,
@@ -174,7 +174,7 @@ it('declines an approval request without a card', async () => {
       ],
       "statuses": [
         "Thinking",
-        "Denied a Codex approval request: MorrowBot turns are read-only.",
+        "Denied a Codex approval request: Ori Kami turns are read-only.",
       ],
     }
   `);

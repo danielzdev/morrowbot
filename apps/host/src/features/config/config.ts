@@ -21,16 +21,16 @@ const BindAddress = z
 const AbsolutePath = z.string().refine((value) => path.isAbsolute(value), 'Expected an absolute path');
 
 const HostEnv = z.object({
-  MORROWBOT_HOST_PORT: PortString.optional(),
-  MORROWBOT_HOST_BIND: BindAddress.optional(),
-  MORROWBOT_SAFE_MODE: z.enum(['0', '1', 'true', 'false']).optional(),
-  MORROWBOT_DATA_DIR: AbsolutePath.optional(),
-  MORROWBOT_PLUGINS_DIR: AbsolutePath.optional(),
-  MORROWBOT_BUILTIN_PLUGINS_DIR: AbsolutePath.optional(),
-  MORROWBOT_T3_WATCH_DIR: AbsolutePath.optional(),
-  MORROWBOT_T3_BIN: AbsolutePath.optional(),
-  MORROWBOT_T3_ROUTINE_ID: z.string().trim().min(1).optional(),
-  MORROWBOT_T3_PROJECTS: z
+  ORIKAMI_HOST_PORT: PortString.optional(),
+  ORIKAMI_HOST_BIND: BindAddress.optional(),
+  ORIKAMI_SAFE_MODE: z.enum(['0', '1', 'true', 'false']).optional(),
+  ORIKAMI_DATA_DIR: AbsolutePath.optional(),
+  ORIKAMI_PLUGINS_DIR: AbsolutePath.optional(),
+  ORIKAMI_BUILTIN_PLUGINS_DIR: AbsolutePath.optional(),
+  ORIKAMI_T3_WATCH_DIR: AbsolutePath.optional(),
+  ORIKAMI_T3_BIN: AbsolutePath.optional(),
+  ORIKAMI_T3_ROUTINE_ID: z.string().trim().min(1).optional(),
+  ORIKAMI_T3_PROJECTS: z
     .string()
     .transform((value) =>
       value
@@ -43,24 +43,24 @@ const HostEnv = z.object({
 
 /** The T3 Code watcher: where agents register threads, which `t3` to run, and which projects discovery scans. */
 export interface T3WatchConfig {
-  /** `MORROWBOT_T3_WATCH_DIR`, else `t3-watch` in the data folder. Point it at a folder sandboxed agents can write. */
+  /** `ORIKAMI_T3_WATCH_DIR`, else `t3-watch` in the data folder. Point it at a folder sandboxed agents can write. */
   readonly dir: string;
-  /** `MORROWBOT_T3_BIN`, else `~/.t3/bin/t3`. */
+  /** `ORIKAMI_T3_BIN`, else `~/.t3/bin/t3`. */
   readonly bin: string;
-  /** `MORROWBOT_T3_PROJECTS` (comma-separated project ids or paths); empty turns discovery off. */
+  /** `ORIKAMI_T3_PROJECTS` (comma-separated project ids or paths); empty turns discovery off. */
   readonly projects: readonly string[];
-  /** `MORROWBOT_T3_ROUTINE_ID`: the orchestrator's background routine that batches go to; unset keeps delivery off. */
+  /** `ORIKAMI_T3_ROUTINE_ID`: the orchestrator's background routine that batches go to; unset keeps delivery off. */
   readonly routineId: string | null;
 }
 
 export interface HostConfig {
-  /** `127.0.0.1` unless the user opts in to a LAN or Tailscale address with `MORROWBOT_HOST_BIND`. */
+  /** `127.0.0.1` unless the user opts in to a LAN or Tailscale address with `ORIKAMI_HOST_BIND`. */
   readonly hostname: string;
-  /** `MORROWBOT_HOST_PORT`, else a free port. The installed app passes its fixed port itself. */
+  /** `ORIKAMI_HOST_PORT`, else a free port. The installed app passes its fixed port itself. */
   readonly port: number;
   /** Start with every plugin turned off. */
   readonly safeMode: boolean;
-  /** `MORROWBOT_DATA_DIR`, else `~/.morrowbot-dev`. The installed app passes `~/.morrowbot` itself, so a host run by hand never opens it. */
+  /** `ORIKAMI_DATA_DIR`, else `~/.orikami-dev`. The installed app passes `~/.orikami` itself, so a host run by hand never opens it. */
   readonly dataDir: string;
   readonly pluginsDir: string;
   /** The plugins folder that ships inside the app; null when none is given. */
@@ -86,22 +86,22 @@ export function parseHostConfig({ env, args, homeDir }: HostConfigInput): HostCo
     problems.unshift(...parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`));
   }
   if (!parsed.success || problems.length > 0) return { kind: 'invalid', problems };
-  const safeModeEnv = parsed.data.MORROWBOT_SAFE_MODE;
-  const dataDir = parsed.data.MORROWBOT_DATA_DIR ?? path.join(homeDir, DEV_DATA_DIR);
+  const safeModeEnv = parsed.data.ORIKAMI_SAFE_MODE;
+  const dataDir = parsed.data.ORIKAMI_DATA_DIR ?? path.join(homeDir, DEV_DATA_DIR);
   return {
     kind: 'ok',
     config: {
-      hostname: parsed.data.MORROWBOT_HOST_BIND ?? '127.0.0.1',
-      port: parsed.data.MORROWBOT_HOST_PORT ?? 0,
+      hostname: parsed.data.ORIKAMI_HOST_BIND ?? '127.0.0.1',
+      port: parsed.data.ORIKAMI_HOST_PORT ?? 0,
       safeMode: args.includes(SAFE_MODE_FLAG) || safeModeEnv === '1' || safeModeEnv === 'true',
       dataDir,
-      pluginsDir: parsed.data.MORROWBOT_PLUGINS_DIR ?? path.join(dataDir, 'plugins'),
-      builtinPluginsDir: parsed.data.MORROWBOT_BUILTIN_PLUGINS_DIR ?? null,
+      pluginsDir: parsed.data.ORIKAMI_PLUGINS_DIR ?? path.join(dataDir, 'plugins'),
+      builtinPluginsDir: parsed.data.ORIKAMI_BUILTIN_PLUGINS_DIR ?? null,
       t3Watch: {
-        dir: parsed.data.MORROWBOT_T3_WATCH_DIR ?? path.join(dataDir, 't3-watch'),
-        bin: parsed.data.MORROWBOT_T3_BIN ?? path.join(homeDir, '.t3', 'bin', 't3'),
-        projects: parsed.data.MORROWBOT_T3_PROJECTS ?? [],
-        routineId: parsed.data.MORROWBOT_T3_ROUTINE_ID ?? null,
+        dir: parsed.data.ORIKAMI_T3_WATCH_DIR ?? path.join(dataDir, 't3-watch'),
+        bin: parsed.data.ORIKAMI_T3_BIN ?? path.join(homeDir, '.t3', 'bin', 't3'),
+        projects: parsed.data.ORIKAMI_T3_PROJECTS ?? [],
+        routineId: parsed.data.ORIKAMI_T3_ROUTINE_ID ?? null,
       },
     },
   };

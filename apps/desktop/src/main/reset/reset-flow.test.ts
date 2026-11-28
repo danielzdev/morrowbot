@@ -6,8 +6,8 @@ import { resetFlow, type ResetDeps, type ResetFlow } from './reset-flow.ts';
 let fake: FakeHome;
 beforeEach(async () => {
   fake = await fakeHome();
-  await fake.file('.morrowbot/morrowbot.sqlite');
-  await fake.file('Applications/MorrowBot.app/Contents/Info.plist', INFO_PLIST('com.legendarykoi.morrowbot'));
+  await fake.file('.orikami/orikami.sqlite');
+  await fake.file('Applications/Ori Kami.app/Contents/Info.plist', INFO_PLIST('com.legendarykoi.orikami'));
 });
 afterEach(async () => {
   await fake.remove();
@@ -18,8 +18,8 @@ function flow(options: { readonly failTrash?: boolean; readonly failRelease?: bo
   const calls: unknown[] = [];
   let openAtLogin = true;
   const deps: ResetDeps = {
-    context: () => Promise.resolve(fake.context('installed', '.morrowbot')),
-    bundle: () => ({ packaged: true, execPath: `${fake.home}/Applications/MorrowBot.app/Contents/MacOS/MorrowBot`, updatePending: false }),
+    context: () => Promise.resolve(fake.context('installed', '.orikami')),
+    bundle: () => ({ packaged: true, execPath: `${fake.home}/Applications/Ori Kami.app/Contents/MacOS/Ori Kami`, updatePending: false }),
     keychain: fakeKeychain([]),
     updates: { pause: () => calls.push('pause updates'), resume: () => calls.push('resume updates') },
     loginItem: {
@@ -48,7 +48,7 @@ function flow(options: { readonly failTrash?: boolean; readonly failRelease?: bo
       calls.push(fake.short({ trash: target }));
       return options.failTrash === true ? Promise.reject(new Error('The Finder refused')) : Promise.resolve();
     },
-    relaunch: { command: '/Applications/MorrowBot.app/Contents/MacOS/MorrowBot', args: [], cwd: '/' },
+    relaunch: { command: '/Applications/Ori Kami.app/Contents/MacOS/Ori Kami', args: [], cwd: '/' },
     mainPid: 100,
     quit: () => calls.push('quit'),
     recover: (message, restart) => calls.push({ recover: message, restart }),
@@ -73,7 +73,7 @@ it('runs each choice in order: stop the host, start the helper for deletions, mo
               "approved": [
                 {
                   "kind": "delete",
-                  "path": "~/.morrowbot/morrowbot.sqlite",
+                  "path": "~/.orikami/orikami.sqlite",
                 },
               ],
               "choice": {
@@ -86,7 +86,7 @@ it('runs each choice in order: stop the host, start the helper for deletions, mo
           },
           "open at login off",
           {
-            "trash": "~/Applications/MorrowBot.app",
+            "trash": "~/Applications/Ori Kami.app",
           },
           "release helper",
           "quit",
@@ -104,14 +104,14 @@ it('runs each choice in order: stop the host, start the helper for deletions, mo
               "approved": [
                 {
                   "kind": "delete",
-                  "path": "~/.morrowbot/morrowbot.sqlite",
+                  "path": "~/.orikami/orikami.sqlite",
                 },
               ],
               "choice": {
                 "kind": "reset",
                 "relaunch": {
                   "args": [],
-                  "command": "/Applications/MorrowBot.app/Contents/MacOS/MorrowBot",
+                  "command": "/Applications/Ori Kami.app/Contents/MacOS/Ori Kami",
                   "cwd": "/",
                 },
               },
@@ -133,7 +133,7 @@ it('runs each choice in order: stop the host, start the helper for deletions, mo
           "stop host",
           "open at login off",
           {
-            "trash": "~/Applications/MorrowBot.app",
+            "trash": "~/Applications/Ori Kami.app",
           },
           "quit",
         ],
@@ -152,7 +152,7 @@ it('refuses a stale token or a list that changed since it was shown, before stop
 
   const changed = flow();
   const { token } = await changed.reset.plan();
-  await fake.file('.morrowbot/attachments/new.png');
+  await fake.file('.orikami/attachments/new.png');
   const changedOutcome = await changed.reset.run('full-uninstall', token);
 
   const failing = flow({ failTrash: true });
@@ -160,14 +160,14 @@ it('refuses a stale token or a list that changed since it was shown, before stop
 
   const gone = flow();
   const goneToken = (await gone.reset.plan()).token;
-  await rm(`${fake.home}/Applications/MorrowBot.app`, { recursive: true });
+  await rm(`${fake.home}/Applications/Ori Kami.app`, { recursive: true });
   const goneOutcome = await gone.reset.run('uninstall-app', goneToken);
 
-  await fake.file('Applications/MorrowBot.app/Contents/Info.plist', INFO_PLIST('com.legendarykoi.morrowbot'));
-  const swapped = flow({ atStop: () => fake.file('Applications/MorrowBot.app/Contents/Info.plist', INFO_PLIST('com.other.app')) });
+  await fake.file('Applications/Ori Kami.app/Contents/Info.plist', INFO_PLIST('com.legendarykoi.orikami'));
+  const swapped = flow({ atStop: () => fake.file('Applications/Ori Kami.app/Contents/Info.plist', INFO_PLIST('com.other.app')) });
   const swappedOutcome = await swapped.reset.run('uninstall-app', (await swapped.reset.plan()).token);
 
-  await fake.file('Applications/MorrowBot.app/Contents/Info.plist', INFO_PLIST('com.legendarykoi.morrowbot'));
+  await fake.file('Applications/Ori Kami.app/Contents/Info.plist', INFO_PLIST('com.legendarykoi.orikami'));
   const unreleased = flow({ failRelease: true });
   const unreleasedOutcome = await unreleased.reset.run('full-uninstall', (await unreleased.reset.plan()).token);
 
@@ -195,13 +195,13 @@ it('refuses a stale token or a list that changed since it was shown, before stop
           "pause updates",
           "stop host",
           {
-            "recover": "This app bundle is not com.legendarykoi.morrowbot.",
+            "recover": "This app bundle is not com.legendarykoi.orikami.",
             "restart": true,
           },
         ],
         "outcome": {
           "kind": "refused",
-          "reason": "MorrowBot could not finish, so it is restarting with everything as it was.",
+          "reason": "Ori Kami could not finish, so it is restarting with everything as it was.",
         },
       },
       "changed": {
@@ -228,7 +228,7 @@ it('refuses a stale token or a list that changed since it was shown, before stop
         ],
         "outcome": {
           "kind": "refused",
-          "reason": "MorrowBot could not finish, so it is restarting with everything as it was.",
+          "reason": "Ori Kami could not finish, so it is restarting with everything as it was.",
         },
       },
       "helperLostAfterTrash": {
@@ -238,13 +238,13 @@ it('refuses a stale token or a list that changed since it was shown, before stop
           "open at login off",
           "release helper",
           {
-            "recover": "MorrowBot.app is in the Trash, but its data could not be removed: The cleanup helper stopped before it could go ahead.",
+            "recover": "Ori Kami.app is in the Trash, but its data could not be removed: The cleanup helper stopped before it could go ahead.",
             "restart": false,
           },
         ],
         "outcome": {
           "kind": "refused",
-          "reason": "MorrowBot.app is in the Trash, but its data was not removed. MorrowBot is quitting.",
+          "reason": "Ori Kami.app is in the Trash, but its data was not removed. Ori Kami is quitting.",
         },
       },
       "stale": {

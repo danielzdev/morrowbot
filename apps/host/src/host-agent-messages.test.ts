@@ -9,7 +9,7 @@ let dataDir: string;
 let host: TestHost;
 let clock: Sequence;
 beforeEach(async () => {
-  dataDir = await mkdtemp(path.join(tmpdir(), 'morrowbot-agent-messages-'));
+  dataDir = await mkdtemp(path.join(tmpdir(), 'orikami-agent-messages-'));
   clock = sequence();
   host = await startTestHost({ dataDir, sequence: clock });
 });

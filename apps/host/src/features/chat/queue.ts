@@ -5,7 +5,7 @@ import type { ChatCore, Turn } from './turn.ts';
 
 const QUEUED: QueuedMessageState = { kind: 'queued' };
 /** A stored message with no state in this host run was queued before a restart. */
-const RESTARTED: QueuedMessageState = { kind: 'held', reason: 'Not sent: MorrowBot restarted before the agent saw it.' };
+const RESTARTED: QueuedMessageState = { kind: 'held', reason: 'Not sent: Ori Kami restarted before the agent saw it.' };
 
 export type QueueAnswer =
   | { readonly kind: 'ok' }

@@ -48,7 +48,7 @@ it('finds a customization folder in a git root whose name ends in a newline, and
       },
       "missing": {
         "kind": "unknown",
-        "reason": "MorrowBot could not check the workspace for Antigravity customizations.",
+        "reason": "Ori Kami could not check the workspace for Antigravity customizations.",
       },
       "newline": {
         "folder": "<root>/repo",

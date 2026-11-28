@@ -5,7 +5,7 @@ import type { Loadable } from '../../shared/store.ts';
 import { engineRows } from './engine-rows.ts';
 import type { ProviderCard } from './providers-model.ts';
 
-const INFO = { appVersion: '1.0.0', homeDir: '/Users/sam', userName: 'sam', dataDir: '/Users/sam/.morrowbot' };
+const INFO = { appVersion: '1.0.0', homeDir: '/Users/sam', userName: 'sam', dataDir: '/Users/sam/.orikami' };
 
 const card = (id: string, info: Loadable<ProviderInfo>, status: PluginStatus = { kind: 'running' }, source: 'built-in' | 'user' = 'built-in'): ProviderCard => ({
   entry: PluginEntry.parse({

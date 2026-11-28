@@ -62,7 +62,7 @@ export async function startToolServer(options: ToolServerOptions): Promise<ToolS
   const warn =
     options.warn ??
     ((message: string) => {
-      console.warn(`MorrowBot host: ${message}`);
+      console.warn(`Ori Kami host: ${message}`);
     });
   const forSubagents = builtins.filter(({ name }) => SUBAGENT_TOOLS.has(name));
   let authority = '';

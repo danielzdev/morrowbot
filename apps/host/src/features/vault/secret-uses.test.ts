@@ -14,7 +14,7 @@ afterEach(async () => {
 });
 
 it('fills each part of a login, with the RFC 6238 code for the moment, and nothing for a login without a site or key', async () => {
-  dir = await mkdtemp(path.join(tmpdir(), 'morrowbot-vault-uses-'));
+  dir = await mkdtemp(path.join(tmpdir(), 'orikami-vault-uses-'));
   let id = 0;
   const vault = await openVault({
     file: path.join(dir, 'vault.json'),

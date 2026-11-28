@@ -97,6 +97,6 @@ export function lastRunLabel(run: RoutineRun | null, format: (iso: string) => st
     case 'failed':
       return { tone: 'danger', text: `Failed · ${format(result.finishedAt)}: ${result.reason}` };
     case 'missed':
-      return { tone: 'warn', text: `Missed while MorrowBot was off · ${format(run.at)}` };
+      return { tone: 'warn', text: `Missed while Ori Kami was off · ${format(run.at)}` };
   }
 }

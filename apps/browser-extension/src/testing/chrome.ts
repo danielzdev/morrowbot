@@ -42,7 +42,7 @@ const TargetInfo = z.object({ targetId: z.string(), type: z.string(), url: z.str
 export async function launchChrome(): Promise<ChromeUnderTest> {
   const executable = findChrome();
   if (executable === null) throw new Error('No Chrome found; set CHROME_PATH');
-  const profile = await mkdtemp(path.join(tmpdir(), 'morrowbot-chrome-'));
+  const profile = await mkdtemp(path.join(tmpdir(), 'orikami-chrome-'));
   const args = [
     '--headless=new',
     '--remote-debugging-port=0',

@@ -115,7 +115,7 @@ it('an edit opencode reports finished without asking fails the turn, ends the da
       "steps": [
         "tool-start Edit: {"title":"write"}",
         "tool-end: ok",
-        "status: OpenCode (opencode 2.4.1) ran "Edit write" without asking. MorrowBot ended it and offers no OpenCode turns until the provider restarts.",
+        "status: OpenCode (opencode 2.4.1) ran "Edit write" without asking. Ori Kami ended it and offers no OpenCode turns until the provider restarts.",
       ],
       "withheld": {
         "approvals": true,
@@ -125,27 +125,27 @@ it('an edit opencode reports finished without asking fails the turn, ends the da
         "withheld": [
           {
             "access": "read-only",
-            "reason": "OpenCode (opencode 2.4.1) ran "Edit write" without asking. MorrowBot ended it and offers no OpenCode turns until the provider restarts.",
+            "reason": "OpenCode (opencode 2.4.1) ran "Edit write" without asking. Ori Kami ended it and offers no OpenCode turns until the provider restarts.",
             "vendorSettings": "isolated",
           },
           {
             "access": "full",
-            "reason": "OpenCode (opencode 2.4.1) ran "Edit write" without asking. MorrowBot ended it and offers no OpenCode turns until the provider restarts.",
+            "reason": "OpenCode (opencode 2.4.1) ran "Edit write" without asking. Ori Kami ended it and offers no OpenCode turns until the provider restarts.",
             "vendorSettings": "isolated",
           },
           {
             "access": "workspace-write",
-            "reason": "MorrowBot cannot yet confine OpenCode file writes to the workspace, and opencode runs commands outside any sandbox.",
+            "reason": "Ori Kami cannot yet confine OpenCode file writes to the workspace, and opencode runs commands outside any sandbox.",
             "vendorSettings": "isolated",
           },
           {
             "access": "read-only",
-            "reason": "MorrowBot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's AGENTS.md is sent by MorrowBot instead.",
+            "reason": "Ori Kami turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's AGENTS.md is sent by Ori Kami instead.",
             "vendorSettings": "personal",
           },
           {
             "access": "workspace-write",
-            "reason": "MorrowBot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's AGENTS.md is sent by MorrowBot instead.",
+            "reason": "Ori Kami turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's AGENTS.md is sent by Ori Kami instead.",
             "vendorSettings": "personal",
           },
         ],
@@ -166,7 +166,7 @@ it('a session that leaves the build mode fails the turn and ends the daemon', as
         "assistant(failed access-not-supported): ",
       ],
       "steps": [
-        "status: OpenCode (opencode 2.4.1) left its build mode for "plan". MorrowBot ended it and offers no OpenCode turns until the provider restarts.",
+        "status: OpenCode (opencode 2.4.1) left its build mode for "plan". Ori Kami ended it and offers no OpenCode turns until the provider restarts.",
       ],
     }
   `);
@@ -222,27 +222,27 @@ it('on a system other than macOS, provider-info withholds read-only and starts n
         "withheld": [
           {
             "access": "read-only",
-            "reason": "OpenCode in MorrowBot has been checked only on macOS so far, not on linux.",
+            "reason": "OpenCode in Ori Kami has been checked only on macOS so far, not on linux.",
             "vendorSettings": "isolated",
           },
           {
             "access": "full",
-            "reason": "OpenCode in MorrowBot has been checked only on macOS so far, not on linux.",
+            "reason": "OpenCode in Ori Kami has been checked only on macOS so far, not on linux.",
             "vendorSettings": "isolated",
           },
           {
             "access": "workspace-write",
-            "reason": "MorrowBot cannot yet confine OpenCode file writes to the workspace, and opencode runs commands outside any sandbox.",
+            "reason": "Ori Kami cannot yet confine OpenCode file writes to the workspace, and opencode runs commands outside any sandbox.",
             "vendorSettings": "isolated",
           },
           {
             "access": "read-only",
-            "reason": "MorrowBot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's AGENTS.md is sent by MorrowBot instead.",
+            "reason": "Ori Kami turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's AGENTS.md is sent by Ori Kami instead.",
             "vendorSettings": "personal",
           },
           {
             "access": "workspace-write",
-            "reason": "MorrowBot turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's AGENTS.md is sent by MorrowBot instead.",
+            "reason": "Ori Kami turns off opencode's own workspace config, because opencode would also run the workspace's plugins and MCP servers from it. The agent's AGENTS.md is sent by Ori Kami instead.",
             "vendorSettings": "personal",
           },
         ],
