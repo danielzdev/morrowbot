@@ -24,6 +24,7 @@ import { builtinProviders } from './features/providers/index.ts';
 import { findSkills, skillList } from './features/skills/index.ts';
 import { createRoutineService, type RoutineClock } from './features/routines/index.ts';
 import { lockDataDir, openStorage, type Storage } from './features/storage/index.ts';
+import { cliProbe, createT3WatchService, type T3Probe, type T3WatchClock } from './features/t3-watch/index.ts';
 
 export { DataDirLockedError as HostLockedError } from './features/storage/index.ts';
 
@@ -47,6 +48,8 @@ export interface HostOptions {
   readonly hostName?: string;
   /** Real time and the timer for routine schedules. Defaults to the system clock. */
   readonly routineClock?: RoutineClock;
+  /** What the T3 watcher reads T3 Code with, and its clock. Defaults to the `t3` CLI and the system clock. */
+  readonly t3Watch?: { readonly probe: T3Probe; readonly clock: T3WatchClock };
 }
 
 export interface Host {
@@ -164,6 +167,21 @@ export async function startHost(options: HostOptions): Promise<Host> {
       routines.close();
     });
     routines.tick();
+    const t3Watches = createT3WatchService({
+      store: { watches: storage.t3Watches, outbox: storage.t3Outbox, transaction: (work) => storage.transaction(work) },
+      probe: options.t3Watch?.probe ?? cliProbe(config.t3Watch.bin),
+      clock: options.t3Watch?.clock ?? systemClock,
+      dir: config.t3Watch.dir,
+      projects: config.t3Watch.projects,
+      newId,
+      report,
+      warn: (message) => {
+        console.warn(`MorrowBot host: ${message}`);
+      },
+    });
+    undo.push(() => {
+      t3Watches.close();
+    });
     const token = randomBytes(32).toString('base64url');
     const api = await startApiServer({
       address: { hostname: config.hostname, port: config.port },
@@ -220,6 +238,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
           now,
         }),
         routines,
+        t3Watches,
       },
       fallback: healthListener(options.version),
       report,

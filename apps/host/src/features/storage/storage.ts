@@ -15,6 +15,8 @@ import { routineRunRepository, type RoutineRunRepository } from './routine-runs-
 import { routineRepository, type RoutineRepository } from './routines-repo.ts';
 import { migrate } from './schema.ts';
 import { sessionRepository, type SessionRepository } from './sessions-repo.ts';
+import { t3OutboxRepository, type T3OutboxRepository } from './t3-outbox-repo.ts';
+import { t3WatchRepository, type T3WatchRepository } from './t3-watches-repo.ts';
 import { threadRepository, type ThreadRepository } from './threads-repo.ts';
 import { tokenTotalsRepository, type TokenTotalsRepository } from './token-totals-repo.ts';
 import { usageSnapshotRepository, type UsageSnapshotRepository } from './usage-repo.ts';
@@ -38,6 +40,8 @@ export interface Storage {
   readonly routines: RoutineRepository;
   readonly routineRuns: RoutineRunRepository;
   readonly waits: WaitRepository;
+  readonly t3Watches: T3WatchRepository;
+  readonly t3Outbox: T3OutboxRepository;
   /** Runs `work` in one write transaction (`BEGIN IMMEDIATE`), rolled back if it throws. Not reentrant. */
   transaction<T>(work: () => T): T;
   close(): void;
@@ -70,6 +74,8 @@ export function openStorage(file: string, now: () => string): Storage {
       routines: routineRepository(db),
       routineRuns: routineRunRepository(db),
       waits: waitRepository(db),
+      t3Watches: t3WatchRepository(db),
+      t3Outbox: t3OutboxRepository(db),
       transaction: (work) => {
         db.exec('BEGIN IMMEDIATE');
         try {

@@ -27,3 +27,4 @@ export * from './skills.ts';
 export * from './agent-messages.ts';
 export * from './profiles.ts';
 export * from './routines.ts';
+export * from './t3-watches.ts';

@@ -27,7 +27,28 @@ const HostEnv = z.object({
   MORROWBOT_DATA_DIR: AbsolutePath.optional(),
   MORROWBOT_PLUGINS_DIR: AbsolutePath.optional(),
   MORROWBOT_BUILTIN_PLUGINS_DIR: AbsolutePath.optional(),
+  MORROWBOT_T3_WATCH_DIR: AbsolutePath.optional(),
+  MORROWBOT_T3_BIN: AbsolutePath.optional(),
+  MORROWBOT_T3_PROJECTS: z
+    .string()
+    .transform((value) =>
+      value
+        .split(',')
+        .map((project) => project.trim())
+        .filter((project) => project !== ''),
+    )
+    .optional(),
 });
+
+/** The T3 Code watcher: where agents register threads, which `t3` to run, and which projects discovery scans. */
+export interface T3WatchConfig {
+  /** `MORROWBOT_T3_WATCH_DIR`, else `t3-watch` in the data folder. Point it at a folder sandboxed agents can write. */
+  readonly dir: string;
+  /** `MORROWBOT_T3_BIN`, else `~/.t3/bin/t3`. */
+  readonly bin: string;
+  /** `MORROWBOT_T3_PROJECTS` (comma-separated project ids or paths); empty turns discovery off. */
+  readonly projects: readonly string[];
+}
 
 export interface HostConfig {
   /** `127.0.0.1` unless the user opts in to a LAN or Tailscale address with `MORROWBOT_HOST_BIND`. */
@@ -41,6 +62,7 @@ export interface HostConfig {
   readonly pluginsDir: string;
   /** The plugins folder that ships inside the app; null when none is given. */
   readonly builtinPluginsDir: string | null;
+  readonly t3Watch: T3WatchConfig;
 }
 
 export type HostConfigResult =
@@ -72,6 +94,11 @@ export function parseHostConfig({ env, args, homeDir }: HostConfigInput): HostCo
       dataDir,
       pluginsDir: parsed.data.MORROWBOT_PLUGINS_DIR ?? path.join(dataDir, 'plugins'),
       builtinPluginsDir: parsed.data.MORROWBOT_BUILTIN_PLUGINS_DIR ?? null,
+      t3Watch: {
+        dir: parsed.data.MORROWBOT_T3_WATCH_DIR ?? path.join(dataDir, 't3-watch'),
+        bin: parsed.data.MORROWBOT_T3_BIN ?? path.join(homeDir, '.t3', 'bin', 't3'),
+        projects: parsed.data.MORROWBOT_T3_PROJECTS ?? [],
+      },
     },
   };
 }

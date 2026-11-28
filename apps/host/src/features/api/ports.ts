@@ -30,12 +30,14 @@ import type {
   SendAgentMessageRequest,
   ProviderInfo,
   ProviderUnavailableReason,
+  RegisterT3WatchRequest,
   Routine,
   RoutineRun,
   RunRoutineRequest,
   SessionChoice,
   SessionChoiceReason,
   StopGenerationResponse,
+  T3Watch,
   Thread,
   ThreadState,
   TokenRange,
@@ -237,6 +239,13 @@ export interface ApiRoutines {
   closeWait(waitId: string): boolean;
 }
 
+/** T3 Code threads the host watches for the orchestrator. */
+export interface ApiT3Watches {
+  register(request: RegisterT3WatchRequest): T3Watch;
+  list(): T3Watch[];
+  remove(watchId: string): boolean;
+}
+
 export interface ApiServices {
   readonly agents: ApiAgents;
   readonly attachments: ApiAttachments;
@@ -249,4 +258,5 @@ export interface ApiServices {
   readonly pairing: ApiPairing;
   readonly agentMessages: ApiAgentMessages;
   readonly routines: ApiRoutines;
+  readonly t3Watches: ApiT3Watches;
 }
