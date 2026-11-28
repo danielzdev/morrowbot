@@ -1,3 +1,5 @@
+import { HOST_TOOLS_SERVER } from '@morrowbot/contracts';
+
 /** The one mode (agent) MorrowBot runs: `build`, held to the read-only permissions below. */
 export const BUILD_MODE = 'build';
 
@@ -7,7 +9,8 @@ export const BUILD_MODE = 'build';
  * offers `skill`, which is denied and finds no skills. Reads, searches and listings inside the
  * workspace are allowed; a read outside it, an `.env` file and a web fetch ask first, which
  * MorrowBot turns into an approval card. Web and code search are denied: opencode reports them as
- * a tool of no kind, which MorrowBot always refuses. The other built-in agents are disabled, so a
+ * a tool of no kind, which MorrowBot always refuses. MorrowBot's own tools (its MCP server, which acts
+ * only as the turn's agent) are allowed. The other built-in agents are disabled, so a
  * session cannot switch to one with other permissions; language servers and formatters, which run
  * code in the workspace, are off (checked on opencode 2.4.1).
  */
@@ -28,6 +31,7 @@ const READ_ONLY_CONFIG = {
     webfetch: 'ask',
     websearch: 'deny',
     codesearch: 'deny',
+    [`${HOST_TOOLS_SERVER}_*`]: 'allow',
   },
 };
 

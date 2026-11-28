@@ -54,7 +54,9 @@ it('Stop sends turn/interrupt for that turn only, and the other turn keeps runni
         ],
         "sent": [
           "turn/interrupt",
+          "thread/unsubscribe",
           "turn/interrupt",
+          "thread/unsubscribe",
         ],
         "status": 200,
       }
@@ -107,6 +109,7 @@ it('a daemon that ignores interrupt is killed after turnStopMs, both its turns s
       "nextSent": [
         "thread/resume",
         "turn/start",
+        "thread/unsubscribe",
       ],
       "refused": {
         "error": {

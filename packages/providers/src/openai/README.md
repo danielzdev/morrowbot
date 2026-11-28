@@ -26,6 +26,13 @@ the account and route again, and refuses the turn if anything differs. An approv
 request is declined without a card. Read-only Codex can read files outside the
 workspace (`readsOutsideCwd`).
 
+**MorrowBot's tools.** The one MCP server a thread runs is the host's own for the turn
+(`mcp_servers.morrowbot` in the thread's config overrides, replacing any server of yours by
+that name, with `default_tools_approval_mode = "approve"`: approvals are `never`, so Codex
+would block its calls otherwise). Codex takes MCP servers only when a thread opens, and each
+turn's token ends with the turn, so a thread is let go after every turn and resumed cold for
+the next one with that turn's token.
+
 **Held back** (checked on Codex 0.171, shown on the Plugins page):
 
 - everything, when an administrator manages Codex (`configRequirements/read` is not

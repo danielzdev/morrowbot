@@ -20,6 +20,11 @@ workspace), `OPENCODE_DISABLE_CLAUDE_CODE`, `OPENCODE_DISABLE_EXTERNAL_SKILLS` a
 `OPENCODE_DISABLE_AUTOUPDATE`, and with a read-only config in `OPENCODE_CONFIG_CONTENT`
 (`config.ts`, checked on opencode 2.4.1).
 
+**MorrowBot's tools.** opencode 2.4.1 connects to MCP servers over HTTP
+(`mcpCapabilities.http`), so each session opens with the host's MCP server for that turn and no
+other, and the read-only config allows its tools (`morrowbot_*`). Checked against the fake
+daemon only: the real opencode has not run them yet.
+
 **Turns.** Each turn opens a new ACP session (`session/new`) in the agent's workspace, sets the
 picked model (`session/set_config_option`), checks it runs in the `build` mode, and sends
 `session/prompt`; the session is closed at the end. opencode reports no account, so the account

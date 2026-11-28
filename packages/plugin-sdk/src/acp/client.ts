@@ -35,6 +35,8 @@ export interface AcpClient {
   /** Whether the agent can reopen a saved session (`session/load`) and free one (`session/close`). */
   readonly canLoad: boolean;
   readonly canClose: boolean;
+  /** Whether the agent connects to MCP servers over HTTP (`mcpCapabilities.http`). */
+  readonly mcpHttp: boolean;
   alive(): boolean;
   call<S extends z.ZodType>(method: string, params: unknown, schema: S, timeoutMs: number): Promise<Call<z.infer<S>>>;
   notify(method: string, params: unknown): void;
@@ -161,6 +163,7 @@ export async function startAcpClient(jsonRpcProcess: StartJsonRpcProcess, comman
       version,
       canLoad: capabilities?.loadSession === true,
       canClose: capabilities?.sessionCapabilities?.close !== undefined,
+      mcpHttp: capabilities?.mcpCapabilities?.http === true,
       alive: () => alive,
       call,
       notify: (method, params) => {

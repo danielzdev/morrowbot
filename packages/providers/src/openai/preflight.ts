@@ -47,7 +47,7 @@ export async function preflight(request: TurnRequest, deps: PreflightDeps, daemo
     accountKey: resolution.accountKey,
     routeKey: resolution.routeKey,
     subscription: resolution.route.kind === 'subscription',
-    policy: threadPolicy(resolution.config, resolution.modelProvider),
+    policy: threadPolicy(resolution.config, resolution.modelProvider, request.hostTools),
   };
 }
 

@@ -83,6 +83,7 @@ it('resumes a thread Codex closed on its own instead of sending to it as loaded'
       "methods": [
         "thread/resume",
         "turn/start",
+        "thread/unsubscribe",
       ],
     }
   `);
