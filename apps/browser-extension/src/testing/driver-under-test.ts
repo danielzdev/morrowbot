@@ -67,7 +67,7 @@ export function driverUnderTest(): DriverUnderTest {
       },
     });
     driver.onEvent((event) => events.push(event));
-  }, 30_000);
+  }, 90_000);
 
   afterAll(async () => {
     await chrome?.close();

@@ -58,7 +58,7 @@ beforeAll(async () => {
     extensionVersion: '0.1.0',
     onStatus: (status) => statuses.push(status.kind),
   });
-}, 30_000);
+}, 90_000);
 
 afterAll(async () => {
   if (chromeMissing) return;

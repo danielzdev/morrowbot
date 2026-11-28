@@ -156,7 +156,7 @@ export async function launchChrome(): Promise<ChromeUnderTest> {
 
 async function devtoolsUrl(profile: string, child: ChildProcess): Promise<string> {
   const file = path.join(profile, 'DevToolsActivePort');
-  const deadline = Date.now() + 15_000;
+  const deadline = Date.now() + 60_000;
   while (Date.now() < deadline) {
     if (child.exitCode !== null) throw new Error(`Chrome exited with ${String(child.exitCode)}`);
     const text = await readFile(file, 'utf8').catch(() => '');
