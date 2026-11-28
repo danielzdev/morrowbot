@@ -1,13 +1,17 @@
 import { execFile } from 'node:child_process';
+import { homedir } from 'node:os';
+import path from 'node:path';
+import type { KeychainItem } from './reset-paths.ts';
 
-/** The login Keychain, by service name only. */
+/** The login Keychain, one exact item (service and account) at a time. */
 export interface Keychain {
-  has(service: string): Promise<boolean>;
-  /** Deletes every generic password item with this service. */
-  remove(service: string): Promise<void>;
+  has(item: KeychainItem): Promise<boolean>;
+  /** Deletes the item; throws when it is there and could not be deleted (locked, access denied). */
+  remove(item: KeychainItem): Promise<void>;
 }
 
-const MAX_ITEMS = 20;
+/** `security`'s exit code for errSecItemNotFound. */
+const NOT_FOUND = 44;
 
 /** Runs `/usr/bin/security` and answers its exit code; it never reads a secret (no `-w` or `-g`). */
 function security(args: readonly string[]): Promise<number> {
@@ -18,12 +22,14 @@ function security(args: readonly string[]): Promise<number> {
   });
 }
 
+const loginKeychain = (): string => path.join(homedir(), 'Library', 'Keychains', 'login.keychain-db');
+const itemArgs = (item: KeychainItem): string[] => ['-s', item.service, '-a', item.account, loginKeychain()];
+
 /** The macOS login Keychain through the `security` tool. */
 export const MAC_KEYCHAIN: Keychain = {
-  has: async (service) => (await security(['find-generic-password', '-s', service])) === 0,
-  remove: async (service) => {
-    for (let item = 0; item < MAX_ITEMS; item += 1) {
-      if ((await security(['delete-generic-password', '-s', service])) !== 0) return;
-    }
+  has: async (item) => (await security(['find-generic-password', ...itemArgs(item)])) === 0,
+  remove: async (item) => {
+    const code = await security(['delete-generic-password', ...itemArgs(item)]);
+    if (code !== 0 && code !== NOT_FOUND) throw new Error(`The Keychain refused to delete ${item.service} (security exited ${String(code)}).`);
   },
 };

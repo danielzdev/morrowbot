@@ -16,6 +16,7 @@ it('cleans the data folder only where the profile allows: never ~/.morrowbot fro
     dev: dataDirRefusal(context('isolated', `${HOME}/.morrowbot-dev`)),
     customInHome: dataDirRefusal(context('isolated', `${HOME}/try/morrowbot`)),
     devPointedAtInstalled: dataDirRefusal(context('isolated', `${HOME}/.morrowbot`)),
+    devPointedAtInstalledOtherCase: dataDirRefusal(context('isolated', `${HOME}/.MorrowBot`)),
     devInsideInstalled: dataDirRefusal(context('isolated', `${HOME}/.morrowbot/nested`)),
     devHoldingInstalled: dataDirRefusal(context('isolated', HOME)),
     devOutsideHome: dataDirRefusal(context('isolated', '/tmp/screens')),
@@ -23,12 +24,13 @@ it('cleans the data folder only where the profile allows: never ~/.morrowbot fro
     dotted: dataDirRefusal(context('isolated', `${HOME}/a/../.morrowbot`)),
   }).toMatchInlineSnapshot(`
     {
-      "customInHome": null,
+      "customInHome": "A development run resets only ~/.morrowbot-dev. This run uses another folder (MORROWBOT_DATA_DIR); delete it yourself if you no longer need it.",
       "dev": null,
       "devHoldingInstalled": "A development run never resets the installed app's ~/.morrowbot.",
       "devInsideInstalled": "A development run never resets the installed app's ~/.morrowbot.",
-      "devOutsideHome": "This run keeps its data outside your home folder, so it cannot be reset from here.",
+      "devOutsideHome": "A development run resets only ~/.morrowbot-dev. This run uses another folder (MORROWBOT_DATA_DIR); delete it yourself if you no longer need it.",
       "devPointedAtInstalled": "A development run never resets the installed app's ~/.morrowbot.",
+      "devPointedAtInstalledOtherCase": "A development run never resets the installed app's ~/.morrowbot.",
       "devRoot": "A development run never resets the installed app's ~/.morrowbot.",
       "dotted": "The data folder is not a plain absolute path.",
       "installed": null,
@@ -58,6 +60,7 @@ it('lists only MorrowBot-owned entries: the installed app adds its Library files
         "~/.morrowbot-dev/instructions-drafts (in ~/.morrowbot-dev)",
         "~/.morrowbot-dev/plugin-data (in ~/.morrowbot-dev)",
         "~/.morrowbot-dev/plugins (in ~/.morrowbot-dev)",
+        "~/.morrowbot-dev/sign-in (in ~/.morrowbot-dev)",
         "~/.morrowbot-dev/skills (in ~/.morrowbot-dev)",
         "~/.morrowbot-dev/t3-watch (in ~/.morrowbot-dev)",
         "~/.morrowbot-dev/desktop (in ~/.morrowbot-dev)",
@@ -79,6 +82,7 @@ it('lists only MorrowBot-owned entries: the installed app adds its Library files
         "~/.morrowbot/instructions-drafts (in ~/.morrowbot)",
         "~/.morrowbot/plugin-data (in ~/.morrowbot)",
         "~/.morrowbot/plugins (in ~/.morrowbot)",
+        "~/.morrowbot/sign-in (in ~/.morrowbot)",
         "~/.morrowbot/skills (in ~/.morrowbot)",
         "~/.morrowbot/t3-watch (in ~/.morrowbot)",
         "~/Library/Application Support/MorrowBot (in ~)",
@@ -94,8 +98,8 @@ it('lists only MorrowBot-owned entries: the installed app adds its Library files
   `);
 });
 
-it('refuses /, home and its parents, anything outside its root, dotted paths, symbolic links, and anything holding or inside an agent workspace', () => {
-  const ctx = context('installed', `${HOME}/.morrowbot`, [`${HOME}/code/app`, `${HOME}/.morrowbot/skills/shared`]);
+it('refuses /, home and its parents, anything outside its root, dotted paths, symbolic links, and anything holding or inside an agent workspace, in any case or Unicode form', () => {
+  const ctx = context('installed', `${HOME}/.morrowbot`, [`${HOME}/code/app`, `${HOME}/.morrowbot/skills/shared`, `${HOME}/caf\u00e9`]);
   const workspaces = workspacesOf(ctx);
   const data = `${HOME}/.morrowbot`;
   const check = (target: string, root = data, facts: Parameters<typeof refusalOf>[3] = { kind: 'present', realPath: target }) => refusalOf(target, root, HOME, facts, workspaces);
@@ -117,8 +121,12 @@ it('refuses /, home and its parents, anything outside its root, dotted paths, sy
     rootOutsideHome: check('/Applications/MorrowBot.app', '/Applications'),
     dotDotName: check(`${data}/..attachments`),
     holdsOutsideWorkspace: check(`${HOME}/code`, HOME),
+    insideWorkspaceOtherCase: check(`${HOME}/CODE/App/.morrowbot`, HOME),
+    insideWorkspaceOtherUnicodeForm: check(`${HOME}/cafe\u0301/notes`, HOME),
+    dedicatedOtherCase: check(`${data}/Workspaces`),
   }).toMatchInlineSnapshot(`
     {
+      "dedicatedOtherCase": "An agent workspace, or holds one. Workspaces are never touched.",
       "dedicatedWorkspaces": "An agent workspace, or holds one. Workspaces are never touched.",
       "dotDotName": null,
       "dotted": "Not a plain absolute path.",
@@ -128,6 +136,8 @@ it('refuses /, home and its parents, anything outside its root, dotted paths, sy
       "homeParent": "Outside MorrowBot's own folders.",
       "insideDedicated": "An agent workspace, or holds one. Workspaces are never touched.",
       "insideOutsideWorkspace": "An agent workspace, or holds one. Workspaces are never touched.",
+      "insideWorkspaceOtherCase": "An agent workspace, or holds one. Workspaces are never touched.",
+      "insideWorkspaceOtherUnicodeForm": "An agent workspace, or holds one. Workspaces are never touched.",
       "ok": null,
       "outsideRoot": "Outside MorrowBot's own folders.",
       "relative": "Not a plain absolute path.",

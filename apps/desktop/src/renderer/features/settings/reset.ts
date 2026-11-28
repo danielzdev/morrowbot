@@ -7,11 +7,11 @@ const Choice = z.enum(['reset', 'uninstall-app', 'full-uninstall']);
 const Step: z.ZodType<ResetStep> = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('delete'), path: Path }),
   z.strictObject({ kind: z.literal('trash'), path: Path }),
-  z.strictObject({ kind: z.literal('keychain'), service: z.string().min(1).max(200) }),
+  z.strictObject({ kind: z.literal('keychain'), service: z.string().min(1).max(200), account: z.string().min(1).max(200) }),
 ]);
 
 const Option: z.ZodType<ResetOption> = z.discriminatedUnion('kind', [
-  z.strictObject({ kind: z.literal('available'), choice: Choice, steps: z.array(Step).max(100), kept: z.array(z.strictObject({ path: Path, reason: z.string().max(500) })).max(200) }),
+  z.strictObject({ kind: z.literal('available'), choice: Choice, steps: z.array(Step).max(100), kept: z.array(z.strictObject({ path: Path, reason: z.string().max(500) })).max(5_000) }),
   z.strictObject({ kind: z.literal('unavailable'), choice: Choice, reason: z.string().max(500) }),
 ]);
 
@@ -81,6 +81,6 @@ export function groupSteps(steps: readonly ResetStep[]): { readonly trash: reado
   return {
     trash: steps.flatMap((step) => (step.kind === 'trash' ? [step.path] : [])),
     deleted: steps.flatMap((step) => (step.kind === 'delete' ? [step.path] : [])),
-    keychain: steps.flatMap((step) => (step.kind === 'keychain' ? [step.service] : [])),
+    keychain: steps.flatMap((step) => (step.kind === 'keychain' ? [`${step.service} (account ${step.account})`] : [])),
   };
 }

@@ -2,7 +2,8 @@ import { rm } from 'node:fs/promises';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import type { CleanupJob } from './cleanup-job.ts';
 import { fakeHome, fakeKeychain, type FakeHome } from './reset-fixture.ts';
-import { dataPlanOf } from './reset-plan.ts';
+import { RELEASE_TOKEN, SAFE_STORAGE } from './reset-paths.ts';
+import { dataPlanOf, type DataChoice } from './reset-plan.ts';
 import { runCleanup, type CleanupDeps } from './run-cleanup.ts';
 
 let fake: FakeHome;
@@ -16,10 +17,10 @@ afterEach(async () => {
 const exited = (keychain = fakeKeychain([])): CleanupDeps => ({ keychain, isAlive: () => false, sleep: () => Promise.resolve() });
 
 /** The steps the user would confirm for `context` right now. */
-async function confirmed(context: CleanupJob['context'], keychain = fakeKeychain([])): Promise<CleanupJob> {
-  const plan = await dataPlanOf(context, keychain);
+async function confirmed(context: CleanupJob['context'], keychain = fakeKeychain([]), choice: DataChoice = 'full-uninstall'): Promise<CleanupJob> {
+  const plan = await dataPlanOf(context, choice, keychain);
   if (plan.kind === 'refused') throw new Error(plan.reason);
-  return { context, approved: plan.steps, waitPids: [4242], relaunch: null };
+  return { choice: choice === 'reset' ? { kind: 'reset', relaunch: { command: process.execPath, args: [], cwd: '/' } } : { kind: 'full-uninstall' }, context, approved: plan.steps, waitPids: [4242] };
 }
 
 it('removes exactly the confirmed MorrowBot files and Keychain items, and leaves workspaces, links, their targets and unknown files', async () => {
@@ -34,13 +35,14 @@ it('removes exactly the confirmed MorrowBot files and Keychain items, and leaves
   await fake.file('Documents/report.txt');
   await fake.file('Library/Application Support/MorrowBot/Cookies');
   await fake.file('Library/Application Support/Other/keep.db');
-  const keychain = fakeKeychain(['com.legendarykoi.morrowbot.releases', 'MorrowBot Safe Storage', 'Other Safe Storage']);
+  const keychain = fakeKeychain([RELEASE_TOKEN, SAFE_STORAGE, { service: SAFE_STORAGE.service, account: 'someone-else' }, { service: 'Other Safe Storage', account: 'Other' }]);
   const job = await confirmed(fake.context('installed', '.morrowbot'), keychain);
   const report = await runCleanup(job, exited(keychain));
   expect({ report: fake.short(report), left: await fake.tree(), keychain: [...keychain.items] }).toMatchInlineSnapshot(`
     {
       "keychain": [
-        "Other Safe Storage",
+        "MorrowBot Safe Storage / someone-else",
+        "Other Safe Storage / Other",
       ],
       "left": [
         ".morrowbot/mine.txt",
@@ -69,12 +71,14 @@ it('removes exactly the confirmed MorrowBot files and Keychain items, and leaves
             "path": "~/Library/Application Support/MorrowBot",
           },
           {
-            "kind": "keychain",
-            "service": "com.legendarykoi.morrowbot.releases",
-          },
-          {
+            "account": "MorrowBot",
             "kind": "keychain",
             "service": "MorrowBot Safe Storage",
+          },
+          {
+            "account": "releases",
+            "kind": "keychain",
+            "service": "com.legendarykoi.morrowbot.releases",
           },
         ],
         "failed": [],
@@ -153,6 +157,61 @@ it('touches nothing while MorrowBot is still running, or when the job aims at th
         "kind": "timed-out",
         "pids": [
           4242,
+        ],
+      },
+    }
+  `);
+});
+
+it('checks each path on disk again just before deleting it, and reports a Keychain item it could not delete', async () => {
+  await fake.file('.morrowbot/attachments/a.png');
+  await fake.file('.morrowbot/plugins/p/index.js');
+  await fake.file('precious/keep.txt');
+  const locked = fakeKeychain([RELEASE_TOKEN], [RELEASE_TOKEN]);
+  const job = await confirmed(fake.context('installed', '.morrowbot'), locked);
+  let armed = true;
+  const swapping = {
+    ...locked,
+    /** Runs after the helper's fresh plan has read the files: swaps a planned folder for a link before it is deleted. */
+    has: async (item: typeof RELEASE_TOKEN) => {
+      if (armed) {
+        armed = false;
+        await rm(`${fake.home}/.morrowbot/plugins`, { recursive: true });
+        await fake.link('.morrowbot/plugins', `${fake.home}/precious`);
+      }
+      return locked.has(item);
+    },
+  };
+  const report = await runCleanup(job, { ...exited(), keychain: swapping });
+  expect({ report: fake.short(report), left: await fake.tree() }).toMatchInlineSnapshot(`
+    {
+      "left": [
+        ".morrowbot/plugins (link)",
+        "precious/keep.txt",
+      ],
+      "report": {
+        "done": [
+          {
+            "kind": "delete",
+            "path": "~/.morrowbot/attachments",
+          },
+        ],
+        "failed": [
+          {
+            "error": "The Keychain refused to delete com.legendarykoi.morrowbot.releases.",
+            "step": {
+              "account": "releases",
+              "kind": "keychain",
+              "service": "com.legendarykoi.morrowbot.releases",
+            },
+          },
+        ],
+        "kind": "done",
+        "skipped": [
+          {
+            "kind": "delete",
+            "path": "~/.morrowbot/plugins",
+          },
         ],
       },
     }

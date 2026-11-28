@@ -1,10 +1,11 @@
 import { rm } from 'node:fs/promises';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { fakeHome, fakeKeychain, INFO_PLIST, type FakeHome } from './reset-fixture.ts';
+import { RELEASE_TOKEN, SAFE_STORAGE } from './reset-paths.ts';
 import { resetOptionsOf } from './reset-plan.ts';
 
 let fake: FakeHome;
-const KEYCHAIN = ['com.legendarykoi.morrowbot.releases', 'Other App Safe Storage'];
+const KEYCHAIN = [RELEASE_TOKEN, SAFE_STORAGE, { service: 'Other App Safe Storage', account: 'Other App' }];
 
 /** An installed MorrowBot with data, Library files, a skills link out of the data folder, and a shared workspace inside it. */
 async function installed(): Promise<string> {
@@ -57,6 +58,10 @@ it('resolves every choice for the installed app to exact paths, keeping workspac
             "path": "~/.morrowbot/workspaces",
             "reason": "Agent workspaces are never touched.",
           },
+          {
+            "path": "Keychain: com.legendarykoi.morrowbot.releases (account releases)",
+            "reason": "Needed for app updates while MorrowBot stays installed.",
+          },
         ],
         "kind": "available",
         "steps": [
@@ -89,8 +94,9 @@ it('resolves every choice for the installed app to exact paths, keeping workspac
             "path": "~/Library/Preferences/com.legendarykoi.morrowbot.plist",
           },
           {
+            "account": "MorrowBot",
             "kind": "keychain",
-            "service": "com.legendarykoi.morrowbot.releases",
+            "service": "MorrowBot Safe Storage",
           },
         ],
       },
@@ -165,6 +171,12 @@ it('resolves every choice for the installed app to exact paths, keeping workspac
             "path": "~/Library/Preferences/com.legendarykoi.morrowbot.plist",
           },
           {
+            "account": "MorrowBot",
+            "kind": "keychain",
+            "service": "MorrowBot Safe Storage",
+          },
+          {
+            "account": "releases",
             "kind": "keychain",
             "service": "com.legendarykoi.morrowbot.releases",
           },
@@ -255,7 +267,10 @@ it('refuses to delete data while the host cannot list workspaces, and to trash t
   await fake.file('elsewhere/MorrowBot.app/Contents/Info.plist', INFO_PLIST('com.legendarykoi.morrowbot'));
   await fake.link('Applications/MorrowBot.app', `${fake.home}/elsewhere/MorrowBot.app`);
   const linkedBundle = await reasons([]);
-  expect({ hostDown, updatePending, notInApplications, wrongBundleId, linkedBundle }).toMatchInlineSnapshot(`
+  await rm(`${fake.home}/Applications/MorrowBot.app`);
+  await fake.file('Applications/MorrowBot.app/Contents/Info.plist', INFO_PLIST('com.legendarykoi.morrowbot'));
+  const workspaceInBundle = await reasons([`${fake.home}/applications/morrowbot.app/Contents/Resources/agent`]);
+  expect({ hostDown, updatePending, notInApplications, wrongBundleId, linkedBundle, workspaceInBundle }).toMatchInlineSnapshot(`
     {
       "hostDown": [
         "MorrowBot can't list which folders its agents use right now, so it deletes nothing. Make sure this Mac's own server is running (Settings › Server), then try again.",
@@ -273,15 +288,42 @@ it('refuses to delete data while the host cannot list workspaces, and to trash t
         "Uninstalling works only for MorrowBot.app in Applications. Move it there, or drag it to the Trash yourself.",
       ],
       "updatePending": [
+        "An update is on its way. Restart to update, or wait until it is done, then try again.",
+        "An update is on its way. Restart to update, or wait until it is done, then try again.",
+        "An update is on its way. Restart to update, or wait until it is done, then try again.",
+      ],
+      "workspaceInBundle": [
         "available",
-        "An update is on its way. Restart to update, or wait until it is done, then uninstall.",
-        "An update is on its way. Restart to update, or wait until it is done, then uninstall.",
+        "An agent workspace is inside MorrowBot.app, or holds it. Move that workspace first.",
+        "An agent workspace is inside MorrowBot.app, or holds it. Move that workspace first.",
       ],
       "wrongBundleId": [
         "available",
         "This app bundle is not com.legendarykoi.morrowbot.",
         "This app bundle is not com.legendarykoi.morrowbot.",
       ],
+    }
+  `);
+});
+
+it("keeps Electron's Safe Storage key while its profile folder stays, and protects workspaces spelt in another case", async () => {
+  const execPath = await installed();
+  const context = fake.context('installed', '.morrowbot', [`${fake.home}/LIBRARY/application support/morrowbot/Workspace`]);
+  const [reset] = await resetOptionsOf(context, { packaged: true, execPath, updatePending: false }, fakeKeychain(KEYCHAIN));
+  const shownKept = (kept: readonly { readonly path: string }[]) => kept.filter((each) => each.path.includes('Application Support') || each.path.startsWith('Keychain'));
+  expect(fake.short(reset?.kind === 'available' ? { keychain: reset.steps.filter((step) => step.kind === 'keychain'), kept: shownKept(reset.kept) } : reset)).toMatchInlineSnapshot(`
+    {
+      "kept": [
+        {
+          "path": "~/Library/Application Support/MorrowBot",
+          "reason": "An agent workspace, or holds one. Workspaces are never touched.",
+        },
+        {
+          "path": "Keychain: com.legendarykoi.morrowbot.releases (account releases)",
+          "reason": "Needed for app updates while MorrowBot stays installed.",
+        },
+      ],
+      "keychain": [],
     }
   `);
 });

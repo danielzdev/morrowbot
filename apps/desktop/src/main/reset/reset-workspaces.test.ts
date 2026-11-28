@@ -1,3 +1,4 @@
+import { chmod } from 'node:fs/promises';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import type { ServerMode } from '../../renderer/bridge.ts';
 import { fakeHome, type FakeHome } from './reset-fixture.ts';
@@ -22,4 +23,12 @@ it('knows no workspaces (so resets nothing) without a server to ask, unless a cl
     noLocalDatabase: { localHostDown: null, choosing: [], joinedUnreachable: [] },
     localDatabaseLeft: { choosing: null, joined: null },
   });
+});
+
+it('treats a data folder it cannot read as one that may hold local agents', async () => {
+  await fake.file('.morrowbot/notes.txt');
+  await chmod(`${fake.home}/.morrowbot`, 0o000);
+  const unreadable = await resetWorkspaces({ kind: 'choosing' }, undefined, 'file:///index.html', `${fake.home}/.morrowbot`);
+  await chmod(`${fake.home}/.morrowbot`, 0o700);
+  expect(unreadable).toBeNull();
 });

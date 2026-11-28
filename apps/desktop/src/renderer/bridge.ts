@@ -77,7 +77,7 @@ export type ResetChoice = 'reset' | 'uninstall-app' | 'full-uninstall';
 export type ResetStep =
   | { readonly kind: 'delete'; readonly path: string }
   | { readonly kind: 'trash'; readonly path: string }
-  | { readonly kind: 'keychain'; readonly service: string };
+  | { readonly kind: 'keychain'; readonly service: string; readonly account: string };
 
 /** A path that stays, and why. */
 export interface KeptPath {

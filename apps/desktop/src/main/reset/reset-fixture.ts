@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readdir, realpath, rm, symlink, writeFile } from 'node:
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { Keychain } from './keychain.ts';
-import type { ResetContext } from './reset-paths.ts';
+import type { KeychainItem, ResetContext } from './reset-paths.ts';
 
 /** A throwaway home folder in the temp folder, with real paths (macOS links `/var` to `/private/var`). */
 export interface FakeHome {
@@ -54,14 +54,16 @@ export async function fakeHome(): Promise<FakeHome> {
   };
 }
 
-/** The Keychain as a set of service names, for checking which items a run removes. */
-export function fakeKeychain(services: readonly string[]): Keychain & { readonly items: Set<string> } {
-  const items = new Set(services);
+/** The Keychain as a set of `service / account` names, for checking which items a run removes; `locked` ones fail to delete. */
+export function fakeKeychain(present: readonly KeychainItem[], locked: readonly KeychainItem[] = []): Keychain & { readonly items: Set<string> } {
+  const name = (item: KeychainItem): string => `${item.service} / ${item.account}`;
+  const items = new Set(present.map(name));
   return {
     items,
-    has: (service) => Promise.resolve(items.has(service)),
-    remove: (service) => {
-      items.delete(service);
+    has: (item) => Promise.resolve(items.has(name(item))),
+    remove: (item) => {
+      if (locked.some((each) => name(each) === name(item))) return Promise.reject(new Error(`The Keychain refused to delete ${item.service}.`));
+      items.delete(name(item));
       return Promise.resolve();
     },
   };

@@ -3,7 +3,7 @@ import { isDeepStrictEqual } from 'node:util';
 import type { ResetStep } from '../../renderer/bridge.ts';
 import type { CleanupJob } from './cleanup-job.ts';
 import type { Keychain } from './keychain.ts';
-import { dataPlanOf } from './reset-plan.ts';
+import { dataPlanOf, deleteRefusalNow } from './reset-plan.ts';
 
 export interface CleanupDeps {
   readonly keychain: Keychain;
@@ -34,15 +34,15 @@ async function waitForExit(pids: readonly number[], deps: CleanupDeps): Promise<
 
 /**
  * Runs a confirmed cleanup once MorrowBot has exited. It plans the data side again from the job's
- * context and runs only the confirmed steps that the fresh plan still holds, so a path that became a
- * symbolic link, or moved under an agent workspace, since the user confirmed is skipped. Trash steps
- * are Electron main's; the helper skips them.
+ * context and runs only the confirmed steps that the fresh plan still holds, and checks each path on
+ * disk once more just before deleting it, so a path that became a symbolic link, or moved under an
+ * agent workspace, since the user confirmed is skipped. Trash steps are Electron main's; the helper skips them.
  */
 export async function runCleanup(job: CleanupJob, deps: CleanupDeps): Promise<CleanupReport> {
   const alive = await waitForExit(job.waitPids, deps);
   if (alive.length > 0) return { kind: 'timed-out', pids: alive };
   await deps.sleep(SETTLE_MS);
-  const fresh = await dataPlanOf(job.context, deps.keychain);
+  const fresh = await dataPlanOf(job.context, job.choice.kind, deps.keychain);
   if (fresh.kind === 'refused') return { kind: 'refused', reason: fresh.reason };
   const done: ResetStep[] = [];
   const skipped: ResetStep[] = [];
@@ -55,10 +55,14 @@ export async function runCleanup(job: CleanupJob, deps: CleanupDeps): Promise<Cl
     try {
       switch (step.kind) {
         case 'delete':
+          if ((await deleteRefusalNow(job.context, step.path)) !== null) {
+            skipped.push(step);
+            continue;
+          }
           await rm(step.path, { recursive: true, force: true });
           break;
         case 'keychain':
-          await deps.keychain.remove(step.service);
+          await deps.keychain.remove({ service: step.service, account: step.account });
           break;
       }
       done.push(step);

@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { INSTALLED_DATA_DIR } from '@morrowbot/contracts';
+import { DEV_DATA_DIR, INSTALLED_DATA_DIR } from '@morrowbot/contracts';
 import { APP_ID, PRODUCT_NAME } from '../app-identity.ts';
 
 /** What one reset or uninstall run is about: which profile, under whose home, and which folders agents use. */
@@ -30,6 +30,7 @@ export const DATA_ENTRIES: readonly string[] = [
   'instructions-drafts',
   'plugin-data',
   'plugins',
+  'sign-in',
   'skills',
   't3-watch',
 ];
@@ -40,9 +41,12 @@ const ISOLATED_ELECTRON_PROFILE = 'desktop';
 /** The folder in the data folder that holds dedicated agent workspaces; never a target. */
 export const WORKSPACES_ENTRY = 'workspaces';
 
+/** Electron's own profile for the installed app; `MorrowBot Safe Storage` encrypts what is in it. */
+export const ELECTRON_PROFILE = `Library/Application Support/${PRODUCT_NAME}`;
+
 /** The installed app's files outside its data folder, under the home folder. */
 export const INSTALLED_LIBRARY_PATHS: readonly string[] = [
-  `Library/Application Support/${PRODUCT_NAME}`,
+  ELECTRON_PROFILE,
   `Library/Caches/${APP_ID}`,
   `Library/Caches/${APP_ID}.ShipIt`,
   'Library/Caches/morrowbot-updater',
@@ -52,29 +56,51 @@ export const INSTALLED_LIBRARY_PATHS: readonly string[] = [
   `Library/Saved Application State/${APP_ID}.savedState`,
 ];
 
-/** The login Keychain items the installed app owns: the release feed token, and Electron's own storage key. */
-export const KEYCHAIN_SERVICES: readonly string[] = [`${APP_ID}.releases`, `${PRODUCT_NAME} Safe Storage`];
+/** One login Keychain item, named exactly by service and account. */
+export interface KeychainItem {
+  readonly service: string;
+  readonly account: string;
+}
 
-/** True when `inner` is `outer` or inside it. Both must be normalised absolute paths. */
+/** The release feed token RELEASING.md has testers add. Reset keeps it so updates keep working; only Full uninstall removes it. */
+export const RELEASE_TOKEN: KeychainItem = { service: `${APP_ID}.releases`, account: 'releases' };
+
+/** Electron's key for the files in `ELECTRON_PROFILE`; removed only together with them. */
+export const SAFE_STORAGE: KeychainItem = { service: `${PRODUCT_NAME} Safe Storage`, account: PRODUCT_NAME };
+
+/**
+ * A path as APFS compares it by default: normalised, no trailing separator, one Unicode form, any case. Every
+ * protection check compares these, so `~/.MorrowBot` is `~/.morrowbot` and a workspace spelt in another case
+ * is still that workspace. Comparing more paths as equal only ever refuses more.
+ */
+function comparable(target: string): string {
+  const normal = path.normalize(target);
+  const trimmed = normal.length > 1 && normal.endsWith(path.sep) ? normal.slice(0, -1) : normal;
+  return trimmed.normalize('NFC').toLowerCase();
+}
+
+/** True when `inner` is `outer` or inside it, compared as APFS would (see `comparable`). */
 export function isWithin(inner: string, outer: string): boolean {
-  if (inner === outer) return true;
-  const rest = path.relative(outer, inner);
+  const [a, b] = [comparable(inner), comparable(outer)];
+  if (a === b) return true;
+  const rest = path.relative(b, a);
   return rest !== '' && rest !== '..' && !rest.startsWith(`..${path.sep}`) && !path.isAbsolute(rest);
 }
 
-const strictlyInside = (inner: string, outer: string): boolean => inner !== outer && isWithin(inner, outer);
+const strictlyInside = (inner: string, outer: string): boolean => comparable(inner) !== comparable(outer) && isWithin(inner, outer);
 
 /** Why the data folder may not be cleaned at all in this profile, or null when it may. */
 export function dataDirRefusal(context: ResetContext): string | null {
   const { homeDir, profile } = context;
   const installedDir = path.join(homeDir, INSTALLED_DATA_DIR);
+  const devDir = path.join(homeDir, DEV_DATA_DIR);
   if (!path.isAbsolute(profile.dataDir) || path.normalize(profile.dataDir) !== profile.dataDir) return 'The data folder is not a plain absolute path.';
   switch (profile.kind) {
     case 'installed':
       return profile.dataDir === installedDir ? null : `The installed app keeps its data only in ~/${INSTALLED_DATA_DIR}.`;
     case 'isolated':
       if (isWithin(profile.dataDir, installedDir) || isWithin(installedDir, profile.dataDir)) return `A development run never resets the installed app's ~/${INSTALLED_DATA_DIR}.`;
-      return strictlyInside(profile.dataDir, homeDir) ? null : 'This run keeps its data outside your home folder, so it cannot be reset from here.';
+      return profile.dataDir === devDir ? null : `A development run resets only ~/${DEV_DATA_DIR}. This run uses another folder (MORROWBOT_DATA_DIR); delete it yourself if you no longer need it.`;
   }
 }
 

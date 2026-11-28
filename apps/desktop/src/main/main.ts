@@ -1,3 +1,4 @@
+import { realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, shell, type IpcMainEvent, type IpcMainInvokeEvent, type OpenDialogOptions, type BrowserWindowConstructorOptions } from 'electron';
 import type { BridgeChannels } from '../renderer/bridge.ts';
@@ -16,6 +17,7 @@ import { appInfoOf, loginItemOf, parseExternalUrl, parseOpenAtLogin, parseRelaun
 import { openSignInTerminal, parseSignInRequest } from './sign-in-terminal.ts';
 import { MAC_KEYCHAIN } from './reset/keychain.ts';
 import { parseResetRequest, resetFlow } from './reset/reset-flow.ts';
+import { resetInProgress } from './reset/reset-lock.ts';
 import { resetWorkspaces, startCleanupHelper } from './reset/start-helper.ts';
 
 const FILES = appFilesOf(app.isPackaged ? { kind: 'packaged', appPath: app.getAppPath() } : { kind: 'dev' });
@@ -273,17 +275,21 @@ function runApp(profile: UsableProfile): void {
   const reset = resetFlow({
     context: async () => ({
       platform: process.platform,
-      homeDir: homedir(),
+      homeDir: await realpath(homedir()),
       profile: { kind: profile.kind, dataDir },
       workspaces: await resetWorkspaces(server.mode(), server.target(), RENDERER_URL, dataDir),
     }),
     bundle: () => ({ packaged: app.isPackaged, execPath: process.execPath, updatePending: ['checking', 'downloading', 'ready'].includes(updater.status().kind) }),
     keychain: MAC_KEYCHAIN,
+    pauseUpdates: () => {
+      updater.stop();
+    },
+    loginItem: { isOn: () => loginItems && app.getLoginItemSettings().openAtLogin, set: (on) => { if (loginItems) app.setLoginItemSettings({ openAtLogin: on }); } },
     running: () => lifetime === 'running',
     stopHost,
     startHelper: (job) => startCleanupHelper(FILES.cleanupHelper, job),
     trash: (target) => shell.trashItem(target),
-    relaunch: { command: process.execPath, args: process.argv.slice(1), cwd: process.cwd() },
+    relaunch: { command: process.execPath, args: app.isPackaged ? [] : process.argv.slice(1), cwd: process.cwd() },
     mainPid: process.pid,
     quit: () => {
       app.quit();
@@ -349,6 +355,11 @@ function runApp(profile: UsableProfile): void {
 
 /** One instance per profile: the installed app keeps Electron's own profile and lock, any other run uses its own. */
 function start(profile: UsableProfile): void {
+  if (resetInProgress(profile.dataDir)) {
+    dialog.showErrorBox('MorrowBot is finishing a reset', 'Open MorrowBot again in a moment. It reopens by itself once a reset is done.');
+    app.exit(0);
+    return;
+  }
   if (profile.kind === 'isolated') app.setPath('userData', profile.userDataDir);
   if (app.requestSingleInstanceLock()) runApp(profile);
   else app.quit();

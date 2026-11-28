@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { ResetChoice, ResetOption, ResetPlan } from '../../bridge.ts';
-import { redact, type AppInfo } from '../../shared/privacy.ts';
+import { homeRelative, type AppInfo } from '../../shared/privacy.ts';
 import { Modal } from '../../shared/ui/Modal.tsx';
 import { CHOICE_COPY, CHOICE_ORDER, groupSteps, loadResetPlan, runReset, type ResetBridge } from './reset.ts';
 
@@ -17,7 +17,7 @@ export type ResetStage =
 const TITLE = 'Reset or Uninstall MorrowBot';
 
 /** A path as this dialog shows it: exact, with the home folder written `~`. */
-const shownPath = (path: string, info: AppInfo | null): string => (info === null ? path : redact(path, info));
+const shownPath = (path: string, info: AppInfo | null): string => (info === null ? path : homeRelative(path, info.homeDir));
 
 function PathList(props: { readonly heading: string; readonly items: readonly string[]; readonly info: AppInfo | null; readonly tone?: 'danger' }) {
   if (props.items.length === 0) return null;
