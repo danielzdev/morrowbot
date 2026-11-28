@@ -57,7 +57,7 @@ electron-builder signs when it finds the certificate and notarizes when the thre
 `.github/workflows/private-release.yml` runs on every push to `main` (and by hand). It versions the build
 `<major>.<minor>.<run number>` from `apps/desktop/package.json`, then builds, signs, notarizes and publishes the
 `.dmg`, `.zip` and `latest-mac.yml` to a draft GitHub release of the releases repo, and publishes it only once
-every file is uploaded. It runs `npm run check` first, releases only from `main`, and skips itself when any
+every file is uploaded. PR and `main` CI already run `npm run check`; this workflow releases only from `main` and skips itself when any
 secret is missing, so forks never fail.
 
 Repository secrets (Settings › Secrets and variables › Actions):
