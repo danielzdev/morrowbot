@@ -139,7 +139,7 @@ describe('lenient', () => {
     const cursor = { hostEpoch: 'e1', seq: 3, shard: 0 };
     const toolStart = { kind: 'generation.tool-start', threadId: 't1', generationId: 'g1', cursor, toolUseId: 'u1', name: 'search', input: { q: 'x', extra: { deep: true } }, lane: 2 };
     const frame = lenient(EventServerFrame);
-    expect([outcome(frame.safeParse(toolStart)), outcome(frame.safeParse({ kind: 'surface.updated', threadId: 't1' })).length]).toMatchInlineSnapshot(`
+    expect([outcome(frame.safeParse(toolStart)), frame.safeParse({ kind: 'surface.updated', threadId: 't1' }).success]).toMatchInlineSnapshot(`
       [
         {
           "cursor": {
@@ -158,7 +158,7 @@ describe('lenient', () => {
           "threadId": "t1",
           "toolUseId": "u1",
         },
-        1,
+        false,
       ]
     `);
   });
