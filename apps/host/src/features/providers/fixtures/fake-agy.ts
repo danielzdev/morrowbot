@@ -8,7 +8,9 @@
  * (`driftOnModel`), report a finished edit for a new session before answering `session/new`
  * (`sneakOnNew`) or report another ACP version (`protocolVersion`); every request is appended to
  * `log.jsonl`, and every launch's arguments to `launches.jsonl`. The prompt picks a turn's behavior:
- * `think` thinks first; `write`, `command` and `read-outside` ask for permission (an allowed write or
+ * `think` thinks first; `host-tool` asks to run Ori Bot's `list_agents` and calls it on the session's
+ * stdio MCP server (`fake-agy-mcp.ts`), `other-tool` asks to run another server's tool, and
+ * `servers` tells how many stdio servers still run 5 s later at most; `write`, `command` and `read-outside` ask for permission (an allowed write or
  * command really writes `inside.txt` or `ran.txt` in the session's folder); `sneaky` reports an edit
  * it never asked for, and `switch-mode` leaves Default mode, both then ignoring `session/cancel`;
  * `fs-write` asks the client to write a file; `spawn` asks to run a command and, once allowed, runs
@@ -21,6 +23,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } fr
 import path from 'node:path';
 import { createInterface } from 'node:readline';
 import { z } from 'zod';
+import { callTool, openServers, runningCount } from './fake-agy-mcp.ts';
 
 const home = process.env.HOME ?? '/nonexistent';
 const dir = path.join(home, 'fake-agy');
@@ -45,6 +48,7 @@ const Message = z.looseObject({ id: z.union([z.number(), z.string()]).optional()
 const Params = z.looseObject({
   sessionId: z.string().optional(),
   cwd: z.string().optional(),
+  mcpServers: z.unknown().optional(),
   configId: z.string().optional(),
   value: z.string().optional(),
   prompt: z.array(z.looseObject({ text: z.string().optional() })).optional(),
@@ -138,8 +142,12 @@ function lastUserMessage(prompt: string): string {
 const USAGE = { inputTokens: 120, outputTokens: 12, cachedReadTokens: 80, cachedWriteTokens: 0, thoughtTokens: 3, totalTokens: 212 };
 
 /** One tool call that asks first; `onAllowed` does its work. Ends the turn on a denial, as agy does. */
-async function permitted(sessionId: string, call: { readonly id: string; readonly kind: string; readonly title: string; readonly path: string | null }, onAllowed: () => string): Promise<unknown> {
-  const toolCall = { toolCallId: call.id, title: call.title, kind: call.kind, locations: call.path === null ? [] : [{ path: call.path }], rawInput: {} };
+async function permitted(
+  sessionId: string,
+  call: { readonly id: string; readonly kind: string; readonly title: string; readonly path: string | null; readonly name?: string },
+  onAllowed: () => string | Promise<string>,
+): Promise<unknown> {
+  const toolCall = { toolCallId: call.id, title: call.title, kind: call.kind, locations: call.path === null ? [] : [{ path: call.path }], rawInput: {}, ...(call.name === undefined ? {} : { name: call.name }) };
   update(sessionId, { sessionUpdate: 'tool_call', ...toolCall, status: 'in_progress' });
   update(sessionId, { sessionUpdate: 'tool_call_update', ...toolCall, status: 'pending' });
   const reply = Chosen.safeParse(
@@ -159,7 +167,7 @@ async function permitted(sessionId: string, call: { readonly id: string; readonl
     update(sessionId, { sessionUpdate: 'tool_call_update', ...toolCall, status: 'failed', rawOutput: 'user denied permission' });
     return { stopReason: choice === 'cancelled' ? 'cancelled' : 'end_turn', usage: USAGE };
   }
-  const text = onAllowed();
+  const text = await onAllowed();
   update(sessionId, { sessionUpdate: 'tool_call_update', ...toolCall, status: 'completed' });
   update(sessionId, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text } });
   return { stopReason: 'end_turn', usage: USAGE };
@@ -202,6 +210,16 @@ async function prompt(sessionId: string, session: Session, sent: string): Promis
   const text = lastUserMessage(sent);
   if (text.includes('quota')) throw new Error('RESOURCE_EXHAUSTED: You have exhausted your quota for this model.');
   if (text.includes('think')) update(sessionId, { sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: 'Hmm.' } });
+  if (text.includes('host-tool')) {
+    return permitted(sessionId, { id: 'call-host', kind: 'other', title: 'Run mcp_oribot_list_agents', path: null, name: 'mcp_oribot_list_agents' }, async () => `host tool: ${await callTool(sessionId, 'list_agents')}`);
+  }
+  if (text.includes('other-tool')) {
+    return permitted(sessionId, { id: 'call-other', kind: 'other', title: 'Run mcp_elsewhere_list', path: null, name: 'mcp_elsewhere_list' }, () => 'ran another tool');
+  }
+  if (text.includes('servers')) {
+    update(sessionId, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: `servers running: ${String(await runningCount(5_000))}` } });
+    return { stopReason: 'end_turn', usage: USAGE };
+  }
   if (text.includes('fs-write')) {
     const reply = await ask('fs/write_text_file', { sessionId, path: path.join(session.cwd, 'client.txt'), content: 'x' });
     update(sessionId, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: `fs write: ${JSON.stringify(reply)}` } });
@@ -259,6 +277,7 @@ async function answer(method: string, raw: unknown): Promise<unknown> {
       const id = `sess-${String(process.pid)}-${String(++opened)}`;
       const session: Session = { cwd: params.cwd ?? home, model: 'fake-pro', thought: 'high', mode: state().startMode, cancel: null };
       sessions.set(id, session);
+      await openServers(id, params.mcpServers, false);
       if (state().sneakOnNew) update(id, { sessionUpdate: 'tool_call', toolCallId: 'call-early', title: 'File early.txt', kind: 'edit', status: 'completed' });
       setImmediate(() => {
         update(id, { sessionUpdate: 'available_commands_update', availableCommands: [{ name: 'goal', description: 'Run until done.' }] });
@@ -269,6 +288,7 @@ async function answer(method: string, raw: unknown): Promise<unknown> {
       const id = params.sessionId ?? '';
       const session: Session = { cwd: params.cwd ?? home, model: 'fake-pro', thought: 'high', mode: state().startMode, cancel: null };
       sessions.set(id, session);
+      await openServers(id, params.mcpServers, true);
       update(id, { sessionUpdate: 'user_message_chunk', content: { type: 'text', text: 'an earlier question' } });
       update(id, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'an earlier answer' } });
       update(id, { sessionUpdate: 'tool_call', toolCallId: 'old-call', title: 'File old.txt', kind: 'edit', status: 'completed' });

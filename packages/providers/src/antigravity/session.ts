@@ -29,13 +29,13 @@ export type Opened =
   | { readonly kind: 'refused'; readonly error: ProviderError };
 
 /**
- * Opens the turn's session: `session/new` in `cwd` with no MCP servers, or `session/load` of a saved
- * one. agy replays a loaded session's history as updates before it answers, so nothing it sends
+ * Opens the turn's session with `servers` (Ori Bot's tools for this turn, or none): `session/new`
+ * in `cwd`, or `session/load` of a saved one. agy replays a loaded session's history as updates before it answers, so nothing it sends
  * before the answer reaches `handlers`, and a permission request during the replay is refused.
  */
-export async function openSession(daemon: AcpDaemon, cwd: string, session: TurnSession, handlers: acp.SessionHandlers): Promise<Opened> {
+export async function openSession(daemon: AcpDaemon, cwd: string, session: TurnSession, servers: readonly acp.AcpStdioServer[], handlers: acp.SessionHandlers): Promise<Opened> {
   if (session.kind === 'new') {
-    const created = await daemon.call('session/new', { cwd, mcpServers: [] }, SessionNewResponse, OPEN_MS);
+    const created = await daemon.call('session/new', { cwd, mcpServers: servers }, SessionNewResponse, OPEN_MS);
     if (created.kind !== 'ok') return { kind: 'refused', error: callError('start a session', created) };
     const { sessionId, configOptions, _meta } = created.value;
     return { kind: 'opened', sessionId, isNew: true, options: configOptions ?? [], tier: _meta?.antigravity?.tier?.name ?? null, detach: daemon.attach(sessionId, handlers) };
@@ -51,7 +51,7 @@ export async function openSession(daemon: AcpDaemon, cwd: string, session: TurnS
     onRefused: handlers.onRefused,
     replaying: () => !replay.done,
   });
-  const loaded = await daemon.call('session/load', { sessionId: ref, cwd, mcpServers: [] }, SessionLoadResponse, OPEN_MS);
+  const loaded = await daemon.call('session/load', { sessionId: ref, cwd, mcpServers: servers }, SessionLoadResponse, OPEN_MS);
   if (loaded.kind !== 'ok') {
     detach();
     return { kind: 'refused', error: loaded.kind === 'error' && SESSION_GONE.test(loaded.message) ? { kind: 'session-lost' } : callError('reopen the session', loaded) };

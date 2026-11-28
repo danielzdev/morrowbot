@@ -85,7 +85,13 @@ export type PermissionOption = z.infer<typeof PermissionOption>;
 
 export const PermissionRequest = z.looseObject({
   sessionId: z.string(),
-  toolCall: z.looseObject({ title: z.string().nullish(), kind: z.string().nullish(), locations: z.array(z.looseObject({ path: z.string() })).nullish() }),
+  toolCall: z.looseObject({
+    title: z.string().nullish(),
+    kind: z.string().nullish(),
+    locations: z.array(z.looseObject({ path: z.string() })).nullish(),
+    /** The tool's own name, which agy 1.5.18 adds (`mcp_oribot_remember`). */
+    name: z.string().nullish(),
+  }),
   options: z.array(PermissionOption),
 });
 export type PermissionRequest = z.infer<typeof PermissionRequest>;

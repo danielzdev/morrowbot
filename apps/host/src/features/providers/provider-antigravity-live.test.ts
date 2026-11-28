@@ -1,7 +1,7 @@
 import { access, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { Agent, MessageList, StartedSend, Thread, UsageResponse } from '@morrowbot/contracts';
+import { Agent, MemoryList, MessageList, StartedSend, Thread, UsageResponse } from '@morrowbot/contracts';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { AGY } from '../../testing/agy-fixture.ts';
@@ -152,5 +152,30 @@ describe.skipIf(!LIVE)('provider-antigravity on your agy login', () => {
       }).toEqual({ thinkingModels: true, ran: true, cards: false, stop: 200, runningBefore: true, runningAfter: false, outcomes: ['completed', 'cancelled'], errors: [] });
     },
     TURN_MS,
+  );
+
+  it(
+    "keeps a memory with Ori Bot's remember tool and finds it with search_memories, without a card, in read-only and in full access",
+    async () => {
+      const run = async (access: 'read-only' | 'full'): Promise<unknown> => {
+        const agent = Agent.parse((await host.call('POST', '/api/agents', { name: `Live tools ${access}`, provider: { ...AGY, access } })).body);
+        const thread = Thread.parse((await host.call('POST', `/api/agents/${agent.id}/threads`, { title: 'Live tools' })).body);
+        await events.watch(thread.id);
+        const saved = await send(thread, 'Call the remember tool of the oribot MCP server with the text "The deploy window is Friday". Do nothing else, then reply DONE.');
+        const found = await send(thread, 'Call the search_memories tool of the oribot MCP server with the query "deploy window", then reply with the text of the memory it found, or NONE.');
+        const { memories } = MemoryList.parse((await host.call('GET', `/api/agents/${agent.id}/memories`)).body);
+        const { messages } = MessageList.parse((await host.call('GET', `/api/threads/${thread.id}/messages`)).body);
+        return {
+          tools: [toolsOf(saved), toolsOf(found)],
+          cards: events.received.some((event) => event.kind === 'generation.approval-requested' && (event.generationId === saved || event.generationId === found)),
+          memories: memories.map(({ text }) => text),
+          recalled: messages.at(-1)?.text.includes('Friday'),
+          outcomes: messages.flatMap((message) => (message.kind === 'assistant' ? [message.outcome.kind] : [])),
+        };
+      };
+      const expected = { tools: [['Tool:ok'], ['Tool:ok']], cards: false, memories: ['The deploy window is Friday'], recalled: true, outcomes: ['completed', 'completed'] };
+      expect({ readOnly: await run('read-only'), full: await run('full'), errors: host.errors }).toEqual({ readOnly: expected, full: expected, errors: [] });
+    },
+    4 * TURN_MS,
   );
 });

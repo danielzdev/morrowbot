@@ -1,10 +1,11 @@
 import { acp, type ApprovalAnswer, type ProviderError, type TurnContext, type TurnEnd, type TurnOutcome, type TurnRequest, type TurnUsage } from '@morrowbot/plugin-sdk';
 import type { AcpDaemon } from './daemon.ts';
 import type { ModelCatalog } from './models.ts';
+import { bridgeHostTools, closeBridge, isHostTool } from './host-tools.ts';
 import { ASKING_MODE, closeSession, configureSession, openSession, vendorError } from './session.ts';
 import type { WorkspaceCheck } from './workspace.ts';
 
-/** What a full-access turn answers every permission request with: allowed once, never always, so no grant outlives the turn. */
+/** What a full-access turn answers every permission request with, and any turn a call to Ori Bot's own tools: allowed once, never always, so no grant outlives the turn. */
 const ALLOW: ApprovalAnswer = { kind: 'chosen', choiceId: 'allow' };
 
 /** A prompt has no deadline of its own: Stop cancels it, and the host ends a daemon that ignores that. */
@@ -39,7 +40,9 @@ export interface Live {
  * the prompt. Read-only: every write and command agy asks for is denied; a read, search or fetch it
  * asks for goes to an approval card. If agy changes something without asking or leaves Default
  * mode, the daemon ends at once, so nothing on it runs on. Full: everything agy asks for is allowed
- * once, without a card, and its session is not fenced. Stop sends `session/cancel` either way.
+ * once, without a card, and its session is not fenced. Either way a call to Ori Bot's own tools is
+ * allowed once without a card, and the turn's tools bridge ends with the turn. Stop sends
+ * `session/cancel` either way.
  */
 export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<TurnEnd> {
   const { request, signal, emit } = context;
@@ -80,6 +83,9 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
     const { live } = checked;
     const { daemon } = live;
     const full = request.access === 'full';
+    const bridged = await bridgeHostTools(request.hostTools);
+    if (bridged.kind === 'refused') return refuse(bridged.error);
+    const { bridge } = bridged;
 
     let armed = false;
     let over = false;
@@ -112,7 +118,7 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
     /** No answer allows anything once agy broke the rules, or after Stop. */
     const refusing = (): boolean => stopped() || deps.fence.reason() !== null;
     const answer = async (asked: acp.PermissionRequest): Promise<unknown> => {
-      if (full) return refusing() ? acp.permissionResult(asked.options, null, true) : acp.permissionResult(asked.options, ALLOW, false);
+      if (full || isHostTool(asked)) return refusing() ? acp.permissionResult(asked.options, null, true) : acp.permissionResult(asked.options, ALLOW, false);
       const decision = acp.decide(asked, deps.home, 'Antigravity');
       if (decision.kind === 'deny') {
         emit({ kind: 'status', text: decision.status });
@@ -135,7 +141,7 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
     };
 
     try {
-      const opening = openSession(daemon, request.cwd, request.session, handlers);
+      const opening = openSession(daemon, request.cwd, request.session, bridge.servers, handlers);
       const opened = await unlessStopped(opening);
       if (opened === 'stopped') {
         opening
@@ -192,6 +198,7 @@ export async function runTurn(context: TurnContext, deps: TurnDeps): Promise<Tur
     } finally {
       over = true;
       stopFence();
+      closeBridge(bridge);
     }
 
     async function prompt(id: string, model: string | null): Promise<TurnEnd> {
