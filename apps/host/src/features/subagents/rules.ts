@@ -1,4 +1,4 @@
-import type { AccessLevel, BoundProvider, ModelSelection, ProviderInfo, ProviderModel } from '@morrowbot/contracts';
+import type { AccessLevel, BoundProvider, ModelSelection, ProviderInfo, ProviderModel, VendorSettings } from '@morrowbot/contracts';
 
 /** What a turn asks a sub-agent to be. Left out, the provider, model and access are the parent's. */
 export interface SpawnRequest {
@@ -19,7 +19,7 @@ export const isEffortOption = (optionId: string): boolean => /effort/i.test(opti
 
 /**
  * The binding a sub-agent runs with: the parent's, changed only where the request says, and never with more
- * access than the parent has. `info` is the target provider's, needed when a model or effort is named.
+ * access than the parent has. `info` is the target provider's (undefined when it could not be read).
  */
 export function targetBinding(parent: BoundProvider, request: SpawnRequest, info: ProviderInfo | undefined): Target {
   const access = request.access ?? parent.access;
@@ -27,9 +27,34 @@ export function targetBinding(parent: BoundProvider, request: SpawnRequest, info
     return { kind: 'refused', reason: `A sub-agent cannot have more access than you: you have ${parent.access}, it asked for ${access}.` };
   }
   const pluginId = request.provider ?? parent.pluginId;
+  const vendorSettings = settingsFor(parent.vendorSettings, access, info);
+  if (vendorSettings === undefined) {
+    return {
+      kind: 'refused',
+      reason: `Provider ${pluginId} runs ${access} only with the user's personal setup, which can read more than your isolated setup: a sub-agent cannot have more access than you.`,
+    };
+  }
   const selection = selectionFor(parent, pluginId, request, info);
   if (selection.kind === 'refused') return selection;
-  return { kind: 'ok', binding: { kind: 'bound', pluginId, selection: selection.selection, access, vendorSettings: parent.vendorSettings } };
+  return { kind: 'ok', binding: { kind: 'bound', pluginId, selection: selection.selection, access, vendorSettings } };
+}
+
+/**
+ * The parent's setup when the provider offers it for a background turn. A parent on the user's personal setup
+ * may start an isolated sub-agent (it reads less), never the other way: undefined when that is all there is.
+ * With nothing known about the provider, the parent's setup is kept and admission says what is offered.
+ */
+function settingsFor(parent: VendorSettings, access: AccessLevel, info: ProviderInfo | undefined): VendorSettings | undefined {
+  if (info?.kind !== 'ready' && info?.kind !== 'ready-models-later') return parent;
+  const offered = (settings: VendorSettings): boolean =>
+    info.capabilities.profiles.some((profile) => profile.access === access && profile.vendorSettings === settings && profile.modes.includes('background'));
+  if (offered(parent)) return parent;
+  switch (parent) {
+    case 'personal':
+      return offered('isolated') ? 'isolated' : parent;
+    case 'isolated':
+      return offered('personal') ? undefined : parent;
+  }
 }
 
 type Selected = { readonly kind: 'ok'; readonly selection: ModelSelection } | { readonly kind: 'refused'; readonly reason: string };

@@ -1,6 +1,7 @@
 import type { AgentMessage, Message } from '@morrowbot/contracts';
 import { expect, it } from 'vitest';
-import { summarize, timelineItems, type TimelineItem } from './agent-exchange.ts';
+import { summarize } from './agent-exchange.ts';
+import { timelineItems, type TimelineItem } from './timeline-items.ts';
 
 const at = (second: number): string => new Date(Date.UTC(2026, 0, 1, 9, 0, second)).toISOString();
 const MAIN = 't-lead';
@@ -25,7 +26,16 @@ function agentMessage(id: string, second: number, from: 'lead' | 'helper' | 'cri
 }
 
 const shape = (items: TimelineItem[]) =>
-  items.map((item) => (item.kind === 'message' ? item.message.id : { exchange: item.messages.map(({ id }) => id), summary: summarize(item.messages, MAIN) }));
+  items.map((item) => {
+    switch (item.kind) {
+      case 'message':
+        return item.message.id;
+      case 'exchange':
+        return { exchange: item.messages.map(({ id }) => id), summary: summarize(item.messages, MAIN) };
+      case 'subagents':
+        return { subagents: item.runs.map(({ id }) => id) };
+    }
+  });
 
 it('groups agent messages between chat messages into exchanges, worded from the chat agent’s side', () => {
   const messages = [user('u1', 0), user('u2', 10), user('u3', 20)];
@@ -36,7 +46,7 @@ it('groups agent messages between chat messages into exchanges, worded from the 
     agentMessage('note', 13, 'critic'),
     agentMessage('late', 30, 'helper', { expectsReply: true }),
   ];
-  expect({ all: shape(timelineItems(messages, agentMessages, 0)), fromSecond: shape(timelineItems(messages, agentMessages, 1)) }).toMatchInlineSnapshot(`
+  expect({ all: shape(timelineItems(messages, agentMessages, [], 0)), fromSecond: shape(timelineItems(messages, agentMessages, [], 1)) }).toMatchInlineSnapshot(`
     {
       "all": [
         "u1",

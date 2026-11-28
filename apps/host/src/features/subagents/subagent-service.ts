@@ -87,8 +87,7 @@ export function createSubagentService(ports: SubagentPorts): SubagentService {
       if (first.kind === 'refused') return first;
       const pluginId = request.provider ?? first.binding.pluginId;
       if (!ports.providers.ids().includes(pluginId)) return { kind: 'refused', reason: `There is no provider ${pluginId}. See list_subagents.` };
-      const named = request.model !== undefined || request.effort !== undefined;
-      const target = targetBinding(first.binding, request, named ? await ports.providers.info(pluginId) : undefined);
+      const target = targetBinding(first.binding, request, await ports.providers.info(pluginId));
       if (target.kind === 'refused') return target;
       // Synchronous from here: the turn and the caps are checked again right before the sub-agent is written.
       const parent = parentOf(caller);

@@ -29,6 +29,7 @@ const CTX: TimelineContext = {
   onAnswer: () => undefined,
   image: () => Promise.resolve(null),
   peers: { name: () => 'Peer', color: () => '#6b7280', avatar: () => null },
+  engine: ({ pluginId }) => pluginId,
 };
 
 const render = (view: ThreadView, start: number): string =>

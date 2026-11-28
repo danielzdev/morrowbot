@@ -20,7 +20,8 @@ function state(seq: number, running: boolean, pending = running): ThreadState {
           pendingApprovals: pending ? [{ approvalId: 'a1', summary: 'Allow?', choices: [{ id: 'allow', label: 'Allow' }] }] : [],
         }
       : null,
-    blockedGroups: [], subagents: [],
+    blockedGroups: [],
+    subagents: [],
     queue: [],
     cursor: { hostEpoch: 'e1', seq },
   };
