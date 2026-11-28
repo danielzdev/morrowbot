@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Connector, type ConnectorSetup, type CreateConnectorRequest } from '@morrowbot/contracts';
-import { startToolServer, type ToolServer } from '../features/agent-tools/index.ts';
-import { createConnectorRuntime, createConnectorService, type ConnectorService } from '../features/connectors/index.ts';
+import { startToolServer, type ToolGrant, type ToolServer } from '../features/agent-tools/index.ts';
+import { createConnectorRuntime, createConnectorService, type ConnectorService, type TurnOf } from '../features/connectors/index.ts';
 import { openStorage, type Storage } from '../features/storage/index.ts';
 import { keyValue, openVault, vaultBackend, type VaultService } from '../features/vault/index.ts';
 import { postMcp } from './host-tools-client.ts';
@@ -51,7 +51,8 @@ export interface ConnectorKit {
   /** Saves the connector, waits for its session to settle, and gives its id. */
   add(request: CreateConnectorRequest): Promise<string>;
   view(id: string): Connector;
-  turn(agentId: string): KitTurn;
+  /** A running turn of `agentId`; `startedBy` is whether the server owner started it (the default) or someone else. */
+  turn(agentId: string, startedBy?: TurnOf['startedBy']): KitTurn;
   close(): Promise<void>;
 }
 
@@ -88,6 +89,8 @@ export async function startConnectorKit(options: { readonly agentIds: readonly s
     now,
     report,
   });
+  const starters = new Map<string, TurnOf['startedBy']>();
+  const turnOf = (grant: ToolGrant): TurnOf => ({ agentId: grant.agentId, startedBy: starters.get(grant.turnId) ?? 'other' });
   const tools = await startToolServer({
     ports: {
       agents: { list: () => storage.agents.list() },
@@ -96,7 +99,10 @@ export async function startConnectorKit(options: { readonly agentIds: readonly s
       replies: { react: () => ({ kind: 'refused', reason: 'Replies are not part of connector tests' }), stayQuiet: () => ({ kind: 'refused', reason: 'Replies are not part of connector tests' }), attachRefusal: () => 'Replies are not part of connector tests' },
       replyAttachments: { attach: () => Promise.resolve({ attached: [], refused: [] }) },
       vault: { list: () => [] },
-      connectors: { tools: (agentId) => connectors.toolsFor(agentId), call: (agentId, name, args, signal) => connectors.call(agentId, name, args, signal) },
+      connectors: {
+        tools: (grant) => connectors.toolsFor(turnOf(grant)),
+        call: (grant, name, args, signal) => connectors.call(turnOf(grant), name, args, signal),
+      },
       subagents: {
         isSubagent: () => false,
         spawn: () => Promise.resolve(NO_SUBAGENTS),
@@ -122,8 +128,9 @@ export async function startConnectorKit(options: { readonly agentIds: readonly s
       return saved.connector.id;
     },
     view: (id) => Connector.parse(connectors.get(id)),
-    turn: (agentId) => {
+    turn: (agentId, startedBy = 'owner') => {
       const turnId = `turn-${String(++turns)}`;
+      starters.set(turnId, startedBy);
       const open = tools.open({ turnId, agentId, threadId: `thread-${agentId}` });
       if (open.kind !== 'mcp') throw new Error('no tools');
       let id = 0;

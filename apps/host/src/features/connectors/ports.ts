@@ -38,6 +38,15 @@ export interface ConnectorStore {
   delete(id: string): boolean;
 }
 
+/**
+ * The turn asking for connector tools: its agent, and whether the server owner started it. On an agent shared
+ * with a scoped member, only the owner's turns get connectors (a member's, another agent's or an ended turn's never do).
+ */
+export interface TurnOf {
+  readonly agentId: string;
+  readonly startedBy: 'owner' | 'other';
+}
+
 /** A connector tool as an agent's `tools/list` shows it. */
 export interface AgentConnectorTool {
   readonly name: string;

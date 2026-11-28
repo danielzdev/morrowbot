@@ -251,6 +251,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
           agentMessages,
           memories,
           replies: { react: (grant, emoji) => chat.agentReact(grant, emoji), stayQuiet: (grant) => chat.stayQuiet(grant), attachRefusal: (grant) => chat.attachRefusal(grant) },
+          startedBy: (grant) => chat.startedBy(grant),
           replyFiles,
           vault,
           subagents,
@@ -281,10 +282,8 @@ export async function startHost(options: HostOptions): Promise<Host> {
       stopReading();
     });
     undo.push(() => {
-      routines.close();
-    });
-    undo.push(() => {
       t3Watches.close();
+      routines.close();
     });
     chat.readAgentMessages(null);
     routines.tick();

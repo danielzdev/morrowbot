@@ -279,7 +279,7 @@ it('refuses a label already in use by another connector, compared by its tool-na
   `);
 });
 
-it('gives no connectors to an agent shared with a member, and hides secret values a server echoes in an error', async () => {
+it('on an agent shared with a member, gives connectors only to turns the owner started, and hides secret values a server echoes in an error', async () => {
   kit = await startConnectorKit({ agentIds: ['agent-a', 'agent-shared'] });
   await kit.add({ label: 'Notes', setup: stdioSetup('work', path.join(kit.dir, 'log')), scope: { mode: 'all', agentIds: [] } });
   kit.storage.members.insert(
@@ -287,19 +287,23 @@ it('gives no connectors to an agent shared with a member, and hides secret value
     'code-hash',
     '2099-01-01T00:00:00.000Z',
   );
-  const shared = kit.turn('agent-shared');
+  const sharedByOwner = kit.turn('agent-shared', 'owner');
+  const sharedByOther = kit.turn('agent-shared', 'other');
   const a = kit.turn('agent-a');
+  const aByOther = kit.turn('agent-a', 'other');
   expect({
-    sharedTools: connectorToolNames(await shared.list()),
-    sharedCall: said(await shared.call('notes__echo', { text: 'hi' })),
-    ownTools: connectorToolNames(await a.list()).length,
+    sharedOwnerTools: connectorToolNames(await sharedByOwner.list()).length,
+    sharedOtherTools: connectorToolNames(await sharedByOther.list()),
+    sharedOtherCall: said(await sharedByOther.call('notes__echo', { text: 'hi' })),
+    unsharedOtherTools: connectorToolNames(await aByOther.list()).length,
     leak: said(await a.call('notes__echo', { text: 'leak' })),
   }).toMatchInlineSnapshot(`
     {
       "leak": "Notes: The server answered with error -32000: Rejected token [hidden]",
-      "ownTools": 4,
-      "sharedCall": "Connectors are not given to agents shared with other people.",
-      "sharedTools": [],
+      "sharedOtherCall": "This agent is shared, so connectors are given only to turns the owner starts.",
+      "sharedOtherTools": [],
+      "sharedOwnerTools": 4,
+      "unsharedOtherTools": 4,
     }
   `);
 });

@@ -1,5 +1,5 @@
 import type { Agent, AgentGrant, Member } from '@morrowbot/contracts';
-import type { ApiServices } from './ports.ts';
+import type { ApiInitiator, ApiServices } from './ports.ts';
 import { failure, notFound, type Reply } from './reply.ts';
 import type { Params } from './route.ts';
 
@@ -34,6 +34,11 @@ export type Viewer =
 
 export function sees(viewer: Viewer, agentId: string): boolean {
   return viewer.kind === 'owner' || viewer.grants.has(agentId);
+}
+
+/** Who a turn the viewer starts answers: the owner's turns may use the agent's connectors, a scoped member's never. */
+export function initiatorOf(viewer: Viewer): ApiInitiator {
+  return viewer.kind === 'owner' ? 'owner' : 'member';
 }
 
 export type Admission = { readonly kind: 'admitted'; readonly viewer: Viewer } | { readonly kind: 'denied'; readonly reply: Reply };
