@@ -5,6 +5,7 @@ import type { SidebarMode } from '../features/agents/index.ts';
 import { escapeStack } from '../shared/escape-stack.ts';
 import { PLATFORM, shortcutOf, type ShortcutId } from '../shared/keys.ts';
 import { readPref, writePref } from '../shared/local-pref.ts';
+import { ResizeHandle } from '../shared/ui/ResizeHandle.tsx';
 import type { Chrome } from './ChatPane.tsx';
 import { Overlay } from './Overlay.tsx';
 
@@ -93,36 +94,11 @@ export function Shell(props: {
       setOverlayOpen(false);
     },
   };
-  const resize = (width: number): void => {
-    update({ ...layout, width: Math.round(Math.min(WIDTH.max, Math.max(WIDTH.min, width))) });
-  };
   return (
     <div class={`shell ${mode}`} style={{ '--sidebar-w': `${String(layout.width)}px` }}>
       {mode !== 'overlay' && props.sidebar(mode, controls)}
       {mode === 'docked' && (
-        <div
-          class="sidebar-resizer"
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize sidebar"
-          aria-valuemin={WIDTH.min}
-          aria-valuemax={WIDTH.max}
-          aria-valuenow={layout.width}
-          tabIndex={0}
-          onPointerDown={(event) => {
-            const handle = event.currentTarget;
-            handle.setPointerCapture(event.pointerId);
-            const move = (moved: PointerEvent): void => {
-              resize(moved.clientX);
-            };
-            handle.addEventListener('pointermove', move);
-            handle.addEventListener('lostpointercapture', () => { handle.removeEventListener('pointermove', move); }, { once: true });
-          }}
-          onKeyDown={(event) => {
-            if (event.key === 'ArrowLeft') resize(layout.width - 8);
-            if (event.key === 'ArrowRight') resize(layout.width + 8);
-          }}
-        />
+        <ResizeHandle class="sidebar-resizer" label="Resize sidebar" edge="right" width={layout.width} bounds={WIDTH} onResize={(width) => { update({ ...layout, width }); }} />
       )}
       <main class="content">{props.main({ sidebarButton: mode === 'overlay', showSidebar: toggle })}</main>
       {mode === 'overlay' && overlayOpen && (

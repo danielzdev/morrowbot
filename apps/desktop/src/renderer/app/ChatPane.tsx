@@ -7,17 +7,16 @@ import { bindingPill, BindingControl, sendBlock, type BoundProvider } from '../f
 import { chatDisplay, ChatView, Composer, type ChatActivity, type EngineLabel, type PeerDirectory } from '../features/chat/index.ts';
 import { INSPECTOR_TOGGLE } from '../features/inspector/index.ts';
 import { ThreadHeader } from '../features/thread/index.ts';
-import { profileName } from '../shared/binding-ui/access-copy.ts';
 import { bubbleStyleVars } from '../shared/bubble-color.ts';
 import { sendButtonVars } from '../shared/send-color.ts';
-import { displayPath, type AppInfo } from '../shared/privacy.ts';
+import type { AppInfo } from '../shared/privacy.ts';
 import { useStore } from '../shared/use-store.ts';
 import { choiceFor, providerChoicesOf, threadStatusOf } from './derive.ts';
 import { InspectorPane } from './InspectorPane.tsx';
 import type { Models } from './models.ts';
 
 /** The agent's avatar beside its running turn and brief completion beat, in CSS pixels. */
-const CHAT_AVATAR_SIZE = 32;
+const CHAT_AVATAR_SIZE = 48;
 
 export interface Chrome {
   readonly sidebarButton: boolean;
@@ -58,7 +57,7 @@ export function ChatPane(props: {
   const cards = useStore(models.providers.cards);
   const activity = useStore(models.chats.activity);
   const appearance = useStore(models.appearance.state);
-  const { sendWith } = useStore(models.chatPrefs.state);
+  const { sendWith, toolActivity } = useStore(models.chatPrefs.state);
   const bubbleStyle = useMemo(
     () =>
       bubbleStyleVars({
@@ -123,7 +122,6 @@ export function ChatPane(props: {
         unread={(id) => id in state.unread}
         sidebarButton={props.chrome.sidebarButton}
         onShowSidebar={props.chrome.showSidebar}
-        onAgentSettings={() => { props.onAgentSettings('general'); }}
         onNewChat={props.onNewChat}
         onOpen={(id) => {
           models.agents.openThread(agent.id, id);
@@ -168,14 +166,11 @@ export function ChatPane(props: {
             owner={props.ownerEngines}
             onOpenPlugin={props.onOpenPlugin}
             onAgentChanged={(agentId) => void refetchAgent(models, agentId)}
+            tools={toolActivity === 'on'}
             hero={
               <>
                 <BotAvatar avatar={agent.avatar} motion={motion} size={64} reducedMotion={props.reducedMotion} />
                 <p class="hero-title">What can {agent.name} help with?</p>
-                <p class="hero-note">
-                  {props.info === null ? '…' : displayPath(agent.workspace.dir, props.info, agent.workspace.dir)}
-                  {bound !== null && ` · ${profileName(bound)}`}
-                </p>
               </>
             }
           />

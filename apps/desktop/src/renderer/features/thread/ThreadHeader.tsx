@@ -5,7 +5,7 @@ import { ariaShortcut, PLATFORM } from '../../shared/keys.ts';
 import type { Loadable } from '../../shared/store.ts';
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog.tsx';
 import { Icon } from '../../shared/ui/Icon.tsx';
-import { Menu, MenuButton, type MenuItem } from '../../shared/ui/Menu.tsx';
+import { Menu, type MenuItem } from '../../shared/ui/Menu.tsx';
 import { IconButton, Tooltip } from '../../shared/ui/Tooltip.tsx';
 import { ChatSwitcher } from './ChatSwitcher.tsx';
 import type { ThreadStatus } from './thread-status.ts';
@@ -26,7 +26,6 @@ export interface ThreadHeaderProps {
   /** Shown when the sidebar is collapsed to its rail or is an overlay. */
   readonly sidebarButton: boolean;
   readonly onShowSidebar: () => void;
-  readonly onAgentSettings: () => void;
   readonly onNewChat: () => void;
   readonly onOpen: (threadId: string) => void;
   readonly onRename: (threadId: string, title: string) => void;
@@ -48,7 +47,7 @@ interface TabMenu {
   readonly items: readonly MenuItem[];
 }
 
-/** The top of the chat: the chat tabs, New chat (+), every chat (⌄) and the ⋯ menu for the chat on screen. */
+/** The top of the chat: the chat tabs, New chat (+) and every chat (⌄). */
 export function ThreadHeader(props: ThreadHeaderProps) {
   const listButton = useRef<HTMLButtonElement>(null);
   const [switcher, setSwitcher] = useState(false);
@@ -62,16 +61,13 @@ export function ThreadHeader(props: ThreadHeaderProps) {
     closeTab(threadId);
     if (hadFocus) requestAnimationFrame(() => header.current?.querySelector<HTMLElement>('.tab.active .tab-open')?.focus());
   };
-  const thread = props.threads.find(({ id }) => id === props.openThreadId);
-
-  const actionsFor = (target: Thread, withSettings: boolean): readonly MenuItem[] => {
+  const actionsFor = (target: Thread): readonly MenuItem[] => {
     const main = target.id === tabs.main?.id;
     return [
       ...(main ? [] : [{ kind: 'action', id: 'rename', label: 'Rename', icon: 'pencil', onSelect: () => { setRenaming(target.id); } } satisfies MenuItem]),
       { kind: 'action', id: 'copy', label: 'Copy chat as Markdown', icon: 'copy', onSelect: () => { props.onCopy(target.id); } },
       ...(main ? [] : [{ kind: 'action', id: 'close', label: 'Close tab', icon: 'close', onSelect: () => { close(target.id); } } satisfies MenuItem]),
       { kind: 'action', id: 'close-others', label: 'Close other tabs', onSelect: () => { closeOthers(target.id); } },
-      ...(withSettings ? [{ kind: 'action', id: 'settings', label: 'Agent settings', icon: 'settings', onSelect: props.onAgentSettings } satisfies MenuItem] : []),
       { kind: 'separator', id: 'sep' },
       { kind: 'action', id: 'archive', label: 'Archive chat', icon: 'archive', onSelect: () => { props.onArchive(target.id); } },
       { kind: 'action', id: 'delete', label: 'Delete chat…', icon: 'trash', danger: true, onSelect: () => { setDeleting(target); } },
@@ -96,7 +92,7 @@ export function ThreadHeader(props: ThreadHeaderProps) {
           setRenaming(null);
           if (title !== null) props.onRename(id, title);
         }}
-        onMenu={(target, anchor, at) => { setTabMenu({ threadId: target.id, anchor, at, items: actionsFor(target, false) }); }}
+        onMenu={(target, anchor, at) => { setTabMenu({ threadId: target.id, anchor, at, items: actionsFor(target) }); }}
       />
       <IconButton icon="plus" label="New chat" shortcut="new-chat" onClick={props.onNewChat} />
       <Tooltip label="All chats">
@@ -118,7 +114,6 @@ export function ThreadHeader(props: ThreadHeaderProps) {
           <Icon name="inspector" />
         </button>
       </Tooltip>
-      {thread !== undefined && <MenuButton icon="more" label="Chat actions" items={() => actionsFor(thread, true)} />}
       {tabMenu !== null && <Menu key={`${tabMenu.threadId}-${tabMenu.at === null ? 'key' : `${String(tabMenu.at.x)},${String(tabMenu.at.y)}`}`} anchor={{ current: tabMenu.anchor }} at={tabMenu.at ?? undefined} label="Tab actions" align="start" items={tabMenu.items} onClose={() => { setTabMenu(null); }} />}
       {switcher && (
         <ChatSwitcher

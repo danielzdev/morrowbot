@@ -33,7 +33,7 @@ const APPEARANCE: Appearance = {
   reducedMotion: false,
   resolvedTheme: 'dark',
 };
-const PREFS: ChatPrefs = { sendWith: 'enter', notify: 'on' };
+const PREFS: ChatPrefs = { sendWith: 'enter', notify: 'on', toolActivity: 'off' };
 const INFO = { appVersion: '1.2.3', homeDir: '/Users/tester', userName: 'tester', dataDir: '/Users/tester/.oribot' };
 const BRIDGE = {
   loginItem: () => Promise.resolve({ kind: 'unsupported' }),

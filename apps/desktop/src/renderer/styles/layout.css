@@ -39,7 +39,7 @@
   min-height: 0;
   height: 100%;
   background: var(--surface-1);
-  border-right: 1px solid transparent;
+  border-right: 1px solid var(--hairline-strong);
   user-select: none;
 }
 .sidebar-top {
@@ -223,18 +223,28 @@
   left: 19px;
   box-shadow: 0 0 0 2px var(--surface-1);
 }
-.sidebar-resizer {
+/* Every panel resize handle: only the resize cursor shows it, held for the whole drag. */
+.resize-handle {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: calc(var(--sidebar-w) - 3px);
   width: 6px;
-  cursor: col-resize;
+  cursor: ew-resize;
   z-index: var(--z-sticky);
+  -webkit-app-region: no-drag;
 }
-.sidebar-resizer:is(:hover, :focus-visible) {
-  outline: none;
-  background: linear-gradient(to right, transparent 2px, var(--accent) 2px, var(--accent) 4px, transparent 4px);
+.resize-handle:focus-visible {
+  outline: var(--focus-width) solid var(--control-edge);
+  outline-offset: -2px;
+}
+:root[data-resizing],
+:root[data-resizing] * {
+  cursor: ew-resize !important;
+  user-select: none !important;
+}
+/* Inside the sidebar's column, so no window-drag bar drawn later covers any of it. */
+.sidebar-resizer {
+  left: calc(var(--sidebar-w) - 6px);
 }
 
 /* Below 760px the sidebar is a drawer over the main pane. */

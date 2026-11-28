@@ -101,16 +101,19 @@ export function ToolGroup(props: { readonly tools: readonly ToolStep[]; readonly
   );
 }
 
-/** A turn's tool calls and approval cards, in the order they arrived (spec §4.2). */
+/** A turn's tool calls and approval cards, in the order they arrived (spec §4.2). Hidden tool calls leave the approvals: only the user can answer them. */
 export function TurnSteps(props: {
   readonly steps: readonly TurnStep[];
+  /** Show the tool calls, not just the approvals. */
+  readonly tools: boolean;
   readonly display: ToolDisplay;
   readonly approval: (step: ApprovalStep) => ComponentChildren;
 }) {
-  if (props.steps.length === 0) return null;
+  const steps = props.tools ? props.steps : props.steps.filter((step) => step.kind === 'approval');
+  if (steps.length === 0) return null;
   return (
     <ul class="steps" aria-label="Activity">
-      {groupSteps(props.steps).map((item) => {
+      {groupSteps(steps).map((item) => {
         switch (item.kind) {
           case 'group':
             return <ToolGroup key={item.tools[0]?.toolUseId} tools={item.tools} display={props.display} />;

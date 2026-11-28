@@ -92,6 +92,7 @@ export const ROWS = {
   reduceMotion: row('appearance', 'reduce-motion', 'Reduce motion', "On stills avatars and slide-ins. Your system's reduce-motion setting always applies."),
   sendWith: row('chat', 'send-with', 'Send with', 'Which key sends your message. Shift+Enter always starts a new line.'),
   notifications: row('chat', 'notifications', 'Notifications', 'While Ori Bot is in the background, a system notification says when an agent needs approval or finishes.'),
+  toolActivity: row('chat', 'tool-activity', 'Show tool activity', 'Show each file read, edit and command in the chat. Off keeps a short status and summary instead; approvals always show.'),
   emojiReplies: row(
     'chat',
     'emoji-replies',

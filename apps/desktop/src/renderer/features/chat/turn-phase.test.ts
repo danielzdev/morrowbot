@@ -6,7 +6,7 @@ import { nextActivity, type ChatActivity } from './activity.ts';
 import { chatDisplay } from './display.ts';
 import { applyEvent, viewOf, type ThreadEvent, type ThreadView } from './thread-model.ts';
 import { Timeline, type TimelineContext } from './Timeline.tsx';
-import { extraDetail, phaseOf } from './turn-phase.ts';
+import { extraDetail, labelExpiresAt, phaseOf } from './turn-phase.ts';
 
 const AT = '2026-01-01T00:00:00.000Z';
 const IDLE: ThreadState = {
@@ -52,7 +52,7 @@ it('names each phase of a turn beside the avatar, from queued through a tool, an
     view = applied.view;
     const active = view.activeTurn;
     if (active === null) return `${event.kind} → ${activity}`;
-    const { phase, label } = phaseOf(active, DISPLAY);
+    const { phase, label } = phaseOf(active, DISPLAY, 0);
     const detail = extraDetail(active.detail, label);
     return `${event.kind} → ${phase} "${label}"${detail === null ? '' : ` · ${detail}`}${phase === activity ? '' : ` (chat: ${activity})`}`;
   });
@@ -60,9 +60,9 @@ it('names each phase of a turn beside the avatar, from queued through a tool, an
     [
       "generation.started → queued "Queued"",
       "generation.status → thinking "Thinking"",
-      "generation.tool-start → running-tool "Searching"",
-      "generation.tool-start → running-tool "Reading"",
-      "generation.tool-end → running-tool "Searching"",
+      "generation.tool-start → running-tool "Searching the web for “tide tables”"",
+      "generation.tool-start → running-tool "Reading notes.md"",
+      "generation.tool-end → running-tool "Searching the web for “tide tables”"",
       "generation.tool-end → thinking "Thinking"",
       "generation.status → thinking "Thinking" · Planning the answer",
       "generation.approval-requested → needs-approval "Waiting for your approval" · Planning the answer",
@@ -88,12 +88,16 @@ const CTX: TimelineContext = {
   peers: { name: () => 'Peer', color: () => '#6b7280', avatar: () => null },
   engine: ({ pluginId }) => pluginId,
   avatar: (activity) => h('i', { 'data-avatar': activity }),
+  tools: false,
   cards: { peers: { name: () => 'Peer', color: () => '#6b7280', avatar: () => null }, owner: true, onAct: () => undefined, onOpenPlugin: null },
 };
 
+const renderTimeline = (view: ThreadView, activity: ChatActivity, ctx: TimelineContext): string =>
+  renderToString(h(Timeline, { view, start: 0, answering: [], cardActing: [], idle: view.activeTurn === null, locked: false, offline: false, ctx, onShowEarlier: () => undefined, activity }));
+
 /** Each turn row as "[the avatar's activity] its text". */
-function rows(view: ThreadView, activity: ChatActivity): string[] {
-  const html = renderToString(h(Timeline, { view, start: 0, answering: [], cardActing: [], idle: view.activeTurn === null, locked: false, offline: false, ctx: CTX, onShowEarlier: () => undefined, activity }));
+function rows(view: ThreadView, activity: ChatActivity, ctx = CTX): string[] {
+  const html = renderTimeline(view, activity, ctx);
   return [...html.matchAll(/<div class="turn-time[^"]*">(.*?)<\/div>/g)].map(([, row = '']) =>
     row.replace(/<i data-avatar="([^"]+)"><\/i>/g, '[$1] ').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim(),
   );
@@ -130,7 +134,7 @@ it('puts the avatar beside the running turn and brief completion beat, then hide
   }).toMatchInlineSnapshot(`
     {
       "completed": [
-        "[completed] Worked for 12s",
+        "[completed] Worked for 12s · searched 1 time",
       ],
       "fromHistory": [],
       "openedMidTurnCompleted": [
@@ -138,11 +142,115 @@ it('puts the avatar beside the running turn and brief completion beat, then hide
       ],
       "openedMidTurnSettled": [],
       "running": [
-        "[running-tool] Searching · 5s",
+        "[running-tool] Searching the web for “…” · 5s",
       ],
       "settled": [
-        "Worked for 12s",
+        "Worked for 12s · searched 1 time",
       ],
+    }
+  `);
+});
+
+it('says "Failed, retrying" briefly after a tool fails, until the next tool or the beat ends', () => {
+  const failed = play(viewOf(IDLE), [
+    { kind: 'generation.started', ...turn(1), state: 'running', userMessage: USER },
+    { kind: 'generation.tool-start', ...turn(2), toolUseId: 't1', name: 'Bash', input: { command: 'npm test' } },
+    { kind: 'generation.tool-end', ...turn(3), toolUseId: 't1', outcome: 'error' },
+  ], 10_000);
+  const retried = play(failed, [{ kind: 'generation.tool-start', ...turn(4), toolUseId: 't2', name: 'Read', input: { file_path: 'src/app.test.ts' } }], 10_500);
+  const label = (view: ThreadView, now: number): string => (view.activeTurn === null ? 'idle' : phaseOf(view.activeTurn, DISPLAY, now).label);
+  expect({
+    justFailed: label(failed, 10_100),
+    beatEndsAt: failed.activeTurn === null ? null : labelExpiresAt(failed.activeTurn),
+    afterBeat: label(failed, 12_600),
+    nextTool: label(retried, 10_600),
+    nextToolExpires: retried.activeTurn === null ? null : labelExpiresAt(retried.activeTurn),
+  }).toMatchInlineSnapshot(`
+    {
+      "afterBeat": "Thinking",
+      "beatEndsAt": 12500,
+      "justFailed": "Failed, retrying",
+      "nextTool": "Reading app.test.ts",
+      "nextToolExpires": null,
+    }
+  `);
+});
+
+it('with tool rows hidden, keeps approvals, counts steps beside the avatar and sums a finished turn beside its time', () => {
+  vi.useFakeTimers({ now: 5_000 });
+  const approval = { approvalId: 'p', summary: 'Write notes.md', choices: [{ id: 'allow', label: 'Allow' }] };
+  const working = play(viewOf(IDLE), [
+    { kind: 'generation.started', ...turn(1), state: 'running', userMessage: USER },
+    { kind: 'generation.tool-start', ...turn(2), toolUseId: 'r1', name: 'Read', input: { file_path: 'a.md' } },
+    { kind: 'generation.tool-end', ...turn(3), toolUseId: 'r1', outcome: 'ok' },
+    { kind: 'generation.tool-start', ...turn(4), toolUseId: 'b1', name: 'Bash', input: { command: 'git diff' } },
+    { kind: 'generation.tool-end', ...turn(5), toolUseId: 'b1', outcome: 'error' },
+    { kind: 'generation.tool-start', ...turn(6), toolUseId: 'e1', name: 'Edit', input: { file_path: 'src/Composer.tsx' } },
+  ]);
+  const asking = play(working, [
+    { kind: 'generation.tool-end', ...turn(7), toolUseId: 'e1', outcome: 'ok' },
+    { kind: 'generation.approval-requested', ...turn(8), approval },
+  ]);
+  const finished = play(asking, [
+    { kind: 'generation.approval-resolved', ...turn(9), approvalId: 'p', resolution: { kind: 'chosen', choiceId: 'allow' } },
+    { kind: 'generation.finished', ...turn(10), message: REPLY },
+  ], 125_000);
+  const shown = (view: ThreadView, activity: ChatActivity, tools: boolean) => {
+    const ctx = { ...CTX, display: { ...DISPLAY, safe: (text: string) => text }, tools };
+    const html = renderTimeline(view, activity, ctx);
+    return { rows: rows(view, activity, ctx), toolRows: [...html.matchAll(/class="tool-(?:row|group)/g)].length, approvals: [...html.matchAll(/class="step-approval"/g)].length };
+  };
+  expect({
+    hidden: { working: shown(working, 'running-tool', false), asking: shown(asking, 'needs-approval', false), finished: shown(finished, 'idle', false) },
+    shown: { working: shown(working, 'running-tool', true), asking: shown(asking, 'needs-approval', true), finished: shown(finished, 'idle', true) },
+  }).toMatchInlineSnapshot(`
+    {
+      "hidden": {
+        "asking": {
+          "approvals": 1,
+          "rows": [
+            "[needs-approval] Waiting for your approval · 3 steps so far · 5s",
+          ],
+          "toolRows": 0,
+        },
+        "finished": {
+          "approvals": 1,
+          "rows": [
+            "Worked for 2m 5s · read 1 file, ran 1 command, edited 1 file",
+          ],
+          "toolRows": 0,
+        },
+        "working": {
+          "approvals": 0,
+          "rows": [
+            "[running-tool] Editing Composer.tsx · 3 steps so far · 5s",
+          ],
+          "toolRows": 0,
+        },
+      },
+      "shown": {
+        "asking": {
+          "approvals": 1,
+          "rows": [
+            "[needs-approval] Waiting for your approval · 5s",
+          ],
+          "toolRows": 3,
+        },
+        "finished": {
+          "approvals": 1,
+          "rows": [
+            "Worked for 2m 5s",
+          ],
+          "toolRows": 3,
+        },
+        "working": {
+          "approvals": 0,
+          "rows": [
+            "[running-tool] Editing Composer.tsx · 5s",
+          ],
+          "toolRows": 3,
+        },
+      },
     }
   `);
 });
