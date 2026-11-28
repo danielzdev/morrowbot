@@ -6,13 +6,14 @@ export {
   Ignored,
   PermissionRequest,
   PromptResponse,
+  promptBlocks,
   selectOf,
   SessionLoadResponse,
   SessionNewResponse,
   SessionNotification,
   SetConfigResponse,
 } from './protocol.ts';
-export type { SessionUpdate } from './protocol.ts';
+export type { PromptBlock, SessionUpdate } from './protocol.ts';
 export { createSessionStream } from './stream.ts';
 export { tilde } from './tools.ts';
 export { createTripwire } from './tripwire.ts';

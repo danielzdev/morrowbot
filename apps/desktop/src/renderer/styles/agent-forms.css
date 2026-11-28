@@ -195,3 +195,133 @@ pre.instructions.disk {
   inset: 15%;
   border-radius: var(--r-pill);
 }
+
+/* Agent Settings › Skills and Memories */
+.skill-list,
+.memory-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.skill-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  background: var(--surface-1);
+}
+.skill-icon {
+  padding-top: 2px;
+  color: var(--text-3);
+}
+.skill-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.skill-name {
+  font: var(--t-ui-strong);
+}
+.skill-description {
+  color: var(--text-2);
+  font: var(--t-small);
+}
+.skill-scope {
+  flex: none;
+  color: var(--text-3);
+  font: var(--t-meta);
+}
+.memory-new,
+.memory-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.memory-new .row,
+.memory-row.editing .row {
+  justify-content: flex-end;
+}
+.memory-text-input {
+  width: 100%;
+  min-height: 64px;
+  resize: vertical;
+  font: var(--t-body);
+}
+.memory-search {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--text-3);
+}
+.memory-search input {
+  flex: 1;
+}
+.memory-row {
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  background: var(--surface-1);
+}
+.memory-text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.memory-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s-1);
+}
+
+/* Agent Settings › Routines */
+.routine-list {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--hairline);
+}
+.routine-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid var(--hairline);
+}
+.routine-row .setting-control {
+  gap: var(--s-1);
+}
+.routine-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--s-1);
+  color: var(--text-2);
+  font: var(--t-small);
+  overflow-wrap: anywhere;
+}
+.routine-status.danger {
+  color: var(--danger);
+}
+.routine-form .segmented {
+  align-self: flex-start;
+}
+.routine-cron {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--s-3);
+}
+.routine-cron .binding-note {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+@media (max-width: 600px) {
+  .routine-cron {
+    grid-template-columns: 1fr;
+  }
+}

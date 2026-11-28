@@ -25,6 +25,7 @@ it('streams a reply through the echo plugin and stores it with its usage', async
         "state": "queued",
         "threadId": "id-2",
         "userMessage": {
+          "attachments": [],
           "createdAt": "2026-01-01T00:00:02.000Z",
           "id": "id-4",
           "kind": "user",

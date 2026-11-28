@@ -1,7 +1,8 @@
 import { realpath } from 'node:fs/promises';
-import type { ProviderInfo, TurnChunk, TurnEnd, TurnRequest, TurnSession, UsageWindow } from '@morrowbot/contracts';
+import type { Attachment, ProviderInfo, TurnChunk, TurnEnd, TurnRequest, TurnSession, UsageWindow } from '@morrowbot/contracts';
 import { profileAllowed } from './admission-rules.ts';
 import type { TurnSink } from './ports.ts';
+import { buildTurnInput, type TurnInput } from './prompt.ts';
 import { instructionsHash, renderSeed, SEEDED_SESSION_BUDGET, statelessBudget, type Seed } from './seed.ts';
 import { laneKey, laneOf, localSettlement, settle, type ChatCore, type LiveUsage, type Turn } from './turn.ts';
 
@@ -24,7 +25,7 @@ export async function dispatch(core: ChatCore, turn: Turn): Promise<void> {
     settle(core, turn, localSettlement({ kind: 'failed', error: { kind: 'other', message: read.message } }));
     return;
   }
-  const { instructions } = read;
+  const { instructions, input } = read;
   const agent = agents.get(turn.agentId);
   const revision = plugins.revision(turn.pluginId);
   const info = plugins.cachedInfo(turn.pluginId);
@@ -38,7 +39,7 @@ export async function dispatch(core: ChatCore, turn: Turn): Promise<void> {
     revision.daemonRevision === turn.daemonRevision &&
     plugins.canStart(turn.pluginId, turn.worker) &&
     info?.worker === turn.worker &&
-    profileAllowed(info.info, turn.binding, 'interactive') === undefined;
+    profileAllowed(info.info, turn.binding, turn.mode) === undefined;
   if (!unchanged) {
     settle(core, turn, localSettlement({ kind: 'failed', error: { kind: 'binding-changed' } }));
     return;
@@ -63,7 +64,7 @@ export async function dispatch(core: ChatCore, turn: Turn): Promise<void> {
   const request: TurnRequest = {
     turnId: turn.generationId,
     cwd: turn.cwd,
-    mode: 'interactive',
+    mode: turn.mode,
     access: turn.binding.access,
     vendorSettings: turn.binding.vendorSettings,
     expectedAccountKey: turn.accountKey,
@@ -71,7 +72,8 @@ export async function dispatch(core: ChatCore, turn: Turn): Promise<void> {
     selection: turn.binding.selection,
     session,
     system: turn.binding.vendorSettings === 'isolated' ? instructions : null,
-    prompt: turn.input.kind === 'chat' ? turn.input.message.text : turn.input.prompt,
+    prompt: input.prompt,
+    images: input.images,
   };
   try {
     store.transaction(() => {
@@ -100,18 +102,33 @@ export async function dispatch(core: ChatCore, turn: Turn): Promise<void> {
 }
 
 type TurnInputs =
-  | { readonly kind: 'read'; readonly instructions: string; readonly cwd: string }
+  | { readonly kind: 'read'; readonly instructions: string; readonly cwd: string; readonly input: TurnInput }
   | { readonly kind: 'unreadable'; readonly message: string };
 
-/** AGENTS.md as it is now, and the workspace's canonical path (a moved symlink no longer matches the admitted cwd). */
+/**
+ * AGENTS.md as it is now, the workspace's canonical path (a moved symlink no longer matches the admitted cwd),
+ * and the prompt: the agent's skills and essential memories, the message's attachments, then its text.
+ */
 async function readTurnInputs(core: ChatCore, turn: Turn): Promise<TurnInputs> {
+  const { agents, context } = core.options;
   try {
-    const [instructions, cwd] = await Promise.all([core.options.agents.readInstructions(turn.agentId), realpath(turn.workspaceDir)]);
-    return { kind: 'read', instructions: instructions ?? '', cwd };
+    const [instructions, cwd, prelude, attachments] = await Promise.all([
+      agents.readInstructions(turn.agentId),
+      realpath(turn.workspaceDir),
+      context.prelude(turn.agentId, turn.workspaceDir),
+      Promise.all(sentAttachments(turn).map(async (attachment) => ({ attachment, content: await context.readAttachment(attachment) }))),
+    ]);
+    const text = turn.source.kind === 'chat' ? turn.source.message.text : turn.source.prompt;
+    return { kind: 'read', instructions: instructions ?? '', cwd, input: buildTurnInput(prelude, text, attachments) };
   } catch (error) {
     core.options.report(error);
-    return { kind: 'unreadable', message: "Could not read the agent's workspace or AGENTS.md" };
+    return { kind: 'unreadable', message: "Could not read the agent's workspace, AGENTS.md or the message's attachments" };
   }
+}
+
+/** The files sent with a chat message; a message from another agent has none. */
+function sentAttachments(turn: Turn): readonly Attachment[] {
+  return turn.source.kind === 'chat' ? turn.source.message.attachments : [];
 }
 
 /** A stateless turn whose account the plugin now reports differently: it would be refused, so it is not sent. */

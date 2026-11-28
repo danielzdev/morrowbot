@@ -201,6 +201,7 @@ export function turnRequest(turnId: string, prompt: string, cwd: string): TurnRe
     session: { kind: 'new', seed: null },
     system: null,
     prompt,
+    images: [],
   };
 }
 

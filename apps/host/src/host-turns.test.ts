@@ -108,6 +108,7 @@ it('queues a third turn on one account, shows why, and cancels it on Stop withou
           "state": "queued",
           "threadId": "id-4",
           "userMessage": {
+            "attachments": [],
             "createdAt": "2026-01-01T00:00:08.000Z",
             "id": "id-10",
             "kind": "user",

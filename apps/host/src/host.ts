@@ -6,9 +6,11 @@ import { SendAgentMessageRequest, type PluginStatusEvent } from '@morrowbot/cont
 import { createAgentMessageService, type SendRefusal } from './features/agent-messages/index.ts';
 import { createAgentService, createFolderService } from './features/agents/index.ts';
 import { startApiServer } from './features/api/index.ts';
+import { createAttachmentService, type AttachmentService } from './features/attachments/index.ts';
 import { createChatService, type ProviderPlugins } from './features/chat/index.ts';
 import type { HostConfig } from './features/config/index.ts';
 import { healthListener } from './features/health/index.ts';
+import { createMemoryService, type MemoryService } from './features/memories/index.ts';
 import { createPairingService } from './features/pairing/index.ts';
 import {
   resolvePluginPath,
@@ -19,6 +21,8 @@ import {
   type ProcessProbe,
 } from './features/plugins/index.ts';
 import { builtinProviders } from './features/providers/index.ts';
+import { findSkills, skillList } from './features/skills/index.ts';
+import { createRoutineService, type RoutineClock } from './features/routines/index.ts';
 import { lockDataDir, openStorage, type Storage } from './features/storage/index.ts';
 
 export { DataDirLockedError as HostLockedError } from './features/storage/index.ts';
@@ -41,6 +45,8 @@ export interface HostOptions {
   readonly platform?: NodeJS.Platform;
   /** The name paired devices show for this host. Defaults to the computer's name. */
   readonly hostName?: string;
+  /** Real time and the timer for routine schedules. Defaults to the system clock. */
+  readonly routineClock?: RoutineClock;
 }
 
 export interface Host {
@@ -119,6 +125,16 @@ export async function startHost(options: HostOptions): Promise<Host> {
       newId,
       now,
     });
+    const attachments = createAttachmentService({
+      dir: path.join(dataDir, 'attachments'),
+      records: storage.attachments,
+      threadExists: (id) => storage.threads.get(id) !== undefined,
+      newId,
+      now,
+    });
+    await attachments.sweep();
+    const memories = createMemoryService({ records: storage.memories, agentExists: (id) => agents.get(id) !== undefined, newId, now });
+    const skillsDir = path.join(dataDir, 'skills');
     const agentMessages = createAgentMessageService({
       records: storage.agentMessages,
       agentExists: (id) => agents.get(id) !== undefined,
@@ -138,6 +154,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
           return sent.kind === 'sent' ? { kind: 'sent' } : { kind: 'refused', reason: refusalReason(sent) };
         },
       },
+      context: turnContext(skillsDir, memories, attachments),
       plugins: providerPlugins(plugins),
       newId,
       now,
@@ -152,6 +169,24 @@ export async function startHost(options: HostOptions): Promise<Host> {
       stopReading();
     });
     chat.readAgentMessages(null);
+    const routines = createRoutineService({
+      store: { routines: storage.routines, runs: storage.routineRuns, waits: storage.waits, transaction: (work) => storage.transaction(work) },
+      chat: {
+        agentExists: (id) => agents.get(id) !== undefined,
+        createThread: (agentId, request) => chat.createThread(agentId, request),
+        send: (threadId, text, choice, mode) => chat.send(threadId, text, [], choice, mode),
+        deleteThread: (id) => chat.deleteThread(id),
+        subscribe: (listener) => chat.subscribe(listener),
+      },
+      clock: options.routineClock ?? systemClock,
+      newId,
+      now,
+      report,
+    });
+    undo.push(() => {
+      routines.close();
+    });
+    routines.tick();
     const token = randomBytes(32).toString('base64url');
     const api = await startApiServer({
       address: { hostname: config.hostname, port: config.port },
@@ -161,7 +196,19 @@ export async function startHost(options: HostOptions): Promise<Host> {
       services: {
         agents: { ...agents, lastMessages: () => storage.messages.lastByAgent() },
         folders,
-        chat,
+        chat: {
+          ...chat,
+          deleteThread: (id) => afterwards(chat.deleteThread(id), () => attachments.sweep(), report),
+          deleteAgent: (id) => afterwards(chat.deleteAgent(id), () => attachments.sweep(), report),
+        },
+        attachments,
+        memories,
+        skills: {
+          list: async (agentId) => {
+            const agent = agents.get(agentId);
+            return agent === undefined ? undefined : skillList(await findSkills(skillsDir, agent.workspace.dir));
+          },
+        },
         usage: { tokens: (range) => storage.tokens.read(range) },
         plugins: {
           list: () => plugins.list(),
@@ -189,6 +236,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
         },
         pairing: createPairingService({ records: storage.devices, newId, now }),
         agentMessages,
+        routines,
       },
       fallback: healthListener(options.version),
       report,
@@ -212,8 +260,38 @@ function refusalReason(refusal: SendRefusal): string {
   return refusal.kind === 'not-found' ? `${refusal.what} not found` : refusal.reason;
 }
 
+/** Runs `cleanup` once `work` removed something; a failed cleanup is reported, never returned. */
+async function afterwards(work: Promise<boolean>, cleanup: () => Promise<void>, report: (error: unknown) => void): Promise<boolean> {
+  const removed = await work;
+  if (removed) cleanup().catch(report);
+  return removed;
+}
+
+function turnContext(skillsDir: string, memories: MemoryService, attachments: AttachmentService): Parameters<typeof createChatService>[0]['context'] {
+  return {
+    prelude: async (agentId, workspaceDir) => {
+      const found = await findSkills(skillsDir, workspaceDir);
+      return {
+        skills: found.skills.map(({ skill, file }) => ({ name: skill.name, description: skill.description, file })),
+        memories: memories.essential(agentId),
+      };
+    },
+    readAttachment: (attachment) => attachments.read(attachment),
+  };
+}
+const systemClock: RoutineClock = {
+  now: () => Date.now(),
+  every: (ms, tick) => {
+    const timer = setInterval(tick, ms).unref();
+    return () => {
+      clearInterval(timer);
+    };
+  },
+};
+
 function chatStore(storage: Storage): Parameters<typeof createChatService>[0]['store'] {
   return {
+    attachments: storage.attachments,
     threads: storage.threads,
     messages: storage.messages,
     generations: storage.generations,

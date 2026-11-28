@@ -4,6 +4,7 @@ import type {
   Message,
   PendingApproval,
   ProviderBinding,
+  TurnMode,
   TurnOutcome,
   TurnUsage,
   UsageWindow,
@@ -31,7 +32,7 @@ export type SessionPlan =
  * What a turn answers. `chat`: the user's message, answered in the chat. `agent-message`: another agent's
  * message, read in the background with `prompt`; the chat shows nothing unless the agent tells the user.
  */
-export type TurnInput =
+export type TurnSource =
   | { readonly kind: 'chat'; readonly message: UserMessage }
   | { readonly kind: 'agent-message'; readonly message: AgentMessage; readonly prompt: string };
 
@@ -45,6 +46,8 @@ export interface Turn {
   readonly routeKey: string;
   /** The canonical (realpath) workspace the turn runs in. */
   readonly cwd: string;
+  /** `background` (a routine run) never asks for approval. */
+  readonly mode: TurnMode;
   readonly binding: BoundProvider;
   readonly bindingJson: string;
   readonly workspaceDir: string;
@@ -54,7 +57,7 @@ export interface Turn {
   readonly daemonRevision: number;
   readonly maxSeedBytes: number | undefined;
   readonly plan: SessionPlan;
-  readonly input: TurnInput;
+  readonly source: TurnSource;
   /** The thread's messages before a chat input (all of them for a background turn): what a seed is made from. */
   readonly history: readonly Message[];
   state: 'queued' | 'dispatching' | 'running' | 'settled';
@@ -190,14 +193,14 @@ export function settle(core: ChatCore, turn: Turn, result: Settlement): Assistan
  * cannot be sent is shown to the user instead, so it is never lost.
  */
 function shownText(core: ChatCore, turn: Turn, text: string, outcome: TurnOutcome): string | null {
-  const { input } = turn;
-  switch (input.kind) {
+  const { source } = turn;
+  switch (source.kind) {
     case 'chat':
       return text;
     case 'agent-message': {
       if (outcome.kind !== 'completed') return null;
       const { reply, notice } = splitAnswer(text);
-      const sent = reply === '' || !answersSender(input.message) ? null : core.options.inbox.reply(input.message, reply);
+      const sent = reply === '' || !answersSender(source.message) ? null : core.options.inbox.reply(source.message, reply);
       const parts = sent?.kind === 'refused' ? [notice, `My reply could not be sent: ${sent.reason}`, reply] : [notice];
       const shown = parts.filter((part) => part !== '').join('\n\n');
       return shown === '' ? null : shown;

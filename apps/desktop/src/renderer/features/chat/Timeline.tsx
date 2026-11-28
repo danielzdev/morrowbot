@@ -10,6 +10,7 @@ import { ACTIVE_ID } from './find.ts';
 import { Markdown, type MarkdownActions } from './Markdown.tsx';
 import { outcomeCopy, type CopyContext, type OutcomeAction } from './outcome-copy.ts';
 import { OutcomeNote } from './OutcomeNote.tsx';
+import { SentAttachments } from './SentAttachments.tsx';
 import type { ActiveTurnView, ApprovalStep, FinishedTurn, ThreadView, TurnStep } from './thread-model.ts';
 import { TurnSteps } from './ToolGroup.tsx';
 import { elapsed } from './tool-rows.ts';
@@ -21,6 +22,8 @@ export interface TimelineContext {
   readonly actions: MarkdownActions;
   readonly onAction: (messageId: string, action: OutcomeAction) => void;
   readonly onAnswer: (approvalId: string, choiceId: string) => void;
+  /** A sent image as a data URL; null when it can't be loaded. */
+  readonly image: (id: string) => Promise<string | null>;
   readonly peers: PeerDirectory;
 }
 
@@ -60,7 +63,8 @@ const MessageItem = memo(function MessageItem(props: {
   if (message.kind === 'user') {
     return (
       <div class="message user" data-message-id={message.id}>
-        <div class="bubble" data-find-id={message.id}>{message.text}</div>
+        {message.attachments.length > 0 && <SentAttachments attachments={message.attachments} image={ctx.image} />}
+        {message.text !== '' && <div class="bubble" data-find-id={message.id}>{message.text}</div>}
       </div>
     );
   }

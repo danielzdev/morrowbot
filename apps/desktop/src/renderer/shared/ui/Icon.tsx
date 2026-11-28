@@ -31,7 +31,12 @@ export type IconName =
   | 'palette'
   | 'gauge'
   | 'refresh'
-  | 'provider';
+  | 'paperclip'
+  | 'file'
+  | 'book'
+  | 'bookmark'
+  | 'provider'
+  | 'clock';
 
 const dot = (cx: number, cy: number, r = 1.1) => <circle cx={cx} cy={cy} r={r} fill="currentColor" stroke="none" />;
 
@@ -86,6 +91,12 @@ const SHAPES: Readonly<Record<IconName, ComponentChildren>> = {
     </>
   ),
   folder: <path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3L8 4.5h4.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z" />,
+  clock: (
+    <>
+      <circle cx="8" cy="8" r="6" />
+      <path d="M8 4.75V8l2.25 1.5" />
+    </>
+  ),
   'folder-plus': <path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3L8 4.5h4.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5zM8 6.75v4M6 8.75h4" />,
   chat: <path d="M3 3h10a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1H7.5L4.5 14v-2.5H3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" />,
   search: (
@@ -140,6 +151,10 @@ const SHAPES: Readonly<Record<IconName, ComponentChildren>> = {
     </>
   ),
   send: <path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" />,
+  paperclip: <path d="M13 7.5 8 12.5a3 3 0 0 1-4.5-4.5L9 2.5a2 2 0 0 1 3 3L6.5 11a1 1 0 0 1-1.5-1.5L10 4.5" />,
+  file: <path d="M4 2h5l3 3v9H4zM9 2v3h3" />,
+  book: <path d="M2.5 3.5h4A1.5 1.5 0 0 1 8 5v8.5a1.5 1.5 0 0 0-1.5-1.5h-4zM13.5 3.5h-4A1.5 1.5 0 0 0 8 5v8.5a1.5 1.5 0 0 1 1.5-1.5h4z" />,
+  bookmark: <path d="M4.5 2.5h7v11L8 10.5l-3.5 3z" />,
   stop: <rect x="4.5" y="4.5" width="7" height="7" rx="1" fill="currentColor" />,
   keyboard: (
     <>

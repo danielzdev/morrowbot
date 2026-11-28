@@ -1,5 +1,13 @@
 import {
   Agent,
+  Attachment,
+  AttachmentContent,
+  Memory,
+  MemoryList,
+  SkillList,
+  CreateMemoryRequest as CreateMemoryRequestSchema,
+  type UpdateMemoryRequest,
+  type UploadAttachmentRequest,
   AgentMessageList,
   AgentInstructionsView,
   InstructionsCopyReply,
@@ -12,6 +20,9 @@ import {
   PluginList,
   ProviderInfoResponse,
   ReleaseGroupResponse,
+  Routine,
+  RoutineList,
+  RunRoutineResponse,
   SendMessageResponse,
   StopGenerationResponse,
   Thread,
@@ -20,10 +31,12 @@ import {
   TokenUsageResponse,
   UsageResponse,
   CreateAgentRequest,
+  type CreateRoutineRequest,
   type PluginConfig,
   type SessionChoice,
   type TokenRange,
   type UpdateAgentRequest,
+  type UpdateRoutineRequest,
 } from '@morrowbot/contracts';
 import { z } from 'zod';
 import type { ApiMethod, MorrowbotBridge } from '../bridge.ts';
@@ -59,9 +72,17 @@ export interface Api {
   renameThread(id: string, title: string): Promise<ApiResult<Thread>>;
   deleteThread(id: string): Promise<ApiResult<null>>;
   threadState(id: string): Promise<ApiResult<ThreadState>>;
+  send(threadId: string, text: string, attachmentIds: readonly string[], sessionChoice: SessionChoice): Promise<ApiResult<SendMessageResponse>>;
+  uploadAttachment(threadId: string, request: UploadAttachmentRequest): Promise<ApiResult<Attachment>>;
+  attachmentContent(id: string): Promise<ApiResult<AttachmentContent>>;
+  skills(agentId: string): Promise<ApiResult<SkillList>>;
+  /** All the agent's memories, or those matching `query`. */
+  memories(agentId: string, query: string): Promise<ApiResult<MemoryList>>;
+  createMemory(agentId: string, request: z.input<typeof CreateMemoryRequestSchema>): Promise<ApiResult<Memory>>;
+  updateMemory(agentId: string, id: string, request: UpdateMemoryRequest): Promise<ApiResult<Memory>>;
+  deleteMemory(agentId: string, id: string): Promise<ApiResult<null>>;
   /** The agent messages shown in one of the agent's chats, oldest first. */
   agentMessages(agentId: string, threadId: string): Promise<ApiResult<AgentMessageList>>;
-  send(threadId: string, text: string, sessionChoice: SessionChoice): Promise<ApiResult<SendMessageResponse>>;
   continueTurn(threadId: string, failedMessageId: string, sessionChoice: SessionChoice): Promise<ApiResult<ContinueResponse>>;
   stop(threadId: string): Promise<ApiResult<StopGenerationResponse>>;
   answerApproval(threadId: string, approvalId: string, generationId: string, choiceId: string): Promise<ApiResult<null>>;
@@ -76,6 +97,11 @@ export interface Api {
   /** Local token counts over a range (H5). */
   tokenUsage(range: TokenRange): Promise<ApiResult<TokenUsageResponse>>;
   releaseGroup(regId: string): Promise<ApiResult<ReleaseGroupResponse>>;
+  listRoutines(agentId: string): Promise<ApiResult<RoutineList>>;
+  createRoutine(request: z.input<typeof CreateRoutineRequest>): Promise<ApiResult<Routine>>;
+  updateRoutine(id: string, request: UpdateRoutineRequest): Promise<ApiResult<Routine>>;
+  deleteRoutine(id: string): Promise<ApiResult<null>>;
+  runRoutine(id: string): Promise<ApiResult<RunRoutineResponse>>;
 }
 
 const at = (...segments: readonly string[]): string => `/api/${segments.map(encodeURIComponent).join('/')}`;
@@ -115,9 +141,17 @@ export function createApi(bridge: MorrowbotBridge): Api {
     renameThread: (id, title) => call(Thread, 'PATCH', at('threads', id), { title }),
     deleteThread: (id) => call(NoContent, 'DELETE', at('threads', id)),
     threadState: (id) => call(ThreadState, 'GET', at('threads', id, 'state')),
+    send: (threadId, text, attachmentIds, sessionChoice) =>
+      call(SendMessageResponse, 'POST', at('threads', threadId, 'messages'), { text, attachmentIds, sessionChoice }),
+    uploadAttachment: (threadId, request) => call(Attachment, 'POST', at('threads', threadId, 'attachments'), request),
+    attachmentContent: (id) => call(AttachmentContent, 'GET', at('attachments', id)),
+    skills: (agentId) => call(SkillList, 'GET', at('agents', agentId, 'skills')),
+    memories: (agentId, query) => call(MemoryList, 'GET', `${at('agents', agentId, 'memories')}${query === '' ? '' : `?q=${encodeURIComponent(query)}`}`),
+    createMemory: (agentId, request) => call(Memory, 'POST', at('agents', agentId, 'memories'), request),
+    updateMemory: (agentId, id, request) => call(Memory, 'PATCH', at('agents', agentId, 'memories', id), request),
+    deleteMemory: (agentId, id) => call(NoContent, 'DELETE', at('agents', agentId, 'memories', id)),
     agentMessages: (agentId, threadId) =>
       call(AgentMessageList, 'GET', `${at('agents', agentId, 'messages')}?${new URLSearchParams({ threadId }).toString()}`),
-    send: (threadId, text, sessionChoice) => call(SendMessageResponse, 'POST', at('threads', threadId, 'messages'), { text, sessionChoice }),
     continueTurn: (threadId, failedMessageId, sessionChoice) =>
       call(ContinueResponse, 'POST', at('threads', threadId, 'continue'), { failedMessageId, sessionChoice }),
     stop: (threadId) => call(StopGenerationResponse, 'POST', at('threads', threadId, 'stop')),
@@ -133,6 +167,11 @@ export function createApi(bridge: MorrowbotBridge): Api {
     usage: (id, refresh) => call(UsageResponse, 'GET', `${at('plugins', id, 'usage')}${refresh ? '?refresh=1' : ''}`),
     tokenUsage: (range) => call(TokenUsageResponse, 'GET', `${at('usage', 'tokens')}?range=${range}`),
     releaseGroup: (regId) => call(ReleaseGroupResponse, 'POST', at('child-groups', regId, 'release')),
+    listRoutines: (agentId) => call(RoutineList, 'GET', `${at('routines')}?agentId=${encodeURIComponent(agentId)}`),
+    createRoutine: (request) => call(Routine, 'POST', at('routines'), request),
+    updateRoutine: (id, request) => call(Routine, 'PATCH', at('routines', id), request),
+    deleteRoutine: (id) => call(NoContent, 'DELETE', at('routines', id)),
+    runRoutine: (id) => call(RunRoutineResponse, 'POST', at('routines', id, 'run'), {}),
   };
 }
 

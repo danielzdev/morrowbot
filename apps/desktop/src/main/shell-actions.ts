@@ -26,6 +26,8 @@ const RevealInput = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('plugins-dir') }),
   z.strictObject({ kind: z.literal('agent-workspace'), agentId: z.string().min(1).max(200) }),
   z.strictObject({ kind: z.literal('instructions-copy'), agentId: z.string().min(1).max(200), revealId: z.string().regex(INSTRUCTIONS_COPY_NAME) }),
+  z.strictObject({ kind: z.literal('global-skills') }),
+  z.strictObject({ kind: z.literal('agent-skills'), agentId: z.string().min(1).max(200) }),
 ]);
 
 /** Checks an IPC `reveal-path` message: an opaque id, never a path. */
@@ -77,7 +79,17 @@ export async function resolveReveal(target: RevealTarget, context: RevealContext
       const agent = await hostAgent(target.agentId, context);
       return path.join(context.dataDir, 'instructions-drafts', agent.id, target.revealId);
     }
+    case 'global-skills':
+      return skillsFolder(path.join(context.dataDir, 'skills'));
+    case 'agent-skills':
+      return skillsFolder(path.join((await hostAgent(target.agentId, context)).workspace.dir, '.morrowbot', 'skills'));
   }
+}
+
+/** A skills folder to reveal, made first so Finder has something to show. */
+async function skillsFolder(dir: string): Promise<string> {
+  await mkdir(dir, { recursive: true });
+  return dir;
 }
 
 /** H6 `appInfo()`: read by the renderer's privacy rules and About, never shown raw. */
