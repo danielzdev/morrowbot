@@ -23,7 +23,7 @@ export async function claimPairing(fetch: HttpFetch, target: PairingTarget, devi
     case 'unreachable':
       return { kind: 'unreachable', message: reply.message };
     case 'failed':
-      return reply.status === 429 ? { kind: 'rate-limited' } : { kind: 'failed', message: reply.message };
+      return reply.status === 429 ? { kind: 'rate-limited' } : { kind: 'failed', message: reply.error.message };
     case 'malformed':
       return { kind: 'failed', message: 'This host is not a MorrowBot host, or is a version this app cannot read.' };
     case 'unsupported':

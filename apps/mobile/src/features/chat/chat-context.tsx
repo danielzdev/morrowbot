@@ -1,13 +1,16 @@
-import { createContext, useContext, useMemo, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react';
 import type { WorkspaceNavigation } from '../../lib/workspace.ts';
-import type { ChatHost } from './chat-host.ts';
+import type { ChatHost } from '../../lib/chat-host.ts';
 import { createChatHub, type ChatHub } from './chat-hub.ts';
 
 const HubContext = createContext<ChatHub | null>(null);
 
-/** Gives every chat screen below it the host to talk to. */
-export function ChatHostProvider(props: { readonly host: ChatHost; readonly children: ReactNode }) {
+/** Gives every chat screen below it the host to talk to. Lists load whenever the link is `online`. */
+export function ChatHostProvider(props: { readonly host: ChatHost; readonly online: boolean; readonly children: ReactNode }) {
   const hub = useMemo(() => createChatHub(props.host), [props.host]);
+  useEffect(() => {
+    if (props.online) hub.refresh();
+  }, [hub, props.online]);
   return <HubContext value={hub}>{props.children}</HubContext>;
 }
 

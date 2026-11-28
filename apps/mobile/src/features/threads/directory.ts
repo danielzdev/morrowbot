@@ -49,10 +49,12 @@ export interface Directory {
   readonly threads: readonly ThreadRecord[];
 }
 
+export type CreatedThread = { readonly kind: 'created'; readonly thread: Thread } | { readonly kind: 'failed'; readonly message: string };
+
 /** Where the lists read the directory from, and how they start a thread. */
 export interface DirectorySource {
   readonly store: ReadableStore<Directory>;
-  readonly createThread: (hostId: EntityId, agentId: EntityId) => Thread;
+  readonly createThread: (hostId: EntityId, agentId: EntityId) => Promise<CreatedThread>;
 }
 
 /** A key that stays unique across hosts, for list rows and caches. */

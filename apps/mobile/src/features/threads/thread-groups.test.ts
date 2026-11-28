@@ -139,9 +139,11 @@ describe('filter choices', () => {
 });
 
 describe('createSampleDirectory', () => {
-  it('adds a new thread to the top of the list for the agent it was started in', () => {
+  it('adds a new thread to the top of the list for the agent it was started in', async () => {
     const source = createSampleDirectory(() => Date.parse('2026-11-27T12:00:00.000Z'));
-    const thread = source.createThread('studio-host', 'recipe-coach');
+    const created = await source.createThread('studio-host', 'recipe-coach');
+    if (created.kind !== 'created') throw new Error(created.message);
+    const { thread } = created;
     const items = listThreads(source.store.get(), {
       ...NO_FILTER,
       agent: { kind: 'agent', hostId: 'studio-host', agentId: 'recipe-coach' },

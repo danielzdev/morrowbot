@@ -1,5 +1,5 @@
 import { mainThread, type Agent, type PluginEntry, type ProviderInfo, type Thread, type UpdateAgentRequest } from '@morrowbot/contracts';
-import type { ChatHost, HostResult } from './chat-host.ts';
+import type { ChatHost, ChatResult } from '../../lib/chat-host.ts';
 import { openChatSession, type ChatSession } from './chat-session.ts';
 import { Store, type Loadable } from './store.ts';
 
@@ -13,15 +13,17 @@ export interface ChatHub {
   providerInfo(pluginId: string): Store<Loadable<ProviderInfo>>;
   /** The open chat of `threadId`, kept across tab switches so its draft survives. */
   session(threadId: string): ChatSession;
+  /** Loads agents, plugins and every thread list shown so far again, as when the link comes back. */
+  refresh(): void;
   refreshAgents(): Promise<void>;
   refreshThreads(agentId: string): Promise<void>;
   refreshPlugins(): Promise<void>;
-  updateAgent(agentId: string, request: UpdateAgentRequest): Promise<HostResult<Agent>>;
-  createThread(agentId: string): Promise<HostResult<Thread>>;
-  setPluginEnabled(pluginId: string, enabled: boolean): Promise<HostResult<PluginEntry>>;
+  updateAgent(agentId: string, request: UpdateAgentRequest): Promise<ChatResult<Agent>>;
+  createThread(agentId: string): Promise<ChatResult<Thread>>;
+  setPluginEnabled(pluginId: string, enabled: boolean): Promise<ChatResult<PluginEntry>>;
 }
 
-const loadable = <T>(result: HostResult<T>): Loadable<T> =>
+const loadable = <T>(result: ChatResult<T>): Loadable<T> =>
   result.kind === 'ok' ? { kind: 'loaded', value: result.value } : { kind: 'failed', message: result.error.message };
 
 /** The thread a chat route means: its own, or the agent's main chat for `null`. */
@@ -56,8 +58,6 @@ export function createChatHub(host: ChatHost): ChatHub {
     const result = await host.threads(agentId);
     threadStore(agentId).set(result.kind === 'ok' ? { kind: 'loaded', value: result.value.threads } : loadable(result));
   }
-  void refreshAgents();
-  void refreshPlugins();
   host.onPluginChanged((entry) => {
     plugins.update((current) =>
       current.kind === 'loaded'
@@ -87,8 +87,13 @@ export function createChatHub(host: ChatHost): ChatHub {
       if (existing !== undefined) return existing;
       const session = openChatSession(host, threadId);
       sessions.set(threadId, session);
-      void session.load();
+      session.load();
       return session;
+    },
+    refresh: () => {
+      void refreshAgents();
+      void refreshPlugins();
+      for (const agentId of threads.keys()) void refreshThreads(agentId);
     },
     refreshAgents,
     refreshThreads,
