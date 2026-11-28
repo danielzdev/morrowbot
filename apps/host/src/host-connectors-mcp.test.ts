@@ -106,10 +106,10 @@ it('discovers a local stdio server’s well-formed tools and calls them with onl
 it('speaks Streamable HTTP with its headers, session and protocol version, and asks for Reconnect when the credentials are refused', async () => {
   server = await startHttpFixture({ tools: 'plain', header: 'authorization', value: 'Bearer remote-token', account: 'remote' });
   kit = await startConnectorKit({ agentIds: ['agent-a'] });
-  const good = await kit.add({ label: 'Remote', setup: { kind: 'http', url: server.url, headers: [{ name: 'Authorization', value: 'Bearer remote-token' }] }, scope: ALL });
+  const good = await kit.add({ label: 'Remote', setup: { kind: 'http', url: server.url, headers: [{ kind: 'inline', name: 'Authorization', value: 'Bearer remote-token' }] }, scope: ALL });
   const turn = kit.turn('agent-a');
   const echo = resultOf(await turn.call('remote__echo', { text: 'over http' }));
-  const bad = await kit.add({ label: 'Remote · Old key', setup: { kind: 'http', url: server.url, headers: [{ name: 'Authorization', value: 'Bearer expired' }] }, scope: ALL });
+  const bad = await kit.add({ label: 'Remote · Old key', setup: { kind: 'http', url: server.url, headers: [{ kind: 'inline', name: 'Authorization', value: 'Bearer expired' }] }, scope: ALL });
   const views = JSON.stringify(kit.connectors.list());
   kit.connectors.disconnect(good);
   await kit.connectors.settled(good);
@@ -144,8 +144,11 @@ it('speaks Streamable HTTP with its headers, session and protocol version, and a
       },
       "goodStatus": "not_connected",
       "headerNamesInView": {
-        "headerNames": [
-          "Authorization",
+        "headers": [
+          {
+            "kind": "inline",
+            "name": "Authorization",
+          },
         ],
         "kind": "http",
         "url": "http://127.0.0.1:<port>/mcp/server-1",
@@ -168,7 +171,7 @@ it('speaks Streamable HTTP with its headers, session and protocol version, and a
 it('gives two accounts of one Composio toolkit separate tool names, each routed to its own account and toolkit', async () => {
   server = await startHttpFixture({ tools: 'composio', header: 'x-api-key', value: 'composio-key' });
   kit = await startConnectorKit({ agentIds: ['agent-a', 'agent-b'] });
-  const composio = (userId: string): ConnectorSetup => ({ kind: 'composio', toolkit: 'gmail', serverUrl: server?.url ?? '', apiKey: 'composio-key', account: { kind: 'user', userId } });
+  const composio = (userId: string): ConnectorSetup => ({ kind: 'composio', toolkit: 'gmail', serverUrl: server?.url ?? '', apiKey: { kind: 'inline', value: 'composio-key' }, account: { kind: 'user', userId } });
   await kit.add({ label: 'Gmail · Work', setup: composio('work-user'), scope: { mode: 'selected', agentIds: ['agent-a'] } });
   await kit.add({ label: 'Gmail · Personal', setup: composio('personal-user'), scope: ALL });
   const a = kit.turn('agent-a');
@@ -246,7 +249,7 @@ it('cancels a connector call when its turn ends, on stdio and on HTTP', async ()
   kit = await startConnectorKit({ agentIds: ['agent-a'] });
   const log = path.join(kit.dir, 'log');
   await kit.add({ label: 'Local', setup: stdioSetup('work', log), scope: ALL });
-  await kit.add({ label: 'Remote', setup: { kind: 'http', url: server.url, headers: [{ name: 'authorization', value: 'Bearer t' }] }, scope: ALL });
+  await kit.add({ label: 'Remote', setup: { kind: 'http', url: server.url, headers: [{ kind: 'inline', name: 'authorization', value: 'Bearer t' }] }, scope: ALL });
   const turn = kit.turn('agent-a');
   const local = turn.call('local__wait');
   const remote = turn.call('remote__wait');

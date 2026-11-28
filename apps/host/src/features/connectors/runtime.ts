@@ -1,7 +1,8 @@
 import type { ConnectorSetup } from '@morrowbot/contracts';
 import { McpFailure, type FailureKind } from './channel.ts';
 import { startSession, type McpCallResult, type McpSession, type McpTool } from './mcp-session.ts';
-import { hideSecrets, offeredTools, openChannel } from './reach.ts';
+import { offeredTools, openChannel } from './reach.ts';
+import { hideRecord, hideSecrets, hideVaultValues, reachOf, type VaultLookup } from './secrets.ts';
 
 /** Where one connector's connection stands. `failed` keeps why, for its status pill. */
 export type RuntimeState =
@@ -13,7 +14,7 @@ export type RuntimeState =
 /** The live MCP sessions of every connected connector, by connector id. */
 export interface ConnectorRuntime {
   state(id: string): RuntimeState;
-  /** (Re)starts the connector's session; settles once it is ready or failed. */
+  /** (Re)starts the connector's session, reading its Vault items now; settles once it is ready or failed. */
   connect(id: string, setup: ConnectorSetup): Promise<void>;
   /** Stops the session (a local server's whole process group) and forgets it. */
   disconnect(id: string): Promise<void>;
@@ -24,6 +25,8 @@ export interface ConnectorRuntime {
 
 interface Slot {
   readonly hide: (text: string) => string;
+  /** Hides only values read from the Vault: for tool results and descriptions. */
+  readonly hideVault: (text: string) => string;
   /** Bumped on every connect and disconnect, so a session that settles late knows it is stale. */
   readonly attempt: number;
   readonly state: RuntimeState;
@@ -33,7 +36,7 @@ interface Slot {
 
 const LOST: readonly FailureKind[] = ['auth', 'unreachable', 'exited'];
 
-export function createConnectorRuntime(options: { readonly path: string; readonly version: string }): ConnectorRuntime {
+export function createConnectorRuntime(options: { readonly path: string; readonly version: string; readonly vault: VaultLookup }): ConnectorRuntime {
   const slots = new Map<string, Slot>();
   let attempts = 0;
 
@@ -55,12 +58,22 @@ export function createConnectorRuntime(options: { readonly path: string; readonl
       const previous = slots.get(id);
       const attempt = ++attempts;
       const stop = new AbortController();
-      const hide = (text: string): string => hideSecrets(setup, text);
-      slots.set(id, { attempt, state: { kind: 'starting' }, session: null, stop, hide });
+      slots.set(id, { attempt, state: { kind: 'starting' }, session: null, stop, hide: (text) => text, hideVault: (text) => text });
       await release(previous);
+      const reached = await reachOf(setup, options.vault);
+      if (reached.kind === 'refused') {
+        fail(id, attempt, new McpFailure('auth', reached.message));
+        return;
+      }
+      const { reach } = reached;
+      const hide = (text: string): string => hideSecrets(reach, text);
+      const hideVault = (text: string): string => hideVaultValues(reach, text);
+      const current = slots.get(id);
+      if (current?.attempt !== attempt) return;
+      slots.set(id, { ...current, hide, hideVault });
       let session: McpSession;
       try {
-        const channel = openChannel(setup, options.path);
+        const channel = openChannel(reach, options.path);
         channel.onEnd((failure) => {
           fail(id, attempt, failure);
         });
@@ -74,7 +87,8 @@ export function createConnectorRuntime(options: { readonly path: string; readonl
         await session.close();
         return;
       }
-      slots.set(id, { attempt, state: { kind: 'ready', tools: offeredTools(setup, session.tools) }, session, stop, hide });
+      const tools = offeredTools(setup, session.tools).map((tool) => ({ name: tool.name, description: hideVault(tool.description), inputSchema: hideRecord(tool.inputSchema, hideVault) }));
+      slots.set(id, { attempt, state: { kind: 'ready', tools }, session, stop, hide, hideVault });
     },
     disconnect: async (id) => {
       const slot = slots.get(id);
@@ -86,7 +100,12 @@ export function createConnectorRuntime(options: { readonly path: string; readonl
       if (slot === undefined || slot.session === null || slot.state.kind !== 'ready') throw new McpFailure('unreachable', 'The connector is not connected');
       const session = slot.session;
       try {
-        return await session.call(toolName, args, signal);
+        const result = await session.call(toolName, args, signal);
+        return {
+          content: result.content.map((block) => hideRecord(block, slot.hideVault)),
+          structuredContent: result.structuredContent === null ? null : hideRecord(result.structuredContent, slot.hideVault),
+          isError: result.isError,
+        };
       } catch (error) {
         const failure = error instanceof McpFailure ? error : new McpFailure('unreachable', 'The tool call failed');
         if (LOST.includes(failure.kind)) fail(id, slot.attempt, failure);

@@ -1,5 +1,6 @@
 import { MAX_CONNECTOR_LABEL, type Agent, type Connector } from '@morrowbot/contracts';
 import { useEffect, useState } from 'preact/hooks';
+import { useStore } from '../../shared/use-store.ts';
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog.tsx';
 import { DetailSection } from '../../shared/ui/ListDetail.tsx';
 import { connectionActions, labelProblemOf, usedBy } from './connector-copy.ts';
@@ -25,6 +26,10 @@ export function AccountSection(props: {
   readonly onDirty: (dirty: boolean) => void;
 }) {
   const { model, connector } = props;
+  const vault = useStore(model.vault);
+  useEffect(() => {
+    void model.loadVault();
+  }, [model]);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [refused, setRefused] = useState<Refusal | null>(null);
   const [saving, setSaving] = useState(false);
@@ -84,7 +89,7 @@ export function AccountSection(props: {
           />
           {labelProblem !== null && <small class="note error" role="alert">{props.redact(labelProblem)}</small>}
         </label>
-        <SetupFields draft={shown.setup} onChange={(next) => { edit({ setup: next }); }} />
+        <SetupFields draft={shown.setup} vault={vault} onChange={(next) => { edit({ setup: next }); }} />
         {dirty && setup.kind === 'invalid' && setup.reason !== null && <p class="note warn">{setup.reason}</p>}
         {refused?.field === 'form' && <p class="note error" role="alert">{props.redact(refused.message)}</p>}
         {dirty && (

@@ -12,7 +12,7 @@ import { standaloneRuntime } from '@morrowbot/plugin-sdk';
 import { afterEach, expect, it } from 'vitest';
 import { startBridge, type Bridge } from './bridge.ts';
 import { secretTools } from './secret-tools.ts';
-import { noSecretSource, type SecretSource } from './secrets.ts';
+import type { SecretSource } from './secrets.ts';
 import { browserTools, callTool } from './tools.ts';
 import type { BrowserTool, ToolOutput } from './tool.ts';
 
@@ -95,11 +95,13 @@ async function answerNext(extension: FakeExtension, answer: (command: BrowserCom
 const TAB: BrowserTab = { tabId: 7, windowId: 1, url: 'https://shop.example/login', title: 'Log in', active: false, status: 'complete' };
 const tabs = (): BrowserResult => ({ kind: 'ok', value: { kind: 'tabs', tabs: [TAB] } });
 const done = (): BrowserResult => ({ kind: 'ok', value: { kind: 'done' } });
-const call = (tools: readonly BrowserTool[], name: string, input: unknown, signal = new AbortController().signal): Promise<ToolOutput> => callTool(tools, name, input, signal);
+const refuseAll: SecretSource = () => Promise.resolve({ kind: 'refused', reason: 'Vault login "Shop" is for shop.example, but this tab is on https://other.example. Nothing was filled.' });
+const call = (tools: readonly BrowserTool[], name: string, input: unknown, signal = new AbortController().signal, secrets = refuseAll): Promise<ToolOutput> =>
+  callTool(tools, name, input, { signal, secrets });
 
 it('greets each browser with its own id and answers unlisted commands without asking', async () => {
   const started = await start();
-  const tools = browserTools({ bridge: started, secrets: noSecretSource, uploads: { kind: 'off' } });
+  const tools = browserTools({ bridge: started, uploads: { kind: 'off' } });
   const brave = await connect(started.port);
   brave.send(hello('Brave', ['list-tabs']));
   const welcome = await brave.next();
@@ -137,7 +139,7 @@ it('greets each browser with its own id and answers unlisted commands without as
 
 it('asks which browser when several are connected, and says when none is', async () => {
   const started = await start();
-  const tools = browserTools({ bridge: started, secrets: noSecretSource, uploads: { kind: 'off' } });
+  const tools = browserTools({ bridge: started, uploads: { kind: 'off' } });
   const none = await call(tools, 'browser_snapshot', { tabId: 1 });
   const { port } = started;
   await greet(port, 'Chrome', ['snapshot']);
@@ -225,7 +227,7 @@ it('closes a socket that does not say hello, or sends a bad frame', async () => 
 
 it('fails a waiting call when the browser disconnects', async () => {
   const started = await start();
-  const tools = browserTools({ bridge: started, secrets: noSecretSource, uploads: { kind: 'off' } });
+  const tools = browserTools({ bridge: started, uploads: { kind: 'off' } });
   const chrome = await greet(started.port, 'Chrome', ['navigate']);
   const navigating = call(tools, 'browser_navigate', { tabId: 7, to: { kind: 'url', url: 'https://example.com/' } });
   await chrome.next();
@@ -240,18 +242,16 @@ it('fails a waiting call when the browser disconnects', async () => {
 
 it('sends a vault secret to the page but never to the agent', async () => {
   const asked: string[] = [];
-  const vault: SecretSource = {
-    resolve: (request) => {
-      asked.push(`${request.entryId} ${request.field} for ${request.origin}`);
-      return Promise.resolve({ kind: 'value', value: 'pw-123456' });
-    },
+  const vault: SecretSource = (request) => {
+    asked.push(`${request.vaultId} ${request.field} for ${request.origin}`);
+    return Promise.resolve({ kind: 'value', value: 'pw-123456' });
   };
   const started = await start();
   const chrome = await greet(started.port, 'Chrome', ['list-tabs', 'fill-secret']);
-  const filling = call(secretTools({ bridge: started, secrets: vault }), 'browser_fill_secret', { tabId: 7, ref: 'e4', secret: { entryId: 'shop', field: 'password' } });
+  const filling = call(secretTools({ bridge: started }), 'browser_fill_secret', { tabId: 7, ref: 'e4', secret: { vaultId: 'shop', field: 'password' } }, undefined, vault);
   await answerNext(chrome, tabs);
   const sent = await answerNext(chrome, () => ({ kind: 'error', code: 'failed', message: 'Page rejected pw-123456' }));
-  const refusing = call(secretTools({ bridge: started, secrets: noSecretSource }), 'browser_fill_secret', { tabId: 7, ref: 'e4', secret: { entryId: 'shop', field: 'password' } });
+  const refusing = call(secretTools({ bridge: started }), 'browser_fill_secret', { tabId: 7, ref: 'e4', secret: { vaultId: 'shop', field: 'password' } });
   await answerNext(chrome, tabs);
   const refused = await refusing;
   expect({ asked, sent, toAgent: await filling, refused }).toMatchInlineSnapshot(`
@@ -261,7 +261,7 @@ it('sends a vault secret to the page but never to the agent', async () => {
       ],
       "refused": {
         "kind": "error",
-        "text": "The Secrets Vault is not set up yet. Ask the person to fill this field (request a takeover).",
+        "text": "Vault login "Shop" is for shop.example, but this tab is on https://other.example. Nothing was filled.",
       },
       "sent": {
         "field": "password",
@@ -281,7 +281,7 @@ it('sends a vault secret to the page but never to the agent', async () => {
 
 it('waits for the person to finish a takeover, and ends it when the turn stops', async () => {
   const started = await start();
-  const tools = secretTools({ bridge: started, secrets: noSecretSource });
+  const tools = secretTools({ bridge: started });
   const chrome = await greet(started.port, 'Chrome', ['start-takeover', 'end-takeover']);
   const finished = call(tools, 'browser_request_takeover', { tabId: 7, reason: 'two-factor', message: 'Enter the code from your phone.' });
   const handed = await answerNext(chrome, done);

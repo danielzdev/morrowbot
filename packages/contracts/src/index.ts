@@ -9,6 +9,8 @@ export {
   PluginMessage,
   PROTOCOL_VERSION,
   RequestId,
+  SecretFillRequest,
+  SecretResolution,
 } from './plugin-rpc.ts';
 export type { OpenPluginChannel, PluginChannel, PluginChannelEvents } from './plugin-channel.ts';
 export { CrashReason, PluginStatus, PluginStatusEvent } from './plugin-runtime.ts';

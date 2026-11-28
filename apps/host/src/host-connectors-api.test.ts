@@ -29,10 +29,10 @@ it('serves connectors over the API: labels checked, secrets never sent back, sta
   const listed = await host.call('GET', '/api/connectors');
 
   expect({
-    created: { status: created.status, connectorStatus: connector.status, envNames: connector.setup.kind === 'stdio' ? connector.setup.envNames : [], scope: connector.scope },
+    created: { status: created.status, connectorStatus: connector.status, env: connector.setup.kind === 'stdio' ? connector.setup.env : [], scope: connector.scope },
     duplicate: await host.call('POST', '/api/connectors', { label: 'tasks work', setup, scope: { mode: 'all', agentIds: [] } }),
     emailLike: await host.call('POST', '/api/connectors', { label: 'me@example.com', setup, scope: { mode: 'all', agentIds: [] } }),
-    controlCharInSecret: (await host.call('POST', '/api/connectors', { label: 'Other', setup: { kind: 'http', url: 'https://example.com/mcp', headers: [{ name: 'Authorization', value: 'token\u0000x' }] }, scope: { mode: 'all', agentIds: [] } })).status,
+    controlCharInSecret: (await host.call('POST', '/api/connectors', { label: 'Other', setup: { kind: 'http', url: 'https://example.com/mcp', headers: [{ kind: 'inline', name: 'Authorization', value: 'token\u0000x' }] }, scope: { mode: 'all', agentIds: [] } })).status,
     unknownAgent: await host.call('POST', '/api/connectors', { label: 'Other', setup, scope: { mode: 'selected', agentIds: ['agent-gone'] } }),
     saved: { status: saved.status, scope: Connector.parse(saved.body).scope },
     stale,
@@ -52,10 +52,19 @@ it('serves connectors over the API: labels checked, secrets never sent back, sta
           "kind": "connected",
           "toolCount": 4,
         },
-        "envNames": [
-          "FIXTURE_ACCOUNT",
-          "FIXTURE_LOG",
-          "FIXTURE_TOKEN",
+        "env": [
+          {
+            "kind": "inline",
+            "name": "FIXTURE_ACCOUNT",
+          },
+          {
+            "kind": "inline",
+            "name": "FIXTURE_LOG",
+          },
+          {
+            "kind": "inline",
+            "name": "FIXTURE_TOKEN",
+          },
         ],
         "scope": {
           "agentIds": [

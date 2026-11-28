@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SecretField } from './browser-commands.ts';
 import { EntityId } from './ids.ts';
 import { PluginKind } from './plugin-manifest.ts';
 import { PluginConfig } from './plugin-settings.ts';
@@ -18,7 +19,8 @@ import { PluginToolDefinition, PluginToolName, PluginToolResult } from './tool-p
  * The messages the host and a plugin process exchange over the Node IPC channel (wire protocol v1).
  * A request with an `id` gets exactly one matching result or `error`. Turns are not requests:
  * `turn`, `cancel`, `approval-reply`, `steer`, `turn-chunk` and `turn-end` carry the host's `turnId` instead.
- * `child-group-*` messages are unsolicited notifications.
+ * `child-group-*` messages are unsolicited notifications. A plugin with the `secrets` permission asks for one
+ * vault secret during a `tool-call` with `secret-request`, and the host answers with one `secret-result`.
  */
 export const PROTOCOL_VERSION = 1;
 const ProtocolVersion = z.literal(PROTOCOL_VERSION);
@@ -34,6 +36,17 @@ export const PluginHealth = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('degraded'), detail: z.string().min(1) }),
 ]);
 export type PluginHealth = z.infer<typeof PluginHealth>;
+
+/** Which part of which vault login a tool call wants filled, and the page origin it will be filled on. */
+export const SecretFillRequest = z.strictObject({ vaultId: EntityId, field: SecretField, origin: z.string().min(1).max(2048) });
+export type SecretFillRequest = z.infer<typeof SecretFillRequest>;
+
+/** The host's answer to a `secret-request`: the value, for the plugin to hand straight to the page, or why not. */
+export const SecretResolution = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('value'), value: z.string().min(1) }),
+  z.strictObject({ kind: z.literal('refused'), reason: z.string().min(1) }),
+]);
+export type SecretResolution = z.infer<typeof SecretResolution>;
 
 export const HostMessage = z.discriminatedUnion('kind', [
   z.strictObject({
@@ -64,6 +77,7 @@ export const HostMessage = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('steer'), turnId: EntityId, steerId: z.string().min(1), text: z.string().min(1) }),
   z.strictObject({ kind: z.literal('child-group-ack'), pgid: Pgid }),
   z.strictObject({ kind: z.literal('kill-child-group'), pgid: Pgid }),
+  z.strictObject({ kind: z.literal('secret-result'), secretId: RequestId, resolution: SecretResolution }),
 ]);
 export type HostMessage = z.infer<typeof HostMessage>;
 
@@ -91,5 +105,7 @@ export const PluginMessage = z.discriminatedUnion('kind', [
     scope: ChildGroupScope,
   }),
   z.strictObject({ kind: z.literal('child-group-exited'), pgid: Pgid }),
+  /** Only while the `tool-call` with request id `callId` is running; `secretId` is the plugin's own numbering. */
+  z.strictObject({ kind: z.literal('secret-request'), secretId: RequestId, callId: RequestId, request: SecretFillRequest }),
 ]);
 export type PluginMessage = z.infer<typeof PluginMessage>;

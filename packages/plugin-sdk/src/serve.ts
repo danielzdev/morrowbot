@@ -1,9 +1,10 @@
-import { HostMessage, PROTOCOL_VERSION, type PluginMessage, type TurnChunk, type TurnEnd, type TurnRequest } from '@morrowbot/contracts';
+import { HostMessage, PROTOCOL_VERSION, type PluginMessage, type SecretFillRequest, type SecretResolution, type TurnChunk, type TurnEnd, type TurnRequest } from '@morrowbot/contracts';
 import { createTurnApprovals, type TurnApprovals } from './approvals.ts';
 import type { CommandRunner } from './command.ts';
 import { createGroupLink, type GroupLink } from './host-link.ts';
 import type { PluginDefinition, ProviderPlugin, Steer, ToolPlugin } from './plugin.ts';
 import { createRuntime, type PluginFactory, type RuntimeOptions } from './runtime.ts';
+import { createSecretLink, type SecretLink } from './secret-link.ts';
 
 /** How a served plugin's messages reach the host: a worker's IPC channel, or a channel inside the host. */
 export interface PluginTransport {
@@ -37,6 +38,7 @@ interface Served {
   readonly toolCalls: Map<number, AbortController>;
   readonly commands: CommandRunner;
   readonly link: GroupLink;
+  readonly secrets: SecretLink;
 }
 
 /** Serves one plugin (wire protocol v1) over `transport`, with its own runtime and commands. */
@@ -57,7 +59,7 @@ export function servePlugin(factory: PluginFactory, options: RuntimeOptions & { 
     commands.abandon();
     throw error;
   }
-  const served: Served = { plugin, send, exit, turns: new Map(), toolCalls: new Map(), commands, link };
+  const served: Served = { plugin, send, exit, turns: new Map(), toolCalls: new Map(), commands, link, secrets: createSecretLink(send) };
   return {
     receive: (raw) => {
       if (abandoned) return;
@@ -74,6 +76,7 @@ export function servePlugin(factory: PluginFactory, options: RuntimeOptions & { 
       commands.abandon();
       for (const { controller } of served.turns.values()) controller.abort();
       for (const controller of served.toolCalls.values()) controller.abort();
+      served.secrets.close();
     },
   };
 }
@@ -104,6 +107,9 @@ function handle(served: Served, message: HostMessage): void {
       return;
     case 'kill-child-group':
       served.link.kill(message.pgid);
+      return;
+    case 'secret-result':
+      served.secrets.answer(message.secretId, message.resolution);
       return;
     case 'init':
     case 'health':
@@ -177,7 +183,9 @@ async function answer(served: Served, message: Request): Promise<void> {
       const controller = new AbortController();
       served.toolCalls.set(id, controller);
       try {
-        const result = await target.callTool({ turnId: message.turnId, name: message.name, input: message.input, signal: controller.signal });
+        const { signal } = controller;
+        const resolveSecret = (request: SecretFillRequest): Promise<SecretResolution> => served.secrets.resolve(id, request, signal);
+        const result = await target.callTool({ turnId: message.turnId, name: message.name, input: message.input, signal, resolveSecret });
         send({ kind: 'tool-call-result', id, result });
       } finally {
         served.toolCalls.delete(id);
