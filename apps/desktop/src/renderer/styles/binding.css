@@ -271,17 +271,8 @@
 .access-row {
   flex-wrap: wrap;
 }
-.access-row .segment.withheld {
-  color: var(--text-3);
-}
 .access-row .segment.warns .icon:last-child {
   color: var(--warn);
-}
-.withheld-list ul {
-  margin: var(--s-1) 0 0;
-  padding-left: var(--s-4);
-  color: var(--text-2);
-  font: var(--t-small);
 }
 .confirm-strip {
   display: flex;

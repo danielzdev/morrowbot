@@ -6,6 +6,7 @@ import { useTheme } from '../../lib/useTheme.ts';
 import { ApprovalCard } from './ApprovalCard.tsx';
 import { Markdown } from './Markdown.tsx';
 import { outcomeNote } from './outcome-copy.ts';
+import { ReplyFileChips } from './ReplyFileChips.tsx';
 import type { ActiveTurnView, ToolStep, TurnStep } from './thread-view.ts';
 import { ToolTimeline } from './ToolTimeline.tsx';
 
@@ -114,6 +115,7 @@ export function MessageList(props: {
           <View key={message.id} style={styles.assistant}>
             <ToolTimeline steps={tools(props.finished[message.id] ?? [])} />
             {message.text === '' ? null : <Markdown text={message.text} />}
+            {message.attachments.length === 0 ? null : <ReplyFileChips attachments={message.attachments} />}
             <Outcome
               message={message}
               latest={message === last && activeTurn === null}

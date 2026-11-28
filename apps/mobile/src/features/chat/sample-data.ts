@@ -85,6 +85,7 @@ export const SAMPLE_MESSAGES: Readonly<Record<string, readonly Message[]>> = {
     user('m1', 'errand-main', 'Can you draft a 3-day plan for Lisbon?'),
     {
       kind: 'assistant',
+      attachments: [],
       id: 'm2',
       threadId: 'errand-main',
       text: PLAN,
@@ -99,6 +100,7 @@ export const SAMPLE_MESSAGES: Readonly<Record<string, readonly Message[]>> = {
     user('m5', 'reading-main', 'Summarise chapter 3 of my book notes.'),
     {
       kind: 'assistant',
+      attachments: [],
       id: 'm6',
       threadId: 'reading-main',
       text: 'Chapter 3 follows',

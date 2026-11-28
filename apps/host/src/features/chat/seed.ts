@@ -31,16 +31,13 @@ export function renderSeed(
 }
 
 /**
- * A message's text, with the names of the files a user message carried (their content is not resent), or the
- * tools a reply called and how each ended.
+ * A message's text, with the names of the files it carried (their content is not resent), and for a reply the
+ * tools it called and how each ended.
  */
 function bodyOf(message: Message, tools: readonly ToolStep[]): string {
-  if (message.kind === 'assistant') {
-    if (tools.length === 0) return message.text;
-    return `[Tools: ${tools.map(({ name, outcome }) => `${name} (${outcome})`).join(', ')}]\n${message.text}`.trim();
-  }
-  if (message.attachments.length === 0) return message.text;
-  return `${message.text}\n[Attached: ${message.attachments.map(({ name }) => name).join(', ')}]`.trim();
+  const attached = message.attachments.length === 0 ? message.text : `${message.text}\n[Attached: ${message.attachments.map(({ name }) => name).join(', ')}]`.trim();
+  if (message.kind === 'user' || tools.length === 0) return attached;
+  return `[Tools: ${tools.map(({ name, outcome }) => `${name} (${outcome})`).join(', ')}]\n${attached}`.trim();
 }
 
 /** The stateless budget: 256 KB, or the plugin's smaller `maxSeedBytes`. */

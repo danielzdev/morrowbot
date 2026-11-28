@@ -90,6 +90,7 @@ it('answers Stop once a group is blocked, keeps the thread busy, and frees it on
       "stopped": {
         "kind": "stopped",
         "message": {
+          "attachments": [],
           "createdAt": "2026-01-01T00:00:04.000Z",
           "id": "id-5",
           "kind": "assistant",

@@ -22,6 +22,7 @@ import type {
   TurnUsage,
   ToolStep,
   ReactionActor,
+  ReplyAttachment,
   UsageResult,
   UsageWindow,
   VendorSettings,
@@ -98,6 +99,12 @@ export interface ChatStore {
     listOpen(generationId: string): ToolStep[];
     close(generationId: string, messageId: string | null): void;
     listByThread(threadId: string): MessageToolSteps[];
+  };
+  /** Files each turn's agent attached with `attach_files`, kept with the turn until its reply is saved. */
+  readonly replyAttachments: {
+    listOpen(generationId: string): readonly { readonly attachment: ReplyAttachment }[];
+    /** Puts the turn's open files on its reply `messageId`; with no reply they are dropped. */
+    close(generationId: string, messageId: string | null): void;
   };
   readonly reactions: {
     /** False when the actor already has this emoji on the message. */
