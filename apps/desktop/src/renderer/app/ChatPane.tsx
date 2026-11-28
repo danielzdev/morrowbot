@@ -1,10 +1,10 @@
-import { DEFAULT_AVATAR, type Agent } from '@morrowbot/contracts';
+import { DEFAULT_AVATAR, type Agent, type AgentAvatar } from '@morrowbot/contracts';
 import { useMemo, useRef, useState } from 'preact/hooks';
 import type { MorrowbotBridge } from '../bridge.ts';
 import { BotAvatar, combineActivity, motionOf } from '../features/avatar/index.ts';
 import type { AgentSection } from '../features/agents/index.ts';
 import { bindingPill, BindingControl, BindingWarnings, sendBlock, type BoundProvider } from '../features/binding/index.ts';
-import { chatDisplay, ChatView, Composer, type EngineLabel, type PeerDirectory } from '../features/chat/index.ts';
+import { chatDisplay, ChatView, Composer, type ChatActivity, type EngineLabel, type PeerDirectory } from '../features/chat/index.ts';
 import { INSPECTOR_TOGGLE } from '../features/inspector/index.ts';
 import { ThreadHeader } from '../features/thread/index.ts';
 import { profileName } from '../shared/binding-ui/access-copy.ts';
@@ -14,6 +14,9 @@ import { useStore } from '../shared/use-store.ts';
 import { choiceFor, providerChoicesOf, threadStatusOf } from './derive.ts';
 import { InspectorPane } from './InspectorPane.tsx';
 import type { Models } from './models.ts';
+
+/** The agent's avatar beside its running turn and latest reply, in CSS pixels. */
+const CHAT_AVATAR_SIZE = 32;
 
 export interface Chrome {
   readonly sidebarButton: boolean;
@@ -95,13 +98,18 @@ export function ChatPane(props: {
       return binding.selection.kind === 'default' ? each.name : `${each.name} · ${bindingPill(each, binding).label}`;
     };
   }, [cards]);
+  const { shape, color, finish } = agent.avatar;
+  const chatAvatar = useMemo(() => {
+    const avatar: AgentAvatar = { kind: 'bot', shape, color, finish };
+    return (each: ChatActivity) => <BotAvatar avatar={avatar} motion={motionOf(each)} size={CHAT_AVATAR_SIZE} reducedMotion={props.reducedMotion} />;
+  }, [shape, color, finish, props.reducedMotion]);
   const motion = motionOf(combineActivity(Object.values(activity).filter((each) => each.agentId === agent.id).map((each) => each.activity)));
   return (
     <div class="main-row">
     <div class="main" style={bubbleStyle}>
       <ThreadHeader
         agent={agent}
-        avatar={<BotAvatar avatar={agent.avatar} motion={motion} size={20} reducedMotion={props.reducedMotion} />}
+        avatar={<BotAvatar avatar={agent.avatar} size={20} reducedMotion={props.reducedMotion} />}
         threads={threads?.kind === 'loaded' ? threads.value : []}
         threadsLoaded={threads?.kind === 'loaded'}
         openThreadId={threadId}
@@ -146,6 +154,8 @@ export function ChatPane(props: {
             onOpenProviders={props.onOpenProviders}
             peers={peers}
             engine={engine}
+            avatar={chatAvatar}
+            activity={activity[session.threadId]?.activity ?? 'idle'}
             hero={
               <>
                 <BotAvatar avatar={agent.avatar} motion={motion} size={64} reducedMotion={props.reducedMotion} />

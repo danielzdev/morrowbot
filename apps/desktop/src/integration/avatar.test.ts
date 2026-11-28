@@ -2,7 +2,7 @@ import type { Agent } from '@morrowbot/contracts';
 import { afterEach, expect, it } from 'vitest';
 import { startChatFixture, type ChatFixture } from '../../../host/src/testing/chat-fixture.ts';
 import { createAgentsModel } from '../renderer/features/agents/index.ts';
-import { choose, motionOf, type AvatarChoice } from '../renderer/features/avatar/index.ts';
+import { choose, motionOf, stateName, type AvatarChoice } from '../renderer/features/avatar/index.ts';
 import { createChatHub, type ChatHub } from '../renderer/features/chat/index.ts';
 import { createApi } from '../renderer/shared/api.ts';
 import { until } from '../renderer/shared/store.ts';
@@ -44,7 +44,7 @@ it("moves the avatar with its chat: working while it streams, a celebration when
   let last: string | undefined;
   hub.activity.subscribe((activity) => {
     const now = activity[thread.id];
-    const line = now === undefined ? 'closed' : `${now.agentId === agent.id ? '' : 'WRONG AGENT '}${now.activity} → ${motionOf(now.activity).state}${motionOf(now.activity).paused ? ' (paused)' : ''}`;
+    const line = now === undefined ? 'closed' : `${now.agentId === agent.id ? '' : 'WRONG AGENT '}${now.activity} → ${stateName(motionOf(now.activity))}${motionOf(now.activity).paused ? ' (paused)' : ''}`;
     if (line === last) return;
     last = line;
     shown.push(line);
@@ -71,18 +71,18 @@ it("moves the avatar with its chat: working while it streams, a celebration when
     [
       "idle → idle (paused)",
       "queued → waiting",
-      "thinking → thinking",
+      "thinking → pondering",
       "streaming → working",
       "completed → done",
       "idle → idle (paused)",
       "---",
       "queued → waiting",
-      "thinking → thinking",
+      "thinking → pondering",
       "streaming → working",
       "idle → idle (paused)",
       "---",
       "queued → waiting",
-      "thinking → thinking",
+      "thinking → pondering",
       "streaming → working",
       "idle → idle (paused)",
       "---",

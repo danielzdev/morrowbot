@@ -17,6 +17,7 @@ export function threadStatusOf(activity: Activity, threadId: string): ThreadStat
     case 'needs-approval':
       return 'needs-approval';
     case 'thinking':
+    case 'running-tool':
     case 'streaming':
       return 'working';
     case 'queued':

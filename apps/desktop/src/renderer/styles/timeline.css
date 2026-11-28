@@ -233,3 +233,40 @@
   background-color: var(--accent);
   color: var(--on-accent);
 }
+/* The running turn and the latest reply: the agent's avatar and what it is doing */
+.turn-phase {
+  min-height: 32px;
+}
+.turn-phase:not(.idle) {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface-0);
+  box-shadow: 0 6px 8px var(--surface-0);
+}
+.turn-avatar {
+  display: inline-flex;
+  flex: none;
+}
+.turn-label {
+  color: var(--text-2);
+  font-weight: 500;
+  animation: phase-in 180ms ease-out;
+}
+.message.assistant.active {
+  animation: turn-in 220ms ease-out;
+}
+@keyframes phase-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes turn-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+[data-motion='reduced'] :is(.turn-label, .message.assistant.active) {
+  animation: none;
+}
