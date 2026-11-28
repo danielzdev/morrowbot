@@ -11,9 +11,12 @@
  * `think` thinks first; `write`, `command` and `read-outside` ask for permission (an allowed write or
  * command really writes `inside.txt` or `ran.txt` in the session's folder); `sneaky` reports an edit
  * it never asked for, and `switch-mode` leaves Default mode, both then ignoring `session/cancel`;
- * `fs-write` asks the client to write a file; `stall` waits for `session/cancel`; `ignore-cancel`
+ * `fs-write` asks the client to write a file; `spawn` asks to run a command and, once allowed, runs
+ * a long-lived process in its own group (its pid logged as `spawned`) until `session/cancel` ends
+ * it, as agy 1.5.18 ends the command it is running on cancel; `stall` waits for `session/cancel`; `ignore-cancel`
  * never ends; `quota` fails on the plan's quota; anything else replies with "Echo: <the last user message>".
  */
+import { spawn } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { createInterface } from 'node:readline';
@@ -162,6 +165,39 @@ async function permitted(sessionId: string, call: { readonly id: string; readonl
   return { stopReason: 'end_turn', usage: USAGE };
 }
 
+/**
+ * Asks to run a command; once allowed, runs it in its own process group (as agy 1.5.18 does) and
+ * keeps the tool call in progress until `session/cancel`, which ends the group and fails the call.
+ */
+async function spawned(sessionId: string, session: Session): Promise<unknown> {
+  const toolCall = { toolCallId: 'call-spawn', title: 'sleep forever', kind: 'execute', locations: [], rawInput: {} };
+  update(sessionId, { sessionUpdate: 'tool_call', ...toolCall, status: 'pending' });
+  const reply = Chosen.safeParse(
+    await ask('session/request_permission', {
+      sessionId,
+      toolCall: { sessionUpdate: 'tool_call', ...toolCall, status: 'pending' },
+      options: [
+        { optionId: 'allow', name: 'Allow', kind: 'allow_once' },
+        { optionId: 'always', name: 'Always allow', kind: 'allow_always' },
+        { optionId: 'deny', name: 'Deny', kind: 'reject_once' },
+      ],
+    }),
+  );
+  const choice = reply.success ? (reply.data.outcome.optionId ?? reply.data.outcome.outcome) : 'malformed';
+  log({ method: 'permission-reply', params: { tool: 'execute', choice } });
+  if (choice !== 'allow') {
+    update(sessionId, { sessionUpdate: 'tool_call_update', ...toolCall, status: 'failed' });
+    return { stopReason: 'end_turn', usage: USAGE };
+  }
+  const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 120_000)'], { cwd: session.cwd, stdio: 'ignore', detached: true });
+  log({ method: 'spawned', params: { pid: child.pid ?? null } });
+  update(sessionId, { sessionUpdate: 'tool_call_update', ...toolCall, status: 'in_progress' });
+  await cancelled(session, 60_000);
+  if (child.pid !== undefined) process.kill(-child.pid, 'SIGKILL');
+  update(sessionId, { sessionUpdate: 'tool_call_update', ...toolCall, status: 'failed' });
+  return { stopReason: 'cancelled', usage: USAGE };
+}
+
 async function prompt(sessionId: string, session: Session, sent: string): Promise<unknown> {
   const text = lastUserMessage(sent);
   if (text.includes('quota')) throw new Error('RESOURCE_EXHAUSTED: You have exhausted your quota for this model.');
@@ -177,6 +213,7 @@ async function prompt(sessionId: string, session: Session, sent: string): Promis
       return 'wrote inside.txt';
     });
   }
+  if (text.includes('spawn')) return spawned(sessionId, session);
   if (text.includes('command')) {
     return permitted(sessionId, { id: 'call-command', kind: 'execute', title: 'touch ran.txt', path: null }, () => {
       writeFileSync(path.join(session.cwd, 'ran.txt'), '');

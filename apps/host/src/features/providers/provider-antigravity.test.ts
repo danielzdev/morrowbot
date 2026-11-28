@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, expect, it } from 'vitest';
-import { type AgyFixture, startAgyFixture, turnMethods } from '../../testing/agy-fixture.ts';
+import { type AgyFixture, FAKE_AGY, startAgyFixture, turnMethods } from '../../testing/agy-fixture.ts';
 
 let agy: AgyFixture;
 
@@ -15,7 +15,7 @@ afterEach(async () => {
 });
 
 function redact(value: unknown): unknown {
-  return JSON.parse(JSON.stringify(value).replaceAll(agy.home, '$HOME').replace(/sess-\d+-/g, 'sess-<pid>-'));
+  return JSON.parse(JSON.stringify(value).replaceAll(FAKE_AGY, '<fake-agy>').replaceAll(agy.home, '$HOME').replace(/sess-\d+-/g, 'sess-<pid>-'));
 }
 
 function without(event: object, keys: readonly string[]): unknown {
@@ -31,70 +31,23 @@ function usageOf(generationId: string): unknown {
   return row;
 }
 
-it('reports models-later until a session lists them, then ready without a forced refresh, starting one daemon with its own --gemini-dir through provider-info', async () => {
+it('reports ready with every model, its thinking levels and the plan on the first provider-info, from a probe session it closes, starting one daemon with its own --gemini-dir', async () => {
   const before = agy.daemonPgids().length;
   const first = await agy.host.call('GET', '/api/plugins/provider-antigravity/info');
-  const thread = await agy.thread(await agy.agent());
-  await agy.send(thread, 'hello');
-  const second = await agy.host.call('GET', '/api/plugins/provider-antigravity/info');
-  expect(redact({ before, after: agy.daemonPgids().length, launches: (await agy.launches()).map((launch) => launch.args), first: first.body, second: second.body })).toMatchInlineSnapshot(`
+  const log = await agy.logged('session/close', 1);
+  expect(
+    redact({
+      before,
+      after: agy.daemonPgids().length,
+      launches: (await agy.launches()).map((launch) => launch.args),
+      probe: log.filter((entry) => entry.method !== 'initialize').map((entry) => ({ method: entry.method, params: entry.params })),
+      first: first.body,
+    }),
+  ).toMatchInlineSnapshot(`
     {
       "after": 1,
       "before": 0,
       "first": {
-        "info": {
-          "accountKey": "",
-          "accountLabel": null,
-          "capabilities": {
-            "approvals": true,
-            "profiles": [
-              {
-                "access": "read-only",
-                "modes": [
-                  "interactive",
-                ],
-                "readsOutsideCwd": true,
-                "vendorSettings": "personal",
-              },
-            ],
-            "sessions": false,
-            "usage": "none",
-            "withheld": [
-              {
-                "access": "workspace-write",
-                "reason": "MorrowBot runs Antigravity read-only in this version: it cannot yet confine each file write to the workspace, and agy runs commands outside any sandbox.",
-                "vendorSettings": "personal",
-              },
-              {
-                "access": "read-only",
-                "reason": "Antigravity always loads the workspace's own AGENTS.md (checked on agy 1.5.18), so MorrowBot cannot replace its instructions. The agent's AGENTS.md still applies.",
-                "vendorSettings": "isolated",
-              },
-              {
-                "access": "workspace-write",
-                "reason": "Antigravity always loads the workspace's own AGENTS.md (checked on agy 1.5.18), so MorrowBot cannot replace its instructions. The agent's AGENTS.md still applies.",
-                "vendorSettings": "isolated",
-              },
-              {
-                "access": "full",
-                "reason": "MorrowBot has not yet checked with a fixture that Stop ends every command agy starts, so Antigravity has no full access.",
-                "vendorSettings": "personal",
-              },
-            ],
-          },
-          "kind": "ready-models-later",
-          "version": "1.5.18",
-          "warning": null,
-        },
-      },
-      "launches": [
-        [
-          "acp",
-          "--gemini-dir",
-          "$HOME/data/plugin-data/provider-antigravity/gemini",
-        ],
-      ],
-      "second": {
         "info": {
           "accountKey": "",
           "accountLabel": "Google AI Pro",
@@ -109,13 +62,22 @@ it('reports models-later until a session lists them, then ready without a forced
                 "readsOutsideCwd": true,
                 "vendorSettings": "personal",
               },
+              {
+                "access": "full",
+                "modes": [
+                  "interactive",
+                  "background",
+                ],
+                "readsOutsideCwd": true,
+                "vendorSettings": "personal",
+              },
             ],
             "sessions": false,
             "usage": "none",
             "withheld": [
               {
                 "access": "workspace-write",
-                "reason": "MorrowBot runs Antigravity read-only in this version: it cannot yet confine each file write to the workspace, and agy runs commands outside any sandbox.",
+                "reason": "MorrowBot can't yet confine Antigravity's file writes to the workspace, and agy runs commands outside any sandbox. Use Full access instead.",
                 "vendorSettings": "personal",
               },
               {
@@ -130,8 +92,8 @@ it('reports models-later until a session lists them, then ready without a forced
               },
               {
                 "access": "full",
-                "reason": "MorrowBot has not yet checked with a fixture that Stop ends every command agy starts, so Antigravity has no full access.",
-                "vendorSettings": "personal",
+                "reason": "Antigravity always loads the workspace's own AGENTS.md (checked on agy 1.5.18), so MorrowBot cannot replace its instructions. The agent's AGENTS.md still applies.",
+                "vendorSettings": "isolated",
               },
             ],
           },
@@ -163,13 +125,59 @@ it('reports models-later until a session lists them, then ready without a forced
               "id": "fake-flash",
               "isDefault": false,
               "label": "Fake Flash",
-              "options": [],
+              "options": [
+                {
+                  "choices": [
+                    {
+                      "id": "minimal",
+                      "label": "MINIMAL",
+                    },
+                    {
+                      "id": "low",
+                      "label": "LOW",
+                    },
+                  ],
+                  "defaultChoiceId": "low",
+                  "id": "thought_level",
+                  "label": "Thinking Level",
+                },
+              ],
             },
           ],
           "version": "1.5.18",
           "warning": null,
         },
       },
+      "launches": [
+        [
+          "acp",
+          "--gemini-dir",
+          "$HOME/data/plugin-data/provider-antigravity/gemini",
+        ],
+      ],
+      "probe": [
+        {
+          "method": "session/new",
+          "params": {
+            "cwd": "$HOME/data/plugin-data/provider-antigravity",
+            "mcpServers": [],
+          },
+        },
+        {
+          "method": "session/set_config_option",
+          "params": {
+            "configId": "model",
+            "sessionId": "sess-<pid>-1",
+            "value": "fake-flash",
+          },
+        },
+        {
+          "method": "session/close",
+          "params": {
+            "sessionId": "sess-<pid>-1",
+          },
+        },
+      ],
     }
   `);
 });
@@ -188,7 +196,7 @@ it('streams a new session in Default mode, counts its tokens, closes it, and see
       usage: [usageOf(reply), usageOf(next)],
       methods: turnMethods(log),
       initialize: log.find((entry) => entry.method === 'initialize')?.params,
-      sessionNew: log.find((entry) => entry.method === 'session/new')?.params,
+      sessionNew: log.find((entry) => entry.method === 'session/new' && JSON.stringify(entry.params).includes('/workspaces/'))?.params,
       prompts: log.filter((entry) => entry.method === 'session/prompt').map((entry) => entry.params),
     }),
   ).toMatchInlineSnapshot(`
@@ -265,6 +273,9 @@ it('streams a new session in Default mode, counts its tokens, closes it, and see
       },
       "methods": [
         "session/new",
+        "session/set_config_option",
+        "session/close",
+        "session/new",
         "session/prompt",
         "session/close",
         "session/new",
@@ -279,7 +290,7 @@ it('streams a new session in Default mode, counts its tokens, closes it, and see
               "type": "text",
             },
           ],
-          "sessionId": "sess-<pid>-1",
+          "sessionId": "sess-<pid>-2",
         },
         {
           "prompt": [
@@ -300,7 +311,7 @@ it('streams a new session in Default mode, counts its tokens, closes it, and see
               "type": "text",
             },
           ],
-          "sessionId": "sess-<pid>-2",
+          "sessionId": "sess-<pid>-3",
         },
       ],
       "sessionNew": {
@@ -324,6 +335,33 @@ it('streams a new session in Default mode, counts its tokens, closes it, and see
           "output_tokens": 12,
           "reasoning_tokens": 3,
         },
+      ],
+    }
+  `);
+});
+
+it('reports signed-out on the first provider-info when agy refuses the probe session for sign-in', async () => {
+  await agy.setState({ signedOut: true });
+  const info = await agy.host.call('GET', '/api/plugins/provider-antigravity/info');
+  expect(redact({ info: info.body, methods: turnMethods(await agy.log()) })).toMatchInlineSnapshot(`
+    {
+      "info": {
+        "info": {
+          "kind": "signed-out",
+          "signIn": {
+            "argv": [
+              "<fake-agy>",
+              "acp",
+              "--gemini-dir",
+              "$HOME/data/plugin-data/provider-antigravity/gemini",
+              "--login",
+            ],
+            "kind": "run-in-terminal",
+          },
+        },
+      },
+      "methods": [
+        "session/new",
       ],
     }
   `);

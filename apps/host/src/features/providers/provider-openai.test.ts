@@ -39,7 +39,7 @@ async function sendAndWait(thread: { readonly id: string }, text: string): Promi
   return generationId;
 }
 
-it('reports Codex ready with its read-only profile and why the others are held back, starting the daemon through provider-info', async () => {
+it('reports Codex ready with its read-only and full profiles and why the others are held back, starting the daemon through provider-info', async () => {
   const before = codex.daemonPgids().length;
   const info = await codex.host.call('GET', '/api/plugins/provider-openai/info');
   expect({ before, after: codex.daemonPgids().length, info: redact(info.body) }).toMatchInlineSnapshot(`
@@ -62,13 +62,22 @@ it('reports Codex ready with its read-only profile and why the others are held b
                 "readsOutsideCwd": true,
                 "vendorSettings": "personal",
               },
+              {
+                "access": "full",
+                "modes": [
+                  "interactive",
+                  "background",
+                ],
+                "readsOutsideCwd": true,
+                "vendorSettings": "personal",
+              },
             ],
             "sessions": true,
             "usage": "live",
             "withheld": [
               {
                 "access": "workspace-write",
-                "reason": "Codex runs each shell command in its own process group, and a command that calls setsid keeps running after Stop (checked on Codex 0.171). Workspace-write needs Stop to end every command.",
+                "reason": "Codex runs each shell command in its own process group, and MorrowBot cannot yet confine workspace-write commands to the workspace. Use read-only or full access instead.",
                 "vendorSettings": "personal",
               },
               {
@@ -80,11 +89,6 @@ it('reports Codex ready with its read-only profile and why the others are held b
                 "access": "workspace-write",
                 "reason": "Codex always loads your own ~/.codex/AGENTS.md (checked on Codex 0.171), so MorrowBot cannot replace its instructions. Use your Codex instructions instead.",
                 "vendorSettings": "isolated",
-              },
-              {
-                "access": "full",
-                "reason": "Codex runs each shell command in its own process group, and a command that calls setsid keeps running after Stop (checked on Codex 0.171). Full access needs Stop to end every command.",
-                "vendorSettings": "personal",
               },
             ],
           },

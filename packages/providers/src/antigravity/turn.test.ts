@@ -116,7 +116,7 @@ it('keeps fence listeners O(1) across many turns (including approvals) and notif
       return { kind: 'ok', value: { stopReason: 'end_turn' } };
     },
   });
-  const live: Live = { daemon, catalog: createModelCatalog(), tier: null, signedOut: false };
+  const live: Live = { daemon, catalog: createModelCatalog(), tier: null, signedOut: false, probed: false };
   const deps = {
     live: () => live,
     checkCli: () => Promise.resolve(null),
@@ -160,7 +160,7 @@ it('keeps fence listeners O(1) across many turns (including approvals) and notif
       ask: () => Promise.resolve({ kind: 'refused', reason: 'expired' }),
       onSteer: () => () => undefined,
     },
-    { ...deps, live: () => ({ daemon: breachDaemon, catalog: createModelCatalog(), tier: null, signedOut: false }) },
+    { ...deps, live: () => ({ daemon: breachDaemon, catalog: createModelCatalog(), tier: null, signedOut: false, probed: false }) },
   );
   await promptStarted.promise;
   expect(fence.activeListeners()).toBe(1);

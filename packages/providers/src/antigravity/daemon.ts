@@ -14,7 +14,7 @@ export interface DaemonOptions {
 }
 
 /**
- * Starts `agy acp` as this provider's shared daemon over the SDK's read-only ACP client.
+ * Starts `agy acp` as this provider's shared daemon over the SDK's ACP client.
  * `geminiDir` is MorrowBot's own Antigravity folder, so agy reads none of the user's settings,
  * permission grants, hooks, plugins or MCP servers; the Google sign-in is shared through the keychain.
  */

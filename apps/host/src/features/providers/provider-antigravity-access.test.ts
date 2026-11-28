@@ -174,7 +174,7 @@ it('puts a session that starts in another mode back in Default mode, and refuses
   await agy.setState({ startMode: 'accept-edits' });
   const thread = await agy.thread(await agy.agent());
   await agy.send(thread, 'hello');
-  const switched = (await agy.log()).filter((entry) => entry.method === 'session/set_config_option').map((entry) => entry.params);
+  const switched = (await agy.log()).filter((entry) => entry.method === 'session/set_config_option' && JSON.stringify(entry.params).includes('"configId":"mode"')).map((entry) => entry.params);
   await agy.setState({ lockMode: true });
   await agy.send(thread, 'hello again');
   const prompts = (await agy.log()).filter((entry) => entry.method === 'session/prompt').length;
@@ -190,7 +190,7 @@ it('puts a session that starts in another mode back in Default mode, and refuses
       "switched": [
         {
           "configId": "mode",
-          "sessionId": "sess-<pid>-1",
+          "sessionId": "sess-<pid>-2",
           "value": "default",
         },
       ],
