@@ -15,7 +15,7 @@ function pngSize(result: BrowserResult): string {
   return `${String(bytes.readUInt32BE(16))}x${String(bytes.readUInt32BE(20))}`;
 }
 
-describe.skipIf(chromeMissing)('the Chromium driver on a real page', () => {
+describe.skipIf(chromeMissing)('the Chromium driver on a real page', { timeout: 60_000 }, () => {
   it('reads a form as a compact tree with refs', async () => {
     const { tree: snapshot } = await t.open('form');
     expect(snapshot).toMatchInlineSnapshot(`
@@ -162,17 +162,33 @@ describe.skipIf(chromeMissing)('the Chromium driver on a real page', () => {
 
   it('hovers, drags with HTML drag and drop, and scrolls', async () => {
     const { tabId, tree: snapshot } = await t.open('pointer');
+    const t0 = Date.now();
     await t.run({ kind: 'hover', tabId, ref: refOf(snapshot, 'button "Hover me"') });
     const hovered = await t.log(tabId);
-    await t.run({ kind: 'drag', tabId, from: refOf(snapshot, 'button "Card"'), to: refOf(snapshot, 'region "Bin"') });
+    const tNear = Date.now();
+    const nearDrag = await t.run({ kind: 'drag', tabId, from: refOf(snapshot, 'button "Card"'), to: refOf(snapshot, 'region "Bin"') });
+    const nearMs = Date.now() - tNear;
     const dropped = await t.log(tabId);
+    const tScroll = Date.now();
     await t.run({ kind: 'scroll', tabId, to: { kind: 'page', direction: 'down', pixels: 500 } });
+    const scrollMs = Date.now() - tScroll;
     const byPage = await t.chrome.evaluate(tabId, 'Math.round(window.scrollY)');
     await t.run({ kind: 'scroll', tabId, to: { kind: 'element', ref: refOf(snapshot, 'button "Bottom"') } });
     const toElement = await t.chrome.evaluate(tabId, 'window.scrollY > 2000');
     await t.chrome.evaluate(tabId, "scrollTo(0, 0); document.getElementById('log').textContent = ''");
-    await t.run({ kind: 'drag', tabId, from: refOf(snapshot, 'button "Card"'), to: refOf(snapshot, 'region "Far bin"') });
+    const tFar = Date.now();
+    const farDrag = await t.run({ kind: 'drag', tabId, from: refOf(snapshot, 'button "Card"'), to: refOf(snapshot, 'region "Far bin"') });
+    const farMs = Date.now() - tFar;
     const farDropped = await t.log(tabId);
+    expect(nearDrag).toEqual({ kind: 'ok', value: { kind: 'done' } });
+    expect(farDrag).toEqual({ kind: 'ok', value: { kind: 'done' } });
+    if (farDropped === '') {
+      const diag = await t.chrome.evaluate(
+        tabId,
+        "({ vis: document.visibilityState, scrollY: window.scrollY, viewport: { w: innerWidth, h: innerHeight }, card: document.getElementById('card')?.getBoundingClientRect().toJSON(), far: document.getElementById('far')?.getBoundingClientRect().toJSON() })",
+      );
+      throw new Error(`farDropped was empty after drag: ${JSON.stringify({ totalMs: Date.now() - t0, nearMs, scrollMs, farMs, farDrag, diag })}`);
+    }
     expect({ hovered, dropped, byPage, toElement, farDropped }).toMatchInlineSnapshot(`
       {
         "byPage": 500,

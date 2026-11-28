@@ -71,6 +71,18 @@ jobs:
               -f message='Start the MorrowBot release feed' \
               -f content="$(printf '# MorrowBot releases\n\nSigned builds published by the private release workflow.\n' | base64)"
           fi
+      - name: Ensure a single draft release exists before uploading
+        env:
+          GH_TOKEN: ${{ secrets.PRIVATE_RELEASES_TOKEN }}
+        run: |
+          if ! gh release view "v$VERSION" --repo "$MORROWBOT_RELEASES_REPO" > /dev/null 2>&1; then
+            gh api --method POST "repos/$MORROWBOT_RELEASES_REPO/releases" \
+              -f tag_name="v$VERSION" \
+              -f name="$VERSION" \
+              -F draft=true \
+              -F prerelease=false \
+              > /dev/null
+          fi
       - name: Build, sign, notarize and upload to a draft release
         working-directory: apps/desktop
         env:
