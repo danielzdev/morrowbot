@@ -1,0 +1,15 @@
+:root { color-scheme: light dark; --bg: #fff; --fg: #1d1b2e; --muted: #5d5a70; --accent: #7c6cff; --line: #e3e1ee; }
+@media (prefers-color-scheme: dark) { :root { --bg: #16151f; --fg: #f1f0f7; --muted: #a9a6bb; --line: #2d2b3d; } }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 system-ui, sans-serif; }
+main { min-width: 320px; max-width: 480px; padding: 16px; }
+h1 { font-size: 18px; margin: 0 0 8px; }
+h2 { font-size: 14px; margin: 16px 0 4px; }
+.hint { color: var(--muted); margin: 0 0 8px; }
+.status { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line); margin: 0; }
+.status.ok { border-color: #2f9e6a; }
+.row { display: flex; gap: 8px; align-items: center; }
+input { flex: 1; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: inherit; font: inherit; }
+button { font: inherit; padding: 6px 12px; border-radius: 6px; border: 0; background: var(--accent); color: #fff; cursor: pointer; }
+#token { font: 12px ui-monospace, monospace; }
+.actions { margin-top: 8px; }
+button.quiet { background: transparent; color: var(--muted); border: 1px solid var(--line); }
