@@ -155,7 +155,7 @@ it('enables Send only once every tile is uploaded, then sends the files with no 
           : sample.uploadAttachment(threadId, request);
       },
     },
-    'errand-budget',
+    'weekend-errands',
   );
   session.load();
   await settle();

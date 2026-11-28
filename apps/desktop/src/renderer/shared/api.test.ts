@@ -67,6 +67,8 @@ describe('createApi lenient host reply parsing', () => {
               provider: { kind: 'unbound' },
               folderId: 'f1',
               emojiReplies: 'allowed',
+              disabledExtensions: [],
+              revision: 0,
               createdAt: NOW,
               updatedAt: NOW,
             },

@@ -3,11 +3,11 @@ import type { z } from 'zod';
 import type { MorrowbotBridge } from '../../bridge.ts';
 import type { Api } from '../../shared/api.ts';
 import { Store, type Loadable } from '../../shared/store.ts';
-import { applied, byNewest, lastByAgent, saved, titleFrom, UNTITLED, updateKey, withFields, type Saved } from './agents-helpers.ts';
+import { applied, byNewest, clearDeletedFolder, createExtensionOps, lastByAgent, mergeMonotonicAgents, saved, titleFrom, UNTITLED, updateKey, withFields, type AgentExtensionSaved, type Saved } from './agents-helpers.ts';
 import { createInstructionsEditor, type InstructionsEditor } from './instructions-editor.ts';
 import { createMemoriesEditor, loadSkills, type MemoriesEditor } from './memories-editor.ts';
 
-export { titleFrom, type Saved } from './agents-helpers.ts';
+export { titleFrom, type AgentExtensionSaved, type Saved } from './agents-helpers.ts';
 
 export interface AgentsState {
   readonly agents: Loadable<readonly Agent[]>;
@@ -24,6 +24,8 @@ export interface AgentsState {
   readonly openThread: Readonly<Record<string, string>>;
   /** Chats whose turn finished while they were not on screen, by chat id, with their agent's id. */
   readonly unread: Readonly<Record<string, string>>;
+  /** Agent ids whose per-agent extension write is currently in flight. */
+  readonly savingExtensions: readonly string[];
   readonly problem: string | null;
 }
 
@@ -33,6 +35,10 @@ export interface AgentsModel {
   selectAgent(id: string): void;
   createAgent(request: z.input<typeof CreateAgentRequest>): Promise<Saved<Agent>>;
   updateAgent(id: string, request: UpdateAgentRequest): Promise<Saved<Agent>>;
+  /** Updates per-agent disabled extensions at `revision`; returns `conflict` with the newer agent when stale. */
+  setExtensions(id: string, disabledExtensions: readonly string[], revision: number): Promise<AgentExtensionSaved>;
+  /** Adopts a newer agent record reported by a conflict without writing anything. */
+  adoptAgent(agent: Agent): void;
   deleteAgent(id: string): Promise<void>;
   createFolder(name: string): Promise<Saved<Folder>>;
   renameFolder(id: string, name: string): Promise<void>;
@@ -82,7 +88,7 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
    * order; only the last one's reply is shown, and a refused one shows what the host kept.
    */
   const updates = new Map<string, Promise<unknown>>();
-  const state = new Store<AgentsState>({ agents: { kind: 'loading' }, folders: [], lastMessages: {}, selectedAgentId: null, threads: {}, archivedThreads: {}, openThread: {}, unread: {}, problem: null });
+  const state = new Store<AgentsState>({ agents: { kind: 'loading' }, folders: [], lastMessages: {}, selectedAgentId: null, threads: {}, archivedThreads: {}, openThread: {}, unread: {}, savingExtensions: [], problem: null });
   let summaries = 0;
   const patch = (change: Partial<AgentsState>): void => {
     state.update((current) => ({ ...current, ...change }));
@@ -156,7 +162,7 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
       patch({ agents: { kind: 'failed', message: result.error.message } });
       return;
     }
-    const agents = result.value.agents;
+    const agents = mergeMonotonicAgents(state.get().agents, result.value.agents);
     const selected = state.get().selectedAgentId;
     summaries++;
     patch({ agents: { kind: 'loaded', value: agents }, folders: result.value.folders, lastMessages: lastByAgent(result.value), threads: {}, archivedThreads: {} });
@@ -242,6 +248,20 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
       void next.then(clear, clear);
       return next;
     },
+    ...createExtensionOps({
+      api,
+      agentOf,
+      changeAgent,
+      hostAgent,
+      setSaving: (id, saving) => {
+        state.update((current) => ({
+          ...current,
+          savingExtensions: saving
+            ? (current.savingExtensions.includes(id) ? current.savingExtensions : [...current.savingExtensions, id])
+            : current.savingExtensions.filter((each) => each !== id),
+        }));
+      },
+    }),
     deleteAgent: async (id) => {
       const open = state.get().openThread[id];
       const threadIds = [
@@ -278,10 +298,9 @@ export function createAgentsModel(options: AgentsModelOptions): AgentsModel {
         patch({ problem: result.error.message });
         return;
       }
-      const agents = state.get().agents;
       patch({
         folders: state.get().folders.filter((folder) => folder.id !== id),
-        ...(agents.kind === 'loaded' ? { agents: { kind: 'loaded', value: agents.value.map((agent) => (agent.folderId === id ? { ...agent, folderId: null } : agent)) } } : {}),
+        ...clearDeletedFolder(state.get().agents, id),
       });
     },
     newThread,

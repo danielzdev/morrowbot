@@ -10,7 +10,7 @@ import {
 } from '@morrowbot/contracts';
 import { sees } from './access.ts';
 import type { ApiServices } from './ports.ts';
-import { failure, instructionsConflict, json, noContent, notFound } from './reply.ts';
+import { agentConflict, failure, instructionsConflict, json, noContent, notFound } from './reply.ts';
 import { parseBody, type Route, type RouteContext } from './route.ts';
 
 const FULL_OWNER_ONLY = 'Only the owner of this computer may give an agent full access (shell commands)';
@@ -75,8 +75,11 @@ export function agentRoutes({ agents, folders, chat }: ApiServices): Route[] {
       handle: async (context) => {
         const request = await parseBody(context, UpdateAgentRequest);
         if (request.kind === 'rejected') return request.reply;
-        if (context.viewer.kind === 'scoped' && (request.value.provider !== undefined || request.value.folderId !== undefined)) {
-          return failure('forbidden', "Only the server owner may change an agent's engine or folder");
+        if (
+          context.viewer.kind === 'scoped' &&
+          (request.value.provider !== undefined || request.value.folderId !== undefined || request.value.disabledExtensions !== undefined)
+        ) {
+          return failure('forbidden', "Only the server owner may change an agent's engine, folder or extensions");
         }
         if (fullByMember(context, request.value.provider)) return failure('forbidden', FULL_OWNER_ONLY);
         const updated = agents.update(context.params.get('id'), request.value);
@@ -85,6 +88,8 @@ export function agentRoutes({ agents, folders, chat }: ApiServices): Route[] {
             return json(200, updated.agent);
           case 'not-found':
             return notFound('Agent');
+          case 'conflict':
+            return agentConflict(context.viewer.kind === 'scoped' ? { ...updated.current, folderId: null } : updated.current);
           case 'invalid':
             return failure('invalid_request', updated.reason);
         }

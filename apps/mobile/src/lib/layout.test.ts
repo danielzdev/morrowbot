@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { foldedDuo, standardIPhone, unfoldedDuo, unfoldedDuoWithHinge } from './fixtures.test-support.ts';
-import { deriveActionSlotPlacement, deriveWorkspaceLayout } from './layout.ts';
+import { deriveActionSlotPlacement, deriveSplitDetailInsets, deriveWorkspaceLayout } from './layout.ts';
 import type { NativeLayoutMetrics } from './reserved-regions.ts';
 
 describe('deriveWorkspaceLayout', () => {
@@ -139,5 +139,57 @@ describe('deriveActionSlotPlacement', () => {
         },
       }
     `);
+  });
+});
+
+describe('deriveSplitDetailInsets', () => {
+  it('clears the sidebar safeArea.left on unfolded Duo and drops to 0 when expanded', () => {
+    const layout = deriveWorkspaceLayout(unfoldedDuo);
+    expect(layout.kind).toBe('split');
+    if (layout.kind !== 'split') return;
+
+    const besideSidebar: NativeLayoutMetrics = {
+      ...unfoldedDuo,
+      safeArea: { top: 0, bottom: 20, left: layout.sidebarWidth, right: 70 },
+    };
+    const expanded: NativeLayoutMetrics = {
+      ...unfoldedDuo,
+      safeArea: { top: 0, bottom: 20, left: 0, right: 70 },
+    };
+    expect(deriveSplitDetailInsets(layout, { top: 0, left: 0, right: 70 }, false, besideSidebar)).toEqual({
+      top: 0,
+      left: layout.sidebarWidth,
+      right: 70,
+    });
+    expect(deriveSplitDetailInsets(layout, { top: 0, left: 0, right: 70 }, true, expanded)).toEqual({
+      top: 0,
+      left: 0,
+      right: 70,
+    });
+  });
+
+  it('preserves the hinge gap both when tiled side-by-side and when extending behind the sidebar', () => {
+    const layout = deriveWorkspaceLayout(unfoldedDuoWithHinge);
+    expect(layout.kind).toBe('split');
+    if (layout.kind !== 'split') return;
+
+    const sideBySide: NativeLayoutMetrics = {
+      ...unfoldedDuoWithHinge,
+      safeArea: { top: 0, bottom: 20, left: 0, right: 70 },
+    };
+    const behindSidebar: NativeLayoutMetrics = {
+      ...unfoldedDuoWithHinge,
+      safeArea: { top: 0, bottom: 20, left: layout.sidebarWidth, right: 70 },
+    };
+    expect(deriveSplitDetailInsets(layout, { top: 0, left: 0, right: 70 }, false, sideBySide)).toEqual({
+      top: 0,
+      left: layout.gap,
+      right: 70,
+    });
+    expect(deriveSplitDetailInsets(layout, { top: 0, left: 0, right: 70 }, false, behindSidebar)).toEqual({
+      top: 0,
+      left: layout.sidebarWidth + layout.gap,
+      right: 70,
+    });
   });
 });

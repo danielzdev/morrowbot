@@ -100,6 +100,7 @@ export function problemOf(error: ApiError['error'], action: PendingAction, choic
     case 'internal':
     case 'instructions-conflict':
     case 'scope-conflict':
+    case 'agent-conflict':
       return { kind: 'error', message: error.message };
   }
 }

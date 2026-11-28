@@ -260,7 +260,12 @@ export async function startHost(options: HostOptions): Promise<Host> {
           t3Watches,
           t3Clock,
           defaultT3RoutineId: config.t3Watch.routineId,
-          ...(options.isPluginAllowedForAgent === undefined ? {} : { isPluginAllowedForAgent: options.isPluginAllowedForAgent }),
+          isPluginAllowedForAgent: (agentId, pluginId) => {
+            const agent = agents.get(agentId);
+            if (agent === undefined) return false;
+            if (agent.disabledExtensions.includes(pluginId)) return false;
+            return options.isPluginAllowedForAgent === undefined ? true : options.isPluginAllowedForAgent(agentId, pluginId);
+          },
         }),
         version: options.version,
         report,
@@ -277,15 +282,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
     const stopReading = agentMessages.subscribe((message) => {
       chat.readAgentMessages(message.to.threadId);
     });
-    undo.push(() => {
-      stopReading();
-    });
-    undo.push(() => {
-      routines.close();
-    });
-    undo.push(() => {
-      t3Watches.close();
-    });
+    undo.push(() => { stopReading(); }, () => { routines.close(); }, () => { t3Watches.close(); });
     chat.readAgentMessages(null);
     routines.tick();
     const token = randomBytes(32).toString('base64url');
