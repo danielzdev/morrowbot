@@ -1,5 +1,5 @@
 import { realpath } from 'node:fs/promises';
-import type { ProviderInfo, TurnChunk, TurnEnd, TurnRequest, TurnSession, UsageWindow } from '@morrowbot/contracts';
+import type { Attachment, ProviderInfo, TurnChunk, TurnEnd, TurnRequest, TurnSession, UsageWindow } from '@morrowbot/contracts';
 import { profileAllowed } from './admission-rules.ts';
 import type { TurnSink } from './ports.ts';
 import { buildTurnInput, type TurnInput } from './prompt.ts';
@@ -116,13 +116,19 @@ async function readTurnInputs(core: ChatCore, turn: Turn): Promise<TurnInputs> {
       agents.readInstructions(turn.agentId),
       realpath(turn.workspaceDir),
       context.prelude(turn.agentId, turn.workspaceDir),
-      Promise.all(turn.sourceInput.attachments.map(async (attachment) => ({ attachment, content: await context.readAttachment(attachment) }))),
+      Promise.all(sentAttachments(turn).map(async (attachment) => ({ attachment, content: await context.readAttachment(attachment) }))),
     ]);
-    return { kind: 'read', instructions: instructions ?? '', cwd, input: buildTurnInput(prelude, turn.sourceInput.text, attachments) };
+    const text = turn.source.kind === 'chat' ? turn.source.message.text : turn.source.prompt;
+    return { kind: 'read', instructions: instructions ?? '', cwd, input: buildTurnInput(prelude, text, attachments) };
   } catch (error) {
     core.options.report(error);
     return { kind: 'unreadable', message: "Could not read the agent's workspace, AGENTS.md or the message's attachments" };
   }
+}
+
+/** The files sent with a chat message; a message from another agent has none. */
+function sentAttachments(turn: Turn): readonly Attachment[] {
+  return turn.source.kind === 'chat' ? turn.source.message.attachments : [];
 }
 
 /** A stateless turn whose account the plugin now reports differently: it would be refused, so it is not sent. */

@@ -75,3 +75,12 @@ export function decideSession(input: SessionInputs): SessionDecision {
       return resume(eligible);
   }
 }
+
+/**
+ * Picks the vendor session for a background turn, which never waits on a choice only the user can make: it
+ * resumes the session it may (a diverged one too), and otherwise starts a new one seeded with the chat.
+ */
+export function decideBackgroundSession(input: Omit<SessionInputs, 'choice'>): SessionPlan {
+  const resumed = decideSession({ ...input, choice: { kind: 'continue-existing' } });
+  return resumed.kind === 'plan' ? resumed.plan : { kind: 'fresh', seeded: true };
+}

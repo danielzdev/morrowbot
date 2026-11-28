@@ -35,6 +35,8 @@ export interface AgentMessageRepository {
   hasReply(id: string): boolean;
   /** An agent's sent and received messages, oldest first; with `threadId`, only those shown in that chat. */
   list(agentId: string, threadId: string | null): AgentMessage[];
+  /** Messages no turn has read yet (none took them as input), oldest first: those to `threadId`, or to every chat when null. */
+  waiting(threadId: string | null): AgentMessage[];
 }
 
 export function agentMessageRepository(db: DatabaseSync): AgentMessageRepository {
@@ -51,6 +53,10 @@ export function agentMessageRepository(db: DatabaseSync): AgentMessageRepository
      WHERE (from_agent_id = :agentId AND from_thread_id = :threadId) OR (to_agent_id = :agentId AND to_thread_id = :threadId)
      ORDER BY created_at, rowid`,
   );
+  const waiting = `SELECT * FROM agent_messages AS message
+     WHERE NOT EXISTS (SELECT 1 FROM generations WHERE generations.input_message_id = message.id)`;
+  const waitingAll = db.prepare(`${waiting} ORDER BY created_at, rowid`);
+  const waitingThread = db.prepare(`${waiting} AND to_thread_id = ? ORDER BY created_at, rowid`);
   return {
     insert: (message) => {
       insert.run({
@@ -73,5 +79,6 @@ export function agentMessageRepository(db: DatabaseSync): AgentMessageRepository
     hasReply: (id) => CountRow.parse(hasReply.get(id)).count > 0,
     list: (agentId, threadId) =>
       (threadId === null ? listAll.all({ agentId }) : listThread.all({ agentId, threadId })).map((row) => AgentMessageRow.parse(row)),
+    waiting: (threadId) => (threadId === null ? waitingAll.all() : waitingThread.all(threadId)).map((row) => AgentMessageRow.parse(row)),
   };
 }
