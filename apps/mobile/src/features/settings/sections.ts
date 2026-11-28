@@ -21,7 +21,7 @@ export const SECTIONS: readonly SectionInfo[] = [
     section: 'appearance',
     label: 'Appearance',
     symbol: 'circle.lefthalf.filled',
-    keywords: ['dark', 'light', 'system', 'theme', 'dusk', 'violet', 'accent', 'colour', 'color'],
+    keywords: ['dark', 'light', 'system', 'theme', 'graphite', 'blue', 'accent', 'colour', 'color'],
   },
   { section: 'providers', label: 'Providers & Models', symbol: 'cpu', keywords: ['claude', 'codex', 'model', 'provider', 'sign in'] },
   { section: 'usage', label: 'Usage', symbol: 'chart.bar', keywords: ['tokens', 'limits', 'turns'] },

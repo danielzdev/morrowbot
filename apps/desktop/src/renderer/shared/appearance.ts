@@ -41,7 +41,7 @@ export interface AppearanceModel {
 }
 
 const DEFAULT_CHOICES: Choices = {
-  theme: 'system',
+  theme: 'dark',
   reduceMotion: 'system',
   chatWidth: 'normal',
   messageColor: { kind: 'match-bot' },

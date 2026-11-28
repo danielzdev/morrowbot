@@ -17,15 +17,15 @@ function contrast(foreground: string, background: string): number {
 const surfaces = ['surface0', 'surface1', 'surface2', 'surface3', 'surfaceUser'] satisfies (keyof ThemeColors)[];
 
 describe('theme', () => {
-  it('uses the Dusk violet accent in both schemes', () => {
+  it('uses the Graphite signal-blue accent in both schemes', () => {
     expect({
       dark: themeFor('dark').colors.accent,
       light: themeFor('light').colors.accent,
       unknownStartsDark: themeFor(null).scheme,
     }).toMatchInlineSnapshot(`
       {
-        "dark": "#A48BFA",
-        "light": "#6A4FD8",
+        "dark": "#74B9FF",
+        "light": "#0B5FC5",
         "unknownStartsDark": "dark",
       }
     `);

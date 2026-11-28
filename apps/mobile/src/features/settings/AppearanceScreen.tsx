@@ -30,9 +30,9 @@ export function AppearanceScreen() {
           />
         ))}
       </Group>
-      <Group header="Accent" footer="MorrowBot uses Dusk violet everywhere, matching the desktop app.">
+      <Group header="Accent" footer="MorrowBot uses Graphite greys with a signal blue, matching the desktop app.">
         <Row
-          label="Dusk violet"
+          label="Signal blue"
           detail={null}
           leading={<View style={[styles.swatch, { backgroundColor: colors.accent }]} />}
           trailing={<Check />}
