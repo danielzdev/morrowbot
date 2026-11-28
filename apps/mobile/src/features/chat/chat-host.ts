@@ -44,6 +44,8 @@ export interface ChatHost {
   instructions(agentId: string): Promise<HostResult<AgentInstructionsView>>;
   plugins(): Promise<HostResult<PluginList>>;
   setPluginEnabled(pluginId: string, enabled: boolean): Promise<HostResult<PluginEntry>>;
+  /** Hears every plugin change the host reports, including this app's own `setPluginEnabled`. Returns the unsubscribe. */
+  onPluginChanged(listener: (entry: PluginEntry) => void): () => void;
   /** Follows one thread's events from `since`. Returns the unsubscribe. */
   follow(threadId: string, since: Cursor, onFrame: (frame: EventServerFrame) => void): () => void;
 }

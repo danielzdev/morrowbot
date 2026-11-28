@@ -7,10 +7,10 @@ const LATER = '2026-11-27T08:30:00.000Z';
 
 export const SAMPLE_AGENTS: readonly Agent[] = [
   {
-    id: 'agent-research',
-    name: 'Research Assistant',
-    description: 'Plans trips and keeps notes tidy.',
-    workspace: { kind: 'dedicated', dir: '/srv/morrowbot/agents/research' },
+    id: 'errand-bot',
+    name: 'Errand Bot',
+    description: 'Plans trips and weekend errands.',
+    workspace: { kind: 'dedicated', dir: '/srv/morrowbot/agents/errands' },
     avatar: { kind: 'bot', shape: 'lightbulb', color: '#7c5cff', finish: 'matte' },
     provider: {
       kind: 'bound',
@@ -24,10 +24,10 @@ export const SAMPLE_AGENTS: readonly Agent[] = [
     updatedAt: LATER,
   },
   {
-    id: 'agent-home',
-    name: 'Home Helper',
-    description: 'Groceries, chores and reminders.',
-    workspace: { kind: 'dedicated', dir: '/srv/morrowbot/agents/home' },
+    id: 'reading-buddy',
+    name: 'Reading Buddy',
+    description: 'Keeps book notes and summaries.',
+    workspace: { kind: 'dedicated', dir: '/srv/morrowbot/agents/reading' },
     avatar: { kind: 'bot', shape: 'sprout', color: '#22a06b', finish: 'flat' },
     provider: { kind: 'bound', pluginId: 'openai', selection: { kind: 'default' }, access: 'read-only', vendorSettings: 'isolated' },
     folderId: null,
@@ -45,10 +45,10 @@ const thread = (id: string, agentId: string, title: string, createdAt: string): 
 });
 
 export const SAMPLE_THREADS: readonly Thread[] = [
-  thread('thread-research-main', 'agent-research', 'Main', DAY),
-  thread('thread-research-sources', 'agent-research', 'Sources', '2026-11-25T10:00:00.000Z'),
-  thread('thread-research-budget', 'agent-research', 'Budget', '2026-11-26T10:00:00.000Z'),
-  thread('thread-home-main', 'agent-home', 'Main', DAY),
+  thread('errand-main', 'errand-bot', 'Main', DAY),
+  thread('weekend-errands', 'errand-bot', 'Plan the weekend errands', '2026-11-25T10:00:00.000Z'),
+  thread('errand-budget', 'errand-bot', 'Budget', '2026-11-26T10:00:00.000Z'),
+  thread('reading-main', 'reading-buddy', 'Main', DAY),
 ];
 
 const user = (id: string, threadId: string, text: string): Message => ({
@@ -79,27 +79,27 @@ const PLAN = [
 ].join('\n');
 
 export const SAMPLE_MESSAGES: Readonly<Record<string, readonly Message[]>> = {
-  'thread-research-main': [
-    user('m1', 'thread-research-main', 'Can you draft a 3-day plan for Lisbon?'),
+  'errand-main': [
+    user('m1', 'errand-main', 'Can you draft a 3-day plan for Lisbon?'),
     {
       kind: 'assistant',
       id: 'm2',
-      threadId: 'thread-research-main',
+      threadId: 'errand-main',
       text: PLAN,
       createdAt: LATER,
       outcome: { kind: 'completed', finishReason: 'stop' },
     },
-    user('m3', 'thread-research-main', 'Looks great. Save it to `notes/lisbon.md`.'),
+    user('m3', 'errand-main', 'Looks great. Save it to `notes/lisbon.md`.'),
   ],
-  'thread-research-sources': [user('m4', 'thread-research-sources', 'Collect a few sources on tram routes.')],
-  'thread-research-budget': [],
-  'thread-home-main': [
-    user('m5', 'thread-home-main', 'Add oat milk and eggs to the grocery list.'),
+  'weekend-errands': [user('m4', 'weekend-errands', 'What should I get done this weekend?')],
+  'errand-budget': [],
+  'reading-main': [
+    user('m5', 'reading-main', 'Summarise chapter 3 of my book notes.'),
     {
       kind: 'assistant',
       id: 'm6',
-      threadId: 'thread-home-main',
-      text: 'Adding oat milk',
+      threadId: 'reading-main',
+      text: 'Chapter 3 follows',
       createdAt: LATER,
       outcome: { kind: 'interrupted' },
     },
@@ -108,8 +108,8 @@ export const SAMPLE_MESSAGES: Readonly<Record<string, readonly Message[]>> = {
 
 /** The turn that is waiting on the user when the sample opens, so an approval card shows at once. */
 export const SAMPLE_ACTIVE: Readonly<Record<string, ThreadState['activeTurn']>> = {
-  'thread-research-main': {
-    generationId: 'gen-research-1',
+  'errand-main': {
+    generationId: 'gen-errand-1',
     state: 'running',
     queueNote: null,
     text: 'I will write the plan to `notes/lisbon.md`.',

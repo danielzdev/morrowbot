@@ -9,4 +9,6 @@ export type ExtensionsResult<T> =
 export interface ExtensionsHost {
   plugins(): Promise<ExtensionsResult<PluginList>>;
   setPluginEnabled(pluginId: string, enabled: boolean): Promise<ExtensionsResult<PluginEntry>>;
+  /** Hears every plugin change the host reports, including this app's own `setPluginEnabled`. Returns the unsubscribe. */
+  onPluginChanged(listener: (entry: PluginEntry) => void): () => void;
 }

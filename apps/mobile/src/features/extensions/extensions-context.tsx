@@ -36,6 +36,20 @@ export function ExtensionsHostProvider(props: { readonly host: ExtensionsHost; r
     });
   }, [host]);
   useEffect(reload, [reload]);
+  useEffect(
+    () =>
+      host.onPluginChanged((entry) => {
+        setPlugins((current) =>
+          current.kind === 'loaded'
+            ? {
+                kind: 'loaded',
+                list: { ...current.list, plugins: current.list.plugins.map((each) => (each.manifest.id === entry.manifest.id ? entry : each)) },
+              }
+            : current,
+        );
+      }),
+    [host],
+  );
   const setEnabled = useCallback(
     (pluginId: string, enabled: boolean) => {
       setSaving((current) => [...current, pluginId]);
@@ -46,14 +60,6 @@ export function ExtensionsHostProvider(props: { readonly host: ExtensionsHost; r
           return;
         }
         setRefused((current) => Object.fromEntries(Object.entries(current).filter(([id]) => id !== pluginId)));
-        setPlugins((current) =>
-          current.kind === 'loaded'
-            ? {
-                kind: 'loaded',
-                list: { ...current.list, plugins: current.list.plugins.map((entry) => (entry.manifest.id === pluginId ? result.value : entry)) },
-              }
-            : current,
-        );
       });
     },
     [host],

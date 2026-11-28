@@ -64,7 +64,7 @@ export interface ChatSession {
   send(): Promise<void>;
   /** Runs the failed or interrupted latest turn again. */
   continueTurn(failedMessageId: string): Promise<void>;
-  /** Runs the refused action again as it was. */
+  /** Runs the refused action again: a Continue as it was, a send with the draft as it is now. */
   retry(): Promise<void>;
   stop(): Promise<void>;
   answer(approvalId: string, choiceId: string): Promise<void>;
@@ -149,7 +149,13 @@ export function openChatSession(host: ChatHost, threadId: string): ChatSession {
     retry: async () => {
       const { problem } = screen.get();
       if (problem?.kind !== 'retry') return;
-      await run(problem.action.kind === 'send' ? { kind: 'send', text: screen.get().draft.trim() || problem.action.text } : problem.action);
+      if (problem.action.kind === 'continue') {
+        await run(problem.action);
+        return;
+      }
+      const text = screen.get().draft.trim();
+      if (text === '') patch({ problem: null });
+      else await run({ kind: 'send', text });
     },
     stop: async () => {
       if (screen.get().busy !== null) return;

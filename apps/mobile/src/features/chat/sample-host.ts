@@ -41,6 +41,7 @@ export function createSampleChatHost(now: () => string = () => new Date().toISOS
   for (const [threadId, turn] of Object.entries(SAMPLE_ACTIVE)) if (turn !== null) active.set(threadId, copy(turn));
   const seqs = new Map<string, number>();
   const listeners = new Map<string, Set<(frame: EventServerFrame) => void>>();
+  const pluginListeners = new Set<(entry: PluginEntry) => void>();
   const answers = new Map<string, (choiceId: string | null) => void>();
   let counter = 0;
   const nextId = (prefix: string): string => `${prefix}-${String(++counter)}`;
@@ -203,15 +204,25 @@ export function createSampleChatHost(now: () => string = () => new Date().toISOS
       threads = threads.filter((each) => each.agentId !== agentId);
       return ok(null);
     },
-    instructions: () =>
-      ok({ content: '# Research Assistant\n\nKeep answers short. Ask before writing files.', revision: 'r1', canReplace: false }),
+    instructions: (agentId) => {
+      const agent = agents.find(({ id }) => id === agentId);
+      if (agent === undefined) return missing('Agent');
+      return ok({ content: `# ${agent.name}\n\nKeep answers short. Ask before writing files.`, revision: 'r1', canReplace: false });
+    },
     plugins: () => ok({ plugins, safeMode: false, pluginsDir: '/srv/morrowbot/plugins', problems: [] }),
     setPluginEnabled: (pluginId, enabled) => {
       const entry = plugins.find(({ manifest }) => manifest.id === pluginId);
       if (entry === undefined) return missing('Plugin');
       const updated: PluginEntry = { ...entry, enabled, status: enabled ? { kind: 'running' } : { kind: 'disabled' } };
       plugins = plugins.map((each) => (each.manifest.id === pluginId ? updated : each));
+      for (const listener of [...pluginListeners]) listener(updated);
       return ok(updated);
+    },
+    onPluginChanged: (listener) => {
+      pluginListeners.add(listener);
+      return () => {
+        pluginListeners.delete(listener);
+      };
     },
     follow: (threadId, _since, onFrame) => {
       const set = listeners.get(threadId) ?? new Set();

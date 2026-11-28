@@ -58,6 +58,7 @@ function scripted(states: ThreadState[], overrides: Partial<ChatHost> = {}) {
     instructions: unused,
     plugins: unused,
     setPluginEnabled: unused,
+    onPluginChanged: unused,
     follow: (_threadId, _since, onFrame) => {
       frames = onFrame;
       return () => {
@@ -136,4 +137,27 @@ it('keeps the draft and offers Retry when the provider is unavailable', async ()
     draft: 'Hello',
     problem: { kind: 'retry', message: 'The provider is checking its sign-in.', action: { kind: 'send', text: 'Hello' } },
   });
+});
+
+it('retries with the draft as it is now, and sends nothing once the draft was cleared', async () => {
+  const sent: string[] = [];
+  const { host } = scripted([state(1, false)], {
+    send: (_threadId, text) => {
+      sent.push(text);
+      return Promise.resolve({
+        kind: 'failed',
+        status: 503,
+        error: { kind: 'provider-unavailable', reason: 'rechecking', message: 'Try again soon.' },
+      });
+    },
+  });
+  const session = openChatSession(host, 't');
+  await session.load();
+  session.setDraft('First try');
+  await session.send();
+  session.setDraft('Edited');
+  await session.retry();
+  session.setDraft('');
+  await session.retry();
+  expect({ sent, problem: session.screen.get().problem }).toEqual({ sent: ['First try', 'Edited'], problem: null });
 });

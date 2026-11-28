@@ -58,6 +58,13 @@ export function createChatHub(host: ChatHost): ChatHub {
   }
   void refreshAgents();
   void refreshPlugins();
+  host.onPluginChanged((entry) => {
+    plugins.update((current) =>
+      current.kind === 'loaded'
+        ? { kind: 'loaded', value: current.value.map((each) => (each.manifest.id === entry.manifest.id ? entry : each)) }
+        : current,
+    );
+  });
 
   return {
     host,
@@ -100,16 +107,6 @@ export function createChatHub(host: ChatHost): ChatHub {
       if (result.kind === 'ok') await refreshThreads(agentId);
       return result;
     },
-    setPluginEnabled: async (pluginId, enabled) => {
-      const result = await host.setPluginEnabled(pluginId, enabled);
-      if (result.kind === 'ok') {
-        plugins.update((current) =>
-          current.kind === 'loaded'
-            ? { kind: 'loaded', value: current.value.map((entry) => (entry.manifest.id === pluginId ? result.value : entry)) }
-            : current,
-        );
-      }
-      return result;
-    },
+    setPluginEnabled: (pluginId, enabled) => host.setPluginEnabled(pluginId, enabled),
   };
 }
