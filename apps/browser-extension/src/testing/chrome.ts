@@ -43,7 +43,18 @@ export async function launchChrome(): Promise<ChromeUnderTest> {
   const executable = findChrome();
   if (executable === null) throw new Error('No Chrome found; set CHROME_PATH');
   const profile = await mkdtemp(path.join(tmpdir(), 'morrowbot-chrome-'));
-  const args = ['--headless=new', '--remote-debugging-port=0', `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check', '--disable-gpu', 'about:blank'];
+  const args = [
+    '--headless=new',
+    '--remote-debugging-port=0',
+    `--user-data-dir=${profile}`,
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--disable-gpu',
+    '--disable-background-timer-throttling',
+    '--disable-backgrounding-occluded-windows',
+    '--disable-renderer-backgrounding',
+    'about:blank',
+  ];
   if (process.platform === 'linux') args.push('--no-sandbox');
   const child = spawn(executable, args, { stdio: 'ignore' });
   const socket = new WebSocket(await devtoolsUrl(profile, child));
@@ -140,15 +151,30 @@ export async function launchChrome(): Promise<ChromeUnderTest> {
     tabs,
     attach,
     evaluate: async (tabId, expression) => {
-      const session = await attach(tabId);
-      const { result } = z.object({ result: z.object({ value: z.unknown() }) }).parse(await session.send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }));
-      return result.value;
+      const { sessionId } = z.object({ sessionId: z.string() }).parse(await send('Target.attachToTarget', { targetId: targetOf(tabId), flatten: true }));
+      try {
+        const { result } = z
+          .object({ result: z.object({ value: z.unknown() }) })
+          .parse(await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }, sessionId));
+        return result.value;
+      } finally {
+        await send('Target.detachFromTarget', { sessionId }).catch(() => undefined);
+      }
     },
     close: async () => {
       socket.close();
-      const exited = new Promise((resolve) => child.once('exit', resolve));
-      child.kill();
-      await exited;
+      if (child.exitCode === null && child.signalCode === null) {
+        const exited = new Promise((resolve) => child.once('exit', resolve));
+        child.kill();
+        const killer = setTimeout(() => {
+          if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+        }, 5_000);
+        try {
+          await exited;
+        } finally {
+          clearTimeout(killer);
+        }
+      }
       await rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
     },
   };
