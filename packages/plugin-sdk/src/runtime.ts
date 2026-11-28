@@ -2,6 +2,7 @@ import { createCommandRunner, type CommandExit, type CommandOptions, type Comman
 import { statExecutable, type Executable } from './files.ts';
 import { createGroupLink, type GroupLink } from './host-link.ts';
 import { jsonRpcProcessOver, type StartJsonRpcProcess } from './json-rpc-process.ts';
+import { serveLoopback, type LoopbackServer, type LoopbackServerOptions } from './loopback.ts';
 import type { PluginDefinition } from './plugin.ts';
 import { readCliVersion, type CliVersion } from './version.ts';
 
@@ -29,6 +30,8 @@ export interface PluginRuntime {
   readonly statExecutable: (command: string) => Promise<Executable>;
   /** Runs `<command> --version` (a probe) and returns its MAJOR.MINOR.PATCH, cached by the executable's path, mtime and size. */
   readonly readCliVersion: (command: string, options: { readonly cwd: string }) => Promise<CliVersion>;
+  /** Listens for authenticated WebSocket clients on 127.0.0.1 (a browser extension, say). Close it in `shutdown`. */
+  readonly serveLoopback: (options: LoopbackServerOptions) => Promise<LoopbackServer>;
 }
 
 /** What a plugin's entry hands to `runPlugin` (or a built-in provider to the host): it builds the plugin on its runtime. */
@@ -57,6 +60,7 @@ export function createRuntime(options: RuntimeOptions, link: GroupLink): OwnedRu
     jsonRpcProcess: jsonRpcProcessOver((command, commandOptions) => commands.open(command, commandOptions)),
     statExecutable: stat,
     readCliVersion: (command, versionOptions) => readCliVersion(versions, command, versionOptions),
+    serveLoopback,
   };
   return { runtime, commands };
 }
