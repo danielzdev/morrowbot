@@ -99,6 +99,11 @@ function connect(profile: HostProfile, open: OpenSocket): Watched {
   return { live, statuses, frames, until, online };
 }
 
+function startedId(reply: SendMessageResponse): string {
+  if (reply.kind !== 'started') throw new Error(`expected an idle thread to start, got ${reply.kind}`);
+  return reply.generationId;
+}
+
 const finished = (generationId: string) => (frame: EventServerFrame) => frame.kind === 'generation.finished' && frame.generationId === generationId;
 
 it('refuses a wrong code, then pairs and reaches the host with the device token', async () => {
@@ -152,15 +157,15 @@ it('resumes a thread from its cursor after the socket drops, delivering each mis
     body: { text: 'first' },
   });
   if (first.kind !== 'ok') throw new Error(first.kind);
-  await watched.until(finished(first.value.generationId));
+  await watched.until(finished(startedId(first.value)));
 
   sockets.drop();
-  const second = SendMessageResponse.parse((await host.call('POST', `/api/threads/${thread.id}/messages`, { text: 'second' })).body);
-  await Promise.all([watched.until(finished(second.generationId)), unbroken.until(finished(second.generationId))]);
+  const second = startedId(SendMessageResponse.parse((await host.call('POST', `/api/threads/${thread.id}/messages`, { text: 'second' })).body));
+  await Promise.all([watched.until(finished(second)), unbroken.until(finished(second))]);
 
   const seqs = watched.frames.flatMap((frame) => ('cursor' in frame ? [frame.cursor.seq] : []));
   const ofSecond = (frames: readonly EventServerFrame[]) =>
-    frames.filter((frame) => 'generationId' in frame && frame.generationId === second.generationId).map((frame) => frame.kind);
+    frames.filter((frame) => 'generationId' in frame && frame.generationId === second).map((frame) => frame.kind);
   expect({
     statuses: watched.statuses,
     secondGeneration: ofSecond(watched.frames),

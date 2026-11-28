@@ -202,7 +202,11 @@ function track(watched: Map<EntityId, Watched>, frame: EventServerFrame): boolea
     case 'generation.tool-end':
     case 'generation.approval-requested':
     case 'generation.approval-resolved':
-    case 'generation.finished': {
+    case 'generation.steered':
+    case 'generation.finished':
+    case 'generation.background-started':
+    case 'generation.background-finished':
+    case 'queue.changed': {
       const entry = watched.get(frame.threadId);
       if (entry?.kind !== 'live') return true;
       const seen = entry.cursor;
