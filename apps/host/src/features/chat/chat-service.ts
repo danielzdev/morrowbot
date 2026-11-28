@@ -67,6 +67,8 @@ export interface ChatService {
    * (every chat when null) once that chat is idle. Each chat reads its next message whenever it goes idle.
    */
   readAgentMessages(threadId: string | null): void;
+  /** Whether any turn of the agent (in any of its chats, routine runs included) is queued or running. */
+  agentBusy(agentId: string): boolean;
   /** The events a client missed since `since`, or `resync`. Synchronous with `subscribe`. */
   replay(threadId: string, since: Cursor): Replay;
   subscribe(listener: ChatListener): () => void;
@@ -247,6 +249,7 @@ export function createChatService(options: ChatServiceOptions): ChatService {
       const threads = threadId === null ? new Set(options.inbox.waiting(null).map(({ to }) => to.threadId)) : [threadId];
       for (const each of threads) readNext(each);
     },
+    agentBusy: (agentId) => [...core.active.values()].some((turn) => turn.agentId === agentId && turn.state !== 'settled'),
     replay: (threadId, since) => core.events.replay(threadId, since),
     subscribe: (listener) => core.events.subscribe(listener),
     close: async () => {

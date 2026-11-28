@@ -42,6 +42,8 @@ export interface TestHostOptions {
   readonly platform?: NodeJS.Platform;
   readonly routineClock?: RoutineClock;
   readonly t3Watch?: HostOptions['t3Watch'];
+  /** `MORROWBOT_T3_ROUTINE_ID`: the routine T3 watch batches go to. */
+  readonly t3RoutineId?: string;
 }
 
 export interface Reply {
@@ -70,7 +72,7 @@ export async function startTestHost(options: TestHostOptions): Promise<TestHost>
       dataDir: options.dataDir,
       pluginsDir: options.pluginsDir ?? path.join(options.dataDir, 'plugins'),
       builtinPluginsDir: options.builtinPluginsDir ?? null,
-      t3Watch: { dir: path.join(options.dataDir, 't3-watch'), bin: '/nonexistent/t3', projects: [] },
+      t3Watch: { dir: path.join(options.dataDir, 't3-watch'), bin: '/nonexistent/t3', projects: [], routineId: options.t3RoutineId ?? null },
     },
     version: '0.0.0-test',
     hostName: 'Studio Host',

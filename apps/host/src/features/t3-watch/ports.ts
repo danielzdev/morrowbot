@@ -1,4 +1,4 @@
-import type { T3Watch, T3WatchEvent } from '@morrowbot/contracts';
+import type { T3Watch, T3WatchBatch, T3WatchEvent } from '@morrowbot/contracts';
 import type { ListResult, ProbeResult } from './observation.ts';
 
 /** How the service reads T3 Code. v1 is the CLI; tests script the answers. */
@@ -22,6 +22,40 @@ export interface FileCursor {
   readonly offset: number;
 }
 
+/** A queued event and when it may go out next. */
+export interface T3OutboxEntry {
+  readonly event: T3WatchEvent;
+  readonly dueAt: string;
+  /** Counted deferrals so far; the third sends it once more, `unverified`. */
+  readonly deferrals: number;
+  readonly countedDeferralAt: string | null;
+  readonly unverified: boolean;
+}
+
+export type T3OutboxSchedule = Omit<T3OutboxEntry, 'event'>;
+
+/** A batch as stored, with its events in the order they were first sent. */
+export interface T3BatchRecord {
+  readonly batchId: string;
+  readonly createdAt: string;
+  /** How many times the sink took it; 0 until the first send went through. */
+  readonly attempts: number;
+  /** When it is sent again unless acknowledged first: its lease, or a retry after a failed send. */
+  readonly resendAt: string;
+  readonly ackedAt: string | null;
+  readonly entries: readonly { readonly event: T3WatchEvent; readonly unverified: boolean }[];
+}
+
+/** What a send to the orchestrator's routine came to. */
+export type SinkAnswer = { readonly kind: 'sent' } | { readonly kind: 'busy' } | { readonly kind: 'failed'; readonly reason: string };
+
+/** Where batches go: one background routine of the orchestrator, never an interactive chat. */
+export interface T3DeliverySink {
+  /** True while that routine or any turn of the orchestrator agent runs; batches hold until it has been idle 5 s. */
+  busy(): boolean;
+  deliver(batch: T3WatchBatch): Promise<SinkAnswer>;
+}
+
 /** Where watches, their events and the outbox are kept (the storage feature provides them). */
 export interface T3WatchStore {
   readonly watches: {
@@ -42,8 +76,19 @@ export interface T3WatchStore {
     acknowledge(eventId: string): boolean;
     drop(eventId: string): void;
     undispatched(watchId: string): T3WatchEvent[];
+    undelivered(): T3OutboxEntry[];
+    entry(eventId: string): T3OutboxEntry | undefined;
+    reschedule(eventId: string, schedule: T3OutboxSchedule): void;
+    release(eventId: string): void;
     cursor(name: string): FileCursor | undefined;
     setCursor(name: string, cursor: FileCursor): void;
+  };
+  readonly batches: {
+    open(): T3BatchRecord | undefined;
+    get(batchId: string): T3BatchRecord | undefined;
+    insert(batch: Pick<T3BatchRecord, 'batchId' | 'createdAt' | 'resendAt'>, entries: readonly { readonly eventId: string; readonly unverified: boolean }[]): void;
+    reschedule(batchId: string, attempts: number, resendAt: string): void;
+    acknowledge(batchId: string, at: string): void;
   };
   transaction<T>(work: () => T): T;
 }

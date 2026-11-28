@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
-import { RegisterT3WatchRequest, type T3Watch, type T3WatchEvent } from '@morrowbot/contracts';
-import { POLL_MS } from './machine.ts';
+import { RegisterT3WatchRequest, T3WatchAck, type T3Watch, type T3WatchEvent } from '@morrowbot/contracts';
+import type { z } from 'zod';
+import { createDeliveryLane, type AckResult } from './delivery.ts';
 import type { ListResult, ProbeResult } from './observation.ts';
-import type { T3Probe, T3WatchClock, T3WatchStore } from './ports.ts';
+import type { T3DeliverySink, T3Probe, T3WatchClock, T3WatchStore } from './ports.ts';
 import { createRegistry, view } from './registry.ts';
-import { readNewLines, REQUESTS_FILE, writeCurrentWatches } from './watch-files.ts';
+import { ACKS_FILE, readNewLines, REQUESTS_FILE, writeCurrentWatches } from './watch-files.ts';
 
 export const TICK_MS = 1000;
 export const DISCOVERY_MS = 30_000;
@@ -23,6 +24,8 @@ export interface T3WatchServiceOptions {
   readonly dir: string;
   /** T3 projects (ids or paths) that discovery scans every 30 s; none turns discovery off. */
   readonly projects: readonly string[];
+  /** The orchestrator's routine; null keeps delivery off (events wait in the outbox). */
+  readonly sink: T3DeliverySink | null;
   readonly newId: () => string;
   readonly report: (error: unknown) => void;
   /** A problem with something an agent wrote, such as a malformed `requests.jsonl` line. */
@@ -34,10 +37,10 @@ export interface T3WatchService {
   list(): T3Watch[];
   /** Stops and forgets a watch and its queued events. False when no such watch exists. */
   remove(watchId: string): boolean;
-  /** Events waiting for an ack, oldest first (the delivery lane reads these). */
+  /** Events waiting for an ack, oldest first. */
   pending(): T3WatchEvent[];
-  /** Takes acknowledged events off the queue and settles the watches they ended. */
-  acknowledge(eventIds: readonly string[]): void;
+  /** The orchestrator's ack for one batch (from the API; `acks.jsonl` lines take the same path). */
+  ack(ack: T3WatchAck): AckResult;
   /** Reads new registrations, then starts the reads and discovery that are due, within the read limits. */
   tick(): void;
   /** Resolves once every read and file read started so far has been applied. */
@@ -66,7 +69,8 @@ export function createT3WatchService(options: T3WatchServiceOptions): T3WatchSer
   const degraded = new Set<string>();
   const discoveryQueue: string[] = [];
   let discoveryDueAt = clock.now();
-  let readingRequests = false;
+  const reading = new Set<string>();
+  let checkCount = 0;
   let inOutage = false;
   let closed = false;
 
@@ -143,7 +147,7 @@ export function createT3WatchService(options: T3WatchServiceOptions): T3WatchSer
           if (schedule === undefined) return;
           const ok = result.kind === 'observation' || result.kind === 'not_found';
           schedule.failures = ok ? 0 : schedule.failures + 1;
-          schedule.dueAt = at + Math.min(POLL_MS * 2 ** schedule.failures, MAX_BACKOFF_MS);
+          schedule.dueAt = at + Math.min(registry.pollMs(watchId) * 2 ** schedule.failures, MAX_BACKOFF_MS);
         })
         .finally(() => inFlight.delete(watchId)),
     );
@@ -168,29 +172,74 @@ export function createT3WatchService(options: T3WatchServiceOptions): T3WatchSer
     );
   };
 
-  const readRequests = (): void => {
-    if (readingRequests) return;
-    readingRequests = true;
+  /** A fresh read for the delivery lane, within the same read limits; undefined when no slot is free. */
+  const freshRead = (threadId: string): Promise<ProbeResult> | undefined => {
+    const now = clock.now();
+    if (!slot(now)) return undefined;
+    const key = `check:${String((checkCount += 1))}`;
+    inFlight.add(key);
+    starts.push(now);
+    return probe
+      .inspect(threadId)
+      .then((result) => {
+        if (!closed) health(result, clock.now());
+        return result;
+      })
+      .finally(() => inFlight.delete(key));
+  };
+
+  const lane = createDeliveryLane({ store, registry, sink: options.sink, clock, dir: options.dir, newId: options.newId, read: freshRead, track, warn: options.warn });
+
+  /** Takes the complete new lines of a shared file in the watch folder, one valid line at a time. */
+  const intake = <T>(file: string, schema: z.ZodType<T>, take: (values: readonly T[], at: number) => void, after: (values: readonly T[]) => void): void => {
+    if (reading.has(file)) return;
+    reading.add(file);
     track(
-      readNewLines(path.join(options.dir, REQUESTS_FILE), store.outbox.cursor(REQUESTS_FILE))
+      readNewLines(path.join(options.dir, file), store.outbox.cursor(file))
         .then((found) => {
           if (closed || found.kind === 'missing') return;
-          const at = clock.now();
-          const requests = found.lines.flatMap((line) => {
-            const parsed = RegisterT3WatchRequest.safeParse(parseLine(line));
+          const values = found.lines.flatMap((line) => {
+            const parsed = schema.safeParse(parseLine(line));
             if (parsed.success) return [parsed.data];
-            options.warn(`Skipped a malformed ${REQUESTS_FILE} line: ${line.slice(0, 200)}`);
+            options.warn(`Skipped a malformed ${file} line: ${line.slice(0, 200)}`);
             return [];
           });
+          const at = clock.now();
           store.transaction(() => {
-            for (const request of requests) registry.register(request, at);
-            store.outbox.setCursor(REQUESTS_FILE, found.cursor);
+            take(values, at);
+            store.outbox.setCursor(file, found.cursor);
           });
-          if (requests.length > 0) publish();
+          after(values);
         })
         .finally(() => {
-          readingRequests = false;
+          reading.delete(file);
         }),
+    );
+  };
+
+  const readRequests = (): void => {
+    intake(
+      REQUESTS_FILE,
+      RegisterT3WatchRequest,
+      (requests, at) => {
+        for (const request of requests) registry.register(request, at);
+      },
+      (requests) => {
+        if (requests.length > 0) publish();
+      },
+    );
+  };
+
+  const readAcks = (): void => {
+    intake(
+      ACKS_FILE,
+      T3WatchAck,
+      (acks) => {
+        for (const ack of acks) {
+          if (lane.ack(ack).kind === 'unknown_batch') options.warn(`Skipped an ack for unknown batch ${ack.batchId}`);
+        }
+      },
+      () => undefined,
     );
   };
 
@@ -198,6 +247,8 @@ export function createT3WatchService(options: T3WatchServiceOptions): T3WatchSer
     if (closed) return;
     const now = clock.now();
     readRequests();
+    readAcks();
+    lane.tick();
     if (options.projects.length > 0 && now >= discoveryDueAt && discoveryQueue.length === 0) {
       discoveryQueue.push(...options.projects);
       discoveryDueAt = now + DISCOVERY_MS;
@@ -245,9 +296,7 @@ export function createT3WatchService(options: T3WatchServiceOptions): T3WatchSer
       return removed;
     },
     pending: () => store.outbox.pending(),
-    acknowledge: (eventIds) => {
-      registry.acknowledge(eventIds, clock.now());
-    },
+    ack: (ack) => store.transaction(() => lane.ack(ack)),
     tick,
     idle: async () => {
       while (work.size > 0) await Promise.all(work);

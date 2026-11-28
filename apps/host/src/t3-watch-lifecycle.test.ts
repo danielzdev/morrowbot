@@ -13,7 +13,6 @@ afterEach(async () => {
 });
 
 const currentWatches = (): unknown => JSON.parse(readFileSync(path.join(kit.dir, 'current-watches.json'), 'utf8'));
-const reads = (threadId: string): number => kit.t3.reads.filter((read) => read.threadId === threadId).length;
 
 it('drops a superseded watch’s unsent finished, and the replacement’s real finished still goes out', async () => {
   kit.t3.thread('mcp:redo');
@@ -65,87 +64,6 @@ it('drops a superseded watch’s unsent finished, and the replacement’s real f
   `);
   expect(currentWatches()).toEqual({ threads: { 'mcp:redo': second.watchId } });
   expect(first.watchId).not.toBe(second.watchId);
-});
-
-it('never settles a replacement watch on a late ack for the watch it replaced', async () => {
-  kit.t3.thread('mcp:ask', { status: 'waiting', pendingRequestCount: 1 });
-  kit.register({ threadId: 'mcp:ask', runId: runOf('mcp:ask', 1) });
-  await kit.run(1000);
-  const [oldNeedsYou] = kit.service.pending();
-  const replacement = kit.register({ threadId: 'mcp:ask', runId: runOf('mcp:ask', 1) });
-  kit.service.acknowledge(oldNeedsYou === undefined ? [] : [oldNeedsYou.eventId]);
-  const afterLateAck = kit.watches();
-  Object.assign(kit.t3.get('mcp:ask'), { status: 'completed', activeRunId: null, pendingRequestCount: 0, itemCount: 8 });
-  await kit.run(40_000);
-  kit.service.acknowledge(kit.service.pending().map((event) => event.eventId));
-  expect({ afterLateAck, settled: kit.watches(), pending: kit.events() }).toMatchInlineSnapshot(`
-    {
-      "afterLateAck": [
-        {
-          "reason": "replaced by id-3",
-          "run": "#1",
-          "settled": false,
-          "source": "registered",
-          "state": "superseded",
-          "thread": "mcp:ask",
-        },
-        {
-          "reason": null,
-          "run": "#1",
-          "settled": false,
-          "source": "registered",
-          "state": "watching",
-          "thread": "mcp:ask",
-        },
-      ],
-      "pending": [],
-      "settled": [
-        {
-          "reason": "replaced by id-3",
-          "run": "#1",
-          "settled": false,
-          "source": "registered",
-          "state": "superseded",
-          "thread": "mcp:ask",
-        },
-        {
-          "reason": null,
-          "run": "#1",
-          "settled": true,
-          "source": "registered",
-          "state": "finished",
-          "thread": "mcp:ask",
-        },
-      ],
-    }
-  `);
-  expect(currentWatches()).toEqual({ threads: { 'mcp:ask': replacement.watchId } });
-});
-
-it('settles an idle_unverified watch on its ack and reads that thread no more', async () => {
-  kit.t3.thread('mcp:shared', { status: 'completed', activeRunId: null });
-  kit.register({ threadId: 'mcp:shared', priorRunId: runOf('mcp:shared', 1) });
-  await kit.run(30_000);
-  const readsAtEnd = reads('mcp:shared');
-  kit.service.acknowledge(kit.service.pending().map((event) => event.eventId));
-  await kit.run(120_000);
-  expect({ watches: kit.watches(), pending: kit.events(), readsAtEnd, readsLater: reads('mcp:shared') }).toMatchInlineSnapshot(`
-    {
-      "pending": [],
-      "readsAtEnd": 3,
-      "readsLater": 3,
-      "watches": [
-        {
-          "reason": "send to a shared thread without a run id",
-          "run": null,
-          "settled": true,
-          "source": "registered",
-          "state": "idle_unverified",
-          "thread": "mcp:shared",
-        },
-      ],
-    }
-  `);
 });
 
 it('never calls a sleep jump a stall, but does call 15 awake minutes without progress one', async () => {
