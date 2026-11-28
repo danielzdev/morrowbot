@@ -90,8 +90,62 @@
 .agent-preview.empty {
   color: var(--text-3);
 }
-.agent-preview.warn {
+/* Working dots and needs-you badges, beside the last message */
+.working-dots {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 3px;
+  height: 16px;
+  padding: 0 2px;
+}
+.working-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: var(--r-pill);
+  background: var(--text-3);
+}
+.working-dots.moving i {
+  background: var(--accent);
+  animation: working-dot 1.2s ease-in-out infinite;
+}
+.working-dots.moving i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.working-dots.moving i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+[data-motion='reduced'] .working-dots.moving i {
+  animation: none;
+}
+@keyframes working-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+.agent-badge {
+  flex: none;
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  font: var(--t-small);
+  font-weight: 600;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.agent-badge.warn {
+  background: var(--warn-bg);
   color: var(--warn);
+}
+.agent-badge.danger {
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 .agent-row.unread .agent-preview {
   color: var(--text-1);
@@ -108,20 +162,34 @@
   width: 44px;
   padding: 0;
 }
-.rail-dot {
+.rail-mark {
   position: absolute;
-  top: 2px;
-  right: 2px;
+  top: 0;
+  right: 0;
+  display: flex;
+  border-radius: var(--r-pill);
+  background: var(--surface-1);
+  padding: 2px;
+}
+.rail-mark .working-dots {
+  gap: 2px;
+  height: 10px;
+}
+.rail-mark .working-dots i {
+  width: 4px;
+  height: 4px;
+}
+.rail-mark .unread-dot,
+.rail-dot {
   width: 10px;
   height: 10px;
   border-radius: var(--r-pill);
-  box-shadow: 0 0 0 2px var(--surface-1);
 }
 .rail-dot.warn {
   background: var(--warn);
 }
-.rail-dot.unread {
-  background: var(--accent);
+.rail-dot.danger {
+  background: var(--danger);
 }
 .agent-row.renaming {
   gap: 10px;

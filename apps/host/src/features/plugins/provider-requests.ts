@@ -52,6 +52,8 @@ export interface ProviderRequests {
    * its handle. The groups are then checked and the remaining turns settled through `onLost`.
    */
   cancelTurn(pluginId: string, turnId: string): void;
+  /** Sends `steer` to a turn that has not ended. A turn that ended first never answers it: its end does. */
+  steerTurn(pluginId: string, turnId: string, steerId: string, text: string): void;
   replyApproval(pluginId: string, turnId: string, approvalId: string, choiceId: string): void;
 }
 
@@ -189,6 +191,10 @@ export function providerRequests({ slotOf, statusOf, isServing, groups, timeouts
     replyApproval: (pluginId, turnId, approvalId, choiceId) => {
       const slot = slotOf(pluginId);
       if (slot.turns.has(turnId)) slot.process?.replyApproval(turnId, approvalId, choiceId);
+    },
+    steerTurn: (pluginId, turnId, steerId, text) => {
+      const slot = slotOf(pluginId);
+      if (slot.turns.has(turnId)) slot.process?.steerTurn(turnId, steerId, text);
     },
     cancelTurn: (pluginId, turnId) => {
       const slot = slotOf(pluginId);

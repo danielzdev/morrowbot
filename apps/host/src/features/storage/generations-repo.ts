@@ -62,6 +62,8 @@ export interface GenerationRepository {
   insert(record: GenerationRecord): void;
   markDispatched(id: string, at: string): void;
   setAttemptedSessionRow(id: string, row: number): void;
+  /** A steer reached the running turn: the turn now answers that message (Continue starts from it). */
+  setInputMessage(id: string, messageId: string): void;
   flushPartial(id: string, text: string): void;
   /** `resultMessageId` is null for a background turn that told the user nothing. */
   settle(id: string, resultMessageId: string | null): void;
@@ -84,6 +86,7 @@ export function generationRepository(db: DatabaseSync): GenerationRepository {
   );
   const dispatched = db.prepare('UPDATE generations SET dispatched_at = ? WHERE id = ?');
   const attempted = db.prepare('UPDATE generations SET attempted_session_row = ? WHERE id = ?');
+  const input = db.prepare('UPDATE generations SET input_message_id = ? WHERE id = ?');
   const partial = db.prepare('UPDATE generations SET partial_text = ? WHERE id = ? AND settled = 0');
   const settle = db.prepare('UPDATE generations SET settled = 1, result_message_id = ? WHERE id = ?');
   const unsettled = db.prepare('SELECT * FROM generations WHERE settled = 0 ORDER BY started_at, rowid');
@@ -109,6 +112,9 @@ export function generationRepository(db: DatabaseSync): GenerationRepository {
     },
     setAttemptedSessionRow: (id, row) => {
       attempted.run(row, id);
+    },
+    setInputMessage: (id, messageId) => {
+      input.run(messageId, id);
     },
     flushPartial: (id, text) => {
       partial.run(text, id);

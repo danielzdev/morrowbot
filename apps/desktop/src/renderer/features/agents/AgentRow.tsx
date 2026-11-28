@@ -2,22 +2,39 @@ import type { ComponentChildren } from 'preact';
 import { messageTime } from '../../shared/format.ts';
 import { Tooltip } from '../../shared/ui/Tooltip.tsx';
 import { NameInput } from '../../shared/ui/NameInput.tsx';
-import type { AgentEntry, AgentStatus } from './sidebar-groups.ts';
+import { markLabel, markOf, type RowMark } from './row-mark.ts';
+import type { AgentEntry } from './sidebar-groups.ts';
 
-/** A status that takes the place of the message preview (spec §3.1); null shows the preview. */
-export function statusText(status: AgentStatus): { readonly text: string; readonly tone: 'warn' | 'muted' } | null {
-  switch (status.kind) {
-    case 'needs-approval':
-      return { text: 'Needs approval', tone: 'warn' };
-    case 'needs-you':
-      return { text: status.reason === 'unbound' ? 'Needs you: choose a provider' : 'Needs you', tone: 'warn' };
-    case 'working':
-      return { text: 'Working…', tone: 'muted' };
-    case 'queued':
-      return { text: 'Queued', tone: 'muted' };
-    case 'unread':
-    case 'idle':
+/** Three dots that bounce in turn while the agent works; still when queued or when motion is reduced. */
+function WorkingDots(props: { readonly moving: boolean; readonly label: string }) {
+  return (
+    <span class={`working-dots ${props.moving ? 'moving' : ''}`} role="img" aria-label={props.label}>
+      <i />
+      <i />
+      <i />
+    </span>
+  );
+}
+
+/** The row's mark: working dots, a needs-you badge or the unread dot. The rail shows a badge as a dot on the avatar. */
+function Mark(props: { readonly mark: RowMark; readonly rail: boolean }) {
+  const { mark } = props;
+  switch (mark.kind) {
+    case 'none':
       return null;
+    case 'unread':
+      return <span class="unread-dot" role="img" aria-label={mark.label} />;
+    case 'dots':
+      return <WorkingDots moving={mark.moving} label={mark.label} />;
+    case 'badge':
+      return props.rail ? (
+        <span class={`rail-dot ${mark.tone}`} role="img" aria-label={mark.label} />
+      ) : (
+        <span class={`agent-badge ${mark.tone}`} title={mark.label}>
+          <span aria-hidden="true">{mark.text}</span>
+          <span class="visually-hidden">{mark.label}</span>
+        </span>
+      );
   }
 }
 
@@ -48,11 +65,15 @@ export interface AgentRowProps {
   readonly onRenamed: (name: string | null) => void;
 }
 
-/** One agent: a large avatar, then name, role and time over the last message or a status. Right-click, the menu key or ⇧F10 opens its actions. */
+/**
+ * One agent: a large avatar, then name, role and time over the last message and its mark (working dots
+ * or a needs-you badge). Right-click, the menu key or ⇧F10 opens its actions.
+ */
 export function AgentRow(props: AgentRowProps) {
   const { agent, status, lastMessage } = props.entry;
-  const shown = statusText(status);
-  const unread = status.kind === 'unread';
+  const mark = markOf(status);
+  const said = markLabel(mark);
+  const unread = mark.kind === 'unread';
   const role = agent.description.split('\n')[0]?.trim() ?? '';
   const preview = lastMessage === null ? null : `${lastMessage.kind === 'user' ? 'You: ' : ''}${shortPreview(props.redact(lastMessage.preview))}`;
   const main = (
@@ -62,7 +83,7 @@ export function AgentRow(props: AgentRowProps) {
       data-agent={agent.id}
       tabIndex={props.tabbable ? 0 : -1}
       aria-current={props.selected ? 'true' : undefined}
-      aria-label={props.rail ? (shown === null ? agent.name : `${agent.name}, ${shown.text}`) : undefined}
+      aria-label={props.rail ? (said === null ? agent.name : `${agent.name}, ${said}`) : undefined}
       onFocus={props.onFocus}
       onClick={(event) => {
         props.onOpen(event.currentTarget);
@@ -87,22 +108,22 @@ export function AgentRow(props: AgentRowProps) {
             {lastMessage !== null && <span class="agent-time">{messageTime(lastMessage.at, props.now)}</span>}
           </span>
           <span class="agent-line">
-            {shown !== null ? (
-              <span class={`agent-preview ${shown.tone}`}>{shown.text}</span>
-            ) : (
-              <span class={`agent-preview ${preview === null ? 'empty' : ''}`}>{preview ?? 'No messages yet'}</span>
-            )}
-            {unread && <span class="unread-dot" role="img" aria-label="New reply" />}
+            <span class={`agent-preview ${preview === null ? 'empty' : ''}`}>{preview ?? 'No messages yet'}</span>
+            <Mark mark={mark} rail={false} />
           </span>
         </span>
       )}
-      {props.rail && (unread || shown?.tone === 'warn') && <span class={`rail-dot ${unread ? 'unread' : 'warn'}`} aria-hidden="true" />}
+      {props.rail && mark.kind !== 'none' && (
+        <span class="rail-mark" aria-hidden="true">
+          <Mark mark={mark} rail />
+        </span>
+      )}
     </button>
   );
   if (props.rail) {
     return (
       <div class={`agent-row rail ${props.selected ? 'selected' : ''}`}>
-        <Tooltip label={shown === null ? agent.name : `${agent.name} · ${shown.text}`} side="right">
+        <Tooltip label={said === null ? agent.name : `${agent.name} · ${said}`} side="right">
           {main}
         </Tooltip>
       </div>

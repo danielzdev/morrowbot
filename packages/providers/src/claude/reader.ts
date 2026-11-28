@@ -4,9 +4,15 @@ import { describeExit } from './exit.ts';
 import type { RateLimit } from './rate-limit.ts';
 import { parseCliLine, type CliResult, type LineContext } from './stream-json.ts';
 
-/** Reads one turn's stdout lines until the `result`, and remembers the model, the result and any rate-limit refusal. */
+/**
+ * Reads one turn's stdout lines until the last `result`, and remembers the model, the result and any
+ * rate-limit refusal. A steer the CLI has not echoed yet keeps the turn open past a `result`: the CLI
+ * answers it as a second reply in the same process.
+ */
 export interface TurnReader {
   read(line: string): void;
+  /** Waits for the echo of a steer written with `uuid`; false once the turn has had its last `result`. */
+  expect(uuid: string, steerId: string): boolean;
   /** How the turn ended, once the command has exited. */
   finish(exit: CommandExit, ending: Ending): TurnEnd;
 }
@@ -31,10 +37,19 @@ export interface Ending {
 export function createTurnReader(context: LineContext, sink: TurnSink): TurnReader {
   let model: string | null = null;
   let result: CliResult | undefined;
+  let usage: TurnUsage = { kind: 'unavailable' };
+  let finished = false;
   let rejected: RateLimit['rejected'] = null;
+  /** Steers written to stdin and not echoed yet, by their frame's `uuid`. */
+  const steers = new Map<string, string>();
   return {
+    expect: (uuid, steerId) => {
+      if (finished) return false;
+      steers.set(uuid, steerId);
+      return true;
+    },
     read: (line) => {
-      if (result !== undefined) return;
+      if (finished) return;
       const parsed = parseCliLine(line, context);
       switch (parsed.kind) {
         case 'init':
@@ -51,8 +66,18 @@ export function createTurnReader(context: LineContext, sink: TurnSink): TurnRead
           rejected = parsed.rateLimit.rejected;
           if (parsed.rateLimit.windows.length > 0) sink.usage(parsed.rateLimit.windows);
           return;
+        case 'replayed': {
+          const steerId = steers.get(parsed.uuid);
+          if (steerId === undefined) return;
+          steers.delete(parsed.uuid);
+          sink.emit({ kind: 'steer-delivered', steerId });
+          return;
+        }
         case 'result':
           result = parsed.result;
+          usage = addUsage(usage, parsed.result.usage);
+          if (steers.size > 0 && parsed.result.kind === 'success') return;
+          finished = true;
           sink.done();
           return;
         case 'skip':
@@ -63,7 +88,6 @@ export function createTurnReader(context: LineContext, sink: TurnSink): TurnRead
       }
     },
     finish: (exit, { cliPath, accountKey, cancelled }) => {
-      const usage: TurnUsage = result?.usage ?? { kind: 'unavailable' };
       const end = (outcome: TurnEnd['outcome'], finalText: string | null = null, sessionTouched = true): TurnEnd => ({
         outcome,
         usage,
@@ -104,4 +128,19 @@ export function resultError(message: string): ProviderError {
 
 export function failed(error: ProviderError): TurnEnd['outcome'] {
   return { kind: 'failed', error };
+}
+
+/** Two replies' token counts in one turn (a steer answered after the first `result`). */
+function addUsage(a: TurnUsage, b: TurnUsage): TurnUsage {
+  if (a.kind === 'unavailable') return b;
+  if (b.kind === 'unavailable') return a;
+  const sum = (x: number | null, y: number | null): number | null => (x === null && y === null ? null : (x ?? 0) + (y ?? 0));
+  return {
+    kind: 'reported',
+    inputTokens: a.inputTokens + b.inputTokens,
+    cachedInputTokens: sum(a.cachedInputTokens, b.cachedInputTokens),
+    cacheWriteTokens: sum(a.cacheWriteTokens, b.cacheWriteTokens),
+    outputTokens: a.outputTokens + b.outputTokens,
+    reasoningTokens: sum(a.reasoningTokens, b.reasoningTokens),
+  };
 }

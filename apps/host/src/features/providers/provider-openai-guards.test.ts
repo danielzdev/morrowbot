@@ -1,4 +1,4 @@
-import { SendMessageResponse } from '@morrowbot/contracts';
+import { StartedSend } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { type CodexFixture, NATIVE, startCodexFixture, turnMethods } from '../../testing/codex-fixture.ts';
 
@@ -14,7 +14,7 @@ afterEach(async () => {
 });
 
 async function sendAndWait(thread: { readonly id: string }, text: string): Promise<void> {
-  const { generationId } = SendMessageResponse.parse((await codex.post(thread, text)).body);
+  const { generationId } = StartedSend.parse((await codex.post(thread, text)).body);
   await codex.events.finished(generationId);
 }
 

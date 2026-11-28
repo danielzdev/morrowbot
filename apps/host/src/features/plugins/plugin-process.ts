@@ -81,6 +81,7 @@ export interface PluginProcess {
   /** Sends a turn. Its chunks and `turn-end` are routed by `turnId`, never through the request map. */
   startTurn(request: TurnRequest, handlers: TurnHandlers): void;
   cancelTurn(turnId: string): void;
+  steerTurn(turnId: string, steerId: string, text: string): void;
   replyApproval(turnId: string, approvalId: string, choiceId: string): void;
   /** Stops routing a turn's messages; true if it had not ended. */
   forgetTurn(turnId: string): boolean;
@@ -318,6 +319,9 @@ export function connectPlugin(open: OpenPluginChannel, { timeouts, groups, log }
     },
     cancelTurn: (turnId) => {
       if (turns.has(turnId)) send({ kind: 'cancel', turnId });
+    },
+    steerTurn: (turnId, steerId, text) => {
+      if (turns.has(turnId)) send({ kind: 'steer', turnId, steerId, text });
     },
     replyApproval: (turnId, approvalId, choiceId) => {
       if (turns.has(turnId)) send({ kind: 'approval-reply', turnId, approvalId, choiceId });

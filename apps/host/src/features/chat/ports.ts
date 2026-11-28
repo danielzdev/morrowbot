@@ -21,6 +21,13 @@ import type { Prelude } from './prompt.ts';
 
 export type SessionState = 'clean' | 'diverged' | 'needs-seed';
 
+export interface QueuedRecord {
+  readonly id: string;
+  readonly threadId: string;
+  readonly text: string;
+  readonly createdAt: string;
+}
+
 export interface SessionKey {
   readonly pluginId: string;
   readonly accountKey: string;
@@ -54,6 +61,12 @@ export interface ChatStore {
     get(id: string): Message | undefined;
     listByThread(threadId: string): Message[];
   };
+  /** Messages sent while a turn ran that the agent has not seen yet. */
+  readonly queued: {
+    insert(record: QueuedRecord): void;
+    delete(id: string): boolean;
+    listByThread(threadId: string): QueuedRecord[];
+  };
   readonly generations: {
     insert(record: {
       readonly id: string;
@@ -67,6 +80,7 @@ export interface ChatStore {
     }): void;
     markDispatched(id: string, at: string): void;
     setAttemptedSessionRow(id: string, row: number): void;
+    setInputMessage(id: string, messageId: string): void;
     flushPartial(id: string, text: string): void;
     settle(id: string, resultMessageId: string | null): void;
     hasInput(messageId: string): boolean;
@@ -177,6 +191,8 @@ export interface ProviderPlugins {
   /** Retires the plugin's daemon (if any) and asks a fresh provider-info; the caller has closed admission. */
   recheck(pluginId: string): Promise<RecheckAnswer>;
   cancelTurn(pluginId: string, turnId: string): void;
+  /** Sends the user's message into a running turn; the plugin answers with `steer-delivered` or `steer-refused`. */
+  steerTurn(pluginId: string, turnId: string, steerId: string, text: string): void;
   replyApproval(pluginId: string, turnId: string, approvalId: string, choiceId: string): void;
   /** Whether any process group (live or blocked) still belongs to the generation. */
   holdsGeneration(generationId: string): boolean;

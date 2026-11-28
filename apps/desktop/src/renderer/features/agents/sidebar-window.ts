@@ -13,9 +13,6 @@ export const EMPTY_PX = 32;
 export const VIRTUALIZE_ABOVE = 60;
 const OVERSCAN = 6;
 
-/** Sections a person may fold away; the status sections always stay open. */
-export const collapsible = (section: Section): boolean => section.kind === 'agents' || section.kind === 'folder';
-
 /**
  * The list's rows in order: a header per section, then its agents, or a note in an empty folder.
  * The avatar rail has no headers and shows every agent, folded sections included.
@@ -24,7 +21,7 @@ export function itemsOf(groups: readonly SidebarGroup[], rail: boolean, collapse
   const items: SidebarItem[] = [];
   for (const group of groups) {
     const key = sectionKey(group.section);
-    const folded = !rail && collapsible(group.section) && collapsed.has(key);
+    const folded = !rail && collapsed.has(key);
     if (!rail) items.push({ kind: 'header', key: `header-${key}`, section: group.section, count: group.entries.length, collapsed: folded });
     if (folded) continue;
     for (const entry of group.entries) items.push({ kind: 'agent', key: entry.agent.id, entry });

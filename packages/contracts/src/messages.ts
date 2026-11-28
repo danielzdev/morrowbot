@@ -3,8 +3,9 @@ import { Attachment, MAX_ATTACHMENTS } from './attachments.ts';
 import { EntityId, Timestamp } from './ids.ts';
 import { TurnOutcome } from './provider.ts';
 
-export const GenerationOutcome = TurnOutcome;
-export type GenerationOutcome = TurnOutcome;
+/** How a reply ended. `steered`: the user's queued message cut in here, and the work went on after it. */
+export const GenerationOutcome = z.discriminatedUnion('kind', [...TurnOutcome.options, z.strictObject({ kind: z.literal('steered') })]);
+export type GenerationOutcome = z.infer<typeof GenerationOutcome>;
 
 const MessageBase = { id: EntityId, threadId: EntityId, text: z.string(), createdAt: Timestamp };
 

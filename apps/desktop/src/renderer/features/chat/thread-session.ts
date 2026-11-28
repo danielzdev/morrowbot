@@ -26,6 +26,8 @@ export interface ThreadScreen {
   readonly problem: ComposerProblem | null;
   /** Approval ids whose answer is on its way to the host. */
   readonly answering: readonly string[];
+  /** Queued messages whose Steer now, Edit or Cancel is on its way to the host. */
+  readonly queueActing: readonly string[];
   /** `reconnecting`: the host can't be reached; the loaded history stays readable and sending waits. */
   readonly connection: 'live' | 'reconnecting';
 }
@@ -53,6 +55,11 @@ export interface ThreadSession {
   continueTurn(failedMessageId: string, sessionChoice: SessionChoice): Promise<void>;
   stop(): Promise<void>;
   answer(approvalId: string, choiceId: string): Promise<void>;
+  /** Steer now: the queued message goes into the running reply, or out as the next turn when nothing runs. */
+  steer(queuedId: string): Promise<void>;
+  /** Takes a queued message out of the queue and puts it back in the draft, above what is typed there. */
+  editQueued(queuedId: string): Promise<void>;
+  cancelQueued(queuedId: string): Promise<void>;
   release(regId: string): Promise<void>;
   close(): void;
 }
@@ -104,7 +111,7 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
   const { api, bridge, threadId } = options;
   const drafts = options.drafts ?? memoryDrafts();
   const now = options.now ?? Date.now;
-  const screen = new Store<ThreadScreen>({ view: { kind: 'loading' }, draft: drafts.read(threadId), busy: null, problem: null, answering: [], connection: 'live' });
+  const screen = new Store<ThreadScreen>({ view: { kind: 'loading' }, draft: drafts.read(threadId), busy: null, problem: null, answering: [], queueActing: [], connection: 'live' });
   const patch = (change: Partial<ThreadScreen>): void => {
     if (change.draft !== undefined && change.draft !== screen.get().draft) drafts.write(threadId, change.draft);
     screen.update((current) => {
@@ -231,6 +238,23 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
     return action.kind === 'continue' ? action : draftAction();
   }
 
+  /** Runs one queue action; a refusal (it was delivered or changed meanwhile) shows the host's reason and reloads. */
+  async function onQueued(queuedId: string, act: () => Promise<ApiResult<null>>): Promise<boolean> {
+    if (screen.get().queueActing.includes(queuedId)) return false;
+    patch({ queueActing: [...screen.get().queueActing, queuedId], problem: null });
+    const result = await act();
+    patch({ queueActing: screen.get().queueActing.filter((id) => id !== queuedId) });
+    if (result.kind === 'ok') return true;
+    patch({ problem: { kind: 'error', message: result.error.message } });
+    await load();
+    return false;
+  }
+
+  function queuedText(queuedId: string): string | undefined {
+    const { view } = screen.get();
+    return view.kind === 'loaded' ? view.value.queue.find(({ id }) => id === queuedId)?.text : undefined;
+  }
+
   function problemAction(): PendingAction | undefined {
     const { problem } = screen.get();
     return problem === null || problem.kind === 'error' ? undefined : pendingAction(problem.action);
@@ -290,6 +314,18 @@ export function openThreadSession(options: ThreadSessionOptions): ThreadSession 
         await load();
       }
       else patch({ problem: { kind: 'error', message: result.error.message } });
+    },
+    steer: async (queuedId) => {
+      await onQueued(queuedId, () => api.steerQueued(threadId, queuedId));
+    },
+    editQueued: async (queuedId) => {
+      const text = queuedText(queuedId);
+      if (text === undefined || !(await onQueued(queuedId, () => api.cancelQueued(threadId, queuedId)))) return;
+      const typed = screen.get().draft.trim();
+      patch({ draft: typed === '' ? text : `${text}\n\n${typed}` });
+    },
+    cancelQueued: async (queuedId) => {
+      await onQueued(queuedId, () => api.cancelQueued(threadId, queuedId));
     },
     release: async (regId) => {
       const result = await api.releaseGroup(regId);

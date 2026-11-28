@@ -6,6 +6,7 @@ import type {
   Cursor,
   Message,
   PendingApproval,
+  QueuedMessage,
   Thread,
   ThreadState,
   TurnOutcome,
@@ -73,6 +74,8 @@ export interface ThreadView {
   readonly activeTurn: ActiveTurnView | null;
   /** Turns watched to the end, by their reply's message id. Replies from before this window have none. */
   readonly finished: Readonly<Record<string, FinishedTurn>>;
+  /** Messages the agent has not seen yet, oldest first. */
+  readonly queue: readonly QueuedMessage[];
   readonly blockedGroups: readonly BlockedGroup[];
   readonly cursor: Cursor;
   /** Messages this chat's agent sent or received here from other agents, oldest first. */
@@ -140,6 +143,7 @@ export function viewOf(
   const base = {
     thread: state.thread,
     messages: state.messages,
+    queue: state.queue,
     blockedGroups: state.blockedGroups,
     cursor: state.cursor,
     agentMessages,
@@ -205,6 +209,7 @@ function endingOf(resolution: ApprovalResolution, approval: PendingApproval): Ap
 
 /** The view after `event`, or undefined when the event does not fit what the view knows. */
 function change(view: ThreadView, event: ThreadEvent, now: number): ThreadView | undefined {
+  if (event.kind === 'queue.changed') return { ...view, queue: event.queue };
   if (event.kind === 'generation.started' || event.kind === 'generation.background-started') {
     const started = event.kind === 'generation.started' ? event.userMessage : null;
     const messages = started === null || view.messages.some(({ id }) => id === started.id) ? view.messages : [...view.messages, started];
@@ -258,6 +263,16 @@ function change(view: ThreadView, event: ThreadEvent, now: number): ThreadView |
             : step,
         ),
       });
+    case 'generation.steered': {
+      const { segment, userMessage } = event;
+      const record: FinishedTurn = { steps: settled(active.steps, 'unfinished'), durationMs: active.startedAt === null ? null : now - active.startedAt };
+      return {
+        ...view,
+        messages: [...view.messages, segment, userMessage],
+        activeTurn: { ...active, text: '', steps: [], detail: null, startedAt: now },
+        finished: { ...view.finished, [segment.id]: record },
+      };
+    }
     case 'generation.finished': {
       if (view.messages.some(({ id }) => id === event.message.id)) return { ...view, activeTurn: null };
       const record: FinishedTurn = { steps: settled(active.steps, 'unfinished'), durationMs: active.startedAt === null ? null : now - active.startedAt };

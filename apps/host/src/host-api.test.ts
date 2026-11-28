@@ -1,7 +1,7 @@
 import { access, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { Agent, AgentInstructionsView, SendMessageResponse, Thread } from '@morrowbot/contracts';
+import { Agent, AgentInstructionsView, StartedSend, Thread } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { ECHO, hidePid } from './testing/chat-fixture.ts';
 import { PLUGIN_FIXTURES, sequence, startTestHost, type TestHost } from './testing/test-host.ts';
@@ -40,7 +40,7 @@ it('keeps agents, threads, messages and AGENTS.md across a host restart', async 
   const thread = Thread.parse((await first.call('POST', `/api/agents/${agent.id}/threads`, {})).body);
   const events = await first.events();
   await events.watch(thread.id);
-  const sent = SendMessageResponse.parse((await first.call('POST', `/api/threads/${thread.id}/messages`, { text: 'remember me' })).body);
+  const sent = StartedSend.parse((await first.call('POST', `/api/threads/${thread.id}/messages`, { text: 'remember me' })).body);
   await events.finished(sent.generationId);
   await first.close();
 

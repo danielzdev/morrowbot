@@ -174,7 +174,7 @@ export async function startHost(options: HostOptions): Promise<Host> {
       chat: {
         agentExists: (id) => agents.get(id) !== undefined,
         createThread: (agentId, request) => chat.createThread(agentId, request),
-        send: (threadId, text, choice, mode) => chat.send(threadId, text, [], choice, mode),
+        send: (threadId, text, choice) => chat.sendUnattended(threadId, text, choice),
         deleteThread: (id) => chat.deleteThread(id),
         subscribe: (listener) => chat.subscribe(listener),
       },
@@ -294,6 +294,7 @@ function chatStore(storage: Storage): Parameters<typeof createChatService>[0]['s
     attachments: storage.attachments,
     threads: storage.threads,
     messages: storage.messages,
+    queued: storage.queued,
     generations: storage.generations,
     sessions: storage.sessions,
     usage: storage.usage,
@@ -321,6 +322,9 @@ function providerPlugins(plugins: PluginHost): ProviderPlugins {
     recheck: (pluginId) => plugins.recheck(pluginId),
     cancelTurn: (pluginId, turnId) => {
       plugins.cancelTurn(pluginId, turnId);
+    },
+    steerTurn: (pluginId, turnId, steerId, text) => {
+      plugins.steerTurn(pluginId, turnId, steerId, text);
     },
     replyApproval: (pluginId, turnId, approvalId, choiceId) => {
       plugins.replyApproval(pluginId, turnId, approvalId, choiceId);

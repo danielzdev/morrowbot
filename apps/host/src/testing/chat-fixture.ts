@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { Agent, MessageList, SendMessageResponse, Thread, type PluginConfig, type ProviderBinding, type TurnOutcome } from '@morrowbot/contracts';
+import { Agent, MessageList, StartedSend, Thread, type GenerationOutcome, type PluginConfig, type ProviderBinding } from '@morrowbot/contracts';
 import { PLUGIN_FIXTURES, startTestHost, type EventClient, type Reply, type TestHost, type TestHostOptions } from './test-host.ts';
 
 export const ECHO: Extract<ProviderBinding, { kind: 'bound' }> = {
@@ -45,7 +45,7 @@ export async function startChatFixture(options: Partial<TestHostOptions> = {}): 
     },
     send: async (thread, text, sessionChoice = { kind: 'auto' }) => {
       const reply = await host.call('POST', `/api/threads/${thread.id}/messages`, { text, sessionChoice });
-      const sent = SendMessageResponse.safeParse(reply.body);
+      const sent = StartedSend.safeParse(reply.body);
       if (sent.success) await events.finished(sent.data.generationId);
       return reply;
     },
@@ -77,6 +77,6 @@ export function hidePid(text: string): string {
   return text.replaceAll(/from pid \d+/g, 'from pid <pid>');
 }
 
-function outcomeLabel(outcome: TurnOutcome): string {
+function outcomeLabel(outcome: GenerationOutcome): string {
   return outcome.kind === 'failed' ? `failed ${outcome.error.kind}` : outcome.kind;
 }

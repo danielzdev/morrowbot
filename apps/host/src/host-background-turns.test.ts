@@ -1,7 +1,7 @@
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { Agent, AgentMessage, AgentMessageList, SendMessageResponse, ThreadState, type ChatEvent, type Thread } from '@morrowbot/contracts';
+import { Agent, AgentMessage, AgentMessageList, StartedSend, ThreadState, type ChatEvent, type Thread } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { ECHO, hidePid, startChatFixture, type ChatFixture } from './testing/chat-fixture.ts';
 import { sequence, type Sequence } from './testing/test-host.ts';
@@ -121,7 +121,7 @@ it('shows the user only what follows the notify line', async () => {
 it('reads a message that arrived while the chat was busy once it is idle, even after a restart', async () => {
   const lead = await agentWithChat('Lead');
   const helper = await agentWithChat('Helper');
-  const busy = SendMessageResponse.parse((await chat.host.call('POST', `/api/threads/${lead.thread.id}/messages`, { text: 'stall-polite' })).body);
+  const busy = StartedSend.parse((await chat.host.call('POST', `/api/threads/${lead.thread.id}/messages`, { text: 'stall-polite' })).body);
   await chat.events.until((event) => event.kind === 'generation.status' && event.generationId === busy.generationId && event.state === 'running');
   await send(helper.agent.id, { kind: 'new', toAgentId: lead.agent.id, fromThreadId: helper.thread.id, text: 'FYI: CI is green.' });
   const whileBusy = kinds(lead.thread.id);

@@ -1,9 +1,11 @@
 import type {
   AgentMessage,
   AssistantMessage,
+  GenerationOutcome,
   Message,
   PendingApproval,
   ProviderBinding,
+  QueuedMessageState,
   TurnMode,
   TurnOutcome,
   TurnUsage,
@@ -33,7 +35,8 @@ export type SessionPlan =
  * message, read in the background with `prompt`; the chat shows nothing unless the agent tells the user.
  */
 export type TurnSource =
-  | { readonly kind: 'chat'; readonly message: UserMessage }
+  /** `prompt` is what the provider reads: the message's text, or it with a steer note (see steer-prompt.ts). */
+  | { readonly kind: 'chat'; readonly message: UserMessage; readonly prompt: string }
   | { readonly kind: 'agent-message'; readonly message: AgentMessage; readonly prompt: string };
 
 /** One admitted turn, from the admission transaction until its outcome is stored and its processes are gone. */
@@ -72,6 +75,8 @@ export interface Turn {
   /** Set when the account changed under the turn: its later output is dropped. */
   fenced: boolean;
   stopRequested: boolean;
+  /** The queued message being steered into this turn, and how: sent to the plugin, or by stopping the turn. */
+  steer: { readonly id: string; readonly via: 'native' | 'interrupt' } | null;
   readonly approvals: Map<string, PendingApproval>;
   readonly settled: PromiseWithResolvers<StoredReply>;
   /** Resolves once the turn's process groups are all gone: the thread and its slot are free. */
@@ -112,10 +117,19 @@ export interface ChatCore {
   readonly liveUsage: Map<string, LiveUsage>;
   readonly deletingThreads: Set<string>;
   readonly deletingAgents: Set<string>;
+  /** Each queued message's state this host run (see queue.ts); the messages themselves are stored. */
+  readonly queueStates: Map<string, QueuedMessageState>;
+  /** Threads whose next queued message is being admitted, with that message's id. */
+  readonly draining: Map<string, string>;
   /** Sends a turn that got a slot (see dispatch.ts). */
   readonly dispatch: (turn: Turn) => Promise<void>;
-  /** A thread has no turn any more: it may read the next message waiting for it. */
-  readonly idle: (threadId: string) => void;
+  /**
+   * A settled turn freed its thread: the user's queue goes first (see queue.ts), then the next message
+   * waiting from another agent.
+   */
+  readonly afterTurn: (turn: Turn, outcome: GenerationOutcome) => void;
+  /** Starts a turn on the next message waiting from another agent, if the thread is free. */
+  readonly readNext: (threadId: string) => void;
   closed: boolean;
 }
 
@@ -156,13 +170,13 @@ export function settle(core: ChatCore, turn: Turn, result: Settlement): Assistan
   clearTimeout(turn.flushTimer);
   const { newId, now } = core.options;
   const createdAt = now();
+  const outcome = replyOutcome(turn, result.outcome);
   const text = shownText(core, turn, turn.text !== '' ? turn.text : (result.finalText ?? ''), result.outcome);
-  const base: AssistantMessage | null =
-    text === null ? null : { kind: 'assistant', id: newId(), threadId: turn.threadId, text, outcome: result.outcome, createdAt };
+  const base: AssistantMessage | null = text === null ? null : { kind: 'assistant', id: newId(), threadId: turn.threadId, text, outcome, createdAt };
   const message: AssistantMessage | null = base !== null && turn.seedTruncated ? { ...base, seedTruncated: true } : base;
   if (!persistSettlement(core, turn, message, result, createdAt)) {
     turn.settled.resolve({ kind: 'not-stored' });
-    releaseWhenGone(core, turn, { keepThreadBusy: true });
+    releaseWhenGone(core, turn, { keepThreadBusy: true, outcome: null });
     return undefined;
   }
   for (const approval of turn.approvals.values()) {
@@ -183,7 +197,7 @@ export function settle(core: ChatCore, turn: Turn, result: Settlement): Assistan
     turn.settled.resolve({ kind: 'stored', message });
     core.events.publish({ kind: 'generation.finished', ...ref, message });
   }
-  releaseWhenGone(core, turn, { keepThreadBusy: false });
+  releaseWhenGone(core, turn, { keepThreadBusy: false, outcome });
   return message ?? undefined;
 }
 
@@ -206,6 +220,12 @@ function shownText(core: ChatCore, turn: Turn, text: string, outcome: TurnOutcom
       return shown === '' ? null : shown;
     }
   }
+}
+
+/** A turn stopped for a steer, not by the user, ends as `steered`: its message runs next. */
+function replyOutcome(turn: Turn, outcome: TurnOutcome): GenerationOutcome {
+  const stoppedForSteer = turn.steer?.via === 'interrupt' && !turn.stopRequested;
+  return stoppedForSteer && (outcome.kind === 'cancelled' || outcome.kind === 'interrupted') ? { kind: 'steered' } : outcome;
 }
 
 /** Writes the reply, usage, settled generation and session effect in one transaction; false when it fails. */
@@ -273,7 +293,11 @@ function cleanAfterCompletion(turn: Turn): boolean {
  * (for good when its reply could not be stored). Stop returns earlier, once the remaining groups are
  * blocked (shown in `/state`) rather than still being checked.
  */
-function releaseWhenGone(core: ChatCore, turn: Turn, { keepThreadBusy }: { readonly keepThreadBusy: boolean }): void {
+function releaseWhenGone(
+  core: ChatCore,
+  turn: Turn,
+  { keepThreadBusy, outcome }: { readonly keepThreadBusy: boolean; readonly outcome: GenerationOutcome | null },
+): void {
   const { plugins } = core.options;
   const release = (): void => {
     const freed = !keepThreadBusy && core.active.get(turn.threadId) === turn;
@@ -283,7 +307,7 @@ function releaseWhenGone(core: ChatCore, turn: Turn, { keepThreadBusy }: { reado
     turn.quiet.resolve();
     turn.released.resolve();
     pump(core, lane);
-    if (freed) core.idle(turn.threadId);
+    if (freed && outcome !== null) core.afterTurn(turn, outcome);
   };
   const update = (): boolean => {
     if (!plugins.holdsGeneration(turn.generationId)) {
