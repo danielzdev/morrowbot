@@ -1,21 +1,9 @@
 import type { PluginEntry } from '@morrowbot/contracts';
+import { ItemMark } from '../../shared/ui/ItemMark.tsx';
 import { Segmented } from '../../shared/ui/Segmented.tsx';
-import { ItemMark, sourceLabel } from './PluginDetail.tsx';
+import { sourceLabel } from './PluginDetail.tsx';
 
 export type CatalogFilter = 'all' | 'plugins' | 'connectors';
-
-/** Extensions › Connectors (spec IA §3, §8). Connectors arrive with the host's connector support; until then, its empty state. */
-export function ConnectorsTab(props: { readonly onBrowse: () => void }) {
-  return (
-    <div class="tab-empty">
-      <p>Connect an account so your agents can use it, like your calendar or a to-do app.</p>
-      <p class="muted">No connectors are set up yet.</p>
-      <button type="button" class="btn secondary" onClick={props.onBrowse}>
-        Browse connectors
-      </button>
-    </div>
-  );
-}
 
 /**
  * Extensions › Marketplace (spec IA §3): one catalog with All · Plugins · Connectors. The online
