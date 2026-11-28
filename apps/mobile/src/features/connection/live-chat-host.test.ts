@@ -88,7 +88,7 @@ it('queues a send while a turn runs, cancels one queued message and steers anoth
   const told = watch(chat, thread.id);
   await until(() => told.fresh === 1);
   await chat.send(thread.id, 'steerable');
-  await until(() => told.events.some(({ kind }) => kind === 'generation.started'));
+  await until(() => told.events.some((event) => event.kind === 'generation.status' && event.state === 'running'));
   const [first, second] = [await chat.send(thread.id, 'never mind'), await chat.send(thread.id, 'go left')];
   const id = (sent: typeof first) => (sent.kind === 'ok' && sent.value.kind === 'queued' ? sent.value.queued.id : 'none');
   const cancelled = await chat.cancelQueued(thread.id, id(first));

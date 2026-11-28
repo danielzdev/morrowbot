@@ -23,7 +23,8 @@ export function composerButtons(screen: ChatScreen): ComposerButtons {
  * What a queued bubble offers. A message on its way into the reply offers nothing. Otherwise: Steer
  * now (into the running reply) or Send now (nothing runs), plus Edit (back into the message box) and
  * Cancel. Steer now waits while another message is on its way, while the reply is stopping or not
- * yet running, and while another agent's message is being answered.
+ * yet running, and while another agent's message is being answered. Edit and Cancel wait while a
+ * send is on its way, so Edit cannot fold a message into a draft that is being sent.
  */
 export type QueuedControls =
   | { readonly kind: 'none' }
@@ -38,6 +39,6 @@ export function queuedControls(screen: ChatScreen, item: QueuedMessage): QueuedC
   return {
     kind: 'actions',
     now: { label: activeTurn === null ? 'Send now' : 'Steer now', enabled: !acting && !steering && screen.busy !== 'stopping' && !turnBusy },
-    editable: !acting,
+    editable: !acting && screen.busy !== 'sending',
   };
 }

@@ -78,7 +78,7 @@ export function createSampleChatHost(now: () => string = () => new Date().toISOS
       setQueue(threadId, queueOf(threadId).map((item) => (item.state.kind === 'held' ? item : { ...item, state: held })));
       return message;
     }
-    const [next] = waiting;
+    const next = waiting.find(({ state }) => state.kind === 'steering') ?? waiting[0];
     if (next !== undefined) {
       setQueue(threadId, queueOf(threadId).filter(({ id }) => id !== next.id));
       start(threadId, delivered(next), next.text);
@@ -137,6 +137,7 @@ export function createSampleChatHost(now: () => string = () => new Date().toISOS
     const toolUseId = nextId('tool');
     if (allowed) emit(threadId, turn.generationId, { kind: 'generation.tool-start', toolUseId, name: 'write_file', input: { path: 'notes/lisbon.md' } });
     await sleep(STEP_MS * 3);
+    if (active.get(threadId) !== turn) return;
     if (allowed) emit(threadId, turn.generationId, { kind: 'generation.tool-end', toolUseId, outcome: 'ok' });
     const done = await stream(threadId, turn, allowed ? ' Saved. Want restaurant picks next?' : ' Okay, I left the file alone.');
     if (done) finish(threadId, turn, { kind: 'completed', finishReason: 'stop' });
@@ -145,9 +146,11 @@ export function createSampleChatHost(now: () => string = () => new Date().toISOS
   const run = async (threadId: string, turn: Active, prompt: string): Promise<void> => {
     emit(threadId, turn.generationId, { kind: 'generation.status', state: 'running', queueNote: null, detail: 'Thinking' });
     await sleep(STEP_MS * 4);
+    if (active.get(threadId) !== turn) return;
     const toolUseId = nextId('tool');
     emit(threadId, turn.generationId, { kind: 'generation.tool-start', toolUseId, name: 'search_notes', input: { query: prompt.slice(0, 60) } });
     await sleep(STEP_MS * 5);
+    if (active.get(threadId) !== turn) return;
     emit(threadId, turn.generationId, { kind: 'generation.tool-end', toolUseId, outcome: 'ok' });
     const reply = `Here is what I found about **${prompt.slice(0, 40)}**:\n\n- Two notes mention it\n- One is from last week\n\n\`\`\`text\nnotes/inbox.md\n\`\`\``;
     if (!(await stream(threadId, turn, reply))) return;
@@ -222,6 +225,7 @@ export function createSampleChatHost(now: () => string = () => new Date().toISOS
     steerQueued: (threadId, queuedId) => {
       const item = queueOf(threadId).find(({ id }) => id === queuedId);
       if (item === undefined) return missing('Queued message');
+      if (item.state.kind === 'steering') return ok(null);
       if (queueOf(threadId).some(({ state }) => state.kind === 'steering')) return conflict('Another message is already on its way to the agent.');
       const turn = active.get(threadId);
       if (turn !== undefined) {

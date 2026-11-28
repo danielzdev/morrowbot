@@ -99,3 +99,44 @@ it('a refused Edit keeps the draft, says why, and fetches the chat again', async
     queue: [],
   });
 });
+
+it('Cancel takes the bubble away once the host agrees, so a second tap sends nothing', async () => {
+  const { host, sent } = scripted([running()]);
+  const session = openChatSession(host, 't');
+  session.load();
+  await session.cancelQueued('q1');
+  await session.cancelQueued('q1');
+  const { view, problem } = session.screen.get();
+  expect({ sent, problem, queue: view.kind === 'loaded' ? view.value.queue : view }).toEqual({ sent: ['<cancel q1>'], problem: null, queue: [] });
+});
+
+it('Edit still puts the text back when the reply is lost, since the host may have taken it out', async () => {
+  const { host } = scripted([running(), running([])], {
+    cancelQueued: () => Promise.resolve({ kind: 'failed', status: 0, error: { kind: 'internal', message: 'Could not reach the host.' } }),
+  });
+  const session = openChatSession(host, 't');
+  session.load();
+  await session.editQueued('q1');
+  const { draft, problem } = session.screen.get();
+  expect({ draft, problem }).toEqual({ draft: 'Also check flights', problem: { kind: 'error', message: 'Could not reach the host.' } });
+});
+
+it('waits with Edit and Cancel while a send is on its way, so the draft cannot take the queued text twice', async () => {
+  let accept: () => void = () => undefined;
+  const { host, sent } = scripted([running()], {
+    send: (_threadId, text) =>
+      new Promise((resolve) => {
+        accept = () => {
+          resolve({ kind: 'ok', value: { kind: 'queued', queued: queued('q2', text) } });
+        };
+      }),
+  });
+  const session = openChatSession(host, 't');
+  session.load();
+  session.setDraft('and hotels');
+  const sending = session.send();
+  await session.editQueued('q1');
+  accept();
+  await sending;
+  expect({ sent, draft: session.screen.get().draft }).toEqual({ sent: [], draft: '' });
+});

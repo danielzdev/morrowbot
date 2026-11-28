@@ -65,7 +65,10 @@ export interface ChatSession {
   answer(approvalId: string, choiceId: string): Promise<void>;
   /** Steer now: the queued message goes into the running reply, or out as the next turn when nothing runs. */
   steer(queuedId: string): Promise<void>;
-  /** Takes a queued message out of the queue and puts it back in the draft, above what is typed there. */
+  /**
+   * Takes a queued message out of the queue and puts it back in the draft, above what is typed there.
+   * When the host's reply is lost (it may have taken the message out), the text still goes back.
+   */
   editQueued(queuedId: string): Promise<void>;
   cancelQueued(queuedId: string): Promise<void>;
   close(): void;
@@ -150,15 +153,25 @@ export function openChatSession(host: ChatHost, threadId: string): ChatSession {
     return (action === 'now' ? controls.now.enabled : controls.editable) ? item : undefined;
   }
 
-  /** Runs one queue action; a refusal (it was delivered or changed meanwhile) shows the host's reason and reloads. */
-  async function onQueued(queuedId: string, act: () => Promise<ChatResult<null>>): Promise<boolean> {
+  /**
+   * Runs one queue action. A taken-out message leaves the view as soon as the host confirms, so it
+   * cannot be tapped again before `queue.changed`. A refusal (it was delivered or changed meanwhile)
+   * shows the host's reason and reloads.
+   */
+  async function onQueued(queuedId: string, act: () => Promise<ChatResult<null>>, takesOut: boolean): Promise<ChatResult<null>> {
     patch({ queueActing: [...screen.get().queueActing, queuedId], problem: null });
     const result = await act();
     patch({ queueActing: screen.get().queueActing.filter((id) => id !== queuedId) });
-    if (result.kind === 'ok') return true;
+    const { view } = screen.get();
+    if (result.kind === 'ok') {
+      if (takesOut && view.kind === 'loaded') {
+        patch({ view: { kind: 'loaded', value: { ...view.value, queue: view.value.queue.filter(({ id }) => id !== queuedId) } } });
+      }
+      return result;
+    }
     patch({ problem: { kind: 'error', message: result.error.message } });
     load();
-    return false;
+    return result;
   }
 
   return {
@@ -208,16 +221,19 @@ export function openChatSession(host: ChatHost, threadId: string): ChatSession {
       patch({ problem: { kind: 'error', message: result.error.message } });
     },
     steer: async (queuedId) => {
-      if (offered(queuedId, 'now') !== undefined) await onQueued(queuedId, () => host.steerQueued(threadId, queuedId));
+      if (offered(queuedId, 'now') !== undefined) await onQueued(queuedId, () => host.steerQueued(threadId, queuedId), false);
     },
     editQueued: async (queuedId) => {
       const item = offered(queuedId, 'edit');
-      if (item === undefined || !(await onQueued(queuedId, () => host.cancelQueued(threadId, queuedId)))) return;
+      if (item === undefined) return;
+      const result = await onQueued(queuedId, () => host.cancelQueued(threadId, queuedId), true);
+      const replyLost = result.kind === 'failed' && result.status === 0;
+      if (result.kind === 'failed' && !replyLost) return;
       const typed = screen.get().draft.trim();
       patch({ draft: typed === '' ? item.text : `${item.text}\n\n${typed}` });
     },
     cancelQueued: async (queuedId) => {
-      if (offered(queuedId, 'edit') !== undefined) await onQueued(queuedId, () => host.cancelQueued(threadId, queuedId));
+      if (offered(queuedId, 'edit') !== undefined) await onQueued(queuedId, () => host.cancelQueued(threadId, queuedId), true);
     },
     close: () => {
       closed = true;

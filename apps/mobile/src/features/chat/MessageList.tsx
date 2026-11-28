@@ -98,7 +98,7 @@ export function MessageList(props: {
         if (following.current) scroll.current?.scrollToEnd({ animated: settled.current });
       }}
     >
-      {props.messages.length === 0 && activeTurn === null ? (
+      {props.messages.length === 0 && activeTurn === null && props.queue.length === 0 ? (
         <Text style={[typography.ui, styles.empty, { color: colors.text3 }]}>Say hello to start this chat.</Text>
       ) : null}
       {props.messages.map((message) =>
