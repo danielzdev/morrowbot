@@ -28,14 +28,14 @@ interface OpenRequest {
 
 /**
  * Starts the turn's thread, or resumes it. A thread already loaded in this daemon is reused only when
- * it was loaded on the same route with the same policy, because a running thread ignores new
+ * it was loaded on the same route with the same policy and instructions, because a running thread ignores new
  * overrides. Otherwise it is unloaded first, and resumed only once the daemon no longer lists it.
  * Every opened thread is checked against the daemon's own report before any prompt is sent.
  */
 export async function openThread(daemon: CodexDaemon, request: OpenRequest): Promise<Opened> {
   const { policy, routeKey, cwd } = request;
-  const key = policyKey(policy, cwd);
   const soul = request.instructions.trim();
+  const key = JSON.stringify([policyKey(policy, cwd), soul]);
   const overrides = {
     cwd,
     modelProvider: policy.modelProvider,

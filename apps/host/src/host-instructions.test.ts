@@ -1,4 +1,4 @@
-import { chmod, lstat, mkdir, mkdtemp, readdir, readFile, readlink, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { chmod, link, mkdir, mkdtemp, readdir, readFile, readlink, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Agent, AgentInstructionsView } from '@morrowbot/contracts';
@@ -65,7 +65,7 @@ it('leaves an existing file and a dangling symlink byte-identical when a PUT tri
               "current": {
                 "canReplace": false,
                 "content": null,
-                "readError": "SOUL.md is a link to a file that is not there.",
+                "readError": "SOUL.md is a link. MorrowBot reads only a regular file in the workspace folder.",
                 "revision": "<revision>",
               },
               "kind": "instructions-conflict",
@@ -175,7 +175,7 @@ it('tells an empty file from a missing one and from a dangling symlink', async (
         "body": {
           "canReplace": false,
           "content": null,
-          "readError": "SOUL.md is a link to a file that is not there.",
+          "readError": "SOUL.md is a link. MorrowBot reads only a regular file in the workspace folder.",
           "revision": "<revision>",
         },
         "status": 200,
@@ -200,26 +200,48 @@ it('tells an empty file from a missing one and from a dangling symlink', async (
   `);
 });
 
-it('creates a missing SOUL.md once, with the revision a read reports, and changes the revision when a link target is edited', async () => {
+it('creates a missing SOUL.md once, with the revision a read reports, and changes the revision when the file is edited', async () => {
   const { agent, file } = await sharedAgent('create');
   const created = await host.call('PUT', `/api/agents/${agent.id}/instructions`, { content: '# Hi', expectedRevision: null });
   const read = await view(agent);
   const again = await host.call('PUT', `/api/agents/${agent.id}/instructions`, { content: '# Again', expectedRevision: null });
-  const linked = await sharedAgent('linked');
-  await writeFile(path.join(path.dirname(linked.file), 'real.md'), 'one');
-  await symlink('real.md', linked.file);
-  const before = await view(linked.agent);
-  await writeFile(path.join(path.dirname(linked.file), 'real.md'), 'two');
-  const after = await view(linked.agent);
+  const edited = await sharedAgent('edited');
+  await writeFile(edited.file, 'one');
+  const before = await view(edited.agent);
+  await writeFile(edited.file, 'two');
+  const after = await view(edited.agent);
   expect({
     created: created.body,
     sameRevision: created.body !== null && typeof created.body === 'object' && 'revision' in created.body && created.body.revision === read.revision,
     again: again.status,
     onDisk: await readFile(file, 'utf8'),
-    linkRevisionMoved: before.revision !== after.revision,
-    linkContent: [before.content, after.content],
-    stillLink: (await lstat(linked.file)).isSymbolicLink(),
-  }).toMatchObject({ sameRevision: true, again: 409, onDisk: '# Hi', linkRevisionMoved: true, linkContent: ['one', 'two'], stillLink: true });
+    revisionMoved: before.revision !== after.revision,
+    content: [before.content, after.content],
+  }).toMatchObject({ sameRevision: true, again: 409, onDisk: '# Hi', revisionMoved: true, content: ['one', 'two'] });
+});
+
+it('never reads SOUL.md through a symlink or a second hard link, even to a file inside the workspace', async () => {
+  const symlinked = await sharedAgent('symlinked');
+  await writeFile(path.join(path.dirname(symlinked.file), 'real.md'), 'linked text');
+  await symlink('real.md', symlinked.file);
+  const hardLinked = await sharedAgent('hard-linked');
+  await writeFile(path.join(path.dirname(hardLinked.file), 'real.md'), 'linked text');
+  await link(path.join(path.dirname(hardLinked.file), 'real.md'), hardLinked.file);
+  const views = await Promise.all([view(symlinked.agent), view(hardLinked.agent)]);
+  expect(views.map(({ content, readError, revision }) => ({ content, readError, present: revision !== null }))).toMatchInlineSnapshot(`
+    [
+      {
+        "content": null,
+        "present": true,
+        "readError": "SOUL.md is a link. MorrowBot reads only a regular file in the workspace folder.",
+      },
+      {
+        "content": null,
+        "present": true,
+        "readError": "SOUL.md has more than one hard link. MorrowBot reads only a file of its own; copy it instead.",
+      },
+    ]
+  `);
 });
 
 it('keeps Save a copy in the data folder with a counter, never touching the live file', async () => {

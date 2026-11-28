@@ -310,7 +310,7 @@ export function usageOf(response: acp.PromptResponse): TurnUsage {
  * seeded session, the earlier conversation (the host's `<user>` / `<assistant>` blocks). Every turn is a new
  * session, so each one carries the instructions.
  */
-export function promptText(request: Pick<TurnRequest, 'system' | 'session' | 'prompt'>): string {
+function promptText(request: Pick<TurnRequest, 'system' | 'session' | 'prompt'>): string {
   const seed = request.session.kind === 'new' ? request.session.seed : null;
   const body =
     seed === null || seed === ''

@@ -107,9 +107,10 @@ export function buildInvocation(
     readonly effort: EffortLevel | null;
   },
 ): Invocation {
-  const { selection, system } = request;
+  const { selection } = request;
+  const system = request.system.trim() === '' ? null : request.system;
   const tools = hostToolsConfig(request.hostTools);
-  const files = [...(system === '' ? [] : [system]), ...(tools === null ? [] : [tools])];
+  const files = [...(system === null ? [] : [system]), ...(tools === null ? [] : [tools])];
   return {
     args: [
       ...BASE,
@@ -117,7 +118,7 @@ export function buildInvocation(
       ...accessFlags(request.access, request.mode),
       ...(selection.kind === 'model' ? ['--model', selection.id] : []),
       ...(request.effort === null ? [] : ['--effort', request.effort]),
-      ...(system === '' ? [] : ['--append-system-prompt-file', commandFilePath(0)]),
+      ...(system === null ? [] : ['--append-system-prompt-file', commandFilePath(0)]),
       ...(tools === null ? [] : ['--mcp-config', commandFilePath(files.length - 1), '--allowedTools', `mcp__${HOST_TOOLS_SERVER}`]),
     ],
     frame: `${JSON.stringify({ type: 'user', message: { role: 'user', content: content(prompt(request.seed, request.prompt), request.images) } })}\n`,

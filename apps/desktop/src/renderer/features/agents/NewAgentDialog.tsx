@@ -140,7 +140,7 @@ export function NewAgentDialog(props: {
         <details class="form-section instructions-disclosure">
           <summary>Add instructions (SOUL.md)</summary>
           {workspace.kind === 'shared' && (
-            <p class="binding-note">If this folder already has a SOUL.md, MorrowBot keeps it; edit instructions after creating.</p>
+            <p class="binding-note">If this folder already has a SOUL.md, MorrowBot uses it as it is and writes nothing; edit that file in the folder to change it.</p>
           )}
           <textarea
             class="instructions small"

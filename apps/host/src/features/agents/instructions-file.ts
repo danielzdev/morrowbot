@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { constants, type BigIntStats } from 'node:fs';
-import { link, lstat, mkdir, open, realpath, stat, unlink } from 'node:fs/promises';
+import { link, lstat, mkdir, open, realpath, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import type { AgentInstructionsView } from '@morrowbot/contracts';
 
@@ -30,10 +30,10 @@ const codeOf = (error: unknown): string | null =>
 /** Why the text can't be read, in words that never carry a path. */
 function readError(code: string | null): string {
   switch (code) {
-    case 'ENOENT':
-      return 'SOUL.md is a link to a file that is not there.';
     case 'ELOOP':
-      return 'SOUL.md is a link that loops back on itself.';
+      return 'SOUL.md is a link. MorrowBot reads only a regular file in the workspace folder.';
+    case 'hard-link':
+      return 'SOUL.md has more than one hard link. MorrowBot reads only a file of its own; copy it instead.';
     case 'EACCES':
     case 'EPERM':
       return "MorrowBot isn't allowed to read SOUL.md.";
@@ -41,9 +41,7 @@ function readError(code: string | null): string {
       return 'SOUL.md is not a regular file.';
     case 'too-large':
       return 'SOUL.md is too large to edit here.';
-    case 'outside':
-      return 'SOUL.md is a link to a file outside the workspace folder.';
-    case 'moved':
+    case 'changed':
       return 'SOUL.md changed while it was being read.';
     case null:
     default:
@@ -57,36 +55,26 @@ type Target = { readonly kind: 'read'; readonly identity: string; readonly bytes
 
 const refusal = (code: string): Error => Object.assign(new Error(code), { code });
 
-/** Whether `child` is inside `root`; both are real paths. */
-function inside(root: string, child: string): boolean {
-  const relative = path.relative(root, child);
-  return relative !== '' && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
-}
-
 /**
- * Reads `dir/SOUL.md` only when, after every symlink, it is a regular file inside `dir`, and is still the
- * same file once open. The host runs outside the Fence, so a link out of the workspace (to the vault or the
- * database) is never followed.
+ * Reads `dir/SOUL.md` only when it is a regular file of its own right in `dir`: never through a symlink
+ * (`O_NOFOLLOW` fails with ELOOP) or a second hard link. The host runs outside the Fence, so it must not
+ * read a file the agent pointed it at, such as the vault or the database.
  */
-async function readTarget(dir: string, file: string): Promise<Target> {
-  const [root, real] = await Promise.all([realpath(dir), realpath(file)]);
-  if (!inside(root, real)) throw refusal('outside');
-  const handle = await open(real, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+async function readTarget(dir: string): Promise<Target> {
+  const handle = await open(path.join(await realpath(dir), INSTRUCTIONS_FILE), constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
     const stats = await handle.stat({ bigint: true });
     if (!stats.isFile()) throw refusal('not-a-file');
-    const again = await realpath(file).catch(() => '');
-    const now = inside(root, again) ? await stat(again, { bigint: true }).catch(() => undefined) : undefined;
-    if (now?.ino !== stats.ino || now.dev !== stats.dev) throw refusal('moved');
+    if (stats.nlink > 1n) throw refusal('hard-link');
     const identity = identityOf(stats);
     if (stats.size > BigInt(MAX_BYTES)) return { kind: 'too-large', identity };
-    const buffer = Buffer.alloc(MAX_BYTES + 1);
+    const buffer = Buffer.alloc(Number(stats.size) + 1);
     let read = 0;
     for (;;) {
       const { bytesRead } = await handle.read(buffer, read, buffer.length - read, read);
       if (bytesRead === 0) break;
       read += bytesRead;
-      if (read > MAX_BYTES) return { kind: 'too-large', identity };
+      if (read === buffer.length) throw refusal('changed');
     }
     return { kind: 'read', identity, bytes: buffer.subarray(0, read) };
   } finally {
@@ -106,7 +94,7 @@ export async function readInstructionsView(dir: string): Promise<AgentInstructio
     return { content: null, revision: revisionOf(null, null, null, code), canReplace: false, readError: readError(code) };
   }
   try {
-    const target = await readTarget(dir, file);
+    const target = await readTarget(dir);
     const tooLarge = { content: null, revision: revisionOf(entry, target.identity, null, 'too-large'), canReplace: false, readError: readError('too-large') };
     if (target.kind === 'too-large') return tooLarge;
     const content = target.bytes.toString('utf8');
