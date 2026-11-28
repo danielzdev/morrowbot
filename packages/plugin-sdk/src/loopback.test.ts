@@ -1,4 +1,5 @@
 import { request } from 'node:http';
+import { connect } from 'node:net';
 import { afterEach, expect, it } from 'vitest';
 import { serveLoopback, type LoopbackServer } from './loopback.ts';
 
@@ -107,4 +108,16 @@ it('says which port is taken', async () => {
   await expect(
     serveLoopback({ port, token: TOKEN, subprotocol: 'x', origin: /x/, maxMessageBytes: 1, onConnection: () => undefined }),
   ).rejects.toThrow(`Port ${String(port)} on 127.0.0.1 is already in use`);
+});
+
+it('survives a refused client that resets the connection while the refusal is written', async () => {
+  const { port } = await start();
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const socket = connect(port, '127.0.0.1');
+    await new Promise((resolve) => socket.once('connect', resolve));
+    socket.write(`GET / HTTP/1.1\r\nHost: 127.0.0.1:${String(port)}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\nOrigin: https://evil.example\r\n\r\n${'A'.repeat(200_000)}`);
+    socket.resetAndDestroy();
+  }
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  expect(await upgradeStatus(port, { origin: 'chrome-extension://abc', 'sec-websocket-protocol': `test.v1, token.${TOKEN}` })).toBe('101 test.v1');
 });

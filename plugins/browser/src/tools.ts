@@ -1,7 +1,8 @@
 import { BrowserTabId, DialogAction, ElementRef, FormFieldValue, KeyName, NavigateTarget, ScreenshotArea, ScrollTarget, WebUrl } from '@morrowbot/contracts';
-import { z } from '@morrowbot/plugin-sdk';
+import { confinePath, z, type Confined } from '@morrowbot/plugin-sdk';
 import type { Bridge } from './bridge.ts';
 import type { SecretSource } from './secrets.ts';
+import type { Uploads } from './settings.ts';
 import { secretTools } from './secret-tools.ts';
 import { BrowserChoice, COMMAND_TIMEOUT_MS, defineTool, noBrowserText, present, runOn, type BrowserTool, type ToolOutput } from './tool.ts';
 
@@ -11,10 +12,11 @@ const ref = ElementRef.describe('An element ref from the latest browser_snapshot
 export interface ToolDeps {
   readonly bridge: Bridge;
   readonly secrets: SecretSource;
+  readonly uploads: Uploads;
 }
 
 /** Every tool the browser plugin offers an agent. Agent tools never see secret values. */
-export function browserTools({ bridge, secrets }: ToolDeps): readonly BrowserTool[] {
+export function browserTools({ bridge, secrets, uploads }: ToolDeps): readonly BrowserTool[] {
   return [
     defineTool({
       name: 'browser_tabs',
@@ -119,9 +121,13 @@ export function browserTools({ bridge, secrets }: ToolDeps): readonly BrowserToo
     }),
     defineTool({
       name: 'browser_upload_files',
-      description: 'Puts local files into a file input. The browser reads them from disk.',
-      input: z.strictObject({ ...tab, ref, paths: z.array(z.string()).min(1).describe('Absolute file paths') }),
-      run: ({ browser, ...command }) => runOn(bridge, browser, { kind: 'upload-files', ...command }, `Attached ${String(command.paths.length)} file(s).`),
+      description: 'Puts files from the upload folder the person chose into a file input.',
+      input: z.strictObject({ ...tab, ref, paths: z.array(z.string().min(1)).min(1).describe('Files inside the upload folder, as absolute paths or relative to it') }),
+      run: async ({ browser, paths, ...command }) => {
+        const allowed = await insideUploads(uploads, paths);
+        if (allowed.kind === 'error') return allowed;
+        return runOn(bridge, browser, { kind: 'upload-files', ...command, paths: allowed.paths }, `Attached ${String(paths.length)} file(s).`);
+      },
     }),
     defineTool({
       name: 'browser_handle_dialog',
@@ -131,6 +137,23 @@ export function browserTools({ bridge, secrets }: ToolDeps): readonly BrowserToo
     }),
     ...secretTools({ bridge, secrets }),
   ];
+}
+
+/** Resolves each path inside the upload folder, refusing any outside it (symlinks included). */
+async function insideUploads(uploads: Uploads, paths: readonly string[]): Promise<{ readonly kind: 'ok'; readonly paths: string[] } | { readonly kind: 'error'; readonly text: string }> {
+  switch (uploads.kind) {
+    case 'off':
+      return { kind: 'error', text: 'Uploads are off. Ask the person to choose an upload folder in the Browser plugin settings.' };
+    case 'folder': {
+      const resolved: string[] = [];
+      for (const requested of paths) {
+        const confined = await confinePath(uploads.path, requested).catch((): Confined => ({ kind: 'outside' }));
+        if (confined.kind === 'outside') return { kind: 'error', text: `${requested} is not inside the upload folder ${uploads.path}.` };
+        resolved.push(confined.path);
+      }
+      return { kind: 'ok', paths: resolved };
+    }
+  }
 }
 
 /** Calls a tool by name; for the host's tool route and for tests. */

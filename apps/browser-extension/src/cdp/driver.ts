@@ -28,6 +28,10 @@ interface TabState {
   readonly session: CdpSession;
   refs: RefTable;
   dialog: BrowserDialog | null;
+  /** DOM nodes a vault secret was typed into: their values stay hidden from snapshots. */
+  readonly secretNodes: Set<number>;
+  /** Of those, the ones that show their text on screen (a one-time code): no screenshots while any is on the page. */
+  readonly visibleSecrets: Set<number>;
 }
 
 const WHILE_DIALOG = new Set<BrowserCommandKind>(['list-tabs', 'open-tab', 'switch-tab', 'close-tab', 'snapshot', 'handle-dialog', 'start-takeover', 'end-takeover']);
@@ -47,7 +51,7 @@ export function createCdpDriver({ tabs, attach, takeoverUi }: CdpDriverDeps): Cd
     const opening = (async (): Promise<TabState> => {
       await tabs.get(tabId);
       const session = await attach(tabId);
-      const state: TabState = { session, refs: new Map(), dialog: null };
+      const state: TabState = { session, refs: new Map(), dialog: null, secretNodes: new Set(), visibleSecrets: new Set() };
       watchDialogs(session, (dialog) => {
         state.dialog = dialog;
         emit(dialog === null ? { kind: 'dialog-closed', tabId } : { kind: 'dialog-opened', tabId, dialog });
@@ -121,7 +125,7 @@ export function createCdpDriver({ tabs, attach, takeoverUi }: CdpDriverDeps): Cd
       case 'snapshot': {
         const tab = await tabs.get(command.tabId);
         if (state.dialog !== null) return { kind: 'snapshot', tab, tree: '(The page is waiting for the dialog to be answered.)', dialog: state.dialog };
-        const snapshot = await takeSnapshot(session);
+        const snapshot = await takeSnapshot(session, state.secretNodes);
         state.refs = snapshot.refs;
         return { kind: 'snapshot', tab, tree: snapshot.tree, dialog: null };
       }
@@ -164,6 +168,9 @@ export function createCdpDriver({ tabs, attach, takeoverUi }: CdpDriverDeps): Cd
         await drag(session, await centerOf(session, node(command.from)), await centerOf(session, node(command.to)));
         return done;
       case 'screenshot':
+        if (await showsSecret(session, state.visibleSecrets)) {
+          throw new BrowserFailure('failed', 'A one-time code from the vault is on screen; take the screenshot after the page moves on.');
+        }
         return { kind: 'image', mimeType: 'image/png', base64: await screenshot(session, command.area, node) };
       case 'upload-files':
         await uploadFiles(session, node(command.ref), command.paths);
@@ -172,9 +179,13 @@ export function createCdpDriver({ tabs, attach, takeoverUi }: CdpDriverDeps): Cd
         if (state.dialog === null) throw new BrowserFailure('no-dialog', 'No dialog is open on this tab.');
         await session.send('Page.handleJavaScriptDialog', command.action.kind === 'accept' ? { accept: true, ...(command.action.promptText === null ? {} : { promptText: command.action.promptText }) } : { accept: false });
         return done;
-      case 'fill-secret':
-        await fillSecret(session, node(command.ref), command.origin, command.value);
+      case 'fill-secret': {
+        const target = node(command.ref);
+        await fillSecret(session, target, command.field, command.origin, command.value);
+        state.secretNodes.add(target);
+        if (command.field === 'one-time-code') state.visibleSecrets.add(target);
         return done;
+      }
       case 'switch-tab':
       case 'close-tab':
       case 'start-takeover':
@@ -210,6 +221,18 @@ export function createCdpDriver({ tabs, attach, takeoverUi }: CdpDriverDeps): Cd
       }
     },
   };
+}
+
+/** True while any of `nodes` is still in the page; forgets the ones that are gone. */
+async function showsSecret(session: CdpSession, nodes: Set<number>): Promise<boolean> {
+  for (const backendNodeId of [...nodes]) {
+    const alive = await session.send('DOM.describeNode', { backendNodeId }).then(
+      () => true,
+      () => false,
+    );
+    if (!alive) nodes.delete(backendNodeId);
+  }
+  return nodes.size > 0;
 }
 
 /**

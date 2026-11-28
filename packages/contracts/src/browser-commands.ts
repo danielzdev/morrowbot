@@ -85,6 +85,10 @@ export const DialogAction = z.discriminatedUnion('kind', [
 ]);
 export type DialogAction = z.infer<typeof DialogAction>;
 
+/** Which part of a vault entry a secret is; it decides which fields may take it. */
+export const SecretField = z.enum(['username', 'password', 'one-time-code']);
+export type SecretField = z.infer<typeof SecretField>;
+
 /** Why the agent hands the tab to the person. */
 export const TakeoverReason = z.enum(['login', 'two-factor', 'payment', 'captcha', 'other']);
 export type TakeoverReason = z.infer<typeof TakeoverReason>;
@@ -125,9 +129,10 @@ export const BrowserCommand = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('handle-dialog'), ...tab, action: DialogAction }),
   /**
    * Types a secret the plugin resolved outside the model (a vault login or one-time code). The
-   * extension types it only if the field's own frame is on `origin`, and never sends it back.
+   * extension types it only into an input of the matching type whose own frame is on `origin`, hides
+   * that field's value from every later snapshot, and never sends it back.
    */
-  z.strictObject({ kind: z.literal('fill-secret'), ...tab, ref: ElementRef, origin: z.string().min(1), value: z.string().min(1) }),
+  z.strictObject({ kind: z.literal('fill-secret'), ...tab, ref: ElementRef, field: SecretField, origin: z.string().min(1), value: z.string().min(1) }),
   /** Shows the person a "your turn" banner on the tab and brings it forward; agent commands on the tab wait until it ends. */
   z.strictObject({
     kind: z.literal('start-takeover'),

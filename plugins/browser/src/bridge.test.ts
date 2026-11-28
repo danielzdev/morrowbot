@@ -95,7 +95,7 @@ const call = (tools: readonly BrowserTool[], name: string, input: unknown, signa
 
 it('greets each browser with its own id and answers unlisted commands without asking', async () => {
   const started = await start();
-  const tools = browserTools({ bridge: started, secrets: noSecretSource });
+  const tools = browserTools({ bridge: started, secrets: noSecretSource, uploads: { kind: 'off' } });
   const brave = await connect(started.port);
   brave.send({ kind: 'hello', protocol: 1, browser: { family: 'chromium', name: 'Brave', version: '140' }, extensionVersion: '0.1.0', commands: ['list-tabs'] });
   const welcome = await brave.next();
@@ -133,7 +133,7 @@ it('greets each browser with its own id and answers unlisted commands without as
 
 it('asks which browser when several are connected, and says when none is', async () => {
   const started = await start();
-  const tools = browserTools({ bridge: started, secrets: noSecretSource });
+  const tools = browserTools({ bridge: started, secrets: noSecretSource, uploads: { kind: 'off' } });
   const none = await call(tools, 'browser_snapshot', { tabId: 1 });
   const { port } = started;
   await greet(port, 'Chrome', ['snapshot']);
@@ -179,7 +179,7 @@ it('closes a socket that does not say hello, or sends a bad frame', async () => 
 
 it('fails a waiting call when the browser disconnects', async () => {
   const started = await start();
-  const tools = browserTools({ bridge: started, secrets: noSecretSource });
+  const tools = browserTools({ bridge: started, secrets: noSecretSource, uploads: { kind: 'off' } });
   const chrome = await greet(started.port, 'Chrome', ['navigate']);
   const navigating = call(tools, 'browser_navigate', { tabId: 7, to: { kind: 'url', url: 'https://example.com/' } });
   await chrome.next();
@@ -218,6 +218,7 @@ it('sends a vault secret to the page but never to the agent', async () => {
         "text": "The Secrets Vault is not set up yet. Ask the person to fill this field (request a takeover).",
       },
       "sent": {
+        "field": "password",
         "kind": "fill-secret",
         "origin": "https://shop.example",
         "ref": "e4",
@@ -259,3 +260,4 @@ it('waits for the person to finish a takeover, and ends it when the turn stops',
     }
   `);
 });
+

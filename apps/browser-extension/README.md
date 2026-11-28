@@ -23,7 +23,9 @@ npm run build -w apps/browser-extension   # writes apps/browser-extension/dist/
    `edge://extensions`; Arc, Dia, Vivaldi and Opera use `chrome://extensions` too).
 2. Turn on **Developer mode**.
 3. Press **Load unpacked** and pick `apps/browser-extension/dist`.
-4. For file uploads, open the extension's **Details** and turn on **Allow access to file URLs**.
+4. For file uploads, open the extension's **Details** and turn on **Allow access to file URLs**, and
+   choose an **upload folder** in MorrowBot's Browser plugin settings. Agents can upload only files
+   inside it; uploads are off until you choose one.
 
 After a rebuild, press the reload button on the extension's card.
 
@@ -51,8 +53,10 @@ a "MorrowBot started debugging this browser" bar while it works. New tabs open i
 and the agent never raises a window, except when it hands you a tab for a takeover.
 
 Secrets: values of password, one-time-code and card fields are never read into snapshots. A vault
-secret is typed straight into the page, only if the field's own frame is on the origin the vault
-approved, and is never sent back.
+secret is typed straight into the page and never sent back, and only into an input of the right type
+(a password only into a password box) whose own frame is on the origin the vault approved. That
+field's value stays hidden from later snapshots, and while a one-time code is on screen the agent
+cannot take screenshots of that tab.
 
 Layout: `src/core/` is the browser-neutral part (connection, pairing, takeovers) that a Firefox or
 Safari extension will reuse; `src/cdp/` drives pages over the DevTools protocol; `src/chromium/`

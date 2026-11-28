@@ -46,6 +46,9 @@ export async function serveLoopback(options: LoopbackServerOptions): Promise<Loo
     response.writeHead(426, { 'content-type': 'text/plain' }).end('WebSocket only');
   });
   server.on('upgrade', (request: IncomingMessage, socket: Duplex, head: Buffer) => {
+    socket.on('error', () => {
+      socket.destroy();
+    });
     const refusal = refuse(request, options, expected, listeningPort());
     if (refusal !== null) {
       socket.end(`HTTP/1.1 ${refusal}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);

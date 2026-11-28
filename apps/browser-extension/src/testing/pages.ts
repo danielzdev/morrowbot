@@ -15,6 +15,9 @@ const PAGES: Readonly<Record<string, string>> = {
   dialog: `<title>Dialogs</title>
 <button onclick="document.getElementById('log').textContent = 'confirmed=' + confirm('Delete everything?')">Delete</button>
 <p id="log" role="status"></p>`,
+  code: `<title>Verify</title>
+<label>Email <input name="email" type="email"></label>
+<label>Code <input name="code" type="text"></label>`,
   pointer: `<title>Pointer</title>
 <style>.box { width: 120px; height: 60px; margin: 20px; border: 1px solid; }</style>
 <div id="hover" class="box" role="button" aria-label="Hover me" onmouseenter="document.getElementById('log').textContent = 'hovered'"></div>

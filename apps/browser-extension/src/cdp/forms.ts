@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { SecretField } from '@morrowbot/contracts';
 import { pressKey } from './keys.ts';
 import { BrowserFailure, call, type CdpSession } from './session.ts';
 
@@ -80,13 +81,26 @@ export async function selectOptions(session: CdpSession, backendNodeId: number, 
   }
 }
 
+/** The input types each part of a login may go into: never a textarea or editable text, where it would show. */
+const SECRET_INPUTS: Readonly<Record<SecretField, readonly string[]>> = {
+  username: ['text', 'email', 'tel'],
+  password: ['password'],
+  'one-time-code': ['text', 'tel', 'number', 'password'],
+};
+
+const Target = z.object({ origin: z.string(), type: z.string().nullable() });
+
 /**
- * Types a secret only when the field's own document is on `origin`, so a page that navigated
- * away, or a field inside a frame from elsewhere, never receives it.
+ * Types a secret only into an input of the right type whose own document is on `origin`, so a
+ * page that navigated away, a frame from elsewhere, or a visible text box never receives it.
  */
-export async function fillSecret(session: CdpSession, backendNodeId: number, origin: string, value: string): Promise<void> {
-  const actual = z.string().parse(await onNode(session, backendNodeId, 'function () { return this.ownerDocument.location.origin; }'));
-  if (actual !== origin) throw new BrowserFailure('origin-mismatch', `The field belongs to ${actual}, not ${origin}; nothing was filled.`);
+export async function fillSecret(session: CdpSession, backendNodeId: number, field: SecretField, origin: string, value: string): Promise<void> {
+  const target = Target.parse(await onNode(session, backendNodeId, 'function () { return { origin: this.ownerDocument.location.origin, type: this instanceof HTMLInputElement ? this.type : null }; }'));
+  if (target.origin !== origin) throw new BrowserFailure('origin-mismatch', `The field belongs to ${target.origin}, not ${origin}; nothing was filled.`);
+  const allowed = SECRET_INPUTS[field];
+  if (target.type === null || !allowed.includes(target.type)) {
+    throw new BrowserFailure('not-interactable', `A ${field} goes only into an input of type ${allowed.join(', ')}; nothing was filled.`);
+  }
   await replaceText(session, backendNodeId, value);
 }
 

@@ -36,15 +36,16 @@ export interface Snapshot {
 
 /**
  * Reads the main frame's accessibility tree as one line per element, indented by depth. Elements
- * get `[ref=eN]`. Values of password and one-time-code fields are never read out.
+ * get `[ref=eN]`. Values of password, one-time-code and card fields, and of `secretNodes` (fields a
+ * vault secret was typed into), are never read out.
  */
-export async function takeSnapshot(session: CdpSession): Promise<Snapshot> {
+export async function takeSnapshot(session: CdpSession, secretNodes: ReadonlySet<number>): Promise<Snapshot> {
   const { nodes } = await call(session, 'Accessibility.getFullAXTree', {}, FullTree);
   const byId = new Map(nodes.map((node) => [node.nodeId, node]));
   const root = nodes.find((node) => node.parentId === undefined || !byId.has(node.parentId));
   const refs = new Map<ElementRef, number>();
   const lines: string[] = [];
-  const hidden = await hiddenValues(session, nodes);
+  const hidden = new Set([...(await hiddenValues(session, nodes)), ...secretNodes]);
 
   /** `parentName` is the nearest shown ancestor's name: text that only repeats it is left out. */
   const visit = (node: AxNode, depth: number, parentName: string): void => {

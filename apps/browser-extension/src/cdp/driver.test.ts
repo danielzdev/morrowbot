@@ -228,8 +228,8 @@ describe.skipIf(chromeMissing)('the Chromium driver on a real page', () => {
   it('fills a secret only into a field on the expected origin', async () => {
     const { tabId, tree: snapshot } = await open('form');
     const password = refOf(snapshot, 'textbox "Password"');
-    const elsewhere = await run({ kind: 'fill-secret', tabId, ref: password, origin: 'https://bank.example', value: 's3cret-value' });
-    const filled = await run({ kind: 'fill-secret', tabId, ref: password, origin: new URL(pages.url('form')).origin, value: 's3cret-value' });
+    const elsewhere = await run({ kind: 'fill-secret', tabId, ref: password, field: 'password', origin: 'https://bank.example', value: 's3cret-value' });
+    const filled = await run({ kind: 'fill-secret', tabId, ref: password, field: 'password', origin: new URL(pages.url('form')).origin, value: 's3cret-value' });
     await run({ kind: 'click', tabId, ref: refOf(snapshot, 'button "Continue"'), button: 'left', clickCount: 1 });
     const after = await tree(tabId);
     expect({ elsewhere: elsewhere.kind === 'error' ? elsewhere.code : elsewhere, filled, leaked: after.includes('s3cret') || JSON.stringify(filled).includes('s3cret'), page: await log(tabId) }).toMatchInlineSnapshot(`
@@ -247,6 +247,35 @@ describe.skipIf(chromeMissing)('the Chromium driver on a real page', () => {
     `);
   });
 
+  it('types a secret only into a matching input, then keeps it out of snapshots and screenshots', async () => {
+    const { tabId, tree: snapshot } = await open('code');
+    const origin = new URL(pages.url('code')).origin;
+    const passwordIntoEmail = await run({ kind: 'fill-secret', tabId, ref: refOf(snapshot, 'textbox "Email"'), field: 'password', origin, value: 's3cret-value' });
+    const codeIntoText = await run({ kind: 'fill-secret', tabId, ref: refOf(snapshot, 'textbox "Code"'), field: 'one-time-code', origin, value: '424242' });
+    const after = await tree(tabId);
+    const screenshot = await run({ kind: 'screenshot', tabId, area: { kind: 'viewport' } });
+    const typed = await chrome.evaluate(tabId, "document.querySelector('[name=code]').value");
+    expect({ passwordIntoEmail, codeIntoText: codeIntoText.kind, typed, after, leaked: /s3cret|424242/.test(after), screenshot }).toMatchInlineSnapshot(`
+      {
+        "after": "- textbox "Email" [ref=e1]
+      - textbox "Code" [ref=e2] [focused] value=<hidden>",
+        "codeIntoText": "ok",
+        "leaked": false,
+        "passwordIntoEmail": {
+          "code": "not-interactable",
+          "kind": "error",
+          "message": "A password goes only into an input of type password; nothing was filled.",
+        },
+        "screenshot": {
+          "code": "failed",
+          "kind": "error",
+          "message": "A one-time code from the vault is on screen; take the screenshot after the page moves on.",
+        },
+        "typed": "424242",
+      }
+    `);
+  });
+
   it('hands a tab to the person and refuses agent commands until they finish', async () => {
     const { tabId, tree: snapshot } = await open('form');
     events.length = 0;
@@ -256,7 +285,7 @@ describe.skipIf(chromeMissing)('the Chromium driver on a real page', () => {
     const listed = await run({ kind: 'list-tabs' });
     await driver.takeovers.finish('t1', 'done');
     const after = await run({ kind: 'snapshot', tabId });
-    expect({ started, refused, listed: listed.kind, events, banners: banners.map((line) => line.replace(/^(show|hide) \d+/, '$1 <tab>')), after: after.kind }).toMatchInlineSnapshot(`
+    expect({ started, refused, listed: listed.kind, events: events.map((event) => ({ ...event, tabId: event.tabId === tabId ? '<tab>' : event.tabId })), banners: banners.map((line) => line.replace(/^(show|hide) \d+/, '$1 <tab>')), after: after.kind }).toMatchInlineSnapshot(`
       {
         "after": "ok",
         "banners": [
@@ -267,7 +296,7 @@ describe.skipIf(chromeMissing)('the Chromium driver on a real page', () => {
           {
             "kind": "takeover-ended",
             "outcome": "done",
-            "tabId": 9,
+            "tabId": "<tab>",
             "takeoverId": "t1",
           },
         ],

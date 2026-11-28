@@ -1,3 +1,4 @@
+import { SecretField } from '@morrowbot/contracts';
 import { z } from '@morrowbot/plugin-sdk';
 
 /**
@@ -6,7 +7,7 @@ import { z } from '@morrowbot/plugin-sdk';
  */
 export const SecretRequest = z.strictObject({
   entryId: z.string().min(1).describe('The vault entry, as the vault lists it'),
-  field: z.enum(['username', 'password', 'one-time-code']),
+  field: SecretField,
 });
 export type SecretRequest = z.infer<typeof SecretRequest>;
 

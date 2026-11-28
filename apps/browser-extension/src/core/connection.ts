@@ -1,4 +1,5 @@
 import {
+  BROWSER_BRIDGE_DEFAULT_PORT,
   BROWSER_BRIDGE_PROTOCOL,
   BROWSER_BRIDGE_SUBPROTOCOL,
   LOOPBACK_TOKEN_PREFIX,
@@ -56,6 +57,7 @@ export function startConnection(deps: ConnectionDeps): Connection {
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
   let generation = 0;
+  let lastPort: number = BROWSER_BRIDGE_DEFAULT_PORT;
 
   const send = (target: BridgeSocket, message: ExtensionMessage): void => {
     if (target.isOpen()) target.send(JSON.stringify(message));
@@ -78,8 +80,16 @@ export function startConnection(deps: ConnectionDeps): Connection {
   const connect = async (): Promise<void> => {
     const mine = ++generation;
     clearTimeout(retryTimer);
-    const { port, token } = await deps.pairing();
+    let pairing: Pairing;
+    try {
+      pairing = await deps.pairing();
+    } catch (error) {
+      if (mine === generation) scheduleRetry(lastPort, `Could not read the pairing: ${error instanceof Error ? error.message : String(error)}`);
+      return;
+    }
     if (stopped || mine !== generation) return;
+    const { port, token } = pairing;
+    lastPort = port;
     deps.onStatus({ kind: 'connecting', port });
     let pingTimer: ReturnType<typeof setInterval> | undefined;
     const opened: BridgeSocket = deps.openSocket(`ws://127.0.0.1:${String(port)}/`, [BROWSER_BRIDGE_SUBPROTOCOL, `${LOOPBACK_TOKEN_PREFIX}${token}`], {

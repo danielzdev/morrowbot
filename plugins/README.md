@@ -116,4 +116,5 @@ the plugin's subprotocol plus `token.<pairing token>`. Close the server in `shut
 MorrowBot browser extension (`apps/browser-extension`) connects to, and defines the agent's
 `browser_*` tools in `src/tools.ts` and `src/secret-tools.ts`. Several browsers can be connected at
 once. Secrets reach a page only through a `SecretSource` (the Secrets Vault, once it ships), never
-through the agent.
+through the agent. File uploads are off until the person sets `uploadFolder`; paths outside it,
+symlinks included, are refused.

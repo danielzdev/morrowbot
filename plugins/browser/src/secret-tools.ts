@@ -22,7 +22,7 @@ export function secretTools({ bridge, secrets, takeoverLimitMs = TAKEOVER_LIMIT_
         if (origin.kind === 'error') return origin;
         const resolved = await secrets.resolve({ ...secret, origin: origin.text });
         if (resolved.kind === 'refused') return { kind: 'error', text: resolved.reason };
-        const result = await link.run({ kind: 'fill-secret', tabId, ref, origin: origin.text, value: resolved.value }, COMMAND_TIMEOUT_MS);
+        const result = await link.run({ kind: 'fill-secret', tabId, ref, field: secret.field, origin: origin.text, value: resolved.value }, COMMAND_TIMEOUT_MS);
         const output = present(result, `Filled the ${secret.field} of vault entry ${secret.entryId} into ${ref}.`);
         return output.kind === 'image' ? output : { kind: output.kind, text: output.text.replaceAll(resolved.value, '•••') };
       },
