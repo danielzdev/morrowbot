@@ -17,6 +17,7 @@ import {
   type UsageResult,
 } from '@morrowbot/contracts';
 import { describeIssues } from './issues.ts';
+import { answerSecret, type SecretResolver } from './secret-requests.ts';
 import {
   PluginCancelledError,
   PluginGoneError,
@@ -28,6 +29,7 @@ import {
 
 export { PluginCancelledError, PluginGoneError, PluginRequestError, PluginTimeoutError } from './plugin-errors.ts';
 export type { PluginExit, PluginTimeouts } from './plugin-errors.ts';
+export type { SecretResolver } from './secret-requests.ts';
 
 export interface TurnHandlers {
   onChunk(chunk: TurnChunk): void;
@@ -80,10 +82,11 @@ export interface ConnectOptions {
   readonly timeouts: PluginTimeouts;
   readonly groups: ChildGroupListener;
   readonly log: (message: string) => void;
+  readonly secrets: SecretResolver | null;
 }
 
 /** Starts a plugin through `open` and talks to it over that channel (wire protocol v1). */
-export function connectPlugin(open: OpenPluginChannel, { timeouts, groups, log }: ConnectOptions): PluginProcess {
+export function connectPlugin(open: OpenPluginChannel, { timeouts, groups, log, secrets }: ConnectOptions): PluginProcess {
   const pending = new Map<number, Waiter>();
   const turns = new Map<string, TurnHandlers>();
   const exit = Promise.withResolvers<PluginExit>();
@@ -164,6 +167,9 @@ export function connectPlugin(open: OpenPluginChannel, { timeouts, groups, log }
           groups.exited(message.pgid);
         });
         return;
+      case 'secret-request':
+        void answerSecret(message, { secrets, callOf: toolCall, send });
+        return;
       case 'init-result':
       case 'health-result':
       case 'shutdown-result':
@@ -193,6 +199,11 @@ export function connectPlugin(open: OpenPluginChannel, { timeouts, groups, log }
     } else if (!waiter.accept(message)) {
       fail({ kind: 'protocol', problem: `answered a ${waiter.name} request with ${message.kind}` });
     }
+  }
+
+  function toolCall(callId: number): Waiter | undefined {
+    const waiter = pending.get(callId);
+    return waiter?.name === 'tool-call' ? waiter : undefined;
   }
 
   function guarded(work: () => void): void {

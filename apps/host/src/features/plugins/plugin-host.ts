@@ -8,7 +8,7 @@ import { readCatalog, type PluginSource } from './discovery.ts';
 import { pluginControls, type RestartResult } from './plugin-controls.ts';
 import { pluginEnv } from './plugin-env.ts';
 import { DEFAULT_PLUGIN_TIMEOUTS, PluginRequestError, PluginTimeoutError, type PluginTimeouts } from './plugin-errors.ts';
-import { connectPlugin, type PluginProcess } from './plugin-process.ts';
+import { connectPlugin, type PluginProcess, type SecretResolver } from './plugin-process.ts';
 import type { PluginRecord, PluginStore } from './plugin-store.ts';
 import { providerRequests, type ProviderRequests } from './provider-requests.ts';
 import { systemProbe, type ProcessProbe } from './release-probe.ts';
@@ -45,6 +45,8 @@ export interface PluginHostOptions {
   /** Windows provider plugins are disabled in v1; tests may pretend to be another platform. */
   readonly platform?: NodeJS.Platform;
   readonly log?: (message: string) => void;
+  /** Gives plugins with the `secrets` permission one vault secret at a time, during their tool calls. */
+  readonly secrets?: SecretResolver;
 }
 
 export interface PluginSummary {
@@ -204,6 +206,7 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
       await mkdir(dataDir, { recursive: true });
       child = connectPlugin(launch(pluginEnv(manifest.envPreset, options.pluginPath)), {
         timeouts,
+        secrets: manifest.permissions.includes('secrets') ? (options.secrets ?? null) : null,
         log: (message) => {
           log(`plugin ${manifest.id}: ${message}`);
         },

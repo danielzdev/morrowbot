@@ -1,7 +1,8 @@
 import type { ConnectorSetup } from '@morrowbot/contracts';
 import { McpFailure, type FailureKind } from './channel.ts';
 import { startSession, type McpCallResult, type McpSession, type McpTool } from './mcp-session.ts';
-import { hideSecrets, offeredTools, openChannel } from './reach.ts';
+import { offeredTools, openChannel } from './reach.ts';
+import { hideSecrets, reachOf, type VaultLookup } from './secrets.ts';
 
 /** Where one connector's connection stands. `failed` keeps why, for its status pill. */
 export type RuntimeState =
@@ -13,7 +14,7 @@ export type RuntimeState =
 /** The live MCP sessions of every connected connector, by connector id. */
 export interface ConnectorRuntime {
   state(id: string): RuntimeState;
-  /** (Re)starts the connector's session; settles once it is ready or failed. */
+  /** (Re)starts the connector's session, reading its Vault items now; settles once it is ready or failed. */
   connect(id: string, setup: ConnectorSetup): Promise<void>;
   /** Stops the session (a local server's whole process group) and forgets it. */
   disconnect(id: string): Promise<void>;
@@ -33,7 +34,7 @@ interface Slot {
 
 const LOST: readonly FailureKind[] = ['auth', 'unreachable', 'exited'];
 
-export function createConnectorRuntime(options: { readonly path: string; readonly version: string }): ConnectorRuntime {
+export function createConnectorRuntime(options: { readonly path: string; readonly version: string; readonly vault: VaultLookup }): ConnectorRuntime {
   const slots = new Map<string, Slot>();
   let attempts = 0;
 
@@ -55,12 +56,21 @@ export function createConnectorRuntime(options: { readonly path: string; readonl
       const previous = slots.get(id);
       const attempt = ++attempts;
       const stop = new AbortController();
-      const hide = (text: string): string => hideSecrets(setup, text);
-      slots.set(id, { attempt, state: { kind: 'starting' }, session: null, stop, hide });
+      slots.set(id, { attempt, state: { kind: 'starting' }, session: null, stop, hide: (text) => text });
       await release(previous);
+      const reached = await reachOf(setup, options.vault);
+      if (reached.kind === 'refused') {
+        fail(id, attempt, new McpFailure('auth', reached.message));
+        return;
+      }
+      const { reach } = reached;
+      const hide = (text: string): string => hideSecrets(reach, text);
+      const current = slots.get(id);
+      if (current?.attempt !== attempt) return;
+      slots.set(id, { ...current, hide });
       let session: McpSession;
       try {
-        const channel = openChannel(setup, options.path);
+        const channel = openChannel(reach, options.path);
         channel.onEnd((failure) => {
           fail(id, attempt, failure);
         });

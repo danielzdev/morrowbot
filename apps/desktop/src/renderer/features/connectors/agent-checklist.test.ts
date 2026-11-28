@@ -10,7 +10,7 @@ const connector = (id: string, scope: Partial<ConnectorScope>, status: Connector
     id,
     label: id,
     labelKey: id,
-    setup: { kind: 'http', url: 'https://example.com/mcp', headerNames: [] },
+    setup: { kind: 'http', url: 'https://example.com/mcp', headers: [] },
     enabled: true,
     connected: true,
     scope: { mode: 'selected', agentIds: [], revision: 1, scopeReviewRequired: false, ...scope },

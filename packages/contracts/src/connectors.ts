@@ -36,12 +36,26 @@ const SecretValue = z
   .max(8192)
   .refine((value) => !/[\p{Cc}]/u.test(value.replaceAll('\t', '')), { error: 'Remove line breaks and other control characters' });
 
-/** One named value the host keeps write-only: it is saved, but never sent back to a window. */
-const NamedSecret = <N extends z.ZodType<string>>(name: N) => z.strictObject({ name, value: SecretValue });
+/** A Vault item (an API key or header secret) the host reads only when it connects. Its value never reaches a window. */
+const VaultChoice = { kind: z.literal('vault'), vaultId: EntityId };
 
-/** On an edit, keep the saved value of a name, or set a new one. */
+/** One named value: typed in (`inline`, kept write-only by the host), or taken from a Vault item. */
+const NamedSecret = <N extends z.ZodType<string>>(name: N) =>
+  z.discriminatedUnion('kind', [z.strictObject({ kind: z.literal('inline'), name, value: SecretValue }), z.strictObject({ name, ...VaultChoice })]);
+
+/** On an edit, keep the saved value of a name, type a new one, or take it from a Vault item. */
 const SecretEdit = <N extends z.ZodType<string>>(name: N) =>
-  z.discriminatedUnion('kind', [z.strictObject({ kind: z.literal('keep'), name }), z.strictObject({ kind: z.literal('set'), name, value: SecretValue })]);
+  z.discriminatedUnion('kind', [
+    z.strictObject({ kind: z.literal('keep'), name }),
+    z.strictObject({ kind: z.literal('set'), name, value: SecretValue }),
+    z.strictObject({ name, ...VaultChoice }),
+  ]);
+
+/** A secret as a window sees it: its name, and the Vault item it comes from (never a value). */
+const SecretView = z.discriminatedUnion('kind', [z.strictObject({ kind: z.literal('inline'), name: z.string() }), z.strictObject({ name: z.string(), ...VaultChoice })]);
+export type ConnectorSecretView = z.infer<typeof SecretView>;
+
+const ApiKeyValue = z.string().trim().min(1).max(512);
 
 const uniqueNames = (entries: readonly { readonly name: string }[]): boolean => new Set(entries.map(({ name }) => name.toLowerCase())).size === entries.length;
 
@@ -73,13 +87,13 @@ export const ConnectorSetup = z.discriminatedUnion('kind', [
     toolkit: ToolkitSlug,
     /** The Composio MCP server URL (`https://backend.composio.dev/v3/mcp/<server id>`). */
     serverUrl: RemoteUrl,
-    apiKey: z.string().trim().min(1).max(512),
+    apiKey: z.discriminatedUnion('kind', [z.strictObject({ kind: z.literal('inline'), value: ApiKeyValue }), z.strictObject(VaultChoice)]),
     account: ComposioAccount,
   }),
 ]);
 export type ConnectorSetup = z.infer<typeof ConnectorSetup>;
 
-/** A setup edit: secrets left as `keep` keep their saved value; a name left out is removed. */
+/** A setup edit: secrets left as `keep` keep their saved value or Vault item; a name left out is removed. */
 export const ConnectorSetupEdit = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('stdio'), command: Command, args: Args, env: z.array(SecretEdit(EnvName)).max(64).refine(uniqueNames, { error: 'Name each variable once' }) }),
   z.strictObject({ kind: z.literal('http'), url: RemoteUrl, headers: z.array(SecretEdit(HeaderName)).max(32).refine(uniqueNames, { error: 'Name each header once' }) }),
@@ -87,17 +101,23 @@ export const ConnectorSetupEdit = z.discriminatedUnion('kind', [
     kind: z.literal('composio'),
     toolkit: ToolkitSlug,
     serverUrl: RemoteUrl,
-    apiKey: z.discriminatedUnion('kind', [z.strictObject({ kind: z.literal('keep') }), z.strictObject({ kind: z.literal('set'), value: z.string().trim().min(1).max(512) })]),
+    apiKey: z.discriminatedUnion('kind', [z.strictObject({ kind: z.literal('keep') }), z.strictObject({ kind: z.literal('set'), value: ApiKeyValue }), z.strictObject(VaultChoice)]),
     account: ComposioAccount,
   }),
 ]);
 export type ConnectorSetupEdit = z.infer<typeof ConnectorSetupEdit>;
 
-/** A setup as a window sees it: secret values are never included, only their names. */
+/** A setup as a window sees it: secret values are never included, only their names and Vault items. */
 export const ConnectorSetupView = z.discriminatedUnion('kind', [
-  z.strictObject({ kind: z.literal('stdio'), command: z.string(), args: z.array(z.string()), envNames: z.array(z.string()) }),
-  z.strictObject({ kind: z.literal('http'), url: z.string(), headerNames: z.array(z.string()) }),
-  z.strictObject({ kind: z.literal('composio'), toolkit: z.string(), serverUrl: z.string(), account: ComposioAccount }),
+  z.strictObject({ kind: z.literal('stdio'), command: z.string(), args: z.array(z.string()), env: z.array(SecretView) }),
+  z.strictObject({ kind: z.literal('http'), url: z.string(), headers: z.array(SecretView) }),
+  z.strictObject({
+    kind: z.literal('composio'),
+    toolkit: z.string(),
+    serverUrl: z.string(),
+    apiKey: z.discriminatedUnion('kind', [z.strictObject({ kind: z.literal('inline') }), z.strictObject(VaultChoice)]),
+    account: ComposioAccount,
+  }),
 ]);
 export type ConnectorSetupView = z.infer<typeof ConnectorSetupView>;
 
