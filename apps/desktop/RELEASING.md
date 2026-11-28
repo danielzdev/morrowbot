@@ -104,11 +104,14 @@ it is removed.
 1. In the old app, Settings › About › **Reset or Uninstall…** › **Full uninstall** removes the app, its own files in
    its data folder (`~/.orikami` or `~/.morrowbot`), its Library files and its Keychain items, including the old
    release feed token. It keeps agent workspaces (`workspaces/`) and anything else it did not write. Uninstall
-   rather than keeping the old data: the fence hides only Ori Bot's own data folder, so a kept `~/.orikami`,
-   `~/.orikami-dev`, `~/.morrowbot` or `~/.morrowbot-dev` (chats, vault files, joined-server token) and the
-   `com.legendarykoi.orikami.vault` or `com.legendarykoi.morrowbot.vault` Keychain item stay readable by
-   full-access agents. Delete any you keep, and `Ori Kami Safe Storage` or `MorrowBot Safe Storage` in Keychain
-   Access if it is still there.
+   rather than keeping the old data: the fence hides only Ori Bot's own data folder, so old chats, vault files and
+   joined-server tokens left in `~/.orikami`, `~/.orikami-dev`, `~/.morrowbot` or `~/.morrowbot-dev` stay readable
+   by full-access agents.
+   Builds older than the Reset or Uninstall menu (MorrowBot 0.1.19 and earlier) have no Full uninstall. Quit the
+   app, move it to the Trash, and delete by hand everything in its data folder except `workspaces/`.
+   Either way, check Keychain Access afterwards and delete any of these that are still there:
+   `com.legendarykoi.orikami.vault`, `com.legendarykoi.orikami.releases`, `Ori Kami Safe Storage`,
+   `com.legendarykoi.morrowbot.vault`, `com.legendarykoi.morrowbot.releases`, `MorrowBot Safe Storage`.
 2. Install `Ori Bot.app` from the releases repo's latest `.dmg` and drag it into `/Applications`.
 3. Store the release feed token again under the new name:
    `security add-generic-password -s com.legendarykoi.oribot.releases -a releases -w`.
