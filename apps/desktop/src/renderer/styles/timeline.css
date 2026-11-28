@@ -233,14 +233,9 @@
   background-color: var(--accent);
   color: var(--on-accent);
 }
-/* The running turn and its brief completion beat: the agent's avatar and what it is doing. The avatar sets the row's height. */
+/* The running turn's last row, and its reply's during the brief completion beat: the agent's avatar and what it is doing. The avatar sets the row's height. */
 .turn-phase {
   gap: var(--s-2);
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: var(--surface-0);
-  box-shadow: 0 6px 8px var(--surface-0);
 }
 .turn-avatar {
   display: inline-flex;

@@ -28,7 +28,7 @@ function useHeldLabel(wanted: string): string {
   return held.label;
 }
 
-/** The running turn's sticky row: the avatar, what it is doing, how far along it is, the timer and the provider's status. */
+/** The running turn's last row, under everything it has written: the avatar, what it is doing, how far along it is, the timer and the provider's status. */
 export function TurnStatus(props: {
   readonly turn: ActiveTurnView;
   readonly display: ChatDisplay;

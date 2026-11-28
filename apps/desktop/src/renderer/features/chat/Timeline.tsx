@@ -77,7 +77,7 @@ const MessageItem = memo(function MessageItem(props: {
   readonly busy: boolean;
   /** A user message sent into the reply above it with Steer now. */
   readonly steeredIn: boolean;
-  /** The latest reply's avatar during its brief completion beat; null once idle or on other messages. */
+  /** The latest reply's avatar during its brief completion beat, last under the reply; null once idle or on other messages. */
   readonly avatar: 'completed' | null;
   /** The emoji on this message. */
   readonly reactions: readonly MessageReaction[];
@@ -103,15 +103,10 @@ const MessageItem = memo(function MessageItem(props: {
     );
   }
   const copy = outcomeCopy(message.outcome, ctx.copy);
-  const time = finished === undefined ? null : finishedLine(finished.durationMs, props.avatar !== null, ctx.tools ? null : turnSummary(finished.steps, ctx.display));
+  const time = finished === undefined ? null : finishedLine(finished.durationMs, ctx.tools ? null : turnSummary(finished.steps, ctx.display));
   return (
     <div class={`message assistant tone-${copy.tone}`} data-message-id={message.id}>
-      {time !== null && (
-        <div class={`turn-time${props.avatar === null ? '' : ` turn-phase ${props.avatar}`}`}>
-          {props.avatar !== null && <span class="turn-avatar" aria-hidden="true">{ctx.avatar(props.avatar)}</span>}
-          {time}
-        </div>
-      )}
+      {time !== null && <div class="turn-time">{time}</div>}
       {finished !== undefined && <TurnSteps steps={finished.steps} tools={ctx.tools} display={ctx.display} approval={approvalFor(ctx, NO_ANSWERS, false)} />}
       {message.text !== '' && <div data-find-id={message.id}><Markdown text={message.text} actions={ctx.actions} /></div>}
       {message.attachments.length > 0 && <ReplyAttachments attachments={message.attachments} files={ctx.files} />}
@@ -129,6 +124,12 @@ const MessageItem = memo(function MessageItem(props: {
           {message.outcome.kind === 'completed' && <ReactionPicker reactions={props.reactions} onPick={(emoji) => { ctx.onReact(message.id, emoji); }} />}
         </div>
       )}
+      {props.avatar !== null && (
+        <div class={`turn-time turn-phase ${props.avatar}`}>
+          <span class="turn-avatar" aria-hidden="true">{ctx.avatar(props.avatar)}</span>
+          <span class="turn-label">Done</span>
+        </div>
+      )}
     </div>
   );
 });
@@ -143,10 +144,10 @@ function ActiveTurn(props: {
   const { turn, ctx } = props;
   return (
     <div class="message assistant active">
-      <TurnStatus turn={turn} display={ctx.display} avatar={ctx.avatar} tools={ctx.tools} />
       <TurnSteps steps={turn.steps} tools={ctx.tools} display={ctx.display} approval={approvalFor(ctx, props.answering, props.offline)} />
       {turn.text !== '' && <div data-find-id={ACTIVE_ID}><Markdown text={turn.text} actions={ctx.actions} /></div>}
       <ThreadCards cards={props.cards} staged acting={NO_ANSWERS} offline={props.offline} ctx={ctx.cards} />
+      <TurnStatus turn={turn} display={ctx.display} avatar={ctx.avatar} tools={ctx.tools} />
     </div>
   );
 }

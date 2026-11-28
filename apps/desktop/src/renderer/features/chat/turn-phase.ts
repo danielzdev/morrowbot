@@ -57,11 +57,11 @@ export const switchIn = (held: HeldLabel, wanted: string, now: number): number |
   wanted === held.label ? null : Math.max(0, held.since + LABEL_HOLD_MS - now);
 
 /**
- * A finished turn's line: "Worked for 2m", "Done" during the completion beat of a turn loaded mid-way, and the
- * summary of its tool calls when tool rows are hidden ("Worked for 2m · read 4 files, edited 2"). Null shows no line.
+ * A finished turn's line: "Worked for 2m", and the summary of its tool calls when tool rows are hidden
+ * ("Worked for 2m · read 4 files, edited 2"). Null shows no line.
  */
-export function finishedLine(durationMs: number | null, beat: boolean, summary: string | null): string | null {
-  const head = durationMs !== null ? `Worked for ${elapsed(durationMs)}` : beat ? 'Done' : null;
+export function finishedLine(durationMs: number | null, summary: string | null): string | null {
+  const head = durationMs === null ? null : `Worked for ${elapsed(durationMs)}`;
   if (summary === null) return head;
   return head === null ? `${summary.charAt(0).toUpperCase()}${summary.slice(1)}` : `${head} · ${summary}`;
 }
