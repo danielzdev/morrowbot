@@ -22,6 +22,7 @@ Settled product, visual, security, and workflow decisions for MorrowBot so any c
   - Sub-agents (cross-model, inline chat cards): `spawn_subagent`, `wait_subagents`, `list_subagents`
   - Agent-to-agent messaging (quiet background turns by default): `list_agents`, `send_message`
   - Emoji reactions & silent replies: `react_to_message`, `stay_quiet`
+  - Reply attachments (files from the agent's workspace shown under its reply): `attach_files`
   - Routines: `list_routines`, `create_routine`, `update_routine`, `delete_routine`, `routine_no_update`
   - Calm T3 Code watches: `list_t3_watches`, `watch_t3_thread`, `unwatch_t3_thread`, `ack_t3_batch`
   - Vault metadata lookup (values never exposed to agents): `list_vault_items`
@@ -37,7 +38,7 @@ Settled product, visual, security, and workflow decisions for MorrowBot so any c
 
 ## Storage & Migrations
 - SQLite migrations live in `apps/host/src/features/storage/migration-<N>.ts` and are registered in `schema.ts`.
-- Latest merged migration on `main`: **`migration-17.ts`** (`13` = Connectors, `14` = Sub-agents, `15` = Message reactions, `16` = Tool steps, `17` = Agent-message read outcomes & unread lookup index). New schema changes start at `migration-18.ts` (always check `ls apps/host/src/features/storage/migration-*.ts` first).
+- Latest merged migration on `main`: **`migration-18.ts`** (`13` = Connectors, `14` = Sub-agents, `15` = Message reactions, `16` = Tool steps, `17` = Agent-message read outcomes & unread lookup index, `18` = Reply attachments). New schema changes start at `migration-19.ts` (always check `ls apps/host/src/features/storage/migration-*.ts` first).
 
 ## Engineering, CI & Review Workflow
 - **CI (`.github/workflows/ci.yml`):** Uses affected-workspace detection (`.github/scripts/ci-changes.mjs`) to run `lint`, `typecheck-build`, and only affected workspace test jobs in parallel on PRs, failing open on root config changes and `push` to `main`, behind a single required `check` gate job. Local full verification stays `npm run check`.

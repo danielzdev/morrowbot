@@ -334,6 +334,17 @@ it('speaks MCP on loopback only to the running turn’s token', async () => {
             "properties": [],
             "required": [],
           },
+          {
+            "additionalProperties": false,
+            "description": "Attaches files from your workspace folder to the reply you are writing, so the user sees them under it: images (PNG, JPEG, WebP, GIF) and videos (MP4, WebM) inline, PDFs and other files as cards to open or save. Save the file inside your workspace folder first, then pass its absolute path. Each file is copied when you call this, so attach it after it is finished. Up to 8 files and 100 MB each (200 MB in all) per reply. Mention the files in your reply text; do not paste their contents.",
+            "name": "attach_files",
+            "properties": [
+              "paths",
+            ],
+            "required": [
+              "paths",
+            ],
+          },
         ],
       },
       "unknownTool": {
