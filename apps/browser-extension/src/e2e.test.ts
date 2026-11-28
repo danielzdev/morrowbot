@@ -86,12 +86,13 @@ it.skipIf(chromeMissing)('an agent fills and submits a login form through the pl
     await tool('browser_screenshot', { tabId }),
   ];
   expect(JSON.stringify({ opened, snapshot, steps, after: await tool('browser_snapshot', { tabId }) })).not.toContain('pw-e2e');
-  expect({ statuses, opened, snapshot, steps, page: await chrome.evaluate(tabId, "document.getElementById('log').textContent") }).toMatchInlineSnapshot(`
+  const anyTab = (line: string): string => line.replaceAll(`Tab ${String(tabId)}:`, 'Tab <tab>:');
+  expect({ statuses, opened: anyTab(opened), snapshot: anyTab(snapshot), steps, page: await chrome.evaluate(tabId, "document.getElementById('log').textContent") }).toMatchInlineSnapshot(`
     {
       "opened": "text: Opened.
-    Tab 2: Sign in — http://127.0.0.1:<port>/form",
+    Tab <tab>: Sign in — http://127.0.0.1:<port>/form",
       "page": "submitted ada@example.com remember=false plan=pro password-length=6",
-      "snapshot": "text: Tab 2: Sign in — http://127.0.0.1:<port>/form
+      "snapshot": "text: Tab <tab>: Sign in — http://127.0.0.1:<port>/form
     - heading "Sign in" [ref=e1] [level=1]
     - form [ref=e2]
       - textbox "Email" [ref=e3]

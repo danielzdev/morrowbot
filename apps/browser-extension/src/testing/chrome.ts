@@ -149,7 +149,7 @@ export async function launchChrome(): Promise<ChromeUnderTest> {
       const exited = new Promise((resolve) => child.once('exit', resolve));
       child.kill();
       await exited;
-      await rm(profile, { recursive: true, force: true });
+      await rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
     },
   };
 }

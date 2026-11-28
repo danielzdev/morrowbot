@@ -222,7 +222,9 @@ describe.skipIf(chromeMissing)('the Chromium driver on a real page', () => {
     await run({ kind: 'drag', tabId, from: refOf(snapshot, 'button "Card"'), to: refOf(snapshot, 'region "Bin"') });
     const dropped = await log(tabId);
     await run({ kind: 'scroll', tabId, to: { kind: 'page', direction: 'down', pixels: 500 } });
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await vi.waitFor(async () => {
+      expect(await chrome.evaluate(tabId, 'Math.round(window.scrollY)')).toBe(500);
+    }).catch(() => undefined);
     const byPage = await chrome.evaluate(tabId, 'Math.round(window.scrollY)');
     await run({ kind: 'scroll', tabId, to: { kind: 'element', ref: refOf(snapshot, 'button "Bottom"') } });
     const toElement = await chrome.evaluate(tabId, 'window.scrollY > 2000');
@@ -245,11 +247,12 @@ describe.skipIf(chromeMissing)('the Chromium driver on a real page', () => {
     const viewport = pngSize(await run({ kind: 'screenshot', tabId, area: { kind: 'viewport' } }));
     const fullPage = pngSize(await run({ kind: 'screenshot', tabId, area: { kind: 'full-page' } }));
     const element = pngSize(await run({ kind: 'screenshot', tabId, area: { kind: 'element', ref: refOf(snapshot, 'button "Card"') } }));
-    expect({ viewport, fullPageIsTaller: Number(fullPage.split('x')[1]) > 3000, element }).toMatchInlineSnapshot(`
+    const windowSize = await chrome.evaluate(tabId, '`${innerWidth}x${innerHeight}`');
+    expect({ viewportIsTheWindow: viewport === windowSize, fullPageIsTaller: Number(fullPage.split('x')[1]) > 3000, element }).toMatchInlineSnapshot(`
       {
         "element": "122x62",
         "fullPageIsTaller": true,
-        "viewport": "756x469",
+        "viewportIsTheWindow": true,
       }
     `);
   });
