@@ -23,6 +23,7 @@ import type {
   UsageWindow,
   VendorSettings,
 } from '@morrowbot/contracts';
+import type { TurnOutputBudget } from './output-budget.ts';
 import type { Prelude } from './prompt.ts';
 
 export type SessionState = 'clean' | 'diverged' | 'needs-seed';
@@ -267,6 +268,8 @@ export interface ChatServiceOptions {
   readonly hostEpoch: string;
   /** Called with errors that have no caller to return to, such as a failed write after a generation. */
   readonly report: (error: unknown) => void;
+  /** Per-turn cap on streamed bytes and events; defaults to `DEFAULT_TURN_OUTPUT_BUDGET`. */
+  readonly turnOutputBudget?: TurnOutputBudget;
 }
 
 export type ChatListener = (event: ChatEvent) => void;

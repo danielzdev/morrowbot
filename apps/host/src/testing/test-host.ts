@@ -45,6 +45,7 @@ export interface TestHostOptions {
   /** `MORROWBOT_T3_ROUTINE_ID`: the routine T3 watch batches go to. */
   readonly t3RoutineId?: string;
   readonly isPluginAllowedForAgent?: HostOptions['isPluginAllowedForAgent'];
+  readonly turnOutputBudget?: HostOptions['turnOutputBudget'];
 }
 
 export interface Reply {
@@ -89,6 +90,7 @@ export async function startTestHost(options: TestHostOptions): Promise<TestHost>
     ...(options.routineClock === undefined ? {} : { routineClock: options.routineClock }),
     ...(options.t3Watch === undefined ? {} : { t3Watch: options.t3Watch }),
     ...(options.isPluginAllowedForAgent === undefined ? {} : { isPluginAllowedForAgent: options.isPluginAllowedForAgent }),
+    ...(options.turnOutputBudget === undefined ? {} : { turnOutputBudget: options.turnOutputBudget }),
   });
   const call = async (method: string, route: string, body?: unknown): Promise<Reply> => {
     const headers: Record<string, string> = { authorization: `Bearer ${host.token}` };

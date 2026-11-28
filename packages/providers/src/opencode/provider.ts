@@ -20,14 +20,10 @@ export function createOpenCodeProvider(runtime: PluginRuntime): ProviderPlugin {
   let started: Started | undefined;
   let live: Live | undefined;
   let starting: Promise<Live | string> | undefined;
-  let breach: string | null = null;
-  /** Settles, once, when opencode breaks the read-only rules: every turn on the daemon stops then. */
-  const fenced = Promise.withResolvers<string>();
+  const fence = acp.createFence();
   const home = runtime.env.HOME ?? null;
   const onBreach = (found: acp.Breach, version: string | null): void => {
-    if (breach !== null) return;
-    breach = breachReason(found, version);
-    fenced.resolve(breach);
+    fence.trip(breachReason(found, version));
   };
 
   const current = (): Started => {
@@ -81,11 +77,11 @@ export function createOpenCodeProvider(runtime: PluginRuntime): ProviderPlugin {
       case 'above':
         break;
     }
-    const held = breach ?? (await checkManaged());
+    const held = fence.reason() ?? (await checkManaged());
     if (held !== null || version.kind === 'above' || platformReason(runtime.platform) !== null) return readyInfo(version, { models: live?.catalog.models() ?? null, held }, runtime.platform);
     const running = await ensureDaemon(executable.path);
     if (typeof running === 'string') return { kind: 'error', message: running };
-    return readyInfo(version, { models: running.catalog.models(), held: breach }, runtime.platform);
+    return readyInfo(version, { models: running.catalog.models(), held: fence.reason() }, runtime.platform);
   };
 
   const routeInfo = (): RouteInfo =>
@@ -130,8 +126,7 @@ export function createOpenCodeProvider(runtime: PluginRuntime): ProviderPlugin {
         checkCli,
         checkManaged,
         platformReason: platformReason(runtime.platform),
-        breach: () => breach,
-        fenced: fenced.promise,
+        fence,
         home,
       }),
   });
