@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { constants, type BigIntStats } from 'node:fs';
-import { link, lstat, mkdir, open, readdir, realpath, unlink, type FileHandle } from 'node:fs/promises';
+import { link, lstat, mkdir, open, readdir, realpath, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import type { AgentInstructionsView } from '@morrowbot/contracts';
 
@@ -60,33 +60,33 @@ const stagingName = (name: string): string => `.${name}.${randomUUID()}.tmp`;
 const STAGED_INSTRUCTIONS = new RegExp(`^\\.${INSTRUCTIONS_FILE.replaceAll('.', '\\.')}\\.[0-9a-f-]{36}\\.tmp$`);
 
 /**
- * Removes the staging links of `SOUL.md` that a create cut short (a crash between linking it into place and
- * unlinking the staging name) left in `root`, so the file has one link again. Other entries are not touched.
+ * How many staging names of `SOUL.md` in `root` are links to the opened file: a create cut short (a crash
+ * between linking it into place and unlinking the staging name) leaves one. Nothing is changed.
  */
-async function dropStagedLinks(root: string, handle: FileHandle): Promise<BigIntStats> {
-  const opened = await handle.stat({ bigint: true });
+async function stagedLinks(root: string, opened: BigIntStats): Promise<bigint> {
+  let count = 0n;
   for (const name of await readdir(root)) {
     if (!STAGED_INSTRUCTIONS.test(name)) continue;
-    const staged = path.join(root, name);
-    const stats = await lstat(staged, { bigint: true }).catch(() => undefined);
-    if (stats?.ino === opened.ino && stats.dev === opened.dev) await unlink(staged).catch(() => undefined);
+    const stats = await lstat(path.join(root, name), { bigint: true }).catch(() => undefined);
+    if (stats?.ino === opened.ino && stats.dev === opened.dev) count += 1n;
   }
-  return handle.stat({ bigint: true });
+  return count;
 }
 
 /**
- * Reads `dir/SOUL.md` only when it is a regular file of its own right in `dir`: never through a symlink
- * (`O_NOFOLLOW` fails with ELOOP) or a second hard link. The host runs outside the Fence, so it must not
- * read a file the agent pointed it at, such as the vault or the database.
+ * Reads `dir/SOUL.md` only when it is a regular file of its own right in `dir`, the same one `lstat` found
+ * (`entry`): never through a symlink (`O_NOFOLLOW` fails with ELOOP) or a hard link other than a create's
+ * leftover staging name. The host runs outside the Fence, so it must not read a file the agent pointed it
+ * at, such as the vault or the database.
  */
-async function readTarget(dir: string): Promise<Target> {
+async function readTarget(dir: string, entry: BigIntStats): Promise<Target> {
   const root = await realpath(dir);
   const handle = await open(path.join(root, INSTRUCTIONS_FILE), constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
-    const first = await handle.stat({ bigint: true });
-    if (!first.isFile()) throw refusal('not-a-file');
-    const stats = first.nlink > 1n ? await dropStagedLinks(root, handle) : first;
-    if (stats.nlink > 1n) throw refusal('hard-link');
+    const stats = await handle.stat({ bigint: true });
+    if (stats.ino !== entry.ino || stats.dev !== entry.dev) throw refusal('changed');
+    if (!stats.isFile()) throw refusal('not-a-file');
+    if (stats.nlink > 1n && stats.nlink !== 1n + (await stagedLinks(root, stats))) throw refusal('hard-link');
     const identity = identityOf(stats);
     if (stats.size > BigInt(MAX_BYTES)) return { kind: 'too-large', identity };
     const buffer = Buffer.alloc(Number(stats.size) + 1);
@@ -114,14 +114,15 @@ export async function readInstructionsView(dir: string): Promise<AgentInstructio
     if (code === 'ENOENT') return MISSING;
     return { content: null, revision: revisionOf(null, null, null, code), canReplace: false, readError: readError(code) };
   }
-  return readEntry(dir, identityOf(entry), entry.isSymbolicLink());
+  return readEntry(dir, entry);
 }
 
 /** Reads the `SOUL.md` entry `lstat` found; a symlink is refused before opening, also where `O_NOFOLLOW` does nothing (Windows). */
-async function readEntry(dir: string, entry: string, symlink: boolean): Promise<AgentInstructionsView> {
+async function readEntry(dir: string, stats: BigIntStats): Promise<AgentInstructionsView> {
+  const entry = identityOf(stats);
   try {
-    if (symlink) throw refusal('ELOOP');
-    const target = await readTarget(dir);
+    if (stats.isSymbolicLink()) throw refusal('ELOOP');
+    const target = await readTarget(dir, stats);
     const tooLarge = { content: null, revision: revisionOf(entry, target.identity, null, 'too-large'), canReplace: false, readError: readError('too-large') };
     if (target.kind === 'too-large') return tooLarge;
     const content = target.bytes.toString('utf8');

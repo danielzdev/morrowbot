@@ -244,7 +244,7 @@ it('never reads SOUL.md through a symlink or a second hard link, even to a file 
   `);
 });
 
-it('reads a SOUL.md that a create cut short left with its staging link, and removes only that link', async () => {
+it('reads a SOUL.md that a create cut short left with its staging link, and changes nothing in the folder', async () => {
   const { agent, file } = await sharedAgent('cut-short');
   const dir = path.dirname(file);
   await writeFile(file, 'kept');
@@ -255,6 +255,7 @@ it('reads a SOUL.md that a create cut short left with its staging link, and remo
     {
       "content": "kept",
       "left": [
+        ".SOUL.md.00000000-0000-4000-8000-000000000000.tmp",
         ".SOUL.md.other.tmp",
         "SOUL.md",
       ],
