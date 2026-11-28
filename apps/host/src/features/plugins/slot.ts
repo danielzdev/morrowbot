@@ -1,4 +1,4 @@
-import type { PluginStatus, ProviderInfo, TurnChunk, TurnEnd } from '@morrowbot/contracts';
+import type { PluginStatus, PluginToolDefinition, ProviderInfo, TurnChunk, TurnEnd } from '@morrowbot/contracts';
 import type { PluginSource } from './discovery.ts';
 import type { PluginProcess } from './plugin-process.ts';
 
@@ -43,6 +43,8 @@ export interface Slot {
   quarantine: string | undefined;
   /** The current worker's last provider-info, or a fetch in flight. */
   info: InfoEntry | undefined;
+  /** The current tool plugin worker's declared tools, fetched right after `init`. */
+  tools: readonly PluginToolDefinition[] | undefined;
   /**
    * Increases whenever the plugin's daemon is retired or exits, and when Recheck starts. Work
    * admitted under an older revision is refused, and answers asked under one are discarded.
@@ -74,6 +76,7 @@ export function newSlot(plugin: PluginSource, status: PluginStatus): Slot {
     health: undefined,
     quarantine: undefined,
     info: undefined,
+    tools: undefined,
     daemonRevision: 0,
     daemonLost: false,
     daemonGone: undefined,

@@ -1,15 +1,24 @@
+import type { ToolImageMimeType } from '@morrowbot/contracts';
 import { z } from 'zod';
 import type { ToolGrant } from './grants.ts';
 
-/** What a tool call gave back: a JSON value for the model, or why nothing was done. */
-export type ToolResult = { readonly kind: 'done'; readonly value: object } | { readonly kind: 'refused'; readonly reason: string };
+/** One MCP tool-result content block (text or base64 image). */
+export type McpContentBlock =
+  | { readonly type: 'text'; readonly text: string }
+  | { readonly type: 'image'; readonly data: string; readonly mimeType: ToolImageMimeType };
+
+/** What a tool call gave back: structured JSON, MCP content blocks, or why nothing was done. */
+export type ToolResult =
+  | { readonly kind: 'done'; readonly value: object }
+  | { readonly kind: 'content'; readonly blocks: readonly McpContentBlock[] }
+  | { readonly kind: 'refused'; readonly reason: string };
 
 /** One MorrowBot tool as MCP lists it. `call` parses the arguments, then acts only as `grant`'s agent. */
 export interface Tool {
   readonly name: string;
   readonly description: string;
-  readonly inputSchema: z.core.JSONSchema.BaseSchema;
-  call(grant: ToolGrant, args: unknown): ToolResult | Promise<ToolResult>;
+  readonly inputSchema: Readonly<Record<string, unknown>>;
+  call(grant: ToolGrant, args: unknown, signal: AbortSignal): ToolResult | Promise<ToolResult>;
 }
 
 export function tool<S extends z.ZodType>(definition: {
@@ -32,4 +41,5 @@ export function tool<S extends z.ZodType>(definition: {
 }
 
 export const done = (value: object): ToolResult => ({ kind: 'done', value });
+export const content = (blocks: readonly McpContentBlock[]): ToolResult => ({ kind: 'content', blocks });
 export const refused = (reason: string): ToolResult => ({ kind: 'refused', reason });

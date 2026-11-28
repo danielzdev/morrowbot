@@ -221,7 +221,7 @@ it('marks a plugin that misses a health check unhealthy without wedging its slot
 it('logs a late reply and a reply to an unknown request, and keeps serving', async () => {
   const h = await bootHost({ records: { faulty: failing('slow-first-health') }, timeouts: { healthMs: 200 } });
   const missed = await h.host.checkHealth('faulty');
-  await h.untilLog('ignored a late or unknown health-result for request 1');
+  await h.untilLog('ignored a late or unknown health-result for request 2');
   const answered = await h.host.checkHealth('faulty');
   expect({ missed, answered, logs: h.logs, events: h.events.filter((event) => event.pluginId === 'faulty') }).toMatchInlineSnapshot(`
     {
@@ -257,7 +257,7 @@ it('logs a late reply and a reply to an unknown request, and keeps serving', asy
       ],
       "logs": [
         "plugin faulty: ignored a late or unknown health-result for request 4242",
-        "plugin faulty: ignored a late or unknown health-result for request 1",
+        "plugin faulty: ignored a late or unknown health-result for request 2",
         "plugin faulty: ignored a late or unknown health-result for request 4242",
       ],
       "missed": {

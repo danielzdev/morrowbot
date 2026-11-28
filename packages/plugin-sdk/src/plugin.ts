@@ -1,6 +1,8 @@
 import type {
   PluginConfig,
   PluginHealth,
+  PluginToolDefinition,
+  PluginToolResult,
   ProviderInfo,
   RouteInfo,
   TurnChunk,
@@ -54,7 +56,23 @@ export interface TurnContext {
   readonly onSteer: (handler: (steer: Steer) => void) => void;
 }
 
-export interface ToolPlugin extends LifecycleHooks {
+/** One tool invocation routed from the host during an agent turn. */
+export interface ToolCallContext {
+  readonly turnId: string;
+  readonly name: string;
+  readonly input: unknown;
+  /** Aborted when the host cancels the call, the turn ends, or the plugin shuts down. */
+  readonly signal: AbortSignal;
+}
+
+export interface ToolHooks extends LifecycleHooks {
+  /** Lists the tools this plugin exposes to agents. Called after `init`. */
+  listTools?(): readonly PluginToolDefinition[] | Promise<readonly PluginToolDefinition[]>;
+  /** Runs one tool call. Returning `{ kind: 'error', message }` reports a tool error to the model. */
+  callTool?(context: ToolCallContext): PluginToolResult | Promise<PluginToolResult>;
+}
+
+export interface ToolPlugin extends ToolHooks {
   readonly kind: 'tool';
 }
 
@@ -78,6 +96,11 @@ export interface ProviderPlugin extends ProviderHooks {
 
 /** What a plugin implements. `kind` must match the `kind` in its `manifest.json`. */
 export type PluginDefinition = ToolPlugin | ProviderPlugin;
+
+/** Declares a tool plugin; return it from the `PluginFactory` given to `runPlugin`. */
+export function defineToolPlugin(hooks: ToolHooks): ToolPlugin {
+  return { kind: 'tool', ...hooks };
+}
 
 /** Declares a provider plugin; return it from the `PluginFactory` given to `runPlugin`. */
 export function defineProvider(hooks: ProviderHooks): ProviderPlugin {

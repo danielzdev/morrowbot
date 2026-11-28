@@ -46,6 +46,7 @@ export async function stopTurn(core: ChatCore, turn: Turn): Promise<StoredReply>
       break;
     case 'running':
       turn.stopRequested = true;
+      core.options.tools.close(turn.generationId);
       core.options.plugins.cancelTurn(turn.pluginId, turn.generationId);
       break;
     case 'settled':
