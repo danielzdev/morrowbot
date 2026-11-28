@@ -23,9 +23,9 @@ export function parentTurn(core: ChatCore, generationId: string): ParentTurn | u
   return { threadId: turn.threadId, agentId: turn.agentId, binding: turn.binding, isSubagent: turn.parent !== null };
 }
 
-/** The sub-agent turns `generationId` started that have not settled. */
+/** The sub-agent turns `generationId` started that are still running or cleaning up. */
 function childrenOf(core: ChatCore, generationId: string): Turn[] {
-  return [...core.active.values()].filter((turn) => turn.parent?.generationId === generationId && turn.state !== 'settled');
+  return [...core.active.values()].filter((turn) => turn.parent?.generationId === generationId);
 }
 
 /**

@@ -174,6 +174,7 @@ export function settle(core: ChatCore, turn: Turn, result: Settlement): Assistan
   if (turn.state === 'settled') return undefined;
   turn.state = 'settled';
   core.options.tools.close(turn.generationId);
+  core.endChildren(turn);
   clearTimeout(turn.flushTimer);
   const { newId, now } = core.options;
   const createdAt = now();
@@ -205,7 +206,6 @@ export function settle(core: ChatCore, turn: Turn, result: Settlement): Assistan
     core.events.publish({ kind: 'generation.finished', ...ref, message });
   }
   core.subagentChanged(turn);
-  core.endChildren(turn);
   releaseWhenGone(core, turn, { keepThreadBusy: false, outcome });
   return message ?? undefined;
 }

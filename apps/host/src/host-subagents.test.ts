@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Agent, StartedSend, StopGenerationResponse, ThreadList, ThreadState, type SubagentRun, type Thread } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { openStorage } from './features/storage/index.ts';
 import { ECHO, hidePid, startChatFixture, type ChatFixture } from './testing/chat-fixture.ts';
 import { PLUGIN_FIXTURES, sequence } from './testing/test-host.ts';
 
@@ -257,19 +258,28 @@ it('stops every running sub-agent, and waits for their processes, when the user 
   `);
 });
 
-it('keeps sub-agents across a restart, and deletes their chats with the parent chat', async () => {
-  const { thread } = await lead();
+it('keeps sub-agents across a restart, drops one a crash caught before it started, and deletes their chats with the parent chat', async () => {
+  const { agent, thread } = await lead();
   await chat.send(thread, [call('spawn_subagent', { role: 'Reviewer', prompt: 'describe' }), call('wait_subagents', {})].join('\n'));
   const before = await runsOf(thread.id);
   await chat.close();
   expect(chat.host.errors).toEqual([]);
+  const at = '2026-01-01T00:00:00.000Z';
+  const storage = openStorage(path.join(dataDir, 'morrowbot.sqlite'), () => at);
+  const [started] = storage.subagents.listByParent(thread.id);
+  if (started === undefined) throw new Error('no sub-agent was saved');
+  const unstarted = { id: 'unstarted', agentId: agent.id, title: 'Sub-agent', createdAt: at, updatedAt: at };
+  storage.subagents.insert(unstarted, { ...started, threadId: unstarted.id, createdAt: at });
+  storage.close();
   chat = await startChatFixture({ dataDir, pluginsDir: path.join(dataDir, 'plugins'), sequence: restarted });
   const after = await state(thread.id);
   const childId = after.subagents[0]?.id ?? '';
+  const unstartedAfter = (await chat.host.call('GET', `/api/threads/${unstarted.id}/state`)).status;
   const deleted = await chat.host.call('DELETE', `/api/threads/${thread.id}`);
 
   expect({
     sameAfterRestart: after.subagents.map(run).join() === before.join(),
+    unstartedAfter,
     deleted: deleted.status,
     childAfterDelete: (await chat.host.call('GET', `/api/threads/${childId}/state`)).status,
   }).toMatchInlineSnapshot(`
@@ -277,6 +287,7 @@ it('keeps sub-agents across a restart, and deletes their chats with the parent c
       "childAfterDelete": 404,
       "deleted": 204,
       "sameAfterRestart": true,
+      "unstartedAfter": 404,
     }
   `);
 });

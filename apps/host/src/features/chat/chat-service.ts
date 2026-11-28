@@ -298,10 +298,12 @@ function subagentRefusal(result: AdmitResult): string {
 
 /**
  * Turns a crash left unsettled end as interrupted, keeping the text saved so far. A background turn (its input
- * is not a chat message) ends quietly: the chat never showed it.
+ * is not a chat message) ends quietly: the chat never showed it. A sub-agent the crash caught before its turn
+ * was admitted never started, so it is deleted.
  */
 function recover(options: ChatServiceOptions): void {
   const { store } = options;
+  store.subagents.deleteUnstarted();
   for (const generation of store.generations.unsettled()) {
     if (store.messages.get(generation.inputMessageId) === undefined) {
       store.generations.settle(generation.id, null);

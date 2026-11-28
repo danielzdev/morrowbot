@@ -136,6 +136,8 @@ export interface ChatStore {
   readonly subagents: {
     get(threadId: string): SubagentRecord | undefined;
     listByParent(parentThreadId: string): SubagentRecord[];
+    /** Deletes the sub-agents whose turn was never admitted; returns how many. */
+    deleteUnstarted(): number;
   };
   /** Threads a recorded turn process group still holds. */
   heldThreads(): Set<string>;
