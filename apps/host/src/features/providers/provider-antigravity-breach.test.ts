@@ -102,8 +102,9 @@ it('refuses a turn, before its prompt, whose session leaves Default mode while M
 });
 
 it("ends a session's turn before its prompt when agy reports a finished edit for it before MorrowBot holds the session", async () => {
-  await agy.setState({ sneakOnNew: true });
   const thread = await agy.thread(await agy.agent());
+  await agy.host.call('GET', '/api/plugins/provider-antigravity/info');
+  await agy.setState({ sneakOnNew: true });
   await agy.send(thread, 'hello');
   expect({ history: await agy.history(thread), prompts: await methods('session/prompt'), withheld: await withheld() }).toMatchInlineSnapshot(`
     {
@@ -171,7 +172,8 @@ it("refuses a turn in a workspace with agy's own customization folder, and in on
   await agy.send(below, 'hello');
   const reason = async (of: { readonly id: string }): Promise<string | undefined> =>
     JSON.stringify((await agy.host.call('GET', `/api/threads/${of.id}/messages`)).body).match(/Antigravity runs the hooks in [^ ]*/)?.[0];
-  expect({ sessions: await methods('session/new'), histories: [await agy.history(thread), await agy.history(below)], reasons: [await reason(thread), await reason(below)] }).toMatchInlineSnapshot(`
+  const turnSessions = (await agy.log()).filter((entry) => entry.method === 'session/new' && JSON.stringify(entry.params).includes('/workspaces/')).length;
+  expect({ sessions: turnSessions, histories: [await agy.history(thread), await agy.history(below)], reasons: [await reason(thread), await reason(below)] }).toMatchInlineSnapshot(`
     {
       "histories": [
         [

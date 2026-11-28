@@ -2,6 +2,7 @@ import { acp, defineProvider, type PluginRuntime, type ProviderError, type Provi
 import { startDaemon } from './daemon.ts';
 import { platformReason, readyInfo } from './info.ts';
 import { createModelCatalog } from './models.ts';
+import { probeSession } from './probe.ts';
 import { parseSettings, type Settings } from './settings.ts';
 import { runTurn, type Live } from './turn.ts';
 import { readVersion, SUPPORTED_TEXT } from './version.ts';
@@ -20,6 +21,7 @@ export function createAntigravityProvider(runtime: PluginRuntime): ProviderPlugi
   let started: Started | undefined;
   let live: Live | undefined;
   let starting: Promise<Live | string> | undefined;
+  let probing: Promise<void> | undefined;
   const fence = acp.createFence();
   const onBreach = (reason: string): void => {
     fence.trip(reason);
@@ -54,6 +56,20 @@ export function createAntigravityProvider(runtime: PluginRuntime): ProviderPlugi
     return starting;
   };
 
+  /**
+   * Opens one probe session, shared by concurrent callers, when the models are not known yet or the
+   * user was signed out (so signing in is seen). Skipped in a data folder agy would load customizations from.
+   */
+  const discover = async (running: Live, probeCwd: string): Promise<void> => {
+    if (running.catalog.models() !== null && !running.signedOut) return;
+    probing ??= checkWorkspace(runtime.runCommand, probeCwd, AbortSignal.timeout(PROBE_CHECK_MS))
+      .then((check) => (check.kind === 'clear' ? probeSession(running, probeCwd) : undefined))
+      .finally(() => {
+        probing = undefined;
+      });
+    await probing;
+  };
+
   const providerInfo = async (): Promise<ProviderInfo> => {
     const { settings, probeCwd, geminiDir } = current();
     const executable = await runtime.statExecutable(settings.cliPath);
@@ -74,6 +90,7 @@ export function createAntigravityProvider(runtime: PluginRuntime): ProviderPlugi
     if (breach !== null) return readyInfo(version, { tier: live?.tier ?? null, models: live?.catalog.models() ?? null, breach }, runtime.platform);
     const running = await ensureDaemon();
     if (typeof running === 'string') return { kind: 'error', message: running };
+    await discover(running, probeCwd);
     if (running.signedOut) return { kind: 'signed-out', signIn: { kind: 'run-in-terminal', argv: [executable.path, 'acp', '--gemini-dir', geminiDir, '--login'] } };
     return readyInfo(version, { tier: running.tier, models: running.catalog.models(), breach: fence.reason() }, runtime.platform);
   };
@@ -125,6 +142,8 @@ export function createAntigravityProvider(runtime: PluginRuntime): ProviderPlugi
       }),
   });
 }
+
+const PROBE_CHECK_MS = 5_000;
 
 function missingRuntime(): ProviderInfo {
   return { kind: 'missing-runtime', install: 'Install Antigravity and its agy CLI, or set "Antigravity CLI path".' };

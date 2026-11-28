@@ -93,6 +93,7 @@ function makeClient(options: {
         if (attached.get(sessionId) === handlers) attached.delete(sessionId);
       };
     },
+    trust: () => undefined,
     exited: new Promise(() => undefined),
     close: () => Promise.resolve(),
     breach: () => undefined,

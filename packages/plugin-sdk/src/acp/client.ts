@@ -42,6 +42,11 @@ export interface AcpClient {
   notify(method: string, params: unknown): void;
   /** Routes one session's updates and requests here until the returned function is called. */
   attach(sessionId: string, handlers: SessionHandlers): () => void;
+  /**
+   * Marks a session the provider runs with full access, for the agent's life: the changes it makes
+   * are allowed, so the tripwire stops watching it. Every other session stays fenced.
+   */
+  trust(sessionId: string): void;
   /** Hears the agent exit. */
   readonly exited: Promise<void>;
   close(): Promise<void>;
@@ -72,12 +77,13 @@ export type AcpStart = { readonly kind: 'started'; readonly client: AcpClient } 
  *   terminal are refused, and so is any other request but `session/request_permission`, which goes
  *   to the session's handlers (refused when no session holds it);
  * - every session's updates go through a tripwire, held by a session or not, except a loaded
- *   session's replayed history. A change the agent reports finished without asking is a breach:
+ *   session's replayed history and a session marked `trust`ed (full access). A change the agent reports finished without asking is a breach:
  *   `onBreach` hears it once and the agent ends, failing every request still waiting on it.
  */
 export async function startAcpClient(jsonRpcProcess: StartJsonRpcProcess, command: string, options: AcpClientOptions): Promise<AcpStart> {
   const { name } = options;
   const sessions = new Map<string, SessionHandlers>();
+  const trusted = new Set<string>();
   const ending = new AbortController();
   let alive = true;
   let version: string | null = null;
@@ -108,7 +114,7 @@ export async function startAcpClient(jsonRpcProcess: StartJsonRpcProcess, comman
       if (!notification.success) return;
       const { sessionId, update } = notification.data;
       const handlers = sessions.get(sessionId);
-      if (handlers?.replaying() !== true) tripwire.hear(sessionId, update);
+      if (handlers?.replaying() !== true && !trusted.has(sessionId)) tripwire.hear(sessionId, update);
       handlers?.onUpdate(update);
     },
     onRequest: (method, params) => {
@@ -174,6 +180,9 @@ export async function startAcpClient(jsonRpcProcess: StartJsonRpcProcess, comman
         return () => {
           if (sessions.get(sessionId) === handlers) sessions.delete(sessionId);
         };
+      },
+      trust: (sessionId) => {
+        trusted.add(sessionId);
       },
       exited,
       close,

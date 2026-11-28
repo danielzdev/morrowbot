@@ -7,7 +7,7 @@ signed in with your own Google plan. It runs one shared daemon,
 agy acp --gemini-dir <plugin data>/gemini
 ```
 
-speaking the Agent Client Protocol (ACP v1) through the SDK's read-only ACP client
+speaking the Agent Client Protocol (ACP v1) through the SDK's ACP client
 (`acp.startAcpClient`, shared with OpenCode). Provider-info
 starts it and registers it with the host before any turn uses it. `--gemini-dir` gives MorrowBot its own
 Antigravity settings, permission grants, hooks, plugins and MCP servers, apart from your
@@ -16,6 +16,12 @@ Antigravity settings, permission grants, hooks, plugins and MCP servers, apart f
 **No MorrowBot tools yet.** agy 1.5.18 reports no HTTP MCP support (`mcpCapabilities`), and a
 stdio bridge would run a process agy starts outside MorrowBot's process guard, so its sessions
 open with no MCP servers and its agents cannot message other agents or keep memories from a turn.
+
+**Models.** agy lists its models, each model's thinking levels (they differ by model) and the plan
+only inside a session. While none are known, or the user was signed out, provider-info opens a probe
+session in the provider's data folder that never prompts: `session/new`, each model set in turn,
+`session/close` (about 1 s on agy 1.5.18). A `session/new` refused for sign-in (`-32000`) answers
+`signed-out` at once. If the probe cannot run, provider-info answers `ready-models-later`.
 
 **Turns.** Each turn opens a new ACP session (`session/new`) in the agent's workspace. It puts
 the session in agy's Default mode, which asks before every edit and command, and sets the picked
@@ -28,8 +34,18 @@ account key is `''`. Every turn is therefore stateless: the host seeds it with t
 `capabilities.sessions` is false. `session/load` is still supported, with agy's replayed history
 filtered out, for the day agy names an account.
 
-**Access.** One profile: read-only, interactive, with your own skills (agy also reads
-`~/.claude/skills`) and the workspace's instructions (`personal`):
+**Access.** Two profiles, both with your own skills (agy also reads `~/.claude/skills`) and the
+workspace's instructions (`personal`).
+
+**Full** (interactive and background; only the owner may choose it): the session stays in Default
+mode and MorrowBot allows everything agy asks for once, without a card (never `allow_always`, so no
+grant is saved for read-only sessions). The client stops fencing that session (`trust`), and the
+workspace's customization folders are not checked. Stop sends `session/cancel`, which ends the
+command agy is running (checked on agy 1.5.18; `provider-antigravity-full.test.ts`). agy runs each
+command in its own process group, so something a command leaves running in the background (`cmd &`)
+outlives Stop and the daemon; MorrowBot does not chase it (see `docs/decisions.md`).
+
+**Read-only** (interactive):
 
 - every write and every command agy asks permission for is denied without a card;
 - a read, search or fetch it asks for (agy asks when one reaches outside the workspace) goes to an
@@ -42,8 +58,9 @@ filtered out, for the day agy names an account.
   with its own `--gemini-dir` (checked on agy 1.5.18). The check runs before the session opens and
   again just before the prompt; a folder another program adds during the turn is not seen;
 - if agy reports an edit or command that finished without asking, in any session on the daemon
-  (even one MorrowBot has not finished setting up), or a session leaves Default mode, every turn on
-  the daemon fails at once (`access-not-supported`), the daemon ends, and the profile is withheld
+  but a full one (even one MorrowBot has not finished setting up, and the provider-info probe), or
+  a read-only session leaves Default mode, every turn on the daemon fails at once
+  (`access-not-supported`), the daemon ends, and both profiles are withheld
   until the provider restarts, with no new daemon started. Open approval cards are withdrawn and a
   late answer allows nothing. A change agy reports only as `failed`, or not at all, is not seen.
 
@@ -52,7 +69,7 @@ filtered out, for the day agy names an account.
 - workspace-write: MorrowBot cannot yet confine each write to the workspace, and agy runs commands
   outside any sandbox;
 - `isolated` instructions: agy always loads the workspace's `AGENTS.md`;
-- background turns: a read outside the workspace needs a card;
+- background read-only turns: a read outside the workspace needs a card;
 - other systems than macOS, and agy outside `>=1.5.18 <1.6.0`.
 
 **Usage.** None. Plan quota is `unsupported`: the provider never calls Google's quota API
