@@ -28,7 +28,7 @@ export type FileRoute = { readonly kind: 'image' } | { readonly kind: 'text' } |
 
 export function routeOf(file: { readonly name: string; readonly mimeType: string; readonly size: number | null }): FileRoute {
   const type = file.mimeType.toLowerCase();
-  if (type.startsWith('image/') || IMAGE_EXTENSIONS.test(file.name)) return { kind: 'image' };
+  if (type !== 'image/svg+xml' && (type.startsWith('image/') || IMAGE_EXTENSIONS.test(file.name))) return { kind: 'image' };
   if (type.startsWith('text/') || TEXT_TYPES.has(type) || TEXT_EXTENSIONS.test(file.name)) {
     return file.size !== null && file.size > MAX_TEXT_FILE_BYTES ? { kind: 'refused', reason: TEXT_TOO_LARGE } : { kind: 'text' };
   }

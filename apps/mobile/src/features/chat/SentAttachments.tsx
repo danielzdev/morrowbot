@@ -3,7 +3,7 @@ import { SymbolView } from 'expo-symbols';
 import { StyleSheet, Text, View } from 'react-native';
 import { radii, spacing, typography } from '../../lib/theme.ts';
 import { useTheme } from '../../lib/useTheme.ts';
-import { sizeLabel } from './AttachmentStrip.tsx';
+import { sizeLabel } from './size-label.ts';
 
 /** The files a sent message carried, as chips above its bubble. */
 export function SentAttachments(props: { readonly attachments: readonly Attachment[] }) {

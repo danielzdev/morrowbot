@@ -126,7 +126,7 @@ function ChatThread(props: {
               }}
             />
           }
-          canAttach={view.kind === 'loaded' && roomLeft(screen.attachments) > 0}
+          canAttach={view.kind === 'loaded' && !stale && roomLeft(screen.attachments) > 0}
           onAttach={() => {
             openAttachMenu(session.attachments, roomLeft(screen.attachments));
           }}

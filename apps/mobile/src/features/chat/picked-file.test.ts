@@ -10,6 +10,7 @@ it('reads photos and text files, and refuses other files and text files over 256
     { name: 'data.json', mimeType: 'application/json', size: 40 },
     { name: 'huge.log', mimeType: 'text/plain', size: MAX_TEXT_FILE_BYTES + 1 },
     { name: 'report.pdf', mimeType: 'application/pdf', size: 5000 },
+    { name: 'logo.svg', mimeType: 'image/svg+xml', size: 900 },
   ];
   expect(Object.fromEntries(files.map((file) => [file.name, routeOf(file)]))).toEqual({
     'IMG_0001.HEIC': { kind: 'image' },
@@ -18,6 +19,7 @@ it('reads photos and text files, and refuses other files and text files over 256
     'data.json': { kind: 'text' },
     'huge.log': { kind: 'refused', reason: 'Text files can be up to 256 KB.' },
     'report.pdf': { kind: 'refused', reason: 'Only photos and text files can be attached.' },
+    'logo.svg': { kind: 'refused', reason: 'Only photos and text files can be attached.' },
   });
 });
 

@@ -1,63 +1,68 @@
 import { File } from 'expo-file-system';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { launchImageLibraryAsync, UIImagePickerPreferredAssetRepresentationMode } from 'expo-image-picker';
-import type { PickedFile } from './composer-attachments.ts';
+import type { Pick, PickedFile } from './composer-attachments.ts';
 import { cleanName, IMAGE_LONG_EDGE, IMAGE_QUALITY, jpegName, jpegUpload, routeOf, textUpload } from './picked-file.ts';
 
 const UNREADABLE = 'The file could not be read.';
 
-/** Re-encodes any photo (HEIC included) as a JPEG no longer than `IMAGE_LONG_EDGE`, for upload. */
-async function photo(uri: string, rawName: string | null | undefined): Promise<PickedFile> {
-  const name = jpegName(rawName);
+/** Re-encodes any photo (HEIC included) as a JPEG no longer than `IMAGE_LONG_EDGE`, downsampled while decoding. */
+async function photo(uri: string, name: string): Promise<PickedFile> {
   try {
-    const full = await ImageManipulator.manipulate(uri).renderAsync();
-    const longEdge = Math.max(full.width, full.height);
-    const scaled =
-      longEdge <= IMAGE_LONG_EDGE
-        ? full
-        : await ImageManipulator.manipulate(full)
-            .resize(full.width >= full.height ? { width: IMAGE_LONG_EDGE } : { height: IMAGE_LONG_EDGE })
-            .renderAsync();
-    const saved = await scaled.saveAsync({ base64: true, compress: IMAGE_QUALITY, format: SaveFormat.JPEG });
-    return saved.base64 === undefined ? { kind: 'refused', name, reason: UNREADABLE } : jpegUpload(name, saved.base64, saved.uri);
+    const image = await ImageManipulator.manipulate(uri, { maxWidth: IMAGE_LONG_EDGE, maxHeight: IMAGE_LONG_EDGE }).renderAsync();
+    try {
+      const saved = await image.saveAsync({ base64: true, compress: IMAGE_QUALITY, format: SaveFormat.JPEG });
+      return saved.base64 === undefined ? { kind: 'refused', name, reason: UNREADABLE } : jpegUpload(name, saved.base64, saved.uri);
+    } finally {
+      image.release();
+    }
   } catch {
     return { kind: 'refused', name, reason: UNREADABLE };
   }
 }
 
-async function document(file: File): Promise<PickedFile> {
+/** A file from Files. iOS gives no type for some extensions, so a missing one reads as empty. */
+function document(file: File): Pick {
   const name = cleanName(file.name, 'file');
-  const route = routeOf({ name, mimeType: file.type, size: file.size });
+  const route = routeOf({ name, mimeType: typeof file.type === 'string' ? file.type : '', size: file.size });
   switch (route.kind) {
     case 'refused':
-      return { kind: 'refused', name, reason: route.reason };
+      return { name, preview: null, read: () => Promise.resolve({ kind: 'refused', name, reason: route.reason }) };
     case 'image':
-      return photo(file.uri, name);
+      return { name: jpegName(name), preview: file.uri, read: () => photo(file.uri, jpegName(name)) };
     case 'text':
-      try {
-        return textUpload(name, await file.text());
-      } catch {
-        return { kind: 'refused', name, reason: UNREADABLE };
-      }
+      return {
+        name,
+        preview: null,
+        read: async () => {
+          try {
+            return textUpload(name, await file.text());
+          } catch {
+            return { kind: 'refused', name, reason: UNREADABLE };
+          }
+        },
+      };
   }
 }
 
 /** Opens the photo library for up to `limit` photos. Cancelling picks nothing. */
-export async function pickPhotos(limit: number): Promise<readonly PickedFile[]> {
+export async function pickPhotos(limit: number): Promise<readonly Pick[]> {
   const result = await launchImageLibraryAsync({
     mediaTypes: ['images'],
     allowsMultipleSelection: true,
     selectionLimit: limit,
-    quality: 1,
-    preferredAssetRepresentationMode: UIImagePickerPreferredAssetRepresentationMode.Compatible,
+    preferredAssetRepresentationMode: UIImagePickerPreferredAssetRepresentationMode.Current,
   });
   if (result.canceled) return [];
-  return Promise.all(result.assets.map((asset) => photo(asset.uri, asset.fileName)));
+  return result.assets.map((asset) => {
+    const name = jpegName(asset.fileName);
+    return { name, preview: asset.uri, read: () => photo(asset.uri, name) };
+  });
 }
 
-/** Opens Files for text files and images. Cancelling picks nothing. */
-export async function pickFiles(): Promise<readonly PickedFile[]> {
-  const result = await File.pickFileAsync({ mimeTypes: ['text/*', 'image/*', 'application/json'], multipleFiles: true });
+/** Opens Files on every file type; ones the host can't take come back as refused tiles that say why. Cancelling picks nothing. */
+export async function pickFiles(): Promise<readonly Pick[]> {
+  const result = await File.pickFileAsync({ mimeTypes: ['*/*'], multipleFiles: true });
   if (result.canceled) return [];
-  return Promise.all(result.result.map(document));
+  return result.result.map(document);
 }

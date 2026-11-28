@@ -2,8 +2,10 @@ import type { Attachment, UploadAttachmentRequest } from '@morrowbot/contracts';
 import { expect, it } from 'vitest';
 import type { ChatResult } from '../../lib/chat-host.ts';
 import { composerButton, openChatSession } from './chat-session.ts';
-import { attachmentTray, roomLeft, sendableIds, type ComposerAttachment, type PickedFile } from './composer-attachments.ts';
+import { attachmentTray, roomLeft, sendableIds, type ComposerAttachment, type Pick, type PickedFile } from './composer-attachments.ts';
 import { createSampleChatHost } from './sample-host.ts';
+
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 /** An upload port whose replies the test gives, in order, once it says so. */
 function uploads() {
@@ -14,63 +16,84 @@ function uploads() {
       new Promise<ChatResult<Attachment>>((resolve) => {
         waiting.push({ request, reply: resolve });
       }),
-    names: () => waiting.map(({ request }) => request.name),
     saved: async () => {
       const next = waiting.shift();
-      const id = `f${String(++ids)}`;
-      next?.reply({ kind: 'ok', value: { kind: 'text', id, name: next.request.name, size: 3 } });
-      await Promise.resolve();
+      next?.reply({ kind: 'ok', value: { kind: 'text', id: `f${String(++ids)}`, name: next.request.name, size: 3 } });
+      await settle();
     },
     unreachable: async () => {
-      waiting.shift()?.reply({ kind: 'failed', status: 0, error: { kind: 'internal', message: 'Could not reach the host. Network request failed' } });
-      await Promise.resolve();
+      waiting.shift()?.reply({ kind: 'failed', status: 0, error: { kind: 'internal', message: 'Could not reach the host.' } });
+      await settle();
     },
   };
 }
 
-const text = (name: string): PickedFile => ({ kind: 'upload', request: { kind: 'text', name, text: 'abc' }, preview: null });
+/** Picks whose reads record how many run at once. */
+function picker() {
+  let reading = 0;
+  let most = 0;
+  const pick = (name: string, file: PickedFile = { kind: 'upload', request: { kind: 'text', name, text: 'abc' }, preview: null }): Pick => ({
+    name,
+    preview: null,
+    read: async () => {
+      reading += 1;
+      most = Math.max(most, reading);
+      await settle();
+      reading -= 1;
+      return file;
+    },
+  });
+  return { pick, most: () => most };
+}
 
 function trayWith(port: ReturnType<typeof uploads>) {
   let items: readonly ComposerAttachment[] = [];
   const tray = attachmentTray(port.upload, { get: () => items, set: (next) => (items = next) });
-  const tiles = () => items.map((item) => (item.kind === 'ready' ? `${item.attachment.name}: ready ${item.attachment.id}` : `${item.kind === 'failed' ? item.request.name : item.name}: ${item.kind}`));
+  const tiles = () => items.map((item) => `${item.kind === 'ready' ? item.attachment.name : item.kind === 'failed' ? item.request.name : item.name}: ${item.kind === 'ready' ? `ready ${item.attachment.id}` : item.kind}`);
   return { tray, items: () => items, tiles };
 }
 
-it('uploads each picked file, shows refused ones, and turns files past eight into refused tiles', async () => {
+it('shows a tile per pick at once, reads one file at a time, and refuses picks past eight before reading them', async () => {
   const port = uploads();
   const { tray, items, tiles } = trayWith(port);
-  tray.add([text('a.md'), { kind: 'refused', name: 'big.txt', reason: 'Text files can be up to 256 KB.' }]);
-  tray.add(['b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'].map((name) => text(`${name}.md`)));
-  const whileUploading = { tiles: tiles(), sendable: sendableIds(items()), room: roomLeft(items()), uploading: port.names().length };
-  for (let done = 0; done < 8; done += 1) await port.saved();
-  expect({ whileUploading, after: tiles(), sendable: sendableIds(items()) }).toEqual({
-    whileUploading: {
-      tiles: ['a.md: uploading', 'big.txt: refused', 'b.md: uploading', 'c.md: uploading', 'd.md: uploading', 'e.md: uploading', 'f.md: uploading', 'g.md: uploading', 'h.md: uploading', 'i.md: refused'],
+  const { pick, most } = picker();
+  tray.add([pick('a.md'), pick('big.txt', { kind: 'refused', name: 'big.txt', reason: 'Text files can be up to 256 KB.' })]);
+  tray.add(['b', 'c', 'd', 'e', 'f', 'g', 'h'].map((name) => pick(`${name}.md`)));
+  const picked = { tiles: tiles(), sendable: sendableIds(items()), room: roomLeft(items()) };
+  for (let step = 0; step < 20; step += 1) await settle();
+  for (let done = 0; done < 7; done += 1) await port.saved();
+  expect({ picked, after: tiles(), readsAtOnce: most(), sendable: sendableIds(items()) }).toEqual({
+    picked: {
+      tiles: ['a.md: preparing', 'big.txt: preparing', 'b.md: preparing', 'c.md: preparing', 'd.md: preparing', 'e.md: preparing', 'f.md: preparing', 'g.md: preparing', 'h.md: refused'],
       sendable: null,
       room: 0,
-      uploading: 8,
     },
-    after: ['a.md: ready f1', 'big.txt: refused', 'b.md: ready f2', 'c.md: ready f3', 'd.md: ready f4', 'e.md: ready f5', 'f.md: ready f6', 'g.md: ready f7', 'h.md: ready f8', 'i.md: refused'],
-    sendable: ['f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8'],
+    after: ['a.md: ready f1', 'big.txt: refused', 'b.md: ready f2', 'c.md: ready f3', 'd.md: ready f4', 'e.md: ready f5', 'f.md: ready f6', 'g.md: ready f7', 'h.md: refused'],
+    readsAtOnce: 1,
+    sendable: null,
   });
 });
 
-it('keeps a failed upload to retry, and forgets one removed while it was still uploading', async () => {
+it('keeps a failed upload to retry, and forgets a file removed while it was still being read or uploaded', async () => {
   const port = uploads();
   const { tray, items, tiles } = trayWith(port);
-  tray.add([text('notes.md'), text('draft.md')]);
+  const { pick } = picker();
+  tray.add([pick('notes.md'), pick('draft.md'), pick('photo.jpg')]);
+  tray.remove(items()[2]?.key ?? 0);
+  await settle();
+  await settle();
   await port.unreachable();
-  const failed = tiles();
-  const draftKey = items()[1]?.key ?? 0;
-  tray.remove(draftKey);
+  await settle();
+  await settle();
+  const failed = { tiles: tiles(), sendable: sendableIds(items()) };
+  tray.remove(items()[1]?.key ?? 0);
   await port.saved();
   const afterRemoved = tiles();
   tray.retry(items()[0]?.key ?? 0);
   const retrying = tiles();
   await port.saved();
   expect({ failed, afterRemoved, retrying, after: tiles(), sendable: sendableIds(items()) }).toEqual({
-    failed: ['notes.md: failed', 'draft.md: uploading'],
+    failed: { tiles: ['notes.md: failed', 'draft.md: uploading'], sendable: null },
     afterRemoved: ['notes.md: failed'],
     retrying: ['notes.md: uploading'],
     after: ['notes.md: ready f2'],
@@ -78,35 +101,43 @@ it('keeps a failed upload to retry, and forgets one removed while it was still u
   });
 });
 
-it('waits for uploads before Send, sends the uploaded ids even with no words, and clears only their tiles', async () => {
-  const port = uploads();
-  const sends: { readonly text: string; readonly attachmentIds: readonly string[] }[] = [];
+it('enables Send only once every tile is uploaded, then sends the files with no words and clears their tiles', async () => {
   const sample = createSampleChatHost();
+  const gates: (() => void)[] = [];
   const session = openChatSession(
     {
       ...sample,
-      uploadAttachment: (_threadId, request) => port.upload(request),
-      send: (threadId, words, attachmentIds) => {
-        sends.push({ text: words, attachmentIds });
-        return sample.send(threadId, words, []);
+      uploadAttachment: async (threadId, request) => {
+        await new Promise<void>((resolve) => gates.push(resolve));
+        return request.name === 'offline.md'
+          ? { kind: 'failed', status: 0, error: { kind: 'internal', message: 'Could not reach the host.' } }
+          : sample.uploadAttachment(threadId, request);
       },
     },
     'errand-budget',
   );
   session.load();
-  await Promise.resolve();
-  const button = () => composerButton(session.screen.get());
-  session.attachments.add([text('list.md'), { kind: 'refused', name: 'clip.mov', reason: 'Only photos and text files can be attached.' }]);
-  const uploading = button();
+  await settle();
+  const { pick } = picker();
+  const button = () => composerButton(session.screen.get()).enabled;
+  session.attachments.add([pick('list.md'), pick('offline.md')]);
+  const preparing = button();
   await session.send();
-  await port.saved();
-  const uploaded = button();
+  for (let step = 0; step < 6; step += 1) await settle();
+  for (const open of gates.splice(0)) open();
+  await settle();
+  const oneFailed = { enabled: button(), tiles: session.screen.get().attachments.map((item) => item.kind) };
+  session.attachments.remove(session.screen.get().attachments[1]?.key ?? 0);
+  const failedRemoved = button();
   await session.send();
+  const { view, attachments } = session.screen.get();
   session.close();
-  expect({ uploading, uploaded, sends, left: session.screen.get().attachments.map((item) => item.kind) }).toEqual({
-    uploading: { kind: 'send', enabled: false },
-    uploaded: { kind: 'send', enabled: true },
-    sends: [{ text: '', attachmentIds: ['f1'] }],
-    left: ['refused'],
+  const user = view.kind === 'loaded' ? view.value.messages.findLast((message) => message.kind === 'user') : undefined;
+  expect({ preparing, oneFailed, failedRemoved, sent: user?.kind === 'user' ? { text: user.text, files: user.attachments.map(({ name }) => name) } : null, left: attachments }).toEqual({
+    preparing: false,
+    oneFailed: { enabled: false, tiles: ['ready', 'failed'] },
+    failedRemoved: true,
+    sent: { text: '', files: ['list.md'] },
+    left: [],
   });
 });
