@@ -80,6 +80,7 @@ export function AgentDialogs(props: {
           model={models.agents}
           notify={models.agentNotify}
           appearance={models.appearance}
+          chatSettings={models.chatSettings}
           agent={agent}
           section={dialog.section}
           onSection={(section) => { props.onDialog({ ...dialog, section }); }}

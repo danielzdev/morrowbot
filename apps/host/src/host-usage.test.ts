@@ -1,3 +1,4 @@
+import { ThreadSummaryList } from '@morrowbot/contracts';
 import { afterEach, expect, it } from 'vitest';
 import { startChatFixture, type ChatFixture } from './testing/chat-fixture.ts';
 
@@ -21,7 +22,7 @@ it('lists every chat newest first, and sums the tokens each turn reported (H5, H
   const tokens = await host.call('GET', '/api/usage/tokens?range=24h');
   const bad = await host.call('GET', '/api/usage/tokens?range=forever');
   expect({
-    threads: { status: threads.status, body: threads.body },
+    threads: { status: threads.status, body: { threads: ThreadSummaryList.parse(threads.body).threads.map(({ thread }) => thread) } },
     tokens: { status: tokens.status, body: tokens.body },
     bad: bad.status,
     agents: [first.id, second.id],

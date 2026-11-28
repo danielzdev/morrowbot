@@ -5,6 +5,7 @@ import type {
   ChatEvent,
   Cursor,
   Message,
+  MessageReaction,
   PendingApproval,
   QueuedMessage,
   SubagentRun,
@@ -14,6 +15,7 @@ import type {
   TurnState,
   TurnTrigger,
 } from '@morrowbot/contracts';
+import { replaceReactions } from './reactions.ts';
 
 /**
  * A tool call seen live. Times are this window's own clock, in ms. `unfinished`: its turn ended with no
@@ -72,6 +74,8 @@ export interface FinishedTurn {
 export interface ThreadView {
   readonly thread: Thread;
   readonly messages: readonly Message[];
+  /** Every reaction on the messages, oldest first. */
+  readonly reactions: readonly MessageReaction[];
   readonly activeTurn: ActiveTurnView | null;
   /** Turns watched to the end, by their reply's message id. Replies from before this window have none. */
   readonly finished: Readonly<Record<string, FinishedTurn>>;
@@ -146,6 +150,7 @@ export function viewOf(
   const base = {
     thread: state.thread,
     messages: state.messages,
+    reactions: state.reactions,
     queue: state.queue,
     blockedGroups: state.blockedGroups,
     subagents: state.subagents,
@@ -219,6 +224,7 @@ function endingOf(resolution: ApprovalResolution, approval: PendingApproval): Ap
 /** The view after `event`, or undefined when the event does not fit what the view knows. */
 function change(view: ThreadView, event: ThreadEvent, now: number): ThreadView | undefined {
   if (event.kind === 'queue.changed') return { ...view, queue: event.queue };
+  if (event.kind === 'reactions.changed') return { ...view, reactions: replaceReactions(view.reactions, event.messageId, event.reactions) };
   if (event.kind === 'subagent.changed') return { ...view, subagents: withRun(view.subagents, event.run) };
   if (event.kind === 'generation.started' || event.kind === 'generation.background-started') {
     const started = event.kind === 'generation.started' ? event.userMessage : null;
@@ -290,7 +296,7 @@ function change(view: ThreadView, event: ThreadEvent, now: number): ThreadView |
     }
     case 'generation.background-finished': {
       const { trigger } = active;
-      if (trigger.kind !== 'agent-message') return undefined;
+      if (trigger.kind === 'chat') return { ...view, activeTurn: null };
       return { ...view, activeTurn: null, quietEnds: { ...view.quietEnds, [trigger.agentMessageId]: event.outcome } };
     }
   }

@@ -5,6 +5,7 @@ export type {
   PluginToolCallOutcome,
   PluginToolSource,
   PluginToolsPort,
+  ReplyAnswer,
   RoutineNoUpdateResult,
   RoutineSaveResult,
   RoutineToolsPort,

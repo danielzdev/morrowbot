@@ -284,6 +284,7 @@ export function App({ bridge, server, role }: AppProps) {
           appearance={models.appearance}
           {...(agent === undefined ? {} : { sampleAgent: { name: agent.name, color: agent.avatar.color } })}
           chatPrefs={models.chatPrefs}
+          chatSettings={models.chatSettings}
           info={info}
           updates={models.updates}
           bridge={bridge}

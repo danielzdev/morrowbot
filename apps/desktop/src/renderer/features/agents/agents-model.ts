@@ -62,7 +62,7 @@ function saved<T, U>(result: ApiResult<T>, pick: (value: T) => U): Saved<U> {
 }
 
 const updateKey = (id: string, request: UpdateAgentRequest): string =>
-  [id, ...[request.name, request.description, request.avatar, request.provider, request.folderId].map((field) => field !== undefined)].join('|');
+  [id, ...[request.name, request.description, request.avatar, request.provider, request.folderId, request.emojiReplies].map((field) => field !== undefined)].join('|');
 
 /** The agent as `request` asks for it. */
 const applied = (agent: Agent, request: UpdateAgentRequest): Agent => ({
@@ -72,6 +72,7 @@ const applied = (agent: Agent, request: UpdateAgentRequest): Agent => ({
   avatar: request.avatar ?? agent.avatar,
   provider: request.provider ?? agent.provider,
   folderId: request.folderId === undefined ? agent.folderId : request.folderId,
+  emojiReplies: request.emojiReplies ?? agent.emojiReplies,
 });
 
 /** `agent` with the fields `request` names taken from `source`; other fields, maybe still saving, stay. */
@@ -82,6 +83,7 @@ const withFields = (agent: Agent, request: UpdateAgentRequest, source: Agent): A
   avatar: request.avatar === undefined ? agent.avatar : source.avatar,
   provider: request.provider === undefined ? agent.provider : source.provider,
   folderId: request.folderId === undefined ? agent.folderId : source.folderId,
+  emojiReplies: request.emojiReplies === undefined ? agent.emojiReplies : source.emojiReplies,
 });
 
 const lastByAgent = (list: AgentList): AgentsState['lastMessages'] => Object.fromEntries(list.lastMessages.map((last) => [last.agentId, last]));

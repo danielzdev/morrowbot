@@ -1,4 +1,4 @@
-import { Agent, AgentList, ThreadList, StartedSend, type AgentGrant } from '@morrowbot/contracts';
+import { Agent, AgentList, ThreadSummaryList, StartedSend, type AgentGrant } from '@morrowbot/contracts';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { ECHO } from './testing/chat-fixture.ts';
 import { startMemberKit, URL_FOR_MEMBERS, type MemberKit } from './testing/member-kit.ts';
@@ -31,7 +31,7 @@ it('shows a scoped member only its agents, keeps it out of other agents and serv
   });
   const t = guest.token;
   const list = AgentList.parse((await kit.as(t, 'GET', '/api/agents')).body);
-  const threads = ThreadList.parse((await kit.as(t, 'GET', '/api/threads')).body);
+  const threads = ThreadSummaryList.parse((await kit.as(t, 'GET', '/api/threads')).body);
   const sendShared = await kit.as(t, 'POST', `/api/threads/${shared.thread.id}/messages`, { text: 'hello from a guest', sessionChoice: { kind: 'auto' } });
   const started = StartedSend.parse(sendShared.body);
   await kit.chat.events.finished(started.generationId);
@@ -50,7 +50,7 @@ it('shows a scoped member only its agents, keeps it out of other agents and serv
     me: (await kit.as(t, 'GET', '/api/me')).body,
     agents: list.agents.map(({ name, folderId }) => ({ name, folderId })),
     folders: list.folders,
-    threads: threads.threads.map(({ title }) => title),
+    threads: threads.threads.map(({ thread }) => thread.title),
     hiddenAgent: await kit.as(t, 'GET', `/api/agents/${hidden.agent.id}`),
     hidden: {
       threads: await status(kit.as(t, 'GET', `/api/agents/${hidden.agent.id}/threads`)),
@@ -86,6 +86,7 @@ it('shows a scoped member only its agents, keeps it out of other agents and serv
       writerSend: await kit.as(t, 'POST', `/api/threads/${writer.thread.id}/messages`, { text: 'write a file', sessionChoice: { kind: 'auto' } }),
     },
     eventsSeen: socket.posted.map(({ text }) => text),
+    threadsChanged: [...new Set(socket.changed.map(({ thread }) => thread.title))],
     ownerMessageReached: hiddenMessage.status,
   }).toMatchInlineSnapshot(`
     {
@@ -195,6 +196,9 @@ it('shows a scoped member only its agents, keeps it out of other agents and serv
         "Writer chat",
         "Editable chat",
         "Shared chat",
+      ],
+      "threadsChanged": [
+        "Editable chat",
       ],
       "turns": {
         "sharedHistory": [

@@ -35,14 +35,18 @@ import {
   StopGenerationResponse,
   Thread,
   ThreadList,
+  ThreadSummaryList,
   ThreadState,
   TokenUsageResponse,
   UsageResponse,
+  ChatSettings,
   CreateAgentRequest,
+  SetReactionResponse,
   type CreateConnectorRequest,
   type CreateRoutineRequest,
   type PluginConfig,
   type SessionChoice,
+  type SetReactionRequest,
   type TokenRange,
   type SetConnectorScopeRequest,
   type UpdateAgentRequest,
@@ -82,7 +86,7 @@ export interface Api {
   saveInstructionsCopy(id: string, content: string): Promise<ApiResult<InstructionsCopyReply>>;
   listThreads(agentId: string): Promise<ApiResult<ThreadList>>;
   /** Every agent's chats, newest first (H9, for ⌘K). */
-  listAllThreads(): Promise<ApiResult<ThreadList>>;
+  listAllThreads(): Promise<ApiResult<ThreadSummaryList>>;
   createThread(agentId: string, title?: string): Promise<ApiResult<Thread>>;
   renameThread(id: string, title: string): Promise<ApiResult<Thread>>;
   deleteThread(id: string): Promise<ApiResult<null>>;
@@ -105,6 +109,11 @@ export interface Api {
   /** Steer now: into the running reply, or out as the next turn when nothing runs. */
   steerQueued(threadId: string, queuedId: string): Promise<ApiResult<null>>;
   answerApproval(threadId: string, approvalId: string, generationId: string, choiceId: string): Promise<ApiResult<null>>;
+  /** Puts the user's emoji on an agent reply, or takes it off; answers that reply's reactions now. */
+  setReaction(threadId: string, request: SetReactionRequest): Promise<ApiResult<SetReactionResponse>>;
+  /** The host's chat settings (Settings › Chat › Emoji-only / silent replies). */
+  chatSettings(): Promise<ApiResult<ChatSettings>>;
+  saveChatSettings(settings: ChatSettings): Promise<ApiResult<ChatSettings>>;
   listPlugins(): Promise<ApiResult<PluginList>>;
   setPluginEnabled(id: string, enabled: boolean): Promise<ApiResult<PluginEntry>>;
   setPluginConfig(id: string, config: PluginConfig): Promise<ApiResult<PluginEntry>>;
@@ -184,7 +193,7 @@ export function createApi(bridge: MorrowbotBridge): Api {
     saveInstructions: (id, content, expectedRevision) => call(PutInstructionsReply, 'PUT', at('agents', id, 'instructions'), { content, expectedRevision }),
     saveInstructionsCopy: (id, content) => call(InstructionsCopyReply, 'POST', at('agents', id, 'instructions', 'copies'), { content }),
     listThreads: (agentId) => call(ThreadList, 'GET', at('agents', agentId, 'threads')),
-    listAllThreads: () => call(ThreadList, 'GET', at('threads')),
+    listAllThreads: () => call(ThreadSummaryList, 'GET', at('threads')),
     createThread: (agentId, title) => call(Thread, 'POST', at('agents', agentId, 'threads'), title === undefined ? {} : { title }),
     renameThread: (id, title) => call(Thread, 'PATCH', at('threads', id), { title }),
     deleteThread: (id) => call(NoContent, 'DELETE', at('threads', id)),
@@ -207,6 +216,9 @@ export function createApi(bridge: MorrowbotBridge): Api {
     steerQueued: (threadId, queuedId) => call(NoContent, 'POST', at('threads', threadId, 'queue', queuedId, 'steer')),
     answerApproval: (threadId, approvalId, generationId, choiceId) =>
       call(NoContent, 'POST', at('threads', threadId, 'approvals', approvalId), { generationId, choiceId }),
+    setReaction: (threadId, request) => call(SetReactionResponse, 'PUT', at('threads', threadId, 'reactions'), request),
+    chatSettings: () => call(ChatSettings, 'GET', at('settings', 'chat')),
+    saveChatSettings: (settings) => call(ChatSettings, 'PUT', at('settings', 'chat'), settings),
     listPlugins: () => call(PluginList, 'GET', at('plugins')),
     setPluginEnabled: (id, enabled) => call(PluginEntry, 'PUT', at('plugins', id, 'enabled'), { enabled }),
     setPluginConfig: (id, config) => call(PluginEntry, 'PUT', at('plugins', id, 'config'), { config }),

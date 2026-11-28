@@ -325,3 +325,27 @@ pre.instructions.disk {
     grid-template-columns: 1fr;
   }
 }
+
+/* Agent Settings › General › Message color */
+.agent-message-color {
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--hairline);
+  gap: var(--s-3);
+}
+.agent-message-color-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2) var(--s-4);
+}
+.agent-message-color-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 12rem;
+}
+.agent-message-color-label {
+  color: var(--text-1);
+  font: var(--t-ui-strong);
+}

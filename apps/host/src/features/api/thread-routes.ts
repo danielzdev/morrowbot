@@ -6,7 +6,10 @@ import {
   type MessageList,
   SendMessageRequest,
   type SendMessageResponse,
+  SetReactionRequest,
+  type SetReactionResponse,
   type ThreadList,
+  type ThreadSummaryList,
   UpdateThreadRequest,
 } from '@morrowbot/contracts';
 import { refusal } from './admit-reply.ts';
@@ -22,7 +25,7 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
       path: '/api/threads',
       access: { kind: 'signed-in' },
       handle: ({ viewer }) => {
-        const body: ThreadList = { threads: chat.listAllThreads().filter(({ agentId }) => sees(viewer, agentId)) };
+        const body: ThreadSummaryList = { threads: chat.listThreadSummaries().filter(({ thread }) => sees(viewer, thread.agentId)) };
         return json(200, body);
       },
     },
@@ -112,6 +115,26 @@ export function threadRoutes({ chat }: ApiServices): Route[] {
         if (result.userMessage === null) return failure('internal', 'The send started without its message');
         const body: SendMessageResponse = { kind: 'started', generationId: result.generationId, userMessage: result.userMessage };
         return json(202, body);
+      },
+    },
+    {
+      method: 'PUT',
+      path: '/api/threads/:id/reactions',
+      access: { kind: 'thread', need: 'chat' },
+      handle: async (context) => {
+        const request = await parseBody(context, SetReactionRequest);
+        if (request.kind === 'rejected') return request.reply;
+        const result = chat.setReaction(context.params.get('id'), request.value);
+        switch (result.kind) {
+          case 'set': {
+            const body: SetReactionResponse = { reactions: result.reactions };
+            return json(200, body);
+          }
+          case 'not_found':
+            return notFound('Message');
+          case 'conflict':
+            return failure('conflict', result.reason);
+        }
       },
     },
     {

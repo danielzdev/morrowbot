@@ -26,6 +26,7 @@ function agent(id: string, name: string, description: string, color: string, fol
             vendorSettings: 'isolated',
           },
     folderId,
+    emojiReplies: 'allowed',
     createdAt: at(60 * 24 * 30, now),
     updatedAt: at(60, now),
   };

@@ -212,6 +212,19 @@ textarea.instructions {
   pointer-events: none;
 }
 
+/* Emoji-only / silent replies: its three options are long, so the control may sit under the text. */
+.setting-row[data-setting='emoji-replies'] {
+  flex-wrap: wrap;
+}
+.setting-row[data-setting='emoji-replies'] .setting-text {
+  flex-basis: 16rem;
+}
+.setting-row[data-setting='emoji-replies'] .setting-control {
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: 100%;
+}
+
 /* Settings › About › Reset or Uninstall */
 .reset-dialog > .modal-panel {
   width: 560px;
@@ -368,26 +381,4 @@ textarea.instructions {
   color: var(--user-bubble-fg, var(--text-1));
   border-radius: var(--r-lg);
   font: var(--t-ui);
-}
-.agent-message-color {
-  padding-top: var(--s-4);
-  border-top: 1px solid var(--hairline);
-  gap: var(--s-3);
-}
-.agent-message-color-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-2) var(--s-4);
-}
-.agent-message-color-text {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-width: 12rem;
-}
-.agent-message-color-label {
-  color: var(--text-1);
-  font: var(--t-ui-strong);
 }

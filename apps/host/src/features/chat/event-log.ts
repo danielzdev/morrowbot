@@ -114,6 +114,7 @@ function withCursor(event: NewThreadEvent, cursor: Cursor): ChatEvent {
       return { ...event, cursor };
     case 'generation.background-finished':
       return { ...event, cursor };
+    case 'reactions.changed':
     case 'subagent.changed':
       return { ...event, cursor };
   }

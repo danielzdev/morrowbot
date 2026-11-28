@@ -3,6 +3,7 @@ import { useCallback, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { MorrowbotBridge, ServerMode, ServerRequest } from '../../bridge.ts';
 import type { AppearanceModel } from '../../shared/appearance.ts';
 import type { ChatPrefsModel } from '../../shared/chat-prefs.ts';
+import type { ChatSettingsModel } from '../../shared/chat-settings.ts';
 import { PLATFORM } from '../../shared/keys.ts';
 import type { AppInfo } from '../../shared/privacy.ts';
 import { SettingsShell } from '../../shared/ui/SettingsShell.tsx';
@@ -36,6 +37,8 @@ export interface SettingsModalProps {
   /** The active agent, used to preview "Match bot" in Settings › Appearance. */
   readonly sampleAgent?: SampleAgent;
   readonly chatPrefs: ChatPrefsModel;
+  /** The chat settings the host owns. */
+  readonly chatSettings: ChatSettingsModel;
   readonly info: AppInfo | null;
   readonly updates: UpdatesModel;
   readonly bridge: Pick<MorrowbotBridge, 'loginItem' | 'setOpenAtLogin' | 'revealPath' | 'resetPlan' | 'runReset'>;
@@ -113,7 +116,7 @@ export function SettingsModal(props: SettingsModalProps) {
       case 'appearance':
         return <AppearanceSection appearance={appearance} onChange={props.appearance.set} {...(props.sampleAgent === undefined ? {} : { sampleAgent: props.sampleAgent })} />;
       case 'chat':
-        return <ChatSection prefs={chatPrefs} onChange={props.chatPrefs.set} platform={PLATFORM} />;
+        return <ChatSection prefs={chatPrefs} onChange={props.chatPrefs.set} platform={PLATFORM} chatSettings={props.chatSettings} />;
       case 'keyboard':
         return <KeyboardSection platform={PLATFORM} sendWith={chatPrefs.sendWith} />;
       case 'providers':

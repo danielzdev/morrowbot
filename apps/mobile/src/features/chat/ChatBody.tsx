@@ -1,6 +1,6 @@
 import type { Agent, Thread } from '@morrowbot/contracts';
 import { useEffect, useRef, useState } from 'react';
-import { Keyboard, KeyboardAvoidingView, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type ViewInstance } from 'react-native';
 import { MorrowLayoutMetricsView } from '../../../modules/morrow-native-controls/index.ts';
 import { ACTION_SLOT_METRICS, deriveActionSlotPlacement } from '../../lib/layout.ts';
 import { deriveBottomControlInsets, parseNativeLayoutMetrics, type NativeLayoutMetrics } from '../../lib/reserved-regions.ts';
@@ -12,38 +12,22 @@ import { chatRequests, useChatHub } from './chat-context.tsx';
 import { threadFor } from './chat-hub.ts';
 import { composerButton } from './chat-session.ts';
 import { Composer } from './Composer.tsx';
+import { useKeyboardOverlap } from './keyboard-overlap.ts';
 import { MessageList } from './MessageList.tsx';
 import { useStore } from './store.ts';
 import { ThreadTabs } from './ThreadTabs.tsx';
 
 const EDGE = spacing[3];
 
-function useKeyboardShown(): boolean {
-  const [shown, setShown] = useState(false);
-  useEffect(() => {
-    const show = Keyboard.addListener('keyboardWillShow', () => {
-      setShown(true);
-    });
-    const hide = Keyboard.addListener('keyboardWillHide', () => {
-      setShown(false);
-    });
-    return () => {
-      show.remove();
-      hide.remove();
-    };
-  }, []);
-  return shown;
-}
-
-/** Where the floating composer sits: clear of the home indicator, hinge occlusions and floating actions. */
-function composerFrame(metrics: NativeLayoutMetrics | null, keyboard: boolean) {
+/** Where the floating composer sits: above the keyboard, clear of the home indicator, hinge occlusions and floating actions. */
+function composerFrame(metrics: NativeLayoutMetrics | null, keyboardOverlap: number) {
   const bottom = deriveBottomControlInsets(metrics);
   const placement = deriveActionSlotPlacement(metrics);
   const actions = placement.kind === 'floating' ? placement.right + ACTION_SLOT_METRICS.buttonSize + spacing[2] : 0;
   return {
     left: bottom.left + EDGE,
     right: Math.max(bottom.right + EDGE, actions),
-    bottom: keyboard ? spacing[2] : bottom.bottom + spacing[2],
+    bottom: Math.max(keyboardOverlap, bottom.bottom) + spacing[2],
   };
 }
 
@@ -59,11 +43,11 @@ function ChatThread(props: {
   const screen = useStore(session.screen);
   const [metrics, setMetrics] = useState<NativeLayoutMetrics | null>(null);
   const [composerHeight, setComposerHeight] = useState(96);
-  const keyboard = useKeyboardShown();
-  const frame = composerFrame(metrics, keyboard);
+  const canvas = useRef<ViewInstance>(null);
+  const frame = composerFrame(metrics, useKeyboardOverlap(canvas));
   const { view, problem, stale } = screen;
   return (
-    <KeyboardAvoidingView behavior="padding" style={styles.fill}>
+    <View ref={canvas} style={styles.fill}>
       <MorrowLayoutMetricsView
         pointerEvents="none"
         style={StyleSheet.absoluteFill}
@@ -130,7 +114,7 @@ function ChatThread(props: {
           onStop={() => void session.stop()}
         />
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

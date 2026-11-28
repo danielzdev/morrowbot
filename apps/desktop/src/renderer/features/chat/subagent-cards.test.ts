@@ -26,6 +26,7 @@ const DONE: SubagentStatus = { kind: 'finished', outcome: { kind: 'completed', f
 const STATE: ThreadState = {
   thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: at(0), updatedAt: at(0) },
   messages: [],
+  reactions: [],
   activeTurn: null,
   queue: [],
   blockedGroups: [],
