@@ -17,6 +17,8 @@ export interface PaletteActions {
   readonly openSettings: (link: SettingsLink) => void;
   readonly openExtensions: () => void;
   readonly toggleSidebar: () => void;
+  /** Null when no chat is on screen. */
+  readonly toggleInspector: (() => void) | null;
   readonly openAgent: (agentId: string, threadId: string | null) => void;
   readonly recheck: (pluginId: string) => void;
 }
@@ -85,6 +87,7 @@ export function Palette(props: {
     action('usage', 'Usage', 'gauge', () => { actions.openSettings('usage'); }, 'usage', 'Limits and tokens'),
     action('extensions', 'Extensions', 'plugins', actions.openExtensions, 'extensions'),
     action('toggle-sidebar', 'Toggle sidebar', 'sidebar', actions.toggleSidebar, 'toggle-sidebar'),
+    ...(actions.toggleInspector === null ? [] : [action('toggle-inspector', 'Toggle inspector', 'inspector', actions.toggleInspector, 'inspector')]),
     ...providers.map(({ entry }) => action(`recheck:${entry.manifest.id}`, `Recheck ${entry.manifest.name}`, 'refresh', () => { actions.recheck(entry.manifest.id); })),
     ...agents.map((each): PaletteItem => ({
       id: `agent:${each.id}`,

@@ -19,6 +19,8 @@ export function NewAgentDialog(props: {
   readonly model: AgentsModel;
   readonly bridge: Pick<MorrowbotBridge, 'pickFolder'>;
   readonly choices: readonly ProviderChoice[];
+  /** False for first run's "Skip for now": the Brain stays unbound until the user picks (spec §7). */
+  readonly prefill: boolean;
   readonly avatarEditor: AvatarEditor;
   readonly newAvatar: () => AgentAvatar;
   /** A folder path as the UI may show it (spec §9.1). */
@@ -44,7 +46,7 @@ export function NewAgentDialog(props: {
     if (typed) setLeaving(() => then);
     else then();
   };
-  const first = prefill(props.choices);
+  const first = props.prefill ? prefill(props.choices) : null;
   useEffect(() => {
     if (!touched && binding.kind === 'unbound' && first !== null) setBinding(newBinding(first));
   }, [first?.id, first?.info]);

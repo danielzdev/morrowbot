@@ -137,7 +137,7 @@ it('never shows a home path, user name, email or workspace name in a provider de
       card,
       info: INFO,
       redact: (text: string) => redact(text, INFO),
-      actions: { onEnabled: ignore, onRecheck: ignore, onSaveConfig: ignore, onRelease: ignore, onCopy: () => Promise.resolve(), onOpenLink: ignore, onDirty: ignore },
+      actions: { onEnabled: ignore, onRecheck: ignore, onSaveConfig: ignore, onRelease: ignore, onCopy: () => Promise.resolve(), onOpenLink: ignore, onSignInTerminal: null, onDirty: ignore },
     }),
   );
   expect({ leaks: ['/Users/sam', 'sam@', 'Acme', '>sam<', ' sam '].filter((secret) => html.includes(secret)), shown: ['~/.codex', '&lt;email>', '&lt;user>', 'Effort: Low, Medium, High'].filter((safe) => !html.includes(safe)) }).toEqual({

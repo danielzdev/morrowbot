@@ -7,7 +7,7 @@ import { AssistantMessage, Message, UserMessage } from './messages.ts';
 import { PluginManifest } from './plugin-manifest.ts';
 import { PluginStatus } from './plugin-runtime.ts';
 import { PluginConfig } from './plugin-settings.ts';
-import { AccountKey, ApprovalChoice, ProviderInfo, UsageResult } from './provider.ts';
+import { AccountKey, ApprovalChoice, ProviderInfo, TurnOutcome, UsageResult } from './provider.ts';
 import { Thread } from './threads.ts';
 
 export const ProviderUnavailableReason = z.enum(['route-info-timeout', 'route-info-failed', 'daemon-blocked', 'rechecking']);
@@ -85,6 +85,8 @@ export type ApprovalReplyRequest = z.infer<typeof ApprovalReplyRequest>;
 
 export const StopGenerationResponse = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('stopped'), message: AssistantMessage }),
+  /** A background turn was stopped; like any it ends with nothing in the chat. */
+  z.strictObject({ kind: z.literal('stopped-in-background') }),
   z.strictObject({ kind: z.literal('idle') }),
 ]);
 export type StopGenerationResponse = z.infer<typeof StopGenerationResponse>;
@@ -115,8 +117,19 @@ export const BlockedGroup = z.strictObject({
 });
 export type BlockedGroup = z.infer<typeof BlockedGroup>;
 
+/**
+ * What started a turn. `chat`: the user's send or Continue, answered in the chat. `agent-message`: a message from
+ * another agent, read in the background; it shows no chat bubble unless the agent chooses to tell the user.
+ */
+export const TurnTrigger = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('chat') }),
+  z.strictObject({ kind: z.literal('agent-message'), agentMessageId: EntityId }),
+]);
+export type TurnTrigger = z.infer<typeof TurnTrigger>;
+
 export const ActiveTurn = z.strictObject({
   generationId: EntityId,
+  trigger: TurnTrigger,
   state: TurnState,
   queueNote: z.string().min(1).nullable(),
   /** Everything streamed so far, including text not yet saved. */
@@ -238,6 +251,13 @@ export const ChatEvent = z.discriminatedUnion('kind', [
     resolution: ApprovalResolution,
   }),
   z.strictObject({ kind: z.literal('generation.finished'), ...ThreadEvent, message: AssistantMessage }),
+  /** A background turn started on a message from another agent. It adds nothing to the chat's messages. */
+  z.strictObject({ kind: z.literal('generation.background-started'), ...ThreadEvent, agentMessageId: EntityId, state: TurnState }),
+  /**
+   * A background turn ended without telling the user (one that does ends with `generation.finished` and its
+   * message). Its answer, if the message asked for one, is posted as an agent message.
+   */
+  z.strictObject({ kind: z.literal('generation.background-finished'), ...ThreadEvent, outcome: TurnOutcome }),
   /** Global (not part of any thread's cursor): refetch `/api/plugins/:id/usage`. */
   z.strictObject({ kind: z.literal('usage.updated'), pluginId: PluginId, accountKey: AccountKey }),
 ]);

@@ -14,14 +14,16 @@ function turnActivity(turn: ActiveTurnView | null): ChatActivity {
 }
 
 /**
- * The chat's activity after `view`, given what it was. A turn seen running that ends with a
- * completed reply makes the chat completed, which lasts until a new turn starts or its time is up.
+ * The chat's activity after `view`, given what it was and the view before. A turn seen running that ends
+ * with a new completed reply makes the chat completed, which lasts until a new turn starts or its time is
+ * up. A background turn that ends quietly adds no reply, so the chat just goes idle.
  */
-export function nextActivity(before: ChatActivity | undefined, view: ThreadView): ChatActivity {
+export function nextActivity(before: ChatActivity | undefined, view: ThreadView, previous: ThreadView | null): ChatActivity {
   const now = turnActivity(view.activeTurn);
   if (now !== 'idle') return now;
   if (before === 'completed') return 'completed';
   const last = view.messages.at(-1);
   const sawTurn = before !== undefined && before !== 'idle';
-  return sawTurn && last?.kind === 'assistant' && last.outcome.kind === 'completed' ? 'completed' : 'idle';
+  const fresh = last !== undefined && previous?.messages.at(-1)?.id !== last.id;
+  return sawTurn && fresh && last.kind === 'assistant' && last.outcome.kind === 'completed' ? 'completed' : 'idle';
 }

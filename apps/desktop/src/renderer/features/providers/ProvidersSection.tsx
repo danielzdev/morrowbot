@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import type { MorrowbotBridge } from '../../bridge.ts';
+import { parseLaunch } from '../../shared/engine-setup.ts';
+import { PLATFORM } from '../../shared/keys.ts';
 import { redact, type AppInfo } from '../../shared/privacy.ts';
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog.tsx';
 import { ListDetail } from '../../shared/ui/ListDetail.tsx';
+import { useRecheckOnReturn } from '../../shared/use-recheck-on-return.ts';
 import { useStore } from '../../shared/use-store.ts';
 import { AddProvider } from './AddProvider.tsx';
 import { ProviderDetail } from './ProviderDetail.tsx';
@@ -12,7 +15,7 @@ import type { ProvidersModel } from './providers-model.ts';
 export interface ProvidersSectionProps {
   readonly model: ProvidersModel;
   readonly info: AppInfo | null;
-  readonly bridge: Pick<MorrowbotBridge, 'copyText' | 'openExternal'>;
+  readonly bridge: Pick<MorrowbotBridge, 'copyText' | 'openExternal' | 'signInTerminal'>;
   /** The provider a deep link opens (`providers/<id>`); the first one otherwise. */
   readonly initial: string | null;
   /** The names of agents bound to a provider, for the turn-off confirm. */
@@ -44,6 +47,7 @@ export function ProvidersSection(props: ProvidersSectionProps) {
   const onDirty = useCallback((next: boolean) => {
     setDirty(next);
   }, []);
+  const recheckLater = useRecheckOnReturn((id) => void model.recheck(id));
 
   if (info === null || cards.kind === 'loading') return <p class="muted">Loading providers…</p>;
   if (cards.kind === 'failed') {
@@ -100,8 +104,22 @@ export function ProvidersSection(props: ProvidersSectionProps) {
                 onRecheck: () => void model.recheck(current.entry.manifest.id),
                 onSaveConfig: (config) => void model.setConfig(current.entry.manifest.id, config),
                 onRelease: (regId) => void model.release(current.entry.manifest.id, regId),
-                onCopy: (text) => props.bridge.copyText(safe(text)),
-                onOpenLink: (url) => void props.bridge.openExternal(url),
+                onCopy: (text) => {
+                  recheckLater(current.entry.manifest.id);
+                  return props.bridge.copyText(safe(text));
+                },
+                onOpenLink: (url) => {
+                  recheckLater(current.entry.manifest.id);
+                  void props.bridge.openExternal(url);
+                },
+                onSignInTerminal:
+                  PLATFORM === 'mac' && current.entry.source === 'built-in'
+                    ? async () => {
+                        recheckLater(current.entry.manifest.id);
+                        const launch = parseLaunch(await props.bridge.signInTerminal(current.entry.manifest.id));
+                        return launch.kind === 'opened' ? null : launch.reason;
+                      }
+                    : null,
                 onDirty,
               }}
             />

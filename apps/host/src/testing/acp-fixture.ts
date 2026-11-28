@@ -115,6 +115,8 @@ function describeStep(event: ChatEvent): string[] {
     case 'generation.started':
     case 'generation.delta':
     case 'generation.finished':
+    case 'generation.background-started':
+    case 'generation.background-finished':
     case 'usage.updated':
       return [];
   }

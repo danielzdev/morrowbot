@@ -19,6 +19,7 @@ export interface BridgeChannels {
   readonly updateChanged: 'morrowbot:update-changed';
   readonly checkForUpdates: 'morrowbot:check-for-updates';
   readonly restartToUpdate: 'morrowbot:restart-to-update';
+  readonly signInTerminal: 'morrowbot:sign-in-terminal';
 }
 
 /** A folder or file to show in Finder, named by an opaque id; desktop main resolves the path itself. */
@@ -44,6 +45,9 @@ export type UpdateStatus =
   | { readonly kind: 'downloading'; readonly version: string; readonly percent: number }
   | { readonly kind: 'ready'; readonly version: string }
   | { readonly kind: 'failed' };
+
+/** A one-click sign-in: Terminal opened with the provider's own sign-in command, or why it could not. */
+export type SignInLaunch = { readonly kind: 'opened' } | { readonly kind: 'unavailable'; readonly reason: string };
 
 export type ApiMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -93,4 +97,9 @@ export interface MorrowbotBridge {
   checkForUpdates(): Promise<unknown>;
   /** Quits, installs the downloaded update and reopens MorrowBot. */
   restartToUpdate(): Promise<void>;
+  /**
+   * Opens Terminal on macOS with a built-in provider's own sign-in command, which main reads from
+   * the host; the renderer names only the provider. Parse with `SignInLaunch`.
+   */
+  signInTerminal(providerId: string): Promise<unknown>;
 }

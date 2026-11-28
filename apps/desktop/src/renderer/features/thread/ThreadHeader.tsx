@@ -1,6 +1,7 @@
 import type { Agent, Thread } from '@morrowbot/contracts';
 import type { ComponentChildren } from 'preact';
 import { useRef, useState } from 'preact/hooks';
+import { ariaShortcut, PLATFORM } from '../../shared/keys.ts';
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog.tsx';
 import { Icon } from '../../shared/ui/Icon.tsx';
 import { Menu, MenuButton, type MenuItem } from '../../shared/ui/Menu.tsx';
@@ -28,6 +29,10 @@ export interface ThreadHeaderProps {
   readonly onRename: (threadId: string, title: string) => void;
   readonly onDelete: (threadId: string) => void;
   readonly onCopy: (threadId: string) => void;
+  /** The Agent Inspector toggle (⌘I); `inspectorToggle` marks it so the overlay drawer ignores presses on it. */
+  readonly inspectorOpen: boolean;
+  readonly inspectorToggle: string;
+  readonly onToggleInspector: () => void;
 }
 
 interface TabMenu {
@@ -93,6 +98,19 @@ export function ThreadHeader(props: ThreadHeaderProps) {
         </button>
       </Tooltip>
       <span class="spacer" />
+      <Tooltip label="Agent Inspector" shortcut="inspector">
+        <button
+          type="button"
+          class={`icon-btn${props.inspectorOpen ? ' active' : ''}`}
+          aria-label="Agent Inspector"
+          aria-pressed={props.inspectorOpen}
+          aria-keyshortcuts={ariaShortcut('inspector', PLATFORM)}
+          {...{ [props.inspectorToggle]: '' }}
+          onClick={props.onToggleInspector}
+        >
+          <Icon name="inspector" />
+        </button>
+      </Tooltip>
       {thread !== undefined && <MenuButton icon="more" label="Chat actions" items={() => actionsFor(thread, true)} />}
       {tabMenu !== null && <Menu key={`${tabMenu.threadId}-${tabMenu.at === null ? 'key' : `${String(tabMenu.at.x)},${String(tabMenu.at.y)}`}`} anchor={{ current: tabMenu.anchor }} at={tabMenu.at ?? undefined} label="Tab actions" align="start" items={tabMenu.items} onClose={() => { setTabMenu(null); }} />}
       {switcher && (
