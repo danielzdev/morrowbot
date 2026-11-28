@@ -84,7 +84,7 @@ it('asks for a resync when an event belongs to a turn the view does not know', (
 });
 
 it('keeps a background turn out of the messages, notes how it ended early, and never shows it as a completed reply', () => {
-  const reply: Message = { kind: 'assistant', id: 'r', threadId: 't', text: 'Earlier reply', outcome: { kind: 'completed', finishReason: 'stop' }, createdAt: AT };
+  const reply: Message = { kind: 'assistant', attachments: [], id: 'r', threadId: 't', text: 'Earlier reply', outcome: { kind: 'completed', finishReason: 'stop' }, createdAt: AT };
   let view = viewOf({ ...STATE, messages: [reply], activeTurn: null });
   let activity: ChatActivity = 'idle';
   const seen: string[] = [];

@@ -1,9 +1,11 @@
 import type { Attachment, UploadAttachmentRequest } from '@morrowbot/contracts';
 import { expect, it } from 'vitest';
 import type { ChatResult } from '../../lib/chat-host.ts';
-import { composerButton, openChatSession } from './chat-session.ts';
+import { openChatSession } from './chat-session.ts';
 import { attachmentTray, roomLeft, sendableIds, type ComposerAttachment, type Pick, type PickedFile } from './composer-attachments.ts';
+import { composerButtons } from './composer-controls.ts';
 import { createSampleChatHost } from './sample-host.ts';
+import { scripted, state } from './session.test-support.ts';
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -158,7 +160,7 @@ it('enables Send only once every tile is uploaded, then sends the files with no 
   session.load();
   await settle();
   const { pick } = picker();
-  const button = () => composerButton(session.screen.get()).enabled;
+  const button = () => composerButtons(session.screen.get()).send?.enabled ?? false;
   session.attachments.add([pick('list.md'), pick('offline.md')]);
   const preparing = button();
   await session.send();
@@ -178,5 +180,35 @@ it('enables Send only once every tile is uploaded, then sends the files with no 
     failedRemoved: true,
     sent: { text: '', files: ['list.md'] },
     left: [],
+  });
+});
+
+it('waits with Queue while a file uploads, and keeps the words and file when the host takes files only once the reply ends', async () => {
+  let saved: (result: ChatResult<Attachment>) => void = () => undefined;
+  const { host, sent } = scripted([state(1, true, false)], {
+    uploadAttachment: () => new Promise((resolve) => (saved = resolve)),
+    send: (_threadId, text) => {
+      sent.push(text);
+      return Promise.resolve({ kind: 'failed', status: 409, error: { kind: 'conflict', message: 'Files can be sent once this reply ends. Send the text alone to queue it.' } });
+    },
+  });
+  const session = openChatSession(host, 't');
+  session.load();
+  session.setDraft('Also this');
+  session.attachments.add([picker().pick('list.md')]);
+  for (let step = 0; step < 4; step += 1) await settle();
+  const uploading = composerButtons(session.screen.get()).send;
+  saved({ kind: 'ok', value: { kind: 'text', id: 'f1', name: 'list.md', size: 3 } });
+  await settle();
+  const uploaded = composerButtons(session.screen.get()).send;
+  await session.send();
+  const { draft, attachments, problem } = session.screen.get();
+  expect({ uploading, uploaded, sent, draft, tiles: attachments.map(({ kind }) => kind), problem: problem?.message }).toEqual({
+    uploading: { kind: 'queue', enabled: false },
+    uploaded: { kind: 'queue', enabled: true },
+    sent: ['Also this'],
+    draft: 'Also this',
+    tiles: ['ready'],
+    problem: 'Files can be sent once this reply ends. Send the text alone to queue it.',
   });
 });

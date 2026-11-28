@@ -2,7 +2,7 @@ import type { AssistantMessage, SubagentRun } from '@morrowbot/contracts';
 import { afterEach, expect, it, vi } from 'vitest';
 import { EventLog } from './event-log.ts';
 
-const message: AssistantMessage = { kind: 'assistant', id: 'm', threadId: 't', text: 'hi', outcome: { kind: 'completed', finishReason: 'stop' }, createdAt: '2026-01-01T00:00:00.000Z' };
+const message: AssistantMessage = { kind: 'assistant', attachments: [], id: 'm', threadId: 't', text: 'hi', outcome: { kind: 'completed', finishReason: 'stop' }, createdAt: '2026-01-01T00:00:00.000Z' };
 
 const SUBAGENT: SubagentRun = {
   id: 'child',

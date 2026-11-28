@@ -12,8 +12,8 @@ import { AgentSettingsSheet } from './AgentSettingsSheet.tsx';
 import { AttachmentStrip } from './AttachmentStrip.tsx';
 import { chatRequests, useChatHub } from './chat-context.tsx';
 import { threadFor } from './chat-hub.ts';
-import { composerButton } from './chat-session.ts';
 import { canPick, roomLeft } from './composer-attachments.ts';
+import { composerButtons, queuedControls } from './composer-controls.ts';
 import { Composer } from './Composer.tsx';
 import { useKeyboardOverlap } from './keyboard-overlap.ts';
 import { MessageList } from './MessageList.tsx';
@@ -72,6 +72,20 @@ function ChatThread(props: {
           finished={view.value.finished}
           activeTurn={view.value.activeTurn}
           queue={view.value.queue}
+          agentName={props.agent.name}
+          queueControls={(message) => queuedControls(screen, message)}
+          onQueued={(action, queuedId) => {
+            switch (action) {
+              case 'now':
+                void session.steer(queuedId);
+                return;
+              case 'edit':
+                void session.editQueued(queuedId);
+                return;
+              case 'cancel':
+                void session.cancelQueued(queuedId);
+            }
+          }}
           answering={screen.answering}
           stale={stale}
           bottomInset={composerHeight + frame.bottom}
@@ -109,7 +123,7 @@ function ChatThread(props: {
         <Composer
           agent={props.agent}
           draft={screen.draft}
-          button={composerButton(screen)}
+          buttons={composerButtons(screen)}
           onDraft={(text) => {
             session.setDraft(text);
           }}

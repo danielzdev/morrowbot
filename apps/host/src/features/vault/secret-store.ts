@@ -9,8 +9,6 @@ export interface SecretStore {
   write(ref: string, secret: string): Promise<void>;
   /** Removes the value under `ref`; removing one that is not there does nothing. */
   remove(ref: string): Promise<void>;
-  /** Every reference with a saved value, so values nothing points at can be erased. */
-  list(): Promise<string[]>;
 }
 
 /** A store failed. The message names what failed, never a secret. */

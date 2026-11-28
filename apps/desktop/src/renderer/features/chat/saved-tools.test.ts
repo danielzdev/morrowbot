@@ -5,7 +5,7 @@ import { applyEvent, viewOf, type ThreadView, type TurnStep } from './thread-mod
 const AT = '2026-01-01T00:00:00.000Z';
 const READ = { toolUseId: 'read-1', name: 'Read', input: { file_path: 'notes.md' }, startedAt: '2026-01-01T00:00:01.000Z' };
 const BASH = { toolUseId: 'bash-1', name: 'Bash', input: { command: 'make test' }, startedAt: '2026-01-01T00:00:03.000Z' };
-const REPLY: Message = { kind: 'assistant', id: 'a1', threadId: 't', text: 'Done', outcome: { kind: 'completed', finishReason: 'stop' }, createdAt: AT };
+const REPLY: Message = { kind: 'assistant', attachments: [], id: 'a1', threadId: 't', text: 'Done', outcome: { kind: 'completed', finishReason: 'stop' }, createdAt: AT };
 
 const state = (patch: Partial<ThreadState>): ThreadState => ({
   thread: { id: 't', agentId: 'a', title: 'Chat', createdAt: AT, updatedAt: AT },

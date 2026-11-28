@@ -1,92 +1,7 @@
-import type { ApprovalReplyRequest, ThreadState } from '@morrowbot/contracts';
 import { expect, it } from 'vitest';
-import type { ChatHost, ChatResult } from '../../lib/chat-host.ts';
-import type { ThreadEvent, ThreadWatcher } from '../../lib/host-connection.ts';
-import { composerButton, openChatSession } from './chat-session.ts';
-
-const AT = '2026-01-01T00:00:00.000Z';
-
-function state(seq: number, running: boolean, pending = running): ThreadState {
-  return {
-    thread: { id: 't', agentId: 'a', title: 'Main', createdAt: AT, updatedAt: AT },
-    messages: [],
-    reactions: [],
-    toolSteps: [],
-    activeTurn: running
-      ? {
-          generationId: 'g7',
-          trigger: { kind: 'chat' },
-          state: 'running',
-          queueNote: null,
-          text: '',
-          pendingApprovals: pending ? [{ approvalId: 'a1', summary: 'Allow?', choices: [{ id: 'allow', label: 'Allow' }] }] : [],
-          toolSteps: [],
-        }
-      : null,
-    blockedGroups: [],
-    subagents: [],
-    queue: [],
-    cursor: { hostEpoch: 'e1', seq },
-  };
-}
-
-const unused = (): never => {
-  throw new Error('not used by this test');
-};
-const ok = <T>(value: T): Promise<ChatResult<T>> => Promise.resolve({ kind: 'ok', value });
-
-/** A host whose `/state` answers come from `states` in turn, delivered as soon as a thread is watched; it records what the chat sent. */
-function scripted(states: ThreadState[], overrides: Partial<ChatHost> = {}) {
-  const sent: string[] = [];
-  const replies: ApprovalReplyRequest[] = [];
-  let watching: ThreadWatcher | null = null;
-  const next = (): ThreadState => (states.length > 1 ? (states.shift() ?? unused()) : (states[0] ?? unused()));
-  const host: ChatHost = {
-    hostName: 'Test Host',
-    agents: unused,
-    threads: unused,
-    createThread: unused,
-    uploadAttachment: unused,
-    send: (_threadId, text) => {
-      sent.push(text);
-      return ok({ kind: 'started', generationId: 'g8', userMessage: { kind: 'user', id: 'u', threadId: 't', text, createdAt: AT, attachments: [] } });
-    },
-    continueTurn: unused,
-    stop: () => {
-      sent.push('<stop>');
-      return ok({ kind: 'idle' });
-    },
-    answerApproval: (_threadId, _approvalId, reply) => {
-      replies.push(reply);
-      return ok(null);
-    },
-    providerInfo: unused,
-    updateAgent: unused,
-    deleteAgent: unused,
-    instructions: unused,
-    plugins: unused,
-    setPluginEnabled: unused,
-    onPluginChanged: unused,
-    watch: (_threadId, watcher) => {
-      watching = watcher;
-      watcher.onFresh(next());
-      return () => {
-        watching = null;
-      };
-    },
-    ...overrides,
-  };
-  return {
-    host,
-    sent,
-    replies,
-    push: (event: ThreadEvent) => watching?.onEvent(event),
-    /** What the transport does when the link drops, and then once it has fetched `/state` again. */
-    stale: () => watching?.onStale(),
-    fresh: () => watching?.onFresh(next()),
-    gone: () => watching?.onGone(),
-  };
-}
+import { openChatSession } from './chat-session.ts';
+import { composerButtons } from './composer-controls.ts';
+import { scripted, state } from './session.test-support.ts';
 
 it('sends an approval reply with the running generation, once, even when tapped twice', async () => {
   const { host, replies } = scripted([state(1, true)]);
@@ -115,7 +30,7 @@ it('marks a stale card as already ended and reloads when the host no longer has 
 it('shows Send only with a draft, Stop while a turn runs, and clears the draft once sent', async () => {
   const { host, sent, push } = scripted([state(1, false)]);
   const session = openChatSession(host, 't');
-  const button = () => composerButton(session.screen.get());
+  const button = () => composerButtons(session.screen.get());
   const seen = [button()];
   session.load();
   seen.push(button());
@@ -127,10 +42,10 @@ it('shows Send only with a draft, Stop while a turn runs, and clears the draft o
   await session.stop();
   expect({ seen, sent, draft: session.screen.get().draft }).toEqual({
     seen: [
-      { kind: 'send', enabled: false },
-      { kind: 'send', enabled: false },
-      { kind: 'send', enabled: true },
-      { kind: 'stop', enabled: true },
+      { send: { kind: 'send', enabled: false }, stop: null },
+      { send: { kind: 'send', enabled: false }, stop: null },
+      { send: { kind: 'send', enabled: true }, stop: null },
+      { send: null, stop: { enabled: true } },
     ],
     sent: ['Plan day two', '<stop>'],
     draft: '',
@@ -184,7 +99,7 @@ it('waits with Stop and approvals while the chat is stale, and offers them again
   const { host, replies, stale, fresh } = scripted([state(1, true), state(2, true)]);
   const session = openChatSession(host, 't');
   session.load();
-  const seen = () => ({ button: composerButton(session.screen.get()), stale: session.screen.get().stale, replies: replies.length });
+  const seen = () => ({ button: composerButtons(session.screen.get()), stale: session.screen.get().stale, replies: replies.length });
   stale();
   const whileStale = seen();
   await session.answer('a1', 'allow');
@@ -194,9 +109,9 @@ it('waits with Stop and approvals while the chat is stale, and offers them again
   const whenFresh = seen();
   await session.answer('a1', 'allow');
   expect({ whileStale, afterTaps, whenFresh, replies }).toEqual({
-    whileStale: { button: { kind: 'stop', enabled: false }, stale: true, replies: 0 },
-    afterTaps: { button: { kind: 'stop', enabled: false }, stale: true, replies: 0 },
-    whenFresh: { button: { kind: 'stop', enabled: true }, stale: false, replies: 0 },
+    whileStale: { button: { send: null, stop: { enabled: false } }, stale: true, replies: 0 },
+    afterTaps: { button: { send: null, stop: { enabled: false } }, stale: true, replies: 0 },
+    whenFresh: { button: { send: null, stop: { enabled: true } }, stale: false, replies: 0 },
     replies: [{ generationId: 'g7', choiceId: 'allow' }],
   });
 });

@@ -38,6 +38,10 @@ export interface ChatHost {
   send(threadId: string, text: string, attachmentIds: readonly string[]): Promise<ChatResult<SendMessageResponse>>;
   continueTurn(threadId: string, failedMessageId: string): Promise<ChatResult<ContinueResponse>>;
   stop(threadId: string): Promise<ChatResult<StopGenerationResponse>>;
+  /** Steer now: the queued message goes into the running reply, or out as the next turn when nothing runs. */
+  steerQueued(threadId: string, queuedId: string): Promise<ChatResult<null>>;
+  /** Takes a message the agent has not seen out of the queue. */
+  cancelQueued(threadId: string, queuedId: string): Promise<ChatResult<null>>;
   answerApproval(threadId: string, approvalId: string, reply: ApprovalReplyRequest): Promise<ChatResult<null>>;
   providerInfo(pluginId: string): Promise<ChatResult<ProviderInfoResponse>>;
   updateAgent(agentId: string, request: UpdateAgentRequest): Promise<ChatResult<Agent>>;
