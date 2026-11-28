@@ -70,6 +70,8 @@ export async function startConnectorKit(options: { readonly agentIds: readonly s
       provider: { kind: 'unbound' },
       folderId: null,
       emojiReplies: 'allowed',
+      disabledExtensions: [],
+      revision: 0,
       createdAt: now(),
       updatedAt: now(),
     });

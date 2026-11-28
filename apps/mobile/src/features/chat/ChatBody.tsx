@@ -26,7 +26,8 @@ const EDGE = spacing[3];
 function composerFrame(metrics: NativeLayoutMetrics | null, keyboardOverlap: number) {
   const bottom = deriveBottomControlInsets(metrics);
   const placement = deriveActionSlotPlacement(metrics);
-  const actions = placement.kind === 'floating' ? placement.right + ACTION_SLOT_METRICS.buttonSize + spacing[2] : 0;
+  const hasVerticalBar = metrics !== null && metrics.verticalBarEdge !== 'none';
+  const actions = !hasVerticalBar && placement.kind === 'floating' ? placement.right + ACTION_SLOT_METRICS.buttonSize + spacing[2] : 0;
   return {
     left: bottom.left + EDGE,
     right: Math.max(bottom.right + EDGE, actions),
@@ -197,7 +198,7 @@ export function ChatBody(props: DetailProps<'chat'>) {
     const noChats = agent !== undefined && threads.kind === 'loaded' && threads.value.length === 0;
     return (
       <View style={styles.center}>
-        <Text style={[typography.ui, { color: colors.text3 }]}>
+        <Text style={[typography.ui, styles.centerText, { color: colors.text3 }]}>
           {waiting ? 'Loading chat…' : noChats ? `${agent.name} has no chats yet.` : 'This chat is not on the host any more.'}
         </Text>
         {noChats ? (
@@ -215,6 +216,7 @@ export function ChatBody(props: DetailProps<'chat'>) {
     <View style={styles.fill}>
       <ChatThread key={thread.id} agent={agent} thread={thread} threads={threads.value} navigation={navigation} />
       <AgentSettingsSheet
+        key={agent.id}
         agent={agent}
         visible={settingsOpen}
         onClose={() => {
@@ -232,6 +234,7 @@ export function ChatBody(props: DetailProps<'chat'>) {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing[3], padding: spacing[6] },
+  centerText: { textAlign: 'center' },
   composer: { position: 'absolute', gap: spacing[2] },
   problem: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], borderRadius: radii.lg, borderWidth: 1, padding: spacing[3] },
   problemText: { flex: 1 },

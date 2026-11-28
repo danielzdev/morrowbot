@@ -6,7 +6,14 @@ import { createInstructions, guarded, INSTRUCTIONS_FILE, readInstructionsView, s
 /** Where agent records are kept (the storage feature provides one). */
 export interface AgentRecords {
   insert(agent: Agent): void;
-  update(agent: Agent): void;
+  update(
+    id: string,
+    expectedRevision: number | undefined,
+    change: (current: Agent) => Agent,
+  ):
+    | { readonly kind: 'updated'; readonly agent: Agent }
+    | { readonly kind: 'not-found' }
+    | { readonly kind: 'conflict'; readonly current: Agent };
   delete(id: string): boolean;
   get(id: string): Agent | undefined;
   list(): Agent[];
@@ -35,6 +42,7 @@ export type CreateAgentResult =
 export type UpdateAgentResult =
   | { readonly kind: 'updated'; readonly agent: Agent }
   | { readonly kind: 'not-found' }
+  | { readonly kind: 'conflict'; readonly current: Agent }
   | { readonly kind: 'invalid'; readonly reason: string };
 
 const NO_SUCH_FOLDER = 'folderId: No such folder';
@@ -88,6 +96,8 @@ export function createAgentService(options: AgentServiceOptions): AgentService {
         provider: request.provider,
         folderId: request.folderId,
         emojiReplies: request.emojiReplies,
+        disabledExtensions: request.disabledExtensions,
+        revision: 0,
         createdAt: at,
         updatedAt: at,
       };
@@ -113,10 +123,9 @@ export function createAgentService(options: AgentServiceOptions): AgentService {
       return { kind: 'created', agent };
     },
     update: (id, request) => {
-      const current = records.get(id);
-      if (current === undefined) return { kind: 'not-found' };
+      if (records.get(id) === undefined) return { kind: 'not-found' };
       if (unknownFolder(request.folderId)) return { kind: 'invalid', reason: NO_SUCH_FOLDER };
-      const next: Agent = {
+      return records.update(id, request.revision, (current) => ({
         ...current,
         name: request.name ?? current.name,
         description: request.description ?? current.description,
@@ -124,10 +133,9 @@ export function createAgentService(options: AgentServiceOptions): AgentService {
         provider: request.provider ?? current.provider,
         folderId: request.folderId === undefined ? current.folderId : request.folderId,
         emojiReplies: request.emojiReplies ?? current.emojiReplies,
+        disabledExtensions: request.disabledExtensions ?? current.disabledExtensions,
         updatedAt: options.now(),
-      };
-      records.update(next);
-      return { kind: 'updated', agent: next };
+      }));
     },
     delete: (id) => records.delete(id),
     readInstructions: async (id) => {

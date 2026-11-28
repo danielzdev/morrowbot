@@ -17,6 +17,8 @@ function many(count: number): readonly AgentFacts[] {
       provider: { kind: 'bound', pluginId: 'provider-echo', selection: { kind: 'default' }, access: 'read-only', vendorSettings: 'isolated' },
       folderId: index >= 150 ? LATER.id : null,
       emojiReplies: 'allowed',
+      disabledExtensions: [],
+      revision: 0,
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
     };

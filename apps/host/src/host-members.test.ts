@@ -109,7 +109,7 @@ it('shows a scoped member only its agents, keeps it out of other agents and serv
           "body": {
             "error": {
               "kind": "forbidden",
-              "message": "Only the server owner may change an agent's engine or folder",
+              "message": "Only the server owner may change an agent's engine, folder or extensions",
             },
           },
           "status": 403,

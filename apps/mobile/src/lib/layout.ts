@@ -125,3 +125,25 @@ export const ACTION_SLOT_METRICS: { readonly buttonSize: number; readonly gap: n
   buttonSize: ACTION_BUTTON_SIZE,
   gap: ACTION_GAP,
 };
+
+/**
+ * Padding for the secondary column inside `Split.Host`.
+ * On iOS 26+/27+ `UISplitViewController`, the secondary column extends behind the primary sidebar
+ * and reports the sidebar clearance via its own `safeArea.left`; side-by-side layouts report `0`
+ * and only need the hinge gap (or window safe left when expanded).
+ */
+export function deriveSplitDetailInsets(
+  layout: Extract<WorkspaceLayout, { readonly kind: 'split' }>,
+  windowInsets: { readonly top: number; readonly left: number; readonly right: number },
+  expanded: boolean,
+  detailMetrics: NativeLayoutMetrics | null,
+): { readonly top: number; readonly left: number; readonly right: number } {
+  if (!detailMetrics) {
+    return { top: windowInsets.top, left: expanded ? windowInsets.left : layout.gap, right: windowInsets.right };
+  }
+  return {
+    top: Math.max(windowInsets.top, detailMetrics.safeArea.top),
+    left: expanded ? Math.max(windowInsets.left, detailMetrics.safeArea.left) : detailMetrics.safeArea.left + layout.gap,
+    right: Math.max(windowInsets.right, detailMetrics.safeArea.right),
+  };
+}

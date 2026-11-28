@@ -14,6 +14,8 @@ const AGENT: Agent = {
   provider: { kind: 'unbound' },
   folderId: null,
   emojiReplies: 'allowed',
+  disabledExtensions: [],
+  revision: 0,
   createdAt: AT,
   updatedAt: AT,
 };
