@@ -7,24 +7,17 @@ import { daemons as daemonControl, type RecheckAnswer } from './daemons.ts';
 import { readCatalog, type PluginSource } from './discovery.ts';
 import { pluginControls, type RestartResult } from './plugin-controls.ts';
 import { pluginEnv } from './plugin-env.ts';
-import { connectPlugin, PluginRequestError, type PluginProcess, type PluginTimeouts } from './plugin-process.ts';
+import { DEFAULT_PLUGIN_TIMEOUTS, PluginRequestError, PluginTimeoutError, type PluginTimeouts } from './plugin-errors.ts';
+import { connectPlugin, type PluginProcess } from './plugin-process.ts';
 import type { PluginRecord, PluginStore } from './plugin-store.ts';
 import { providerRequests, type ProviderRequests } from './provider-requests.ts';
 import { systemProbe, type ProcessProbe } from './release-probe.ts';
 import { resolvePluginConfig, type ConfigResult } from './settings.ts';
 import { healthCheck } from './health.ts';
 import { newSlot, type Slot } from './slot.ts';
+import { toolRequests, type ToolRequests } from './tool-requests.ts';
 
-export const DEFAULT_PLUGIN_TIMEOUTS: PluginTimeouts = {
-  initMs: 10_000,
-  healthMs: 5_000,
-  shutdownMs: 3_000,
-  firstInfoMs: 120_000,
-  infoMs: 30_000,
-  usageMs: 15_000,
-  routeInfoMs: 15_000,
-  turnStopMs: 5_000,
-};
+export { DEFAULT_PLUGIN_TIMEOUTS } from './plugin-errors.ts';
 const HEALTH_INTERVAL_MS = 5 * 60_000;
 
 export interface PluginHostOptions {
@@ -60,7 +53,7 @@ export interface PluginSummary {
   readonly status: PluginStatus;
 }
 
-export interface PluginHost extends ProviderRequests {
+export interface PluginHost extends ProviderRequests, ToolRequests {
   readonly safeMode: boolean;
   readonly groups: ChildGroupRegistry;
   /** Plugin folders the last discovery could not load, and why. */
@@ -232,11 +225,13 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
     slot.process = child;
     slot.worker = worker;
     slot.info = undefined;
+    slot.tools = undefined;
     const retired = child.exited.then(async (exit) => {
       const current = slot.process === child;
       if (current) {
         slot.process = undefined;
         slot.info = undefined;
+        slot.tools = undefined;
       }
       return { exit, current, clean: await workerGone(slot, child, worker) };
     });
@@ -260,6 +255,17 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
     try {
       const kind = await child.init(resolved.config, dataDir);
       if (kind === manifest.kind) {
+        if (kind === 'tool') {
+          try {
+            slot.tools = await child.listTools();
+          } catch (error) {
+            if (error instanceof PluginRequestError || error instanceof PluginTimeoutError) {
+              await stopFailed(slot, error.message);
+              return;
+            }
+            throw error;
+          }
+        }
         setStatus(slot, { kind: 'running' });
         return;
       }
@@ -297,6 +303,7 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
     const child = slot.process;
     slot.process = undefined;
     slot.info = undefined;
+    slot.tools = undefined;
     endDaemons(slot);
     await child?.stop();
     if (stopping === undefined) await slot.retired;
@@ -352,11 +359,13 @@ export async function startPluginHost(options: PluginHostOptions): Promise<Plugi
   }
 
   const requests = providerRequests({ slotOf, statusOf, isServing: serving, groups, timeouts, retire: (slot, row) => daemons.retire(slot, row), killWorker });
+  const tools = toolRequests({ slots, statusOf, isServing: serving });
 
   const controls = pluginControls({ store, slotOf, enqueue, paused, start, stopProcess, setStatus });
 
   return {
     ...requests,
+    ...tools,
     ...controls,
     safeMode,
     groups,

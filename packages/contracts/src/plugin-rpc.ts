@@ -12,6 +12,7 @@ import {
   TurnRequest,
   UsageResult,
 } from './provider.ts';
+import { PluginToolDefinition, PluginToolName, PluginToolResult } from './tool-plugin.ts';
 
 /**
  * The messages the host and a plugin process exchange over the Node IPC channel (wire protocol v1).
@@ -47,6 +48,10 @@ export const HostMessage = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('provider-info'), id: RequestId, refresh: z.boolean() }),
   z.strictObject({ kind: z.literal('usage'), id: RequestId, refresh: z.boolean() }),
   z.strictObject({ kind: z.literal('route-info'), id: RequestId, cwd: z.string().min(1) }),
+  z.strictObject({ kind: z.literal('tools-list'), id: RequestId }),
+  z.strictObject({ kind: z.literal('tool-call'), id: RequestId, turnId: EntityId, name: PluginToolName, input: z.unknown() }),
+  /** Cancels an in-flight `tool-call` by its request id (no reply is expected for this notification). */
+  z.strictObject({ kind: z.literal('tool-cancel'), callId: RequestId }),
   z.strictObject({ kind: z.literal('turn'), ...TurnRequest.shape }),
   z.strictObject({ kind: z.literal('cancel'), turnId: EntityId }),
   z.strictObject({
@@ -73,6 +78,8 @@ export const PluginMessage = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('usage-result'), id: RequestId, usage: UsageResult }),
   z.strictObject({ kind: z.literal('route-info-result'), id: RequestId, accountKey: AccountKey, routeKey: RouteKey }),
   z.strictObject({ kind: z.literal('route-info-failed'), id: RequestId, reason: z.string().min(1) }),
+  z.strictObject({ kind: z.literal('tools-list-result'), id: RequestId, tools: z.array(PluginToolDefinition) }),
+  z.strictObject({ kind: z.literal('tool-call-result'), id: RequestId, result: PluginToolResult }),
   z.strictObject({ kind: z.literal('error'), id: RequestId, code: PluginErrorCode, message: z.string() }),
   z.strictObject({ kind: z.literal('turn-chunk'), turnId: EntityId, chunk: TurnChunk }),
   z.strictObject({ kind: z.literal('turn-end'), turnId: EntityId, ...TurnEnd.shape }),

@@ -15,6 +15,7 @@ export { CrashReason, PluginStatus, PluginStatusEvent } from './plugin-runtime.t
 export * from './ids.ts';
 export * from './provider.ts';
 export * from './host-tools.ts';
+export * from './tool-plugin.ts';
 export * from './agents.ts';
 export * from './threads.ts';
 export * from './messages.ts';

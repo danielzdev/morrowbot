@@ -90,6 +90,7 @@ export const ROWS = {
   updates: row('about', 'updates', 'Updates', 'Downloads new versions in the background and installs them when you restart.'),
   dataFolder: row('about', 'data-folder', 'Data folder', 'Where MorrowBot keeps your agents and chats.'),
   licences: row('about', 'licences', 'Third-party licences', 'Open-source components that ship inside MorrowBot.'),
+  reset: row('about', 'reset', 'Reset or uninstall', 'Start fresh, or remove MorrowBot from this Mac. You review every file it removes first.'),
 };
 
 /** Keys that work in one place rather than everywhere. */
